@@ -1,5 +1,6 @@
 //  @ts-check
 
+import comments from '@eslint-community/eslint-plugin-eslint-comments/configs'
 import { tanstackConfig } from '@tanstack/eslint-config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
 import pluginRouter from '@tanstack/eslint-plugin-router'
@@ -58,6 +59,11 @@ export default [
       '@eslint-react/naming-convention-ref-name': 'off',
       '@eslint-react/no-use-context': 'off',
     },
+  },
+  comments.recommended,
+  {
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
+    rules: { '@eslint-community/eslint-comments/require-description': 'error' },
   },
   regexp.configs['flat/recommended'],
   noUnsanitized.configs.recommended,
@@ -177,6 +183,7 @@ export default [
       '**/.cache/**',
       '.claude/worktrees/**',
       '.intent/**',
+      'src/routeTree.gen.ts',
       '.claude/skills/verify-tape/scripts/vite.verify.config.ts',
     ],
   },
