@@ -320,7 +320,7 @@ function SubmitArea({
   )
   switch (session.status) {
     case 'read-only':
-      return session.scope === 'venue' ? (
+      return session.cause === 'venue-not-traded' ? (
         <p className="text-[11px] leading-snug text-level3">
           {venue} is read only in Tape. It never signs or sends an order here.
         </p>

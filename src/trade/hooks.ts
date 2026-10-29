@@ -28,7 +28,7 @@ import { walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 
 export type TradeSession =
-  | { readonly status: 'read-only'; readonly scope: 'venue' | 'site' }
+  | { readonly status: 'read-only'; readonly cause: 'venue-not-traded' | 'site-reads-only' }
   | { readonly status: 'unavailable'; readonly reason: string }
   | { readonly status: 'disconnected' }
   | {
@@ -132,8 +132,8 @@ export function useTradeSession(venue: VenueId): TradeSession {
       if (ref) void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
     },
   })
-  if (!module) return { status: 'read-only', scope: 'venue' }
-  if (SITE_READ_ONLY) return { status: 'read-only', scope: 'site' }
+  if (!module) return { status: 'read-only', cause: 'venue-not-traded' }
+  if (SITE_READ_ONLY) return { status: 'read-only', cause: 'site-reads-only' }
   if (unavailable) return { status: 'unavailable', reason: unavailable }
   if (!ref) return { status: 'disconnected' }
   if (linked) {
