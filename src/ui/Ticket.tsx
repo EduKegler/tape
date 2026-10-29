@@ -3,10 +3,10 @@ import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
-import { DecimalError, formatNotional, formatPx, formatQty, notional, parsePx, parseQty } from '#/core/fixed'
+import { formatNotional, formatQty, notional, parsePx, parseQty } from '#/core/fixed'
+import { checkPrice, checkSize } from '#/trade/intent'
 import type { Base, VenueId } from '#/core/ids'
 import type { MarketSpec } from '#/core/market'
-import { priceTick } from '#/core/market'
 import { useFrame } from '#/client/hooks'
 import { useUsdcBalance } from '#/wallet/Wallet'
 import { VENUES } from '#/venues/index'
@@ -18,34 +18,6 @@ type Side = 'buy' | 'sell'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market'
-
-/** Validation is exact: a price must sit on the tick and a size on the step, checked in integers. */
-function checkPrice(spec: MarketSpec, value: string): string | undefined {
-  if (!value) return 'Enter a price'
-  try {
-    const px = parsePx(value, spec.scale)
-    if (px <= 0) return 'Price must be above zero'
-    const tick = priceTick(spec, px)
-    if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
-  } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
-    throw e
-  }
-  return undefined
-}
-
-function checkSize(spec: MarketSpec, value: string): string | undefined {
-  if (!value) return 'Enter a size'
-  try {
-    const qty = parseQty(value, spec.scale)
-    if (qty < spec.step) return `Minimum is ${formatQty(spec.step, spec.scale)}`
-    if (qty % spec.step !== 0) return `Size must be a multiple of ${formatQty(spec.step, spec.scale)}`
-  } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.qty} decimals` : 'Not a number'
-    throw e
-  }
-  return undefined
-}
 
 export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; group: string }) {
   const specs = useQuery(specsQuery(venue))
