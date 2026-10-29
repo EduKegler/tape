@@ -10,6 +10,10 @@ pnpm workspace: the app at the root, `@tape/core`, `@tape/venues` and `@tape/tra
 
 This repo is public. Research, competitor notes and decision logs never go here.
 
+## Commits
+
+Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. Never skip the hook. One change per commit: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits.
+
 ## TanStack docs and add-ons
 
 Look up TanStack APIs with the CLI instead of guessing. It is a dev dependency (`@tanstack/cli`), so run it with `pnpm exec tanstack`. Use `--json` when parsing the output.

@@ -1,0 +1,6 @@
+commit-msg:
+  jobs:
+    - name: conventional commits
+      run: pnpm exec commitlint --edit {1}
+    - name: no AI attribution
+      run: "! grep -qiE 'co-authored-by:.*(claude|anthropic|openai|copilot|cursor|gemini)|generated with|claude-session:' {1}"
