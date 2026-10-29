@@ -6,8 +6,8 @@ import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { send } from '../send'
 import { TradeFailure } from '../types'
-import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderIntent, OrderRef, SetupStep, StepId, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
-import { ONBOARDING, deriveKey, sdk, validatorOf, walletOf } from './client'
+import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderIntent, OrderLookup, OrderRef, SetupStep, StepId, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
+import { ONBOARDING_CHAIN, deriveKey, onboarding, sdk, validatorOf, walletOf } from './client'
 import { LONG_TERM_SECONDS, clientIdOf, quantums, subticks } from './wire'
 import type { ClobMarket } from './wire'
 
@@ -160,6 +160,21 @@ async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOr
   return indexer<IndexerOrder[]>(ctx, `/orders?address=${address}&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50`)
 }
 
+/** The indexer has no clientId filter, so the latest orders on the market are searched. It can lag the chain by a few blocks. */
+async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+  const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
+  const clientId = String(clientIdOf(intent.clientId))
+  let orders: (IndexerOrder & { status: string })[]
+  try {
+    orders = await indexer(ctx, `/orders?address=${address}&subaccountNumber=0&ticker=${intent.spec.venueSymbol}&limit=100&returnLatestOrders=true`)
+  } catch (e) {
+    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { kind: 'absent', detail: 'The dYdX indexer has no account for this address' }
+    throw e
+  }
+  const hit = orders.find((o) => o.clientId === clientId)
+  return hit ? { kind: 'found', detail: `Order ${hit.status.toLowerCase()}` } : { kind: 'absent', detail: 'Not in the dYdX indexer yet. It can lag the chain by a few blocks.' }
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place':
@@ -215,7 +230,10 @@ async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
 async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void): Promise<void> {
   if (ctx.keys.read()?.secret) return
   onStep('derive-key')
-  const { mnemonic, address } = await deriveKey(await wallet.signTypedData(ONBOARDING))
+  // Wallets refuse typed data whose domain chain is not the active one.
+  const chainId = ONBOARDING_CHAIN[ctx.ref.network]
+  if ((await wallet.chainId()) !== chainId) await wallet.switchChain(chainId)
+  const { mnemonic, address } = await deriveKey(await wallet.signTypedData(onboarding(ctx.ref.network)))
   ctx.keys.write({ status: 'linked', public: { address }, secret: mnemonic })
 }
 
@@ -229,4 +247,5 @@ export const dydx = {
   enable,
   account,
   execute,
+  lookup,
 } satisfies TradingVenue & { id: 'dydx' }

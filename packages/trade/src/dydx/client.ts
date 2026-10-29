@@ -17,13 +17,20 @@ type Sdk = Awaited<ReturnType<typeof sdk>>
 export type LocalWallet = Awaited<ReturnType<Sdk['LocalWallet']['fromMnemonic']>>
 export type Validator = Awaited<ReturnType<Sdk['ValidatorClient']['connect']>>
 
-/** What the wallet signs to derive the dYdX key, as dYdX's own frontend asks for it. */
-export const ONBOARDING = {
-  primaryType: 'dYdX',
-  domain: { name: 'dYdX Chain' },
-  types: { dYdX: [{ name: 'action', type: 'string' }] },
-  message: { action: 'dYdX Chain Onboarding' },
-} as const
+/**
+ * The Ethereum chain dYdX's frontend puts in the onboarding domain: `ethereumChainId` in v4-web's
+ * public/configs/v1/env.json. The same wallet only derives the same dYdX account with the same chain.
+ */
+export const ONBOARDING_CHAIN: Record<Network, number> = { mainnet: 1, testnet: 11_155_111 }
+
+/** What the wallet signs to derive the dYdX key, as v4-web's useSignForWalletDerivation asks for it. */
+export const onboarding = (network: Network) =>
+  ({
+    primaryType: 'dYdX',
+    domain: { name: 'dYdX Chain', chainId: ONBOARDING_CHAIN[network] },
+    types: { dYdX: [{ name: 'action', type: 'string' }] },
+    message: { action: 'dYdX Chain Onboarding' },
+  }) as const
 
 export async function deriveKey(signature: string): Promise<{ mnemonic: string; address: string }> {
   const { onboarding, LocalWallet } = await sdk()

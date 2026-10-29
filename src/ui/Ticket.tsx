@@ -179,7 +179,7 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
         }}
       </form.Subscribe>
       {built && <TradeNote error={built} />}
-      {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} />}
+      {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />}
       {network === 'testnet' && session.status !== 'read-only' && <p className="text-[11px] leading-snug text-level3">Testnet orders are priced by the testnet book. The book on screen is mainnet.</p>}
     </form>
   )

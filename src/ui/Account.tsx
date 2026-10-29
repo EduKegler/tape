@@ -72,7 +72,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
         {snapshot && tab === 'fills' && <Fills rows={snapshot.fills} />}
       </div>
       {last.command && last.command.kind !== 'place' && <div className="shrink-0 p-2"><TradeNote error={last.error} outcome={last.outcome} /></div>}
-      {last.command?.kind === 'place' && last.command.intent.reduceOnly && <div className="shrink-0 p-2"><TradeNote error={last.error} outcome={last.outcome} /></div>}
+      {last.command?.kind === 'place' && last.command.intent.reduceOnly && <div className="shrink-0 p-2"><TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} /></div>}
     </div>
   )
 }

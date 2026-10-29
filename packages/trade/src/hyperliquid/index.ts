@@ -9,7 +9,7 @@ import { post, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
 import { TradeFailure } from '../types'
-import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderIntent, OrderRef, SetupStep, StepId, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
+import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderIntent, OrderLookup, OrderRef, SetupStep, StepId, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
 import { cancelAction, leverageAction, orderAction, orderWire } from './wire'
 import type { OrderWire, Tif } from './wire'
@@ -169,6 +169,12 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   }
 }
 
+/** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
+async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+  const reply = await info<{ status: string; order?: { status: string } }>(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid: intent.clientId })
+  return reply.status === 'order' && reply.order ? { kind: 'found', detail: `Order ${reply.order.status}` } : { kind: 'absent', detail: `Hyperliquid answered ${reply.status}` }
+}
+
 const refOf = (index: number, oid: string) => `${index}:${oid}` as OrderRef
 function refParts(ref: OrderRef) {
   const [index, oid] = ref.split(':')
@@ -262,5 +268,6 @@ export const hyperliquid = {
   enable,
   account,
   execute,
+  lookup,
 } satisfies TradingVenue & { id: 'hyperliquid' }
 

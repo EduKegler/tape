@@ -60,6 +60,9 @@ export type Command =
   | { readonly kind: 'cancel-all'; readonly symbol: string }
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
 
+/** What the venue says about an order whose send had no answer. `absent` is the venue's own reply, not a timeout. */
+export type OrderLookup = { readonly kind: 'found'; readonly detail: string } | { readonly kind: 'absent'; readonly detail: string }
+
 export type CommandOutcome =
   | { readonly kind: 'placed'; readonly status: 'resting' | 'filled' | 'accepted'; readonly detail: string }
   | { readonly kind: 'done'; readonly detail: string }
@@ -209,6 +212,8 @@ export interface TradingVenue {
   account: (ctx: VenueContext) => Promise<AccountView>
   /** Signs with the slot's key, draft or linked, and lets the venue judge. */
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
+  /** Asks the venue for the order by its clientId, after a send that ended in unknown-outcome. */
+  lookup: (ctx: VenueContext, intent: OrderIntent) => Promise<OrderLookup>
 }
 
 export type TradingRegistry = { readonly [V in TradeVenueId]: TradingVenue & { readonly id: V } }

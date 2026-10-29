@@ -7,7 +7,7 @@ import { plainDecimal } from '@tape/core/fixed'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
-import { ONBOARDING, deriveKey } from './dydx/client'
+import { deriveKey, onboarding } from './dydx/client'
 import { classifyMessage as dydxMessage } from './dydx'
 import { send } from './send'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
@@ -17,7 +17,7 @@ import { claim, release } from './in-flight'
 import { buildIntent, closeIntent } from './intent'
 import type { Bps, KeySlot, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
-import { domainTypes } from './wallet'
+import { domainTypes, walletJson } from './wallet'
 
 const btc: MarketSpec = {
   key: marketKey('hyperliquid', 'BTC'), venue: 'hyperliquid', base: 'BTC', quote: 'USDC', kind: 'perp', venueSymbol: 'BTC',
@@ -129,8 +129,17 @@ describe('exact numbers', () => {
 })
 
 describe('wallet typed data', () => {
-  it('lists only the domain fields the dYdX onboarding has, so the derived key matches dYdX', () => {
-    expect(domainTypes(ONBOARDING.domain)).toEqual([{ name: 'name', type: 'string' }])
+  it('hashes the dYdX onboarding exactly as dYdX v4-web asks the wallet to sign it', () => {
+    // v4-web useSignForWalletDerivation: getSignTypedData plus the env's ethereumChainId, and an empty
+    // verifyingContract for MetaMask that viem leaves out of the domain type.
+    for (const [network, chainId] of [['mainnet', 1], ['testnet', 11_155_111]] as const) {
+      const official = { primaryType: 'dYdX', domain: { name: 'dYdX Chain', chainId }, types: { dYdX: [{ name: 'action', type: 'string' }] }, message: { action: 'dYdX Chain Onboarding' } } as const
+      const metaMask = { ...official, domain: { ...official.domain, verifyingContract: '' as never } }
+      const sent = JSON.parse(walletJson(onboarding(network))) as Parameters<typeof hashTypedData>[0]
+      expect(sent.types.EIP712Domain).toEqual([{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }])
+      expect(hashTypedData(sent)).toBe(hashTypedData(official))
+      expect(hashTypedData(sent)).toBe(hashTypedData(metaMask))
+    }
     expect(domainTypes({ name: 'Orderly', version: '1', chainId: 1, verifyingContract: '0x' })).toHaveLength(4)
   })
 
@@ -215,5 +224,42 @@ describe('hyperliquid module', () => {
     const error = await TRADING.hyperliquid.enable(ctx, wallet, () => {}).catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('no-account')
     expect(keys.read()).toMatchObject({ status: 'draft', public: { agent: expect.stringMatching(/^0x/) } })
+  })
+})
+
+describe('order lookup after an unknown outcome', () => {
+  const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' as Address
+  const built = buildIntent(btc, draft, caps)
+  if (!built.ok) throw new Error('intent')
+  const intent = built.intent
+
+  it('asks Hyperliquid for the cloid under the owner and reads found or unknownOid', async () => {
+    for (const [reply, expected] of [
+      [{ status: 'order', order: { status: 'filled' } }, { kind: 'found', detail: 'Order filled' }],
+      [{ status: 'unknownOid' }, { kind: 'absent', detail: 'Hyperliquid answered unknownOid' }],
+    ] as const) {
+      const { fetch, sent } = venue(() => reply)
+      const result = await TRADING.hyperliquid.lookup({ ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch }, intent)
+      expect(result).toEqual(expected)
+      expect(sent[0]?.body).toEqual({ type: 'orderStatus', user: owner, oid: intent.clientId })
+    }
+  })
+
+  it('finds a dYdX order by the uint32 client id among the latest on the market', async () => {
+    const keys = memorySlot({ status: 'linked', public: { address: 'dydx1test' }, secret: 'mnemonic' })
+    const clientId = String(Number(BigInt(intent.clientId) & 0xffff_ffffn))
+    const { fetch, sent } = venue(() => [{ clientId: '1', status: 'OPEN' }, { clientId, status: 'FILLED' }])
+    const result = await TRADING.dydx.lookup({ ref: { venue: 'dydx', network: 'testnet', owner }, config, keys, fetch }, intent)
+    expect(result).toEqual({ kind: 'found', detail: 'Order filled' })
+    expect(sent[0]?.url).toContain('/orders?address=dydx1test&subaccountNumber=0&ticker=BTC&limit=100&returnLatestOrders=true')
+  })
+
+  it('treats only a missing Orderly order as absent, not a missing key', async () => {
+    const keys = memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` })
+    const ctx = (answer: unknown): VenueContext => ({ ref: { venue: 'orderly', network: 'testnet', owner }, config, keys, fetch: venue(() => answer).fetch })
+    expect(await TRADING.orderly.lookup(ctx({ success: true, data: { status: 'NEW' } }), intent)).toEqual({ kind: 'found', detail: 'Order new' })
+    expect(await TRADING.orderly.lookup(ctx({ success: false, message: 'The order does not exist.' }), intent)).toEqual({ kind: 'absent', detail: 'The order does not exist.' })
+    const error = await TRADING.orderly.lookup(ctx({ success: false, message: 'Orderly key not registered' }), intent).catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
   })
 })

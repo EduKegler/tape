@@ -10,7 +10,8 @@ On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends order
 - `trade-market-hl` sends a market order as an IOC limit priced from the testnet book. Same answer.
 - `trade-double-submit` sends one order for three clicks inside the same tick, and a second one only after the first answer. Count `/exchange` calls with a `window.fetch` wrapper installed by `vt eval` before filling the form.
 - `trade-tpsl-hl` sends the order with take profit and stop loss in one action. Same answer.
-- `trade-enable-dydx` asks the wallet for the dYdX onboarding signature and derives the dYdX key in the tab. The ticket turns ready.
+- `trade-enable-dydx` asks the wallet for the dYdX onboarding signature and derives the dYdX key in the tab. The ticket turns ready. `wallet.jsonl` shows the domain `{"name":"dYdX Chain","chainId":11155111}`, the one dYdX's own frontend uses on testnet (1 on mainnet), so the wallet gets the same dYdX account as on dydx.trade.
+- `trade-lookup` asks the venue for the order by its client id after a send with no answer. Make `/exchange` fail with a `window.fetch` wrapper installed by `vt eval`, submit, and wait for `[data-order-lookup]`. On Hyperliquid testnet it says `The venue does not show this order. Hyperliquid answered unknownOid`.
 - `trade-order-dydx` gets `account dydx1… not found` from the chain, with the derived address. The client looks the account up before it signs, so an unfunded wallet never reaches the order signature. This proves the derivation, not the order encoding.
 - `trade-enable-orderly` switches the wallet to Arbitrum Sepolia, signs `Registration`, and the guard blocks the POST. The ticket shows the 451 text and `wallet.jsonl` holds the signed body.
 - `trade-account` shows `No account on this venue yet. Deposit to start.` for an unfunded wallet, after setup on dYdX and right away on Hyperliquid.

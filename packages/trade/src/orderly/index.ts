@@ -7,7 +7,7 @@ import { checkPrice, checkSize } from '../intent'
 import { send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure } from '../types'
-import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderRef, SetupStep, StepId, TradeConfig, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
+import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderIntent, OrderLookup, OrderRef, SetupStep, StepId, TradeConfig, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
 import { cancelPath, orderBody } from './wire'
@@ -84,6 +84,17 @@ function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
     specs.set(cacheKey, cached)
   }
   return cached
+}
+
+async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+  try {
+    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${intent.clientId}`)
+    return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
+  } catch (e) {
+    // Only the order missing counts; a missing account or key stays an error.
+    if (e instanceof TradeFailure && e.error.kind === 'rejected' && /order.*(not exist|not found)/i.test(e.error.detail)) return { kind: 'absent', detail: e.error.detail }
+    throw e
+  }
 }
 
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
@@ -227,4 +238,5 @@ export const orderly = {
   enable,
   account,
   execute,
+  lookup,
 } satisfies TradingVenue & { id: 'orderly' }

@@ -7,7 +7,7 @@ import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
 import { TRADE_CONFIG } from './config'
 import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
-import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, SetupStep, StepId, TradeError, TradeVenueId, VenueContext } from '@tape/trade/types'
+import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, OrderLookup, SetupStep, StepId, TradeError, TradeVenueId, VenueContext } from '@tape/trade/types'
 import { keySlot, subscribeVault } from './vault'
 import { walletSigner } from '@tape/trade/wallet'
 
@@ -151,11 +151,29 @@ export function useTradeCommands(ref: AccountRef | null) {
     },
   })
   const inFlight = useMutationState({ filters: { mutationKey: command, status: 'pending' }, select: (m) => m.state.variables as Command })
+  const unknown = mutation.error?.error.kind === 'unknown-outcome' && mutation.variables?.kind === 'place' ? mutation.variables.intent : null
+  const lookup = useQuery<OrderLookup, TradeFailure>({
+    queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientId ?? null],
+    enabled: Boolean(ref && unknown),
+    queryFn: async () => {
+      // What reached the venue may still be in flight there, so it gets a moment before the question.
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      return guard(ref!.venue, () => TRADING[ref!.venue].lookup(contextFor(ref!), unknown!))
+    },
+    retry: false,
+    staleTime: Infinity,
+  })
   return {
     run: (c: Command) => {
       if (ref && claim(ref, c)) mutation.mutate(c)
     },
-    last: { outcome: mutation.data ?? null, error: mutation.error?.error ?? null, pending: mutation.isPending, command: mutation.variables ?? null },
+    last: {
+      outcome: mutation.data ?? null,
+      error: mutation.error?.error ?? null,
+      pending: mutation.isPending,
+      command: mutation.variables ?? null,
+      lookup: unknown ? { result: lookup.data ?? null, error: lookup.error?.error ?? null } : null,
+    },
     inFlight,
   }
 }
