@@ -57,7 +57,7 @@ export interface ConnInput {
   readonly rand: number
 }
 
-export function backoffMs(attempt: number, rand: number): number {
+function backoffMs(attempt: number, rand: number): number {
   return Math.round(Math.min(15_000, 500 * 2 ** attempt) * (0.5 + rand / 2))
 }
 
