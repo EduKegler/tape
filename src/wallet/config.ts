@@ -5,7 +5,6 @@ import { injected, walletConnect } from 'wagmi/connectors'
 import { z } from 'zod'
 import { NETWORK } from '#/site'
 
-/** The chains the wallet is offered. Testnet signs on Arbitrum Sepolia (Orderly) and Sepolia (dYdX onboarding). */
 export const CHAINS = {
   mainnet: [mainnet, arbitrum, base, optimism],
   testnet: [arbitrumSepolia, sepolia],
@@ -19,7 +18,6 @@ export const USDC: Record<(typeof CHAINS.mainnet)[number]['id'], `0x${string}`> 
   [optimism.id]: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
 }
 
-/** Without a project id the build offers browser wallets only, and never loads WalletConnect. */
 export const WALLETCONNECT_PROJECT_ID = z
   .string()
   .regex(/^[0-9a-f]{32}$/)
@@ -45,7 +43,6 @@ export const wagmiConfig = createConfig({
         ]
       : []),
   ],
-  // One button for the browser's wallet, as before, not one per wallet it announces.
   multiInjectedProviderDiscovery: false,
   ssr: true,
   transports: Object.fromEntries(chains.map((c) => [c.id, http()])) as Record<(typeof chains)[number]['id'], Transport>,

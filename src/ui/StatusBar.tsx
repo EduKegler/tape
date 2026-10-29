@@ -1,7 +1,6 @@
 import { useHubStats } from '#/client/hooks'
 import { SITE_READ_ONLY } from '#/trade/config'
 
-/** The hub's own numbers, so the sharing claim can be checked by opening a second tab. */
 export function StatusBar() {
   const stats = useHubStats()
   return (

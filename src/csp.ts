@@ -2,7 +2,6 @@ import type { Network } from '@tape/core/ids'
 import { NETWORK } from '#/site'
 import { CHAINS, WALLETCONNECT_PROJECT_ID } from '#/wallet/config'
 
-/** Every origin the page may reach. The two networks share none, so a testnet build cannot touch mainnet. */
 export const CONNECT: Record<Network, readonly string[]> = {
   mainnet: [
     'https://data-api.binance.vision',
@@ -14,7 +13,6 @@ export const CONNECT: Record<Network, readonly string[]> = {
     'https://dydx-ops-rpc.kingnodes.com',
     'https://api.orderly.org',
     'wss://ws-evm.orderly.org',
-    // The wallet's USDC balance, read only on mainnet.
     ...CHAINS.mainnet.flatMap((c) => c.rpcUrls.default.http.map((url) => new URL(url).origin)),
   ],
   testnet: [
@@ -30,10 +28,8 @@ export const CONNECT: Record<Network, readonly string[]> = {
   ],
 }
 
-/** WalletConnect's relay, on both networks, for builds that offer WalletConnect. Its verify page loads in a frame. */
 export const WALLETCONNECT = ['wss://relay.walletconnect.org']
 
-/** Trading keys live in localStorage, so no script runs unless the server rendered it. */
 export function contentSecurityPolicy(
   nonce: string,
   network: Network = NETWORK,

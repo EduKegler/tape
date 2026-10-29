@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { encode } from 'uqr'
 import type { Connector } from 'wagmi'
 
-/** The WalletConnect pairing link as a QR, for a phone wallet to scan. */
 export function PairingQr({ connector, onCancel }: { connector: Connector; onCancel: () => void }) {
   const [uri, setUri] = useState<string | null>(null)
   useEffect(() => {

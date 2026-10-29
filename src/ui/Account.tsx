@@ -38,7 +38,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
 
 function message(session: TradeSession) {
   if (session.status === 'read-only')
-    return session.scope === 'site' ? <SiteReadOnly /> : 'This venue is read only in Tape.'
+    return session.cause === 'site-reads-only' ? <SiteReadOnly /> : 'This venue is read only in Tape.'
   if (session.status === 'disconnected') return 'Connect a wallet to see positions and orders.'
   return 'Trading is not available here.'
 }
