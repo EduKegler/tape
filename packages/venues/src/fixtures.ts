@@ -29,10 +29,10 @@ const ROUTES: [RegExp, string][] = [
 
 /** A fetch that answers from recorded REST responses and fails loudly on any URL it was not recorded with. */
 export const recordedFetch: typeof globalThis.fetch = async (input, init) => {
-  const url = String(input)
+  const url = input instanceof Request ? input.url : input.toString()
   let file = ROUTES.find(([re]) => re.test(url))?.[1]
   if (url.includes('api.hyperliquid.xyz/info')) {
-    const body = JSON.parse(String(init?.body)) as { type: string }
+    const body = JSON.parse(init?.body as string) as { type: string }
     file = `hyperliquid.${body.type}.json`
   }
   if (!file) throw new Error(`no recording for ${url}`)

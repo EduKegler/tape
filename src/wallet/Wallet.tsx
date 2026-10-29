@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   ProviderNotFoundError,
-  useAccount,
+  useConnection,
   useConnect,
   useConnectors,
   useDisconnect,
@@ -17,11 +17,11 @@ import { PairingQr } from './PairingQr'
 const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
 
 export function WalletButton() {
-  const { address, chainId, isConnected } = useAccount()
+  const { address, chainId, isConnected } = useConnection()
   const connectors = useConnectors()
-  const { connect, isPending, error, reset } = useConnect()
-  const { disconnect } = useDisconnect()
-  const { switchChain } = useSwitchChain()
+  const { mutate: connect, isPending, error, reset } = useConnect()
+  const { mutate: disconnect } = useDisconnect()
+  const { mutate: switchChain } = useSwitchChain()
   const [chosen, setChosen] = useState<Connector | null>(null)
   if (!isConnected || !address) {
     const pairing = isPending && chosen?.type === 'walletConnect' ? chosen : null
@@ -84,7 +84,7 @@ export function WalletButton() {
 }
 
 export function useUsdcBalance(): { readonly chain: string; readonly amount: string } | null {
-  const { address, chainId, chain } = useAccount()
+  const { address, chainId, chain } = useConnection()
   const token = chainId ? USDC[chainId as keyof typeof USDC] : undefined
   const { data } = useReadContract({
     address: token,

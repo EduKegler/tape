@@ -58,7 +58,7 @@ function memorySlot(initial: StoredKey | null = null): KeySlot {
 function venue(answer: (url: string, body: Record<string, unknown>) => unknown) {
   const sent: { url: string; body: Record<string, unknown> }[] = []
   const fetch = (async (url: string, init?: RequestInit) => {
-    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {}
+    const body = init?.body ? (JSON.parse(init.body as string) as Record<string, unknown>) : {}
     sent.push({ url, body })
     return new Response(JSON.stringify(answer(url, body)))
   }) as typeof globalThis.fetch

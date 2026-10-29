@@ -36,7 +36,7 @@ function grouped(side: BookSide, step: number, rows: number): { px: number; qty:
     const bucket = side.side === 'bid' ? Math.floor(px / step) * step : Math.ceil(px / step) * step
     const qty = side.qty.get(px) as number
     const last = out.at(-1)
-    if (last && last.px === bucket) last.qty += qty
+    if (last?.px === bucket) last.qty += qty
     else if (out.length === rows) break
     else out.push({ px: bucket, qty })
   }

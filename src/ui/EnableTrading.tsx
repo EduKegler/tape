@@ -4,7 +4,7 @@ import { TradeNote } from './TradeNote'
 export function EnableTrading({ session }: { session: Extract<TradeSession, { status: 'setup' }> }) {
   const busy = session.progress !== null
   return (
-    <div className="flex flex-col gap-2 rounded border border-rule p-2 text-[12px]">
+    <div className="flex flex-col gap-2 rounded-sm border border-rule p-2 text-[12px]">
       <ol className="flex flex-col gap-1">
         {(session.steps ?? []).map((s) => (
           <li key={s.id} className={`flex items-center gap-2 ${s.done ? 'text-level3 line-through' : 'text-level1'}`}>

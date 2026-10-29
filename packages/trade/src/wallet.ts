@@ -30,11 +30,12 @@ export function walletSigner(provider: Eip1193, address: Address): WalletSigner 
   return {
     address,
     chainId: async () => Number(await provider.request({ method: 'eth_chainId' })),
-    switchChain: async (chainId) =>
-      void (await provider.request({
+    switchChain: async (chainId) => {
+      await provider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: numberToHex(chainId) }],
-      })),
+      })
+    },
     signTypedData: async (data) =>
       (await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })) as Hex,
   }

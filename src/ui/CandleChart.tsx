@@ -124,7 +124,7 @@ export function CandleChart({
 
   useFrameEffect({ kind: 'candle', market: marketKey(venue, base), interval }, (f) => {
     const s = series.current
-    if (!s || !s.lastTime) return
+    if (!s?.lastTime) return
     for (const bar of f.bars) {
       if (bar.time < s.lastTime) continue
       s.candles.update({

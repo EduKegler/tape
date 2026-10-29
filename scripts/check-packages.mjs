@@ -12,7 +12,7 @@ const files = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
     e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
   )
-const specifiers = (source) => [...source.matchAll(/(?:from|import)\s*\(?\s*'([^']+)'/g)].map((m) => m[1])
+const specifiers = (source) => [...source.matchAll(/(?:from|import)\s*(?:\(\s*)?'([^']+)'/g)].map((m) => m[1])
 const packageOf = (spec) => (spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0])
 
 const problems = []

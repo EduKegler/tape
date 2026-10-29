@@ -1,5 +1,5 @@
 // The npm polyfill, not Node's module: this runs in the browser, where cosmjs expects a global Buffer.
-// eslint-disable-next-line node/prefer-node-protocol
+// eslint-disable-next-line node/prefer-node-protocol -- the browser polyfill, not node:buffer
 import { Buffer } from 'buffer'
 import type { Network } from '@tape/core/ids'
 

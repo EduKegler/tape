@@ -150,7 +150,7 @@ function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
         inputMode="numeric"
         value={value}
         onChange={(e) => setValue(e.target.value.trim())}
-        className="num w-10 rounded border border-rule bg-surface px-1 text-level1"
+        className="num w-10 rounded-sm border border-rule bg-surface px-1 text-level1"
       />
       <button type="submit" className="hover:text-level1">
         Set
@@ -165,7 +165,7 @@ function Table<T extends RowData>({
   empty,
 }: {
   rows: T[]
-  columns: ColumnDef<typeof features, T, any>[]
+  columns: ColumnDef<typeof features, T>[]
   empty: string
 }) {
   const table = useTable({ features, columns, data: rows })
