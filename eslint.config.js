@@ -1,6 +1,8 @@
 //  @ts-check
 
 import { tanstackConfig } from '@tanstack/eslint-config'
+import eslintReact from '@eslint-react/eslint-plugin'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 export default [
@@ -37,6 +39,29 @@ export default [
       '@typescript-eslint/switch-exhaustiveness-check': ['error', { considerDefaultExhaustiveForUnions: false }],
       'no-shadow': 'off',
       '@typescript-eslint/no-shadow': 'warn',
+    },
+  },
+  {
+    ...eslintReact.configs['recommended-type-checked'],
+    files: ['src/**/*.tsx'],
+  },
+  {
+    files: ['src/**/*.tsx'],
+    rules: {
+      '@eslint-react/naming-convention-ref-name': 'off',
+      '@eslint-react/no-use-context': 'off',
+    },
+  },
+  {
+    ...reactHooks.configs.flat['recommended-latest'],
+    files: ['src/**/*.{ts,tsx}'],
+  },
+  {
+    // Tape does not run the React Compiler, so the rules that only gate compilation stay off.
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   },
   {
