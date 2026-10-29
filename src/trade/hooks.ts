@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react'
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAccount } from 'wagmi'
+import { useConnection } from 'wagmi'
 import { UserRejectedRequestError } from 'viem'
 import type { Address } from 'viem'
 import type { VenueId } from '@tape/core/ids'
@@ -85,7 +85,7 @@ async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> 
 }
 
 function useRef(venue: VenueId): AccountRef | null {
-  const { address } = useAccount()
+  const { address } = useConnection()
   return address && isTradeVenue(venue) && !SITE_READ_ONLY
     ? { venue, network: NETWORK, owner: address.toLowerCase() as Address }
     : null
@@ -107,7 +107,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
   const ref = useRef(venue)
   const slot = useSlot(ref)
   const client = useQueryClient()
-  const { connector } = useAccount()
+  const { connector } = useConnection()
   const [progress, setProgress] = useState<StepId | null>(null)
   const module = isTradeVenue(venue) ? TRADING[venue] : null
   const unavailable = module?.unavailable(NETWORK, TRADE_CONFIG) ?? null
