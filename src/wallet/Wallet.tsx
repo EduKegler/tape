@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   ProviderNotFoundError,
   useAccount,
@@ -7,33 +8,49 @@ import {
   useReadContract,
   useSwitchChain,
 } from 'wagmi'
+import type { Connector } from 'wagmi'
 import { erc20Abi, formatUnits } from 'viem'
 import { USDC, chains } from './config'
 import { shortAddress } from '#/ui/format'
+import { PairingQr } from './PairingQr'
+
+const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
 
 export function WalletButton() {
   const { address, chainId, isConnected } = useAccount()
   const connectors = useConnectors()
-  const { connect, isPending, error } = useConnect()
+  const { connect, isPending, error, reset } = useConnect()
   const { disconnect } = useDisconnect()
   const { switchChain } = useSwitchChain()
+  const [chosen, setChosen] = useState<Connector | null>(null)
   if (!isConnected || !address) {
-    const injected = connectors[0]
+    const pairing = isPending && chosen?.type === 'walletConnect' ? chosen : null
     return (
       <div className="flex flex-col items-end gap-1">
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => connect({ connector: injected })}
-          className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-ink-contrast disabled:opacity-50"
-        >
-          {isPending ? 'Connecting…' : 'Connect wallet'}
-        </button>
+        <div className="flex gap-2">
+          {connectors.map((connector) => (
+            <button
+              key={connector.uid}
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                setChosen(connector)
+                connect({ connector })
+              }}
+              className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-ink-contrast disabled:opacity-50"
+            >
+              {isPending && chosen === connector ? 'Connecting…' : (LABEL[connector.type] ?? connector.name)}
+            </button>
+          ))}
+        </div>
         {error && (
           <p role="alert" className="text-[11px] text-level3">
-            {error instanceof ProviderNotFoundError ? 'No wallet in this browser.' : error.message.split('\n')[0]}
+            {error instanceof ProviderNotFoundError
+              ? `No wallet in this browser.${connectors.length > 1 ? ' Try WalletConnect.' : ''}`
+              : error.message.split('\n')[0]}
           </p>
         )}
+        {pairing && <PairingQr connector={pairing} onCancel={reset} />}
       </div>
     )
   }

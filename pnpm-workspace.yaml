@@ -4,3 +4,7 @@ packages:
 allowBuilds:
   esbuild: true
   lightningcss: true
+
+overrides:
+  # The WalletConnect QR modal. Tape draws its own QR, see src/wallet/no-appkit.ts.
+  '@reown/appkit': '-'

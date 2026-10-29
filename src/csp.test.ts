@@ -37,9 +37,20 @@ describe('content security policy', () => {
   })
 
   it('runs only scripts that carry the nonce', () => {
-    const script = contentSecurityPolicy('abc', 'testnet')
+    const script = contentSecurityPolicy('abc', 'testnet', false)
       .split('; ')
       .find((d) => d.startsWith('script-src'))
     expect(script).toBe("script-src 'self' 'nonce-abc' 'wasm-unsafe-eval'")
+  })
+
+  it('opens the WalletConnect relay and verify frame only to builds that offer it', () => {
+    const directive = (wc: boolean, name: string) =>
+      contentSecurityPolicy('abc', 'testnet', wc)
+        .split('; ')
+        .find((d) => d.startsWith(name))
+    expect(directive(false, 'connect-src')).not.toContain('walletconnect')
+    expect(directive(false, 'frame-src')).toBe("frame-src 'none'")
+    expect(directive(true, 'connect-src')).toContain('wss://relay.walletconnect.org')
+    expect(directive(true, 'frame-src')).toBe('frame-src https://verify.walletconnect.org')
   })
 })
