@@ -119,6 +119,6 @@ export const CANDLE_LIMIT = 3
 export function upsertCandle(bars: readonly Candle[], bar: Candle): readonly Candle[] {
   const last = bars.at(-1)
   if (last && bar.open < last.open) return bars
-  const kept = last && last.open === bar.open ? bars.slice(0, -1) : bars
+  const kept = last?.open === bar.open ? bars.slice(0, -1) : bars
   return [...kept, bar].slice(-CANDLE_LIMIT)
 }

@@ -35,7 +35,10 @@ const browserLifecycle: Lifecycle = {
   newTabId: () => crypto.randomUUID() as TabId,
   isVisible: () => document.visibilityState === 'visible',
   holdLiveness(tab, ready) {
-    if (!('locks' in navigator)) return ready()
+    if (!('locks' in navigator)) {
+      ready()
+      return
+    }
     void navigator.locks.request(`tape-tab:${tab}`, () => {
       ready()
       return new Promise<never>(() => {})

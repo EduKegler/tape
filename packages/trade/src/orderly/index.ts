@@ -54,7 +54,7 @@ export function classifyMessage(message: string): TradeError {
 const classify: Classify = (status, body, text) => {
   const b = body as { success?: boolean; message?: string } | null
   if (status === 429) return { kind: 'rate-limited', detail: b?.message ?? text }
-  return b && b.success === false ? classifyMessage(b.message ?? text) : null
+  return b?.success === false ? classifyMessage(b.message ?? text) : null
 }
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */

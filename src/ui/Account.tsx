@@ -165,7 +165,7 @@ function Table<T extends RowData>({
   empty,
 }: {
   rows: T[]
-  columns: ColumnDef<typeof features, T, any>[]
+  columns: ColumnDef<typeof features, T>[]
   empty: string
 }) {
   const table = useTable({ features, columns, data: rows })

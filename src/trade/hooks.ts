@@ -118,7 +118,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
     enabled: Boolean(ref && !unavailable && !linked && slot !== null),
     staleTime: 30_000,
   })
-  const enable = useMutation<void, TradeFailure>({
+  const enable = useMutation<undefined, TradeFailure>({
     mutationFn: async () => {
       const r = ref!
       const provider = (await connector!.getProvider()) as Parameters<typeof walletSigner>[0]
