@@ -53,7 +53,7 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
     pending.clear()
   }
 
-  const sendWant = () => {
+  const sendWantClearingUnwanted = () => {
     wantScheduled = false
     const wanted: Topic[] = []
     for (const [key, e] of entries) {
@@ -69,7 +69,7 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
   const scheduleWant = () => {
     if (wantScheduled) return
     wantScheduled = true
-    queueMicrotask(sendWant)
+    queueMicrotask(sendWantClearingUnwanted)
   }
 
   const start = () => {
@@ -85,7 +85,7 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
     })
     life.holdLiveness(tab, () => {
       port.post({ t: 'hello', tab, visible: life.isVisible() })
-      sendWant()
+      sendWantClearingUnwanted()
     })
   }
 
