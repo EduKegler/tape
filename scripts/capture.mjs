@@ -1,5 +1,3 @@
-// Captures docs/screenshot.png from a running server and renders docs/social-preview.png (1280x640).
-// Usage: pnpm build && pnpm exec vite preview --port 4317, then node scripts/capture.mjs [url]
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
