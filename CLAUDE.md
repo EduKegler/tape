@@ -16,6 +16,12 @@ Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. N
 
 One logical change per commit: one reason to change, which a reviewer keeps or reverts as a whole, and a subject that names it with no "and" or list. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits. Split: the same edit at many sites is one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol. Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it.
 
+## Comments
+
+Our own code explains itself through names, types and tests. A comment stays only for a constraint from outside the repo that the code cannot show: a venue quirk, a browser or library limit, a protocol rule. It names that outside party. Doc comments on `packages/*/src` exports state the public contract, and a lint suppression carries its reason after `--`.
+
+A why about our own design is a rename, an extracted function or a type instead. `/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */` was deleted for that. `/** Not found comes back as success: false, sometimes with a 200, so reads treat it as rejected. */` stays, because Orderly decides it.
+
 ## TanStack docs and add-ons
 
 Look up TanStack APIs with the CLI instead of guessing. It is a dev dependency (`@tanstack/cli`), so run it with `pnpm exec tanstack`. Use `--json` when parsing the output.
