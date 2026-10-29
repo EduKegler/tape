@@ -14,7 +14,7 @@ export type Topic =
   | { readonly kind: 'candle'; readonly market: MarketKey; readonly interval: Interval }
   | { readonly kind: 'compare'; readonly base: Base }
 
-export type TopicKind = Topic['kind']
+type TopicKind = Topic['kind']
 
 export function topicKey(topic: Topic): TopicKey {
   switch (topic.kind) {
