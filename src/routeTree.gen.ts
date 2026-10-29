@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as R1RouteImport } from './routes/r1'
 import { Route as VenueBaseRouteImport } from './routes/$venue.$base'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const R1Route = R1RouteImport.update({
+  id: '/r1',
+  path: '/r1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VenueBaseRoute = VenueBaseRouteImport.update({
@@ -25,27 +31,31 @@ const VenueBaseRoute = VenueBaseRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/r1': typeof R1Route
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/r1': typeof R1Route
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/r1': typeof R1Route
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$venue/$base'
+  fullPaths: '/' | '/r1' | '/$venue/$base'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$venue/$base'
-  id: '__root__' | '/' | '/$venue/$base'
+  to: '/' | '/r1' | '/$venue/$base'
+  id: '__root__' | '/' | '/r1' | '/$venue/$base'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  R1Route: typeof R1Route
   VenueBaseRoute: typeof VenueBaseRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r1': {
+      id: '/r1'
+      path: '/r1'
+      fullPath: '/r1'
+      preLoaderRoute: typeof R1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$venue/$base': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  R1Route: R1Route,
   VenueBaseRoute: VenueBaseRoute,
 }
 export const routeTree = rootRouteImport
