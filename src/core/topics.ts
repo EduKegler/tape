@@ -110,7 +110,7 @@ export interface TradesFrame extends FrameBase {
   readonly lastSide: 'buy' | 'sell' | null
 }
 
-export interface ChartBarFrame {
+interface ChartBarFrame {
   readonly time: number
   readonly open: number
   readonly high: number
