@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
-import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, skipToken, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useConnection } from 'wagmi'
 import { UserRejectedRequestError } from 'viem'
 import type { Address } from 'viem'
@@ -112,12 +112,16 @@ export function useTradeSession(venue: VenueId): TradeSession {
   const module = isTradeVenue(venue) ? TRADING[venue] : null
   const unavailable = module?.unavailable(NETWORK, TRADE_CONFIG) ?? null
   const linked = slot === 'linked:keyed'
-  const steps = useQuery<readonly SetupStep[], TradeFailure>({
-    queryKey: ref ? tradeKeys(ref).steps : ['trade', 'none'],
-    queryFn: () => guard(ref!.venue, () => TRADING[ref!.venue].steps(contextFor(ref!))),
-    enabled: Boolean(ref && !unavailable && !linked && slot !== null),
-    staleTime: 30_000,
-  })
+  const steps = useQuery(
+    queryOptions<readonly SetupStep[], TradeFailure>({
+      queryKey: ref ? tradeKeys(ref).steps : ['trade', 'none'],
+      queryFn:
+        ref && !unavailable && !linked && slot !== null
+          ? () => guard(ref.venue, () => TRADING[ref.venue].steps(contextFor(ref)))
+          : skipToken,
+      staleTime: 30_000,
+    }),
+  )
   const enable = useMutation<undefined, TradeFailure>({
     mutationFn: async () => {
       const r = ref!
@@ -161,24 +165,26 @@ export function useTradeSession(venue: VenueId): TradeSession {
 }
 
 export function useAccountView(ref: AccountRef | null) {
-  const query = useQuery<AccountView, TradeFailure>({
-    queryKey: ref ? tradeKeys(ref).account : ['trade', 'none', 'account'],
-    queryFn: () => guard(ref!.venue, () => TRADING[ref!.venue].account(contextFor(ref!))),
-    enabled: Boolean(ref),
-    refetchInterval: ACCOUNT_POLL_MS,
-  })
+  const query = useQuery(
+    queryOptions<AccountView, TradeFailure>({
+      queryKey: ref ? tradeKeys(ref).account : ['trade', 'none', 'account'],
+      queryFn: ref ? () => guard(ref.venue, () => TRADING[ref.venue].account(contextFor(ref))) : skipToken,
+      refetchInterval: ACCOUNT_POLL_MS,
+    }),
+  )
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
 
 /** Null where the venue has no estimate. Undefined while it loads or when the read fails. */
 export function useMarginState(ref: AccountRef | null, symbol: string): MarginState | null | undefined {
   const margin = ref ? TRADING[ref.venue].margin : undefined
-  const query = useQuery<MarginState, TradeFailure>({
-    queryKey: ref ? [...tradeKeys(ref).all, 'margin', symbol] : ['trade', 'none', 'margin'],
-    queryFn: () => guard(ref!.venue, () => margin!(contextFor(ref!), symbol)),
-    enabled: Boolean(ref && margin),
-    refetchInterval: ACCOUNT_POLL_MS,
-  })
+  const query = useQuery(
+    queryOptions<MarginState, TradeFailure>({
+      queryKey: ref ? [...tradeKeys(ref).all, 'margin', symbol] : ['trade', 'none', 'margin'],
+      queryFn: ref && margin ? () => guard(ref.venue, () => margin(contextFor(ref), symbol)) : skipToken,
+      refetchInterval: ACCOUNT_POLL_MS,
+    }),
+  )
   return margin ? query.data : null
 }
 
@@ -211,16 +217,21 @@ export function useTradeCommands(ref: AccountRef | null) {
     mutation.error?.error.kind === 'unknown-outcome' && mutation.variables?.kind === 'place'
       ? mutation.variables.intent
       : null
-  const lookup = useQuery<OrderLookup, TradeFailure>({
-    queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientId ?? null],
-    enabled: Boolean(ref && unknown),
-    queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, LOOKUP_DELAY_MS))
-      return guard(ref!.venue, () => TRADING[ref!.venue].lookup(contextFor(ref!), unknown!))
-    },
-    retry: false,
-    staleTime: Infinity,
-  })
+  const lookup = useQuery(
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client id names the intent
+    queryOptions<OrderLookup, TradeFailure>({
+      queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientId ?? null],
+      queryFn:
+        ref && unknown
+          ? async () => {
+              await new Promise((resolve) => setTimeout(resolve, LOOKUP_DELAY_MS))
+              return guard(ref.venue, () => TRADING[ref.venue].lookup(contextFor(ref), unknown))
+            }
+          : skipToken,
+      retry: false,
+      staleTime: Infinity,
+    }),
+  )
   return {
     run: (c: Command) => {
       if (ref && claim(ref, c)) mutation.mutate(c)
