@@ -18,7 +18,7 @@ export const readEnv = (): Env =>
 type Context = { readonly network: Network; readonly origin: string; readonly ip: string | null; readonly now: number }
 
 /** The body for PostHog's batch endpoint. Every event is anonymous and keyed by the page load, so no person profile is made. */
-export function toPostHog(batch: Batch, key: string, ctx: Context) {
+function toPostHog(batch: Batch, key: string, ctx: Context) {
   const host = new URL(ctx.origin).host
   return {
     api_key: key,
