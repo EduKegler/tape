@@ -20,6 +20,7 @@ export default [
       'prettier.config.js',
       '.output/**',
       '**/.cache/**',
+      '.claude/worktrees/**',
       '.claude/skills/verify-tape/scripts/vite.verify.config.ts',
     ],
   },

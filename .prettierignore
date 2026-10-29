@@ -7,6 +7,7 @@ packages/venues/src/__fixtures__/
 .claude/skills/verify-tape/.cache/
 .claude/skills/verify-tape/.state/
 .claude/skills/verify-tape/artifacts/
+.claude/worktrees/
 .intent/
 .cta.json
 AGENTS.md
