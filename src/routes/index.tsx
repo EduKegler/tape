@@ -1,14 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useFrame, useHubStats } from '#/client/hooks'
+import { marketKey } from '#/core/ids'
 
-export const Route = createFileRoute('/')({ component: Home })
+export const Route = createFileRoute('/')({ component: Probe })
 
-function Home() {
+function Probe() {
+  const stats = useHubStats()
+  const mid = useFrame({ kind: 'book', market: marketKey('binance', 'BTC'), group: '1' }, (f) => f?.mid ?? '')
+  const compare = useFrame({ kind: 'compare', base: 'BTC' }, (f) => f?.rows.map((r) => `${r.venue} ${r.status} ${r.bid}/${r.ask}`).join(' | ') ?? '')
   return (
-    <div className="p-8">
-      <h1 className="text-4xl font-bold">Welcome to TanStack Start</h1>
-      <p className="mt-4 text-lg">
-        Edit <code>src/routes/index.tsx</code> to get started.
-      </p>
-    </div>
+    <main className="p-6 num">
+      <p data-testid="stats">{stats ? `${stats.mode} tabs=${stats.tabs} sockets=${stats.sockets} streams=${stats.streams} msg/s=${stats.messagesPerSecond} frames/s=${stats.framesPerSecond}` : 'connecting'}</p>
+      <p data-testid="mid">mid={mid}</p>
+      <p data-testid="compare">{compare}</p>
+    </main>
   )
 }

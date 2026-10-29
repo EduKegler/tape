@@ -1,0 +1,70 @@
+import type { TabId } from '#/core/ids'
+import type { HubToTab } from '#/core/protocol'
+import { VENUES } from '#/venues/index'
+import { createHub } from './hub'
+import type { HubPort, SocketLike } from './hub'
+
+/**
+ * Worker entry. The same file boots as a SharedWorker, shared by every tab, or as a dedicated
+ * Worker where SharedWorker does not exist (Chrome on Android). Only tab liveness differs.
+ */
+interface WorkerScope {
+  onconnect?: unknown
+  addEventListener(type: 'connect', listener: (event: MessageEvent) => void): void
+  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void
+  postMessage(message: unknown): void
+}
+
+const scope = self as unknown as WorkerScope
+const shared = 'onconnect' in scope
+
+function fromWebSocket(ws: WebSocket): SocketLike {
+  const socket: SocketLike = {
+    send: (data) => ws.readyState === WebSocket.OPEN && ws.send(data),
+    close: () => ws.close(),
+    onopen: null,
+    onmessage: null,
+    onclose: null,
+  }
+  ws.onopen = () => socket.onopen?.()
+  ws.onmessage = (e) => socket.onmessage?.(String(e.data))
+  ws.onclose = () => socket.onclose?.()
+  return socket
+}
+
+const hub = createHub({
+  mode: shared ? 'shared' : 'dedicated',
+  venues: VENUES,
+  openSocket: (url) => fromWebSocket(new WebSocket(url)),
+  fetch: globalThis.fetch.bind(globalThis),
+  now: () => Date.now(),
+  random: Math.random,
+  // The tab holds this lock for its whole life, so the hub's request is granted the moment the tab dies.
+  watchTabGone: shared
+    ? (tab: TabId) => navigator.locks.request(`tape-tab:${tab}`, () => undefined).then(() => undefined)
+    : () => new Promise<void>(() => {}),
+})
+
+function fromPort(port: MessagePort): HubPort {
+  return {
+    post: (m: HubToTab) => port.postMessage(m),
+    listen: (fn) => {
+      port.onmessage = (e) => fn(e.data)
+      port.start()
+    },
+    close: () => port.close(),
+  }
+}
+
+if (shared) {
+  scope.addEventListener('connect', (event) => {
+    const port = event.ports[0]
+    if (port) hub.connect(fromPort(port))
+  })
+} else {
+  hub.connect({
+    post: (m: HubToTab) => scope.postMessage(m),
+    listen: (fn) => scope.addEventListener('message', (e) => fn(e.data)),
+    close: () => {},
+  })
+}
