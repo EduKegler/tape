@@ -29,14 +29,30 @@ export function actionHash(action: unknown, vault: Address | null, nonce: number
 
 export function l1TypedData(hash: Hex, chain: HlChain): TypedData {
   return {
-    domain: { name: 'Exchange', version: '1', chainId: 1337, verifyingContract: '0x0000000000000000000000000000000000000000' },
-    types: { Agent: [{ name: 'source', type: 'string' }, { name: 'connectionId', type: 'bytes32' }] },
+    domain: {
+      name: 'Exchange',
+      version: '1',
+      chainId: 1337,
+      verifyingContract: '0x0000000000000000000000000000000000000000',
+    },
+    types: {
+      Agent: [
+        { name: 'source', type: 'string' },
+        { name: 'connectionId', type: 'bytes32' },
+      ],
+    },
     primaryType: 'Agent',
     message: { source: chain === 'Mainnet' ? 'a' : 'b', connectionId: hash },
   }
 }
 
-export async function signL1Action(signer: TypedDataSigner, action: unknown, nonce: number, chain: HlChain, vault: Address | null = null): Promise<HlSignature> {
+export async function signL1Action(
+  signer: TypedDataSigner,
+  action: unknown,
+  nonce: number,
+  chain: HlChain,
+  vault: Address | null = null,
+): Promise<HlSignature> {
   return split(await signer.signTypedData(l1TypedData(actionHash(action, vault, nonce, null), chain)))
 }
 
@@ -72,16 +88,30 @@ const USER_TYPES = {
 
 export type UserActionType = keyof typeof USER_TYPES
 
-export function userTypedData(primaryType: UserActionType, message: Record<string, string | number>, chainId: number = SIGNATURE_CHAIN_ID): TypedData {
+export function userTypedData(
+  primaryType: UserActionType,
+  message: Record<string, string | number>,
+  chainId: number = SIGNATURE_CHAIN_ID,
+): TypedData {
   return {
-    domain: { name: 'HyperliquidSignTransaction', version: '1', chainId, verifyingContract: '0x0000000000000000000000000000000000000000' },
+    domain: {
+      name: 'HyperliquidSignTransaction',
+      version: '1',
+      chainId,
+      verifyingContract: '0x0000000000000000000000000000000000000000',
+    },
     types: { [primaryType]: USER_TYPES[primaryType] },
     primaryType,
     message,
   }
 }
 
-export async function signUserAction(signer: TypedDataSigner, primaryType: UserActionType, message: Record<string, string | number>, chainId?: number): Promise<HlSignature> {
+export async function signUserAction(
+  signer: TypedDataSigner,
+  primaryType: UserActionType,
+  message: Record<string, string | number>,
+  chainId?: number,
+): Promise<HlSignature> {
   return split(await signer.signTypedData(userTypedData(primaryType, message, chainId)))
 }
 

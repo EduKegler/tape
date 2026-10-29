@@ -7,7 +7,12 @@ import type { TypedData } from '../typed-data'
 const VERIFYING_CONTRACT: Address = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC'
 const domain = (chainId: number) => ({ name: 'Orderly', version: '1', chainId, verifyingContract: VERIFYING_CONTRACT })
 
-export function registrationTypedData(brokerId: string, chainId: number, registrationNonce: string, timestamp: number): TypedData {
+export function registrationTypedData(
+  brokerId: string,
+  chainId: number,
+  registrationNonce: string,
+  timestamp: number,
+): TypedData {
   return {
     domain: domain(chainId),
     primaryType: 'Registration',
@@ -51,7 +56,9 @@ export function addKeyTypedData(message: AddKeyMessage): TypedData {
 }
 
 export function accountId(address: Address, brokerId: string): Hex {
-  return keccak256(encodeAbiParameters([{ type: 'address' }, { type: 'bytes32' }], [address, keccak256(stringToBytes(brokerId))]))
+  return keccak256(
+    encodeAbiParameters([{ type: 'address' }, { type: 'bytes32' }], [address, keccak256(stringToBytes(brokerId))]),
+  )
 }
 
 export interface OrderlyKey {
@@ -65,7 +72,14 @@ export function orderlyKey(secret: Uint8Array = ed25519.utils.randomPrivateKey()
 }
 
 /** `path` includes the query string. */
-export function signRequest(key: OrderlyKey, account: Hex, timestamp: number, method: string, path: string, body = ''): Record<string, string> {
+export function signRequest(
+  key: OrderlyKey,
+  account: Hex,
+  timestamp: number,
+  method: string,
+  path: string,
+  body = '',
+): Record<string, string> {
   const signature = ed25519.sign(stringToBytes(`${timestamp}${method.toUpperCase()}${path}${body}`), key.secret)
   return {
     'orderly-account-id': account,

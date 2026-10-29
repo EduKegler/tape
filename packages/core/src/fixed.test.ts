@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { DecimalError, formatMid, formatNotional, formatPx, formatQty, notional, parsePx, parseQty, rescalePx, spreadBps, toDisplayFloat, wireDecimal } from './fixed'
+import {
+  DecimalError,
+  formatMid,
+  formatNotional,
+  formatPx,
+  formatQty,
+  notional,
+  parsePx,
+  parseQty,
+  rescalePx,
+  spreadBps,
+  toDisplayFloat,
+  wireDecimal,
+} from './fixed'
 
 const btc = { px: 2, qty: 5 } as const
 

@@ -5,8 +5,15 @@ import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from './intent'
 
 const hl: MarketSpec = {
-  key: marketKey('hyperliquid', 'BTC'), venue: 'hyperliquid', base: 'BTC', quote: 'USDC', kind: 'perp', venueSymbol: 'BTC',
-  scale: { px: 1, qty: 5 }, tick: { kind: 'sigfig', figures: 5 }, step: 1 as Qty,
+  key: marketKey('hyperliquid', 'BTC'),
+  venue: 'hyperliquid',
+  base: 'BTC',
+  quote: 'USDC',
+  kind: 'perp',
+  venueSymbol: 'BTC',
+  scale: { px: 1, qty: 5 },
+  tick: { kind: 'sigfig', figures: 5 },
+  step: 1 as Qty,
 }
 const dydx: MarketSpec = { ...hl, venue: 'dydx', scale: { px: 0, qty: 4 }, tick: { kind: 'fixed', tick: 1 as Px } }
 

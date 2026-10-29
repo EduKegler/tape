@@ -18,7 +18,14 @@ describe('orderly signing', () => {
   })
 
   it('builds AddOrderlyKey typed data that matches viem', () => {
-    const data = addKeyTypedData({ brokerId: 'woofi_pro', chainId: 421614, orderlyKey: orderlyKey().id, scope: 'read,trading', timestamp: 1685973017064, expiration: 1688565017064 })
+    const data = addKeyTypedData({
+      brokerId: 'woofi_pro',
+      chainId: 421614,
+      orderlyKey: orderlyKey().id,
+      scope: 'read,trading',
+      timestamp: 1685973017064,
+      expiration: 1688565017064,
+    })
     expect(typedDataDigest(data)).toBe(hashTypedData(data as Viem))
   })
 
@@ -32,15 +39,24 @@ describe('orderly signing', () => {
     expect(bytesToHex(ed25519.sign(new Uint8Array(), secret))).toBe(
       '0xe5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b',
     )
-    expect(orderlyKey(secret).id).toBe(`ed25519:${base58.encode(hexToBytes('0xd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a'))}`)
+    expect(orderlyKey(secret).id).toBe(
+      `ed25519:${base58.encode(hexToBytes('0xd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a'))}`,
+    )
   })
 
   it('signs timestamp, method, path and body in that order', () => {
     const key = orderlyKey()
-    const body = '{"symbol":"PERP_ETH_USDC","order_type":"LIMIT","order_price":1521.03,"order_quantity":2.11,"side":"BUY"}'
+    const body =
+      '{"symbol":"PERP_ETH_USDC","order_type":"LIMIT","order_price":1521.03,"order_quantity":2.11,"side":"BUY"}'
     const headers = signRequest(key, '0xabc', 1649920583000, 'post', '/v1/order', body)
     const pub = base58.decode(key.id.slice('ed25519:'.length))
-    expect(ed25519.verify(base64url.decode(headers['orderly-signature']!), stringToBytes(`1649920583000POST/v1/order${body}`), pub)).toBe(true)
+    expect(
+      ed25519.verify(
+        base64url.decode(headers['orderly-signature']!),
+        stringToBytes(`1649920583000POST/v1/order${body}`),
+        pub,
+      ),
+    ).toBe(true)
     expect(headers['orderly-timestamp']).toBe('1649920583000')
     expect(headers['orderly-key']).toBe(key.id)
   })

@@ -26,9 +26,18 @@ function setup() {
     watchTabGone: (id) => new Promise<void>((resolve) => gone.set(id, resolve)),
     openSocket(url) {
       const socket: FakeSocket = {
-        url, sent: [], closed: false, onopen: null, onmessage: null, onclose: null,
-        send(data) { this.sent.push(data) },
-        close() { this.closed = true },
+        url,
+        sent: [],
+        closed: false,
+        onopen: null,
+        onmessage: null,
+        onclose: null,
+        send(data) {
+          this.sent.push(data)
+        },
+        close() {
+          this.closed = true
+        },
       }
       sockets.push(socket)
       queueMicrotask(() => socket.onopen?.())
@@ -71,13 +80,24 @@ describe('hub', () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')
     const b = tab(hub, 'b')
-    a.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'book', market: btc('binance'), group: '100' }, { kind: 'trades', market: btc('dydx') }])
-    b.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'compare', base: 'BTC' }])
+    a.want([
+      { kind: 'book', market: btc('binance'), group: '1' },
+      { kind: 'book', market: btc('binance'), group: '100' },
+      { kind: 'trades', market: btc('dydx') },
+    ])
+    b.want([
+      { kind: 'book', market: btc('binance'), group: '1' },
+      { kind: 'compare', base: 'BTC' },
+    ])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    expect(sockets.map((s) => s.url).sort()).toEqual(Object.values(VENUES).map((v) => v.url).sort())
+    expect(sockets.map((s) => s.url).sort()).toEqual(
+      Object.values(VENUES)
+        .map((v) => v.url)
+        .sort(),
+    )
     const book = a.frames.get(`book|${btc('binance')}|1`) as BookFrame
     expect(book.status).toBe('live')
     expect(book.bids).toHaveLength(14)
@@ -99,7 +119,10 @@ describe('hub', () => {
     const a = tab(hub, 'a')
     const b = tab(hub, 'b')
     a.want([{ kind: 'trades', market: btc('hyperliquid') }])
-    b.want([{ kind: 'trades', market: btc('hyperliquid') }, { kind: 'book', market: btc('hyperliquid'), group: '1' }])
+    b.want([
+      { kind: 'trades', market: btc('hyperliquid') },
+      { kind: 'book', market: btc('hyperliquid'), group: '1' },
+    ])
     await vi.advanceTimersByTimeAsync(1100)
     const socket = sockets[0]!
     gone.get('b' as TabId)!()

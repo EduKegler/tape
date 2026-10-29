@@ -4,7 +4,13 @@ import type { TradeError, TradeVenueId } from './types'
 
 export type Classify = (status: number, body: unknown, text: string) => TradeError | null
 
-export async function send<T>(venue: TradeVenueId, fetch: typeof globalThis.fetch, url: string, init: RequestInit & { mutates: boolean }, classify: Classify): Promise<T> {
+export async function send<T>(
+  venue: TradeVenueId,
+  fetch: typeof globalThis.fetch,
+  url: string,
+  init: RequestInit & { mutates: boolean },
+  classify: Classify,
+): Promise<T> {
   let response: Response
   try {
     response = await fetch(url, init)
@@ -19,7 +25,8 @@ export async function send<T>(venue: TradeVenueId, fetch: typeof globalThis.fetc
     const detail = e instanceof Error ? e.message : String(e)
     throw new TradeFailure(venue, init.mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
   }
-  if (init.mutates && response.status >= 500) throw new TradeFailure(venue, { kind: 'unknown-outcome', detail: `${response.status} ${text}` })
+  if (init.mutates && response.status >= 500)
+    throw new TradeFailure(venue, { kind: 'unknown-outcome', detail: `${response.status} ${text}` })
   let body: unknown = null
   try {
     body = parseExactJson(text)
@@ -33,9 +40,16 @@ export async function send<T>(venue: TradeVenueId, fetch: typeof globalThis.fetc
 
 function httpError(status: number, text: string, mutates: boolean): TradeError | null {
   if (status === 429) return { kind: 'rate-limited', detail: text || 'Too many requests' }
-  if (status >= 500) return mutates ? { kind: 'unknown-outcome', detail: `${status} ${text}` } : { kind: 'unreachable', detail: `${status} ${text}` }
+  if (status >= 500)
+    return mutates
+      ? { kind: 'unknown-outcome', detail: `${status} ${text}` }
+      : { kind: 'unreachable', detail: `${status} ${text}` }
   if (status >= 400) return { kind: 'rejected', detail: `${status} ${text}` }
   return null
 }
 
-export const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+export const post = (body: unknown): RequestInit => ({
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(body),
+})

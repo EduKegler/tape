@@ -52,13 +52,23 @@ function Market() {
           />
         </div>
         <div className="h-[660px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-auto">
-          <OrderBook market={market} group={group} onGroup={(g) => void navigate({ search: (s) => ({ ...s, group: Number(g) }), replace: true })} />
+          <OrderBook
+            market={market}
+            group={group}
+            onGroup={(g) => void navigate({ search: (s) => ({ ...s, group: Number(g) }), replace: true })}
+          />
         </div>
         <div className="h-80 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:h-auto">
           <Trades market={market} />
         </div>
         <div className="lg:col-start-4 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
-          <Ticket venue={venue} base={base} group={group} network={search.net} onNetwork={(net) => void navigate({ search: (s) => ({ ...s, net }), replace: true })} />
+          <Ticket
+            venue={venue}
+            base={base}
+            group={group}
+            network={search.net}
+            onNetwork={(net) => void navigate({ search: (s) => ({ ...s, net }), replace: true })}
+          />
         </div>
         <div className="h-52 lg:col-start-1 lg:row-start-2 lg:h-auto">
           <DepthChart market={market} />

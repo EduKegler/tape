@@ -50,7 +50,11 @@ export function streamKey(market: MarketKey, channel: StreamChannel, interval?: 
   return (channel === 'candle' ? `${market}:candle:${interval ?? '1m'}` : `${market}:${channel}`) as StreamKey
 }
 
-export function parseStreamKey(key: StreamKey): { market: MarketKey; channel: StreamChannel; interval: Interval | null } {
+export function parseStreamKey(key: StreamKey): {
+  market: MarketKey
+  channel: StreamChannel
+  interval: Interval | null
+} {
   const [venue, base, channel, interval] = key.split(':') as [VenueId, Base, StreamChannel, Interval | undefined]
   return { market: marketKey(venue, base), channel, interval: interval ?? null }
 }

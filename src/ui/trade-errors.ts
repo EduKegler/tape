@@ -21,7 +21,10 @@ export function describeError(error: TradeError): { readonly title: string; read
     case 'unreachable':
       return { title: 'Could not reach the venue. Nothing was sent.', detail: error.detail }
     case 'unknown-outcome':
-      return { title: 'Sent, but no answer came back. Check positions, orders and fills before sending again.', detail: error.detail }
+      return {
+        title: 'Sent, but no answer came back. Check positions, orders and fills before sending again.',
+        detail: error.detail,
+      }
     case 'unexpected':
       return { title: 'Something went wrong in Tape.', detail: error.detail }
   }

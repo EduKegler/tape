@@ -15,7 +15,10 @@ interface WireLevel {
 type Wire =
   | { channel: 'l2Book'; data: { coin: string; time: number; levels: [WireLevel[], WireLevel[]] } }
   | { channel: 'trades'; data: { coin: string; side: 'B' | 'A'; px: string; sz: string; time: number; tid: number }[] }
-  | { channel: 'candle'; data: { t: number; s: string; i: Interval; o: string; c: string; h: string; l: string; v: string } }
+  | {
+      channel: 'candle'
+      data: { t: number; s: string; i: Interval; o: string; c: string; h: string; l: string; v: string }
+    }
   | { channel: 'subscriptionResponse' | 'pong' | 'error'; data: unknown }
 
 const levels = (side: WireLevel[]): RawLevel[] => side.map((l) => [l.px, l.sz] as const)
@@ -44,22 +47,35 @@ export const hyperliquid: VenueAdapter = {
   silenceMs: 60_000,
 
   async fetchSpecs(fetch, signal) {
-    const meta = await getJson<{ universe: { name: string; szDecimals: number }[] }>(fetch, INFO, post({ type: 'meta' }, signal))
+    const meta = await getJson<{ universe: { name: string; szDecimals: number }[] }>(
+      fetch,
+      INFO,
+      post({ type: 'meta' }, signal),
+    )
     const specs = new Map<Base, MarketSpec>()
     for (const base of BASES) {
       const asset = meta.universe.find((u) => u.name === base)
       if (!asset) continue
       const qty = asset.szDecimals as Decimals
       specs.set(base, {
-        key: marketKey('hyperliquid', base), venue: 'hyperliquid', base, quote: 'USDC', kind: 'perp', venueSymbol: base,
-        scale: { px: (6 - qty) as Decimals, qty }, tick: { kind: 'sigfig', figures: 5 }, step: 1 as MarketSpec['step'],
+        key: marketKey('hyperliquid', base),
+        venue: 'hyperliquid',
+        base,
+        quote: 'USDC',
+        kind: 'perp',
+        venueSymbol: base,
+        scale: { px: (6 - qty) as Decimals, qty },
+        tick: { kind: 'sigfig', figures: 5 },
+        step: 1 as MarketSpec['step'],
       })
     }
     return specs
   },
 
-  subscribeFrames: (targets) => targets.map((t) => JSON.stringify({ method: 'subscribe', subscription: subscription(t) })),
-  unsubscribeFrames: (targets) => targets.map((t) => JSON.stringify({ method: 'unsubscribe', subscription: subscription(t) })),
+  subscribeFrames: (targets) =>
+    targets.map((t) => JSON.stringify({ method: 'subscribe', subscription: subscription(t) })),
+  unsubscribeFrames: (targets) =>
+    targets.map((t) => JSON.stringify({ method: 'unsubscribe', subscription: subscription(t) })),
 
   parse(raw, symbols) {
     const m = JSON.parse(raw) as Wire
@@ -70,12 +86,26 @@ export const hyperliquid: VenueAdapter = {
       case 'l2Book': {
         const market = symbols(m.data.coin)
         if (!market) return []
-        return [{ kind: 'book-snapshot', market, bids: levels(m.data.levels[0]), asks: levels(m.data.levels[1]), time: m.data.time }]
+        return [
+          {
+            kind: 'book-snapshot',
+            market,
+            bids: levels(m.data.levels[0]),
+            asks: levels(m.data.levels[1]),
+            time: m.data.time,
+          },
+        ]
       }
       case 'trades': {
         const market = m.data[0] && symbols(m.data[0].coin)
         if (!market) return []
-        const trades = m.data.map((t) => ({ id: String(t.tid), px: t.px, qty: t.sz, side: t.side === 'B' ? ('buy' as const) : ('sell' as const), time: t.time }))
+        const trades = m.data.map((t) => ({
+          id: String(t.tid),
+          px: t.px,
+          qty: t.sz,
+          side: t.side === 'B' ? ('buy' as const) : ('sell' as const),
+          time: t.time,
+        }))
         return [{ kind: 'trades', market, trades }]
       }
       case 'candle': {
@@ -91,17 +121,30 @@ export const hyperliquid: VenueAdapter = {
 
   async fetchStats(base, fetch, signal) {
     type Ctx = { funding: string; prevDayPx: string; dayNtlVlm: string; oraclePx: string; markPx: string }
-    const [meta, ctxs] = await getJson<[{ universe: { name: string }[] }, Ctx[]]>(fetch, INFO, post({ type: 'metaAndAssetCtxs' }, signal))
+    const [meta, ctxs] = await getJson<[{ universe: { name: string }[] }, Ctx[]]>(
+      fetch,
+      INFO,
+      post({ type: 'metaAndAssetCtxs' }, signal),
+    )
     const ctx = ctxs[meta.universe.findIndex((u) => u.name === base)]
     if (!ctx) throw new Error(`no ${base} on hyperliquid`)
     const prev = Number(ctx.prevDayPx)
-    return { changePct: ((Number(ctx.markPx) - prev) / prev) * 100, volumeQuote: Number(ctx.dayNtlVlm), fundingRate: Number(ctx.funding), indexPrice: Number(ctx.oraclePx) }
+    return {
+      changePct: ((Number(ctx.markPx) - prev) / prev) * 100,
+      volumeQuote: Number(ctx.dayNtlVlm),
+      fundingRate: Number(ctx.funding),
+      indexPrice: Number(ctx.oraclePx),
+    }
   },
 
   async fetchCandles(base, interval, fetch, signal) {
     const endTime = Date.now()
     const req = { coin: base, interval, startTime: endTime - 500 * INTERVAL_MS[interval], endTime }
-    const rows = await getJson<{ t: number; o: string; h: string; l: string; c: string; v: string }[]>(fetch, INFO, post({ type: 'candleSnapshot', req }, signal))
+    const rows = await getJson<{ t: number; o: string; h: string; l: string; c: string; v: string }[]>(
+      fetch,
+      INFO,
+      post({ type: 'candleSnapshot', req }, signal),
+    )
     return rows.map((r) => chartBar(r.t, r.o, r.h, r.l, r.c, r.v))
   },
 }

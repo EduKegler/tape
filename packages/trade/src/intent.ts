@@ -15,7 +15,8 @@ export function checkPrice(spec: MarketSpec, value: string): string | undefined 
     const tick = priceTick(spec, px)
     if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
   } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
+    if (e instanceof DecimalError)
+      return e.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
     throw e
   }
   return undefined
@@ -28,7 +29,8 @@ export function checkSize(spec: MarketSpec, value: string): string | undefined {
     if (qty < spec.step) return `Minimum is ${formatQty(spec.step, spec.scale)}`
     if (qty % spec.step !== 0) return `Size must be a multiple of ${formatQty(spec.step, spec.scale)}`
   } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.qty} decimals` : 'Not a number'
+    if (e instanceof DecimalError)
+      return e.reason === 'precision' ? `At most ${spec.scale.qty} decimals` : 'Not a number'
     throw e
   }
   return undefined
@@ -47,7 +49,9 @@ export interface IntentDraft {
 }
 
 export type DraftField = 'price' | 'size' | 'tif' | 'takeProfit' | 'stopLoss'
-export type Built = { readonly ok: true; readonly intent: OrderIntent } | { readonly ok: false; readonly errors: Partial<Record<DraftField, string>> }
+export type Built =
+  | { readonly ok: true; readonly intent: OrderIntent }
+  | { readonly ok: false; readonly errors: Partial<Record<DraftField, string>> }
 
 export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabilities): Built {
   const errors: Partial<Record<DraftField, string>> = {}
@@ -80,14 +84,26 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   if (draft.kind === 'limit' && !errors.price) {
     const px = parsePx(draft.price, spec.scale)
     const above = draft.side === 'buy'
-    if (takeProfit !== null && (above ? takeProfit <= px : takeProfit >= px)) errors.takeProfit = `Must be ${above ? 'above' : 'below'} the price`
-    if (stopLoss !== null && (above ? stopLoss >= px : stopLoss <= px)) errors.stopLoss = `Must be ${above ? 'below' : 'above'} the price`
+    if (takeProfit !== null && (above ? takeProfit <= px : takeProfit >= px))
+      errors.takeProfit = `Must be ${above ? 'above' : 'below'} the price`
+    if (stopLoss !== null && (above ? stopLoss >= px : stopLoss <= px))
+      errors.stopLoss = `Must be ${above ? 'below' : 'above'} the price`
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors }
-  const order = draft.kind === 'limit' ? { kind: 'limit' as const, px: parsePx(draft.price, spec.scale), tif: draft.tif } : { kind: 'market' as const, slippage: draft.slippage }
+  const order =
+    draft.kind === 'limit'
+      ? { kind: 'limit' as const, px: parsePx(draft.price, spec.scale), tif: draft.tif }
+      : { kind: 'market' as const, slippage: draft.slippage }
   return {
     ok: true,
-    intent: intentOf({ spec, side: draft.side, size: parseQty(draft.size, spec.scale), reduceOnly: draft.reduceOnly, order, triggers: { takeProfit, stopLoss } }),
+    intent: intentOf({
+      spec,
+      side: draft.side,
+      size: parseQty(draft.size, spec.scale),
+      reduceOnly: draft.reduceOnly,
+      order,
+      triggers: { takeProfit, stopLoss },
+    }),
   }
 }
 
@@ -96,8 +112,12 @@ export function closeIntent(spec: MarketSpec, position: Position, slippage: Bps)
   const size = position.size.replace(/^-/, '')
   if (checkSize(spec, size)) return null
   return intentOf({
-    spec, side: position.side === 'long' ? 'sell' : 'buy', size: parseQty(size, spec.scale), reduceOnly: true,
-    order: { kind: 'market', slippage }, triggers: { takeProfit: null, stopLoss: null },
+    spec,
+    side: position.side === 'long' ? 'sell' : 'buy',
+    size: parseQty(size, spec.scale),
+    reduceOnly: true,
+    order: { kind: 'market', slippage },
+    triggers: { takeProfit: null, stopLoss: null },
   })
 }
 

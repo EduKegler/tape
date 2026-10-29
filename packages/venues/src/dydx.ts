@@ -42,10 +42,29 @@ function channelOf(target: StreamTarget): { channel: string; id: string } {
   return { channel: 'v4_candles', id: `${ticker}/${RESOLUTION[target.interval ?? '1m']}` }
 }
 
-const trade = (t: WireTrade): RawTrade => ({ id: t.id, px: t.price, qty: t.size, side: t.side === 'BUY' ? 'buy' : 'sell', time: Date.parse(t.createdAt) })
-const candle = (c: WireCandle): RawCandle => ({ open: Date.parse(c.startedAt), o: c.open, h: c.high, l: c.low, c: c.close, v: c.baseTokenVolume })
+const trade = (t: WireTrade): RawTrade => ({
+  id: t.id,
+  px: t.price,
+  qty: t.size,
+  side: t.side === 'BUY' ? 'buy' : 'sell',
+  time: Date.parse(t.createdAt),
+})
+const candle = (c: WireCandle): RawCandle => ({
+  open: Date.parse(c.startedAt),
+  o: c.open,
+  h: c.high,
+  l: c.low,
+  c: c.close,
+  v: c.baseTokenVolume,
+})
 
-function events(channel: Wire['channel'], market: MarketKey, interval: Interval | null, snapshot: boolean, contents: unknown): VenueEvent[] {
+function events(
+  channel: Wire['channel'],
+  market: MarketKey,
+  interval: Interval | null,
+  snapshot: boolean,
+  contents: unknown,
+): VenueEvent[] {
   switch (channel) {
     case 'v4_orderbook': {
       if (snapshot) {
@@ -88,20 +107,31 @@ export const dydx: VenueAdapter = {
       BASES.map(async (base) => {
         const ticker = tickerOf(base)
         const json = await getJson<{ markets: Record<string, { tickSize: string; stepSize: string; status: string }> }>(
-          fetch, `${INDEXER}/perpetualMarkets?ticker=${ticker}`, { signal: signal ?? null })
+          fetch,
+          `${INDEXER}/perpetualMarkets?ticker=${ticker}`,
+          { signal: signal ?? null },
+        )
         const m = json.markets[ticker]
         if (!m || m.status !== 'ACTIVE') return
         const scale = { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) }
         specs.set(base, {
-          key: marketKey('dydx', base), venue: 'dydx', base, quote: 'USD', kind: 'perp', venueSymbol: ticker,
-          scale, tick: { kind: 'fixed', tick: parsePx(m.tickSize, scale) }, step: parseQty(m.stepSize, scale),
+          key: marketKey('dydx', base),
+          venue: 'dydx',
+          base,
+          quote: 'USD',
+          kind: 'perp',
+          venueSymbol: ticker,
+          scale,
+          tick: { kind: 'fixed', tick: parsePx(m.tickSize, scale) },
+          step: parseQty(m.stepSize, scale),
         })
       }),
     )
     return specs
   },
 
-  subscribeFrames: (targets) => targets.map((t) => JSON.stringify({ type: 'subscribe', ...channelOf(t), batched: false })),
+  subscribeFrames: (targets) =>
+    targets.map((t) => JSON.stringify({ type: 'subscribe', ...channelOf(t), batched: false })),
   unsubscribeFrames: (targets) => targets.map((t) => JSON.stringify({ type: 'unsubscribe', ...channelOf(t) })),
 
   parse(raw, symbols) {
@@ -121,17 +151,28 @@ export const dydx: VenueAdapter = {
   async fetchStats(base, fetch, signal) {
     type Market = { oraclePrice: string; priceChange24H: string; volume24H: string; nextFundingRate: string }
     const ticker = tickerOf(base)
-    const json = await getJson<{ markets: Record<string, Market> }>(fetch, `${INDEXER}/perpetualMarkets?ticker=${ticker}`, { signal: signal ?? null })
+    const json = await getJson<{ markets: Record<string, Market> }>(
+      fetch,
+      `${INDEXER}/perpetualMarkets?ticker=${ticker}`,
+      { signal: signal ?? null },
+    )
     const m = json.markets[ticker]
     if (!m) throw new Error(`no ${ticker} on dydx`)
     const oracle = Number(m.oraclePrice)
     const change = Number(m.priceChange24H)
-    return { changePct: (change / (oracle - change)) * 100, volumeQuote: Number(m.volume24H), fundingRate: Number(m.nextFundingRate), indexPrice: oracle }
+    return {
+      changePct: (change / (oracle - change)) * 100,
+      volumeQuote: Number(m.volume24H),
+      fundingRate: Number(m.nextFundingRate),
+      indexPrice: oracle,
+    }
   },
 
   async fetchCandles(base, interval, fetch, signal) {
     const url = `${INDEXER}/candles/perpetualMarkets/${tickerOf(base)}?resolution=${RESOLUTION[interval]}&limit=500`
     const json = await getJson<{ candles: WireCandle[] }>(fetch, url, { signal: signal ?? null })
-    return json.candles.map((c) => chartBar(Date.parse(c.startedAt), c.open, c.high, c.low, c.close, c.baseTokenVolume)).reverse()
+    return json.candles
+      .map((c) => chartBar(Date.parse(c.startedAt), c.open, c.high, c.low, c.close, c.baseTokenVolume))
+      .reverse()
   },
 }

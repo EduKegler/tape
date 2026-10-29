@@ -7,12 +7,17 @@ import { chromium } from 'playwright-core'
 const base = process.argv[2] ?? 'http://localhost:4317'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const font = (pkg, file) => readFileSync(`${root}node_modules/@fontsource-variable/${pkg}/files/${file}`).toString('base64')
+const font = (pkg, file) =>
+  readFileSync(`${root}node_modules/@fontsource-variable/${pkg}/files/${file}`).toString('base64')
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME ?? chrome })
 const app = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
 await app.goto(`${base}/hyperliquid/BTC?interval=1m`)
-await app.waitForFunction(() => document.querySelectorAll('main section')[1]?.innerText.includes('Spread') && /Sockets \d/.test(document.querySelector('footer')?.innerText ?? ''))
+await app.waitForFunction(
+  () =>
+    document.querySelectorAll('main section')[1]?.innerText.includes('Spread') &&
+    /Sockets \d/.test(document.querySelector('footer')?.innerText ?? ''),
+)
 await app.waitForTimeout(6000)
 const shot = await app.screenshot({ path: `${root}docs/screenshot.png` })
 

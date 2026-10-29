@@ -14,7 +14,12 @@ export interface Field {
 }
 
 export interface TypedData {
-  readonly domain: { readonly name: string; readonly version: string; readonly chainId: number; readonly verifyingContract: Address }
+  readonly domain: {
+    readonly name: string
+    readonly version: string
+    readonly chainId: number
+    readonly verifyingContract: Address
+  }
   readonly types: Readonly<Record<string, readonly Field[]>>
   readonly primaryType: string
   readonly message: Readonly<Record<string, string | number>>
@@ -46,9 +51,18 @@ function structHash(name: string, fields: readonly Field[], value: Readonly<Reco
 
 export function typedDataDigest(data: TypedData): Hex {
   const fields = data.types[data.primaryType] as readonly Field[]
-  return keccak256(concat(['0x1901', structHash('EIP712Domain', DOMAIN_FIELDS, data.domain), structHash(data.primaryType, fields, data.message)]))
+  return keccak256(
+    concat([
+      '0x1901',
+      structHash('EIP712Domain', DOMAIN_FIELDS, data.domain),
+      structHash(data.primaryType, fields, data.message),
+    ]),
+  )
 }
 
-export function localSigner(account: { readonly address: Address; sign: (args: { hash: Hex }) => Promise<Hex> }): TypedDataSigner {
+export function localSigner(account: {
+  readonly address: Address
+  sign: (args: { hash: Hex }) => Promise<Hex>
+}): TypedDataSigner {
   return { address: account.address, signTypedData: (data) => account.sign({ hash: typedDataDigest(data) }) }
 }

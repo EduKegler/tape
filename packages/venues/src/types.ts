@@ -29,7 +29,12 @@ export interface VenueAdapter {
   /** 24h numbers for the header, refreshed by Query. Display only. */
   fetchStats: (base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<MarketStats>
   /** Candle history for the chart. Display data, so it is the one place prices become floats. */
-  fetchCandles: (base: Base, interval: Interval, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<readonly ChartBar[]>
+  fetchCandles: (
+    base: Base,
+    interval: Interval,
+    fetch: typeof globalThis.fetch,
+    signal?: AbortSignal,
+  ) => Promise<readonly ChartBar[]>
 }
 
 /** Only the REST protocol carries the snapshot fetch, so an adapter cannot declare one without the other. */
@@ -74,10 +79,28 @@ export interface RawCandle {
 }
 
 export type VenueEvent =
-  | { readonly kind: 'book-snapshot'; readonly market: MarketKey; readonly bids: readonly RawLevel[]; readonly asks: readonly RawLevel[]; readonly time: number }
-  | { readonly kind: 'book-delta'; readonly market: MarketKey; readonly bids: readonly RawLevel[]; readonly asks: readonly RawLevel[]; readonly seq: Seq | null; readonly time: number }
+  | {
+      readonly kind: 'book-snapshot'
+      readonly market: MarketKey
+      readonly bids: readonly RawLevel[]
+      readonly asks: readonly RawLevel[]
+      readonly time: number
+    }
+  | {
+      readonly kind: 'book-delta'
+      readonly market: MarketKey
+      readonly bids: readonly RawLevel[]
+      readonly asks: readonly RawLevel[]
+      readonly seq: Seq | null
+      readonly time: number
+    }
   | { readonly kind: 'trades'; readonly market: MarketKey; readonly trades: readonly RawTrade[] }
-  | { readonly kind: 'candle'; readonly market: MarketKey; readonly interval: Interval; readonly candles: readonly RawCandle[] }
+  | {
+      readonly kind: 'candle'
+      readonly market: MarketKey
+      readonly interval: Interval
+      readonly candles: readonly RawCandle[]
+    }
 
 /** Header numbers. `fundingRate` is per hour as a fraction, null on spot. */
 export interface MarketStats {
@@ -120,5 +143,12 @@ export async function getExactJson<T>(fetch: typeof globalThis.fetch, url: strin
 }
 
 export function chartBar(open: number, o: string, h: string, l: string, c: string, v: string): ChartBar {
-  return { time: Math.floor(open / 1000), open: Number(o), high: Number(h), low: Number(l), close: Number(c), volume: Number(v) }
+  return {
+    time: Math.floor(open / 1000),
+    open: Number(o),
+    high: Number(h),
+    low: Number(l),
+    close: Number(c),
+    volume: Number(v),
+  }
 }

@@ -36,14 +36,22 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
     let candles = 0
     for (const raw of wsFrames(venue)) {
       for (const e of adapter.parse(raw, lookup)) {
-        if (e.kind === 'book-snapshot') feed({ kind: 'snapshot', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), time: e.time })
-        if (e.kind === 'book-delta') feed({ kind: 'delta', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), seq: e.seq, time: e.time })
+        if (e.kind === 'book-snapshot')
+          feed({ kind: 'snapshot', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), time: e.time })
+        if (e.kind === 'book-delta')
+          feed({ kind: 'delta', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), seq: e.seq, time: e.time })
         if (e.kind === 'trades') trades += toTrades(e.trades, spec).length
         if (e.kind === 'candle') candles += e.candles.map((c) => toCandle(c, spec)).length
       }
       if (step.effect.kind === 'fetch-snapshot' && adapter.book.protocol === 'rest-snapshot-sequenced') {
         const snap = await adapter.book.fetchSnapshot(spec, recordedFetch)
-        feed({ kind: 'rest-snapshot', epoch: step.effect.epoch, lastUpdateId: snap.lastUpdateId, bids: toLevels(snap.bids, spec), asks: toLevels(snap.asks, spec) })
+        feed({
+          kind: 'rest-snapshot',
+          epoch: step.effect.epoch,
+          lastUpdateId: snap.lastUpdateId,
+          bids: toLevels(snap.bids, spec),
+          asks: toLevels(snap.asks, spec),
+        })
       }
     }
     expect(sync.phase).toBe('live')
@@ -72,8 +80,16 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
   it('writes subscribe frames the venue understands', async () => {
     const { byKey } = await specsOf(venue)
     const spec = byKey.get(`${venue}:ETH` as MarketKey)!
-    const frames = adapter.subscribeFrames([{ spec, channel: 'book', interval: null }, { spec, channel: 'candle', interval: '5m' }])
-    const expected = { binance: /ethusdt@depth@100ms.*ethusdt@kline_5m/s, dydx: /ETH-USD\/5MINS/, hyperliquid: /"coin":"ETH","interval":"5m"/, orderly: /PERP_ETH_USDC@orderbook.*PERP_ETH_USDC@kline_5m/s }
+    const frames = adapter.subscribeFrames([
+      { spec, channel: 'book', interval: null },
+      { spec, channel: 'candle', interval: '5m' },
+    ])
+    const expected = {
+      binance: /ethusdt@depth@100ms.*ethusdt@kline_5m/s,
+      dydx: /ETH-USD\/5MINS/,
+      hyperliquid: /"coin":"ETH","interval":"5m"/,
+      orderly: /PERP_ETH_USDC@orderbook.*PERP_ETH_USDC@kline_5m/s,
+    }
     expect(frames.join('\n')).toMatch(expected[venue])
   })
 })

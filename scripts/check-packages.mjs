@@ -8,13 +8,20 @@ const manifests = readdirSync(packagesDir)
   .filter((dir) => statSync(join(dir, 'package.json'), { throwIfNoEntry: false }))
   .map((dir) => ({ dir, pkg: JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) }))
 
-const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : []))
+const files = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
+  )
 const specifiers = (source) => [...source.matchAll(/(?:from|import)\s*\(?\s*'([^']+)'/g)].map((m) => m[1])
 const packageOf = (spec) => (spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0])
 
 const problems = []
 for (const { dir, pkg } of manifests) {
-  const runtime = new Set([pkg.name, ...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.peerDependencies ?? {})])
+  const runtime = new Set([
+    pkg.name,
+    ...Object.keys(pkg.dependencies ?? {}),
+    ...Object.keys(pkg.peerDependencies ?? {}),
+  ])
   const dev = new Set([...runtime, ...Object.keys(pkg.devDependencies ?? {})])
   for (const file of files(join(dir, 'src'))) {
     const allowed = /\.test\.tsx?$|fixtures/.test(file) ? dev : runtime
@@ -27,7 +34,12 @@ for (const { dir, pkg } of manifests) {
   }
 }
 
-const graph = new Map(manifests.map(({ pkg }) => [pkg.name, Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies }).filter((d) => d.startsWith('@tape/'))]))
+const graph = new Map(
+  manifests.map(({ pkg }) => [
+    pkg.name,
+    Object.keys({ ...pkg.dependencies, ...pkg.peerDependencies }).filter((d) => d.startsWith('@tape/')),
+  ]),
+)
 const visit = (name, path) => {
   if (path.includes(name)) return problems.push(`cycle: ${[...path.slice(path.indexOf(name)), name].join(' -> ')}`)
   for (const next of graph.get(name) ?? []) visit(next, [...path, name])

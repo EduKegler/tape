@@ -26,7 +26,8 @@ export function quantums(qty: Qty, scale: Scale, m: ClobMarket): bigint {
 }
 
 export function subticks(px: Px, scale: Scale, m: ClobMarket): bigint {
-  const s = BigInt(px) * power(m.atomicResolution - QUOTE_ATOMIC_RESOLUTION - m.quantumConversionExponent - scale.px, 'price')
+  const s =
+    BigInt(px) * power(m.atomicResolution - QUOTE_ATOMIC_RESOLUTION - m.quantumConversionExponent - scale.px, 'price')
   if (s % BigInt(m.subticksPerTick) !== 0n) throw new Error(`price is not a multiple of ${m.subticksPerTick} subticks`)
   return s
 }

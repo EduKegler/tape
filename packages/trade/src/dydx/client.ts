@@ -49,7 +49,9 @@ const validators = new Map<Network, Promise<Validator>>()
 export function validatorOf(network: Network): Promise<Validator> {
   let v = validators.get(network)
   if (!v) {
-    v = sdk().then(({ Network: Net, ValidatorClient }) => ValidatorClient.connect((network === 'mainnet' ? Net.mainnet() : Net.testnet()).validatorConfig))
+    v = sdk().then(({ Network: Net, ValidatorClient }) =>
+      ValidatorClient.connect((network === 'mainnet' ? Net.mainnet() : Net.testnet()).validatorConfig),
+    )
     v.catch(() => validators.delete(network))
     validators.set(network, v)
   }

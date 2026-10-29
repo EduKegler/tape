@@ -51,7 +51,12 @@ export type BookSync =
   | { readonly phase: 'live'; readonly epoch: number; readonly book: Book }
 
 export type BookInput =
-  | { readonly kind: 'snapshot'; readonly bids: readonly Level[]; readonly asks: readonly Level[]; readonly time: number }
+  | {
+      readonly kind: 'snapshot'
+      readonly bids: readonly Level[]
+      readonly asks: readonly Level[]
+      readonly time: number
+    }
   | {
       readonly kind: 'delta'
       readonly bids: readonly Level[]
@@ -162,14 +167,25 @@ function fromSnapshot(bids: readonly Level[], asks: readonly Level[], time: numb
 }
 
 export function initialSync(_protocol: BookProtocol): BookStep {
-  return { sync: { phase: 'awaiting-snapshot', epoch: 1, buffer: [], previous: null }, effect: NONE, uncrossed: 0, changed: false }
+  return {
+    sync: { phase: 'awaiting-snapshot', epoch: 1, buffer: [], previous: null },
+    effect: NONE,
+    uncrossed: 0,
+    changed: false,
+  }
 }
 
 /**
  * Back to awaiting. The REST protocol asks for its snapshot only once a diff is buffered, as Binance
  * documents, so the snapshot can never predate the stream it anchors.
  */
-function awaiting(protocol: BookProtocol, epoch: number, previous: Book | null, reason: 'subscribed' | 'corrupt', buffer: readonly SequencedDelta[] = []): BookStep {
+function awaiting(
+  protocol: BookProtocol,
+  epoch: number,
+  previous: Book | null,
+  reason: 'subscribed' | 'corrupt',
+  buffer: readonly SequencedDelta[] = [],
+): BookStep {
   const effect: BookEffect =
     protocol === 'rest-snapshot-sequenced'
       ? buffer.length > 0
@@ -208,12 +224,20 @@ export function stepBook(protocol: BookProtocol, sync: BookSync, input: BookInpu
         if (sync.phase !== 'awaiting-snapshot' || input.epoch !== sync.epoch) return unchanged(sync)
         const { book, uncrossed } = fromSnapshot(input.bids, input.asks, 0)
         book.lastSeq = input.lastUpdateId
-        let step: BookStep = { sync: { phase: 'live', epoch: sync.epoch, book }, effect: NONE, uncrossed, changed: true }
+        let step: BookStep = {
+          sync: { phase: 'live', epoch: sync.epoch, book },
+          effect: NONE,
+          uncrossed,
+          changed: true,
+        }
         for (const [i, d] of sync.buffer.entries()) {
           step = merge(step, stepBook(protocol, step.sync, { kind: 'delta', ...d }))
           if (step.sync.phase !== 'live') {
             const rest = sync.buffer.slice(i)
-            return { ...step, sync: { phase: 'awaiting-snapshot', epoch: step.sync.epoch, buffer: rest, previous: step.sync.previous } }
+            return {
+              ...step,
+              sync: { phase: 'awaiting-snapshot', epoch: step.sync.epoch, buffer: rest, previous: step.sync.previous },
+            }
           }
         }
         return step

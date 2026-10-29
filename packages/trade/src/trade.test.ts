@@ -20,13 +20,35 @@ import { TradeFailure } from './types'
 import { domainTypes, walletJson } from './wallet'
 
 const btc: MarketSpec = {
-  key: marketKey('hyperliquid', 'BTC'), venue: 'hyperliquid', base: 'BTC', quote: 'USDC', kind: 'perp', venueSymbol: 'BTC',
-  scale: { px: 1, qty: 5 }, tick: { kind: 'sigfig', figures: 5 }, step: 1 as Qty,
+  key: marketKey('hyperliquid', 'BTC'),
+  venue: 'hyperliquid',
+  base: 'BTC',
+  quote: 'USDC',
+  kind: 'perp',
+  venueSymbol: 'BTC',
+  scale: { px: 1, qty: 5 },
+  tick: { kind: 'sigfig', figures: 5 },
+  step: 1 as Qty,
 }
 const caps = TRADING.hyperliquid.capabilities
-const draft = { side: 'buy', kind: 'limit', price: '80000', size: '0.001', tif: 'gtc', reduceOnly: false, takeProfit: '', stopLoss: '', slippage: 100 as Bps } as const
+const draft = {
+  side: 'buy',
+  kind: 'limit',
+  price: '80000',
+  size: '0.001',
+  tif: 'gtc',
+  reduceOnly: false,
+  takeProfit: '',
+  stopLoss: '',
+  slippage: 100 as Bps,
+} as const
 
-const config: TradeConfig = { mainnet: false, hyperliquid: { builder: null }, dydx: { builder: null }, orderly: { brokerId: { mainnet: null, testnet: 'demo' } } }
+const config: TradeConfig = {
+  mainnet: false,
+  hyperliquid: { builder: null },
+  dydx: { builder: null },
+  orderly: { brokerId: { mainnet: null, testnet: 'demo' } },
+}
 
 function memorySlot(initial: StoredKey | null = null): KeySlot {
   let key = initial
@@ -63,21 +85,46 @@ describe('order intent', () => {
   })
 
   it('closes a short with a reduce-only market buy of the whole size', () => {
-    const intent = closeIntent(btc, { symbol: 'BTC', side: 'short', size: '0.0123' as never, entry: '1' as never, unrealizedPnl: '0' as never, liquidation: null, leverage: null }, 100 as Bps)
-    expect(intent && { side: intent.side, size: intent.size, reduceOnly: intent.reduceOnly, kind: intent.order.kind }).toEqual({ side: 'buy', size: 1230, reduceOnly: true, kind: 'market' })
+    const intent = closeIntent(
+      btc,
+      {
+        symbol: 'BTC',
+        side: 'short',
+        size: '0.0123' as never,
+        entry: '1' as never,
+        unrealizedPnl: '0' as never,
+        liquidation: null,
+        leverage: null,
+      },
+      100 as Bps,
+    )
+    expect(
+      intent && { side: intent.side, size: intent.size, reduceOnly: intent.reduceOnly, kind: intent.order.kind },
+    ).toEqual({ side: 'buy', size: 1230, reduceOnly: true, kind: 'market' })
   })
 })
 
 describe('failure classification', () => {
   it('calls a 5xx on a mutating request an unknown outcome even when the body says it failed', async () => {
-    const fetch = (async () => new Response('{"success":false,"message":"internal"}', { status: 502 })) as unknown as typeof globalThis.fetch
-    const error = await send('orderly', fetch, 'https://x', { method: 'POST', mutates: true }, () => ({ kind: 'rejected', detail: 'internal' })).catch((e: unknown) => e)
+    const fetch = (async () =>
+      new Response('{"success":false,"message":"internal"}', { status: 502 })) as unknown as typeof globalThis.fetch
+    const error = await send('orderly', fetch, 'https://x', { method: 'POST', mutates: true }, () => ({
+      kind: 'rejected',
+      detail: 'internal',
+    })).catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
   })
 
   it('treats a dYdX timeout as unknown and a missing chain account as no account', () => {
-    expect(dydxMessage('Transaction with hash 0xAB was submitted but was not yet found on the chain. You might want to check later. There was a wait of 60 seconds. timed out').kind).toBe('unknown-outcome')
-    expect(dydxMessage('Query failed with (22): rpc error: code = NotFound desc = account dydx1abc not found: key not found').kind).toBe('no-account')
+    expect(
+      dydxMessage(
+        'Transaction with hash 0xAB was submitted but was not yet found on the chain. You might want to check later. There was a wait of 60 seconds. timed out',
+      ).kind,
+    ).toBe('unknown-outcome')
+    expect(
+      dydxMessage('Query failed with (22): rpc error: code = NotFound desc = account dydx1abc not found: key not found')
+        .kind,
+    ).toBe('no-account')
   })
 })
 
@@ -109,11 +156,17 @@ describe('commands in flight', () => {
 describe('dydx key', () => {
   it('derives the mnemonic and address of the official onboarding vector', async () => {
     // From v4-client-js __tests__/helpers/constants.ts: SIGNATURE_RESULT, MNEMONIC_ and PUBLIC_KEY_FROM_SIGNATURE_RESULT.
-    const signature = '0xf2006b4fc0afa08a6048b40d3d67e437ac2e20e6bacf3f947f9b33aa2756d204287f5fb2155bec067d879a25d7ddac791826cf28e2786919065e19848020f1531b'
-    const publicKey = new Uint8Array([2, 204, 94, 45, 7, 83, 196, 55, 195, 107, 10, 35, 169, 32, 24, 37, 193, 196, 34, 210, 84, 26, 107, 89, 119, 240, 211, 63, 187, 34, 162, 197, 36])
+    const signature =
+      '0xf2006b4fc0afa08a6048b40d3d67e437ac2e20e6bacf3f947f9b33aa2756d204287f5fb2155bec067d879a25d7ddac791826cf28e2786919065e19848020f1531b'
+    const publicKey = new Uint8Array([
+      2, 204, 94, 45, 7, 83, 196, 55, 195, 107, 10, 35, 169, 32, 24, 37, 193, 196, 34, 210, 84, 26, 107, 89, 119, 240,
+      211, 63, 187, 34, 162, 197, 36,
+    ])
     const address = bech32.encode('dydx', bech32.toWords(ripemd160(sha256(publicKey, 'bytes'), 'bytes')))
     const key = await deriveKey(signature)
-    expect(key.mnemonic).toBe('waste sample once ocean tenant mushroom festival hollow regret convince stage able candy jazz champion isolate diary group under entry decorate glare quiz job')
+    expect(key.mnemonic).toBe(
+      'waste sample once ocean tenant mushroom festival hollow regret convince stage able candy jazz champion isolate diary group under entry decorate glare quiz job',
+    )
     expect(key.address).toBe(address)
   })
 })
@@ -130,11 +183,22 @@ describe('wallet typed data', () => {
   it('hashes the dYdX onboarding exactly as dYdX v4-web asks the wallet to sign it', () => {
     // v4-web useSignForWalletDerivation: getSignTypedData plus the env's ethereumChainId, and an empty
     // verifyingContract for MetaMask that viem leaves out of the domain type.
-    for (const [network, chainId] of [['mainnet', 1], ['testnet', 11_155_111]] as const) {
-      const official = { primaryType: 'dYdX', domain: { name: 'dYdX Chain', chainId }, types: { dYdX: [{ name: 'action', type: 'string' }] }, message: { action: 'dYdX Chain Onboarding' } } as const
+    for (const [network, chainId] of [
+      ['mainnet', 1],
+      ['testnet', 11_155_111],
+    ] as const) {
+      const official = {
+        primaryType: 'dYdX',
+        domain: { name: 'dYdX Chain', chainId },
+        types: { dYdX: [{ name: 'action', type: 'string' }] },
+        message: { action: 'dYdX Chain Onboarding' },
+      } as const
       const metaMask = { ...official, domain: { ...official.domain, verifyingContract: '' as never } }
       const sent = JSON.parse(walletJson(onboarding(network))) as Parameters<typeof hashTypedData>[0]
-      expect(sent.types.EIP712Domain).toEqual([{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }])
+      expect(sent.types.EIP712Domain).toEqual([
+        { name: 'name', type: 'string' },
+        { name: 'chainId', type: 'uint256' },
+      ])
       expect(hashTypedData(sent)).toBe(hashTypedData(official))
       expect(hashTypedData(sent)).toBe(hashTypedData(metaMask))
     }
@@ -151,13 +215,29 @@ describe('hyperliquid module', () => {
   const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' as Address
   const agentKey = generatePrivateKey()
   const agent = privateKeyToAccount(agentKey).address
-  const testnetMeta = { universe: [{ name: 'SOL', szDecimals: 2 }, { name: 'X', szDecimals: 0 }, { name: 'Y', szDecimals: 0 }, { name: 'BTC', szDecimals: 5 }] }
+  const testnetMeta = {
+    universe: [
+      { name: 'SOL', szDecimals: 2 },
+      { name: 'X', szDecimals: 0 },
+      { name: 'Y', szDecimals: 0 },
+      { name: 'BTC', szDecimals: 5 },
+    ],
+  }
 
   it('signs the order with the agent for the testnet asset id', async () => {
     const { fetch, sent } = venue((url, body) =>
-      url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : { status: 'ok', response: { type: 'order', data: { statuses: [{ resting: { oid: 7 } }] } } },
+      url.endsWith('/info')
+        ? body.type === 'meta'
+          ? testnetMeta
+          : null
+        : { status: 'ok', response: { type: 'order', data: { statuses: [{ resting: { oid: 7 } }] } } },
     )
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+    const ctx: VenueContext = {
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    }
     const built = buildIntent(btc, draft, caps)
     if (!built.ok) throw new Error('intent')
     const outcome = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })
@@ -167,58 +247,152 @@ describe('hyperliquid module', () => {
     expect(action.orders[0]).toMatchObject({ a: 3, p: '80000', s: '0.001', c: built.intent.clientId })
     const signature = post.body.signature as { r: Hex; s: Hex; v: number }
     const digest = typedDataDigest(l1TypedData(actionHash(action, null, post.body.nonce as number, null), 'Testnet'))
-    expect(await recoverAddress({ hash: digest, signature: { r: signature.r, s: signature.s, v: BigInt(signature.v) } })).toBe(agent)
+    expect(
+      await recoverAddress({ hash: digest, signature: { r: signature.r, s: signature.s, v: BigInt(signature.v) } }),
+    ).toBe(agent)
   })
 
   it('turns an unknown API wallet into needs-setup with the venue words', async () => {
-    const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : { status: 'err', response: `User or API Wallet ${agent} does not exist.` }))
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+    const { fetch } = venue((url, body) =>
+      url.endsWith('/info')
+        ? body.type === 'meta'
+          ? testnetMeta
+          : null
+        : { status: 'err', response: `User or API Wallet ${agent} does not exist.` },
+    )
+    const ctx: VenueContext = {
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    }
     const built = buildIntent(btc, { ...draft, price: '80001' }, caps)
     if (!built.ok) throw new Error('intent')
-    const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
-    expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'needs-setup', detail: `User or API Wallet ${agent} does not exist.` })
+    const error = await TRADING.hyperliquid
+      .execute(ctx, { kind: 'place', intent: built.intent })
+      .catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error).toEqual({
+      kind: 'needs-setup',
+      detail: `User or API Wallet ${agent} does not exist.`,
+    })
   })
 
   it('calls a 200 it cannot read an unknown outcome, since the signed order may be placed', async () => {
     for (const reply of [{ status: 'ok' }, { status: 'ok', response: { type: 'order', data: { statuses: [] } } }]) {
-      const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : reply))
-      const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+      const { fetch } = venue((url, body) =>
+        url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : reply,
+      )
+      const ctx: VenueContext = {
+        ref: { venue: 'hyperliquid', network: 'testnet', owner },
+        config,
+        keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+        fetch,
+      }
       const built = buildIntent(btc, draft, caps)
       if (!built.ok) throw new Error('intent')
-      const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
+      const error = await TRADING.hyperliquid
+        .execute(ctx, { kind: 'place', intent: built.intent })
+        .catch((e: unknown) => e)
       expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
     }
   })
 
   it('refuses a price the testnet rules reject instead of rounding it', async () => {
-    const { fetch } = venue((url, body) => (url.endsWith('/info') && body.type === 'meta' ? { universe: [{ name: 'BTC', szDecimals: 5 }] } : null))
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
-    const built = buildIntent({ ...btc, scale: { px: 2, qty: 5 }, tick: { kind: 'fixed', tick: 1 } as MarketSpec['tick'] }, { ...draft, price: '80000.25' }, caps)
+    const { fetch } = venue((url, body) =>
+      url.endsWith('/info') && body.type === 'meta' ? { universe: [{ name: 'BTC', szDecimals: 5 }] } : null,
+    )
+    const ctx: VenueContext = {
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    }
+    const built = buildIntent(
+      { ...btc, scale: { px: 2, qty: 5 }, tick: { kind: 'fixed', tick: 1 } as MarketSpec['tick'] },
+      { ...draft, price: '80000.25' },
+      caps,
+    )
     if (!built.ok) throw new Error('intent')
-    const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
+    const error = await TRADING.hyperliquid
+      .execute(ctx, { kind: 'place', intent: built.intent })
+      .catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('invalid-order')
   })
 
   it('reads positions, orders and fills by address in the venue shapes', async () => {
     const { fetch } = venue((_url, body) => {
       if (body.type === 'meta') return testnetMeta
-      if (body.type === 'clearinghouseState') return { marginSummary: { accountValue: '1008.5' }, withdrawable: '900.25', assetPositions: [{ position: { coin: 'BTC', szi: '-0.01', entryPx: '80100.0', unrealizedPnl: '-1.5', liquidationPx: '95000.0', leverage: { type: 'cross', value: 5 } } }] }
-      if (body.type === 'frontendOpenOrders') return [{ coin: 'BTC', side: 'B', limitPx: '70000.0', sz: '0.001', oid: 589008353129, timestamp: 1793248070251, orderType: 'Limit', reduceOnly: false, isTrigger: false, triggerPx: '0.0' }]
-      if (body.type === 'userFills') return [{ coin: 'BTC', px: '80100.0', sz: '0.01', side: 'A', time: 1793248071468, fee: '0.36', tid: 151386843995060 }]
+      if (body.type === 'clearinghouseState')
+        return {
+          marginSummary: { accountValue: '1008.5' },
+          withdrawable: '900.25',
+          assetPositions: [
+            {
+              position: {
+                coin: 'BTC',
+                szi: '-0.01',
+                entryPx: '80100.0',
+                unrealizedPnl: '-1.5',
+                liquidationPx: '95000.0',
+                leverage: { type: 'cross', value: 5 },
+              },
+            },
+          ],
+        }
+      if (body.type === 'frontendOpenOrders')
+        return [
+          {
+            coin: 'BTC',
+            side: 'B',
+            limitPx: '70000.0',
+            sz: '0.001',
+            oid: 589008353129,
+            timestamp: 1793248070251,
+            orderType: 'Limit',
+            reduceOnly: false,
+            isTrigger: false,
+            triggerPx: '0.0',
+          },
+        ]
+      if (body.type === 'userFills')
+        return [
+          { coin: 'BTC', px: '80100.0', sz: '0.01', side: 'A', time: 1793248071468, fee: '0.36', tid: 151386843995060 },
+        ]
       return null
     })
-    const view = await TRADING.hyperliquid.account({ ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch })
+    const view = await TRADING.hyperliquid.account({
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot(),
+      fetch,
+    })
     if (view.kind !== 'live') throw new Error(view.kind)
-    expect(view.snapshot.positions[0]).toMatchObject({ symbol: 'BTC', side: 'short', size: '0.01', leverage: '5x cross' })
+    expect(view.snapshot.positions[0]).toMatchObject({
+      symbol: 'BTC',
+      side: 'short',
+      size: '0.01',
+      leverage: '5x cross',
+    })
     expect(view.snapshot.orders[0]).toMatchObject({ ref: '3:589008353129', side: 'buy', px: '70000.0' })
     expect(view.snapshot.fills[0]).toMatchObject({ id: '151386843995060', side: 'sell' })
   })
 
   it('writes the agent as draft before the wallet signs, and keeps it when the venue says deposit first', async () => {
-    const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'extraAgents' ? [] : null) : { status: 'err', response: `Must deposit before performing actions. User: ${owner}` }))
+    const { fetch } = venue((url, body) =>
+      url.endsWith('/info')
+        ? body.type === 'extraAgents'
+          ? []
+          : null
+        : { status: 'err', response: `Must deposit before performing actions. User: ${owner}` },
+    )
     const keys = memorySlot()
     const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys, fetch }
-    const wallet = { address: owner, chainId: async () => 421614, switchChain: async () => {}, signTypedData: async () => `0x${'11'.repeat(32)}${'22'.repeat(32)}1b` as Hex }
+    const wallet = {
+      address: owner,
+      chainId: async () => 421614,
+      switchChain: async () => {},
+      signTypedData: async () => `0x${'11'.repeat(32)}${'22'.repeat(32)}1b` as Hex,
+    }
     const error = await TRADING.hyperliquid.enable(ctx, wallet, () => {}).catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('no-account')
     expect(keys.read()).toMatchObject({ status: 'draft', public: { agent: expect.stringMatching(/^0x/) } })
@@ -233,11 +407,17 @@ describe('order lookup after an unknown outcome', () => {
 
   it('asks Hyperliquid for the cloid under the owner and reads found or unknownOid', async () => {
     for (const [reply, expected] of [
-      [{ status: 'order', order: { status: 'filled' } }, { kind: 'found', detail: 'Order filled' }],
+      [
+        { status: 'order', order: { status: 'filled' } },
+        { kind: 'found', detail: 'Order filled' },
+      ],
       [{ status: 'unknownOid' }, { kind: 'absent', detail: 'Hyperliquid answered unknownOid' }],
     ] as const) {
       const { fetch, sent } = venue(() => reply)
-      const result = await TRADING.hyperliquid.lookup({ ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch }, intent)
+      const result = await TRADING.hyperliquid.lookup(
+        { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
+        intent,
+      )
       expect(result).toEqual(expected)
       expect(sent[0]?.body).toEqual({ type: 'orderStatus', user: owner, oid: intent.clientId })
     }
@@ -246,18 +426,38 @@ describe('order lookup after an unknown outcome', () => {
   it('finds a dYdX order by the uint32 client id among the latest on the market', async () => {
     const keys = memorySlot({ status: 'linked', public: { address: 'dydx1test' }, secret: 'mnemonic' })
     const clientId = String(Number(BigInt(intent.clientId) & 0xffff_ffffn))
-    const { fetch, sent } = venue(() => [{ clientId: '1', status: 'OPEN' }, { clientId, status: 'FILLED' }])
-    const result = await TRADING.dydx.lookup({ ref: { venue: 'dydx', network: 'testnet', owner }, config, keys, fetch }, intent)
+    const { fetch, sent } = venue(() => [
+      { clientId: '1', status: 'OPEN' },
+      { clientId, status: 'FILLED' },
+    ])
+    const result = await TRADING.dydx.lookup(
+      { ref: { venue: 'dydx', network: 'testnet', owner }, config, keys, fetch },
+      intent,
+    )
     expect(result).toEqual({ kind: 'found', detail: 'Order filled' })
-    expect(sent[0]?.url).toContain('/orders?address=dydx1test&subaccountNumber=0&ticker=BTC&limit=100&returnLatestOrders=true')
+    expect(sent[0]?.url).toContain(
+      '/orders?address=dydx1test&subaccountNumber=0&ticker=BTC&limit=100&returnLatestOrders=true',
+    )
   })
 
   it('treats only a missing Orderly order as absent, not a missing key', async () => {
     const keys = memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` })
-    const ctx = (answer: unknown): VenueContext => ({ ref: { venue: 'orderly', network: 'testnet', owner }, config, keys, fetch: venue(() => answer).fetch })
-    expect(await TRADING.orderly.lookup(ctx({ success: true, data: { status: 'NEW' } }), intent)).toEqual({ kind: 'found', detail: 'Order new' })
-    expect(await TRADING.orderly.lookup(ctx({ success: false, message: 'The order does not exist.' }), intent)).toEqual({ kind: 'absent', detail: 'The order does not exist.' })
-    const error = await TRADING.orderly.lookup(ctx({ success: false, message: 'Orderly key not registered' }), intent).catch((e: unknown) => e)
+    const ctx = (answer: unknown): VenueContext => ({
+      ref: { venue: 'orderly', network: 'testnet', owner },
+      config,
+      keys,
+      fetch: venue(() => answer).fetch,
+    })
+    expect(await TRADING.orderly.lookup(ctx({ success: true, data: { status: 'NEW' } }), intent)).toEqual({
+      kind: 'found',
+      detail: 'Order new',
+    })
+    expect(await TRADING.orderly.lookup(ctx({ success: false, message: 'The order does not exist.' }), intent)).toEqual(
+      { kind: 'absent', detail: 'The order does not exist.' },
+    )
+    const error = await TRADING.orderly
+      .lookup(ctx({ success: false, message: 'Orderly key not registered' }), intent)
+      .catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
   })
 })

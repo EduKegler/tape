@@ -135,10 +135,14 @@ const GUARDED = [
 function verdict(url, method, body) {
   // A CORS preflight sends nothing. Blocking it would hide the real request behind "Failed to fetch".
   if (method === 'OPTIONS') return null
-  if (url.startsWith('https://api.hyperliquid.xyz/exchange')) return 'Hyperliquid mainnet orders are blocked in verification'
-  if (/orderly\.org\/v1\/(register_account|orderly_key)/.test(url)) return 'Orderly account and key registration is blocked in verification'
-  if (/\/\/api\.orderly\.org\/v1\/(order|batch-order|client)/.test(url) && method !== 'GET') return 'Orderly mainnet orders are blocked in verification'
-  if (/dydx/.test(url) && !/testnet|test-dydx/.test(url) && /broadcast_tx/.test(body ?? '')) return 'dYdX mainnet broadcasts are blocked in verification'
+  if (url.startsWith('https://api.hyperliquid.xyz/exchange'))
+    return 'Hyperliquid mainnet orders are blocked in verification'
+  if (/orderly\.org\/v1\/(register_account|orderly_key)/.test(url))
+    return 'Orderly account and key registration is blocked in verification'
+  if (/\/\/api\.orderly\.org\/v1\/(order|batch-order|client)/.test(url) && method !== 'GET')
+    return 'Orderly mainnet orders are blocked in verification'
+  if (/dydx/.test(url) && !/testnet|test-dydx/.test(url) && /broadcast_tx/.test(body ?? ''))
+    return 'dYdX mainnet broadcasts are blocked in verification'
   return null
 }
 
@@ -146,7 +150,8 @@ const { webSocketDebuggerUrl } = await (await fetch(`http://127.0.0.1:${cdpPort}
 const ws = new WebSocket(webSocketDebuggerUrl)
 await new Promise((ok, fail) => ((ws.onopen = ok), (ws.onerror = fail)))
 let id = 0
-const send = (method, params = {}, sessionId) => ws.send(JSON.stringify({ id: ++id, method, params, ...(sessionId ? { sessionId } : {}) }))
+const send = (method, params = {}, sessionId) =>
+  ws.send(JSON.stringify({ id: ++id, method, params, ...(sessionId ? { sessionId } : {}) }))
 ws.onmessage = (event) => {
   const m = JSON.parse(event.data)
   if (m.method === 'Fetch.requestPaused') {
@@ -155,7 +160,19 @@ ws.onmessage = (event) => {
     if (!reason) return send('Fetch.continueRequest', { requestId }, m.sessionId)
     log({ blocked: request.url, method: request.method, reason, body: request.postData ?? null })
     const body = Buffer.from(JSON.stringify({ blockedByVerifyHarness: true, message: reason })).toString('base64')
-    return send('Fetch.fulfillRequest', { requestId, responseCode: 451, responseHeaders: [{ name: 'content-type', value: 'application/json' }, { name: 'access-control-allow-origin', value: '*' }], body }, m.sessionId)
+    return send(
+      'Fetch.fulfillRequest',
+      {
+        requestId,
+        responseCode: 451,
+        responseHeaders: [
+          { name: 'content-type', value: 'application/json' },
+          { name: 'access-control-allow-origin', value: '*' },
+        ],
+        body,
+      },
+      m.sessionId,
+    )
   }
   if (m.method !== 'Target.attachedToTarget') return
   const session = m.params.sessionId

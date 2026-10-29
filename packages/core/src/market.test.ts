@@ -1,12 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveTick, emptyTape, priceTick, groupDecimals, groupOptions, pushTrades, snapGroup, upsertCandle } from './market'
+import {
+  effectiveTick,
+  emptyTape,
+  priceTick,
+  groupDecimals,
+  groupOptions,
+  pushTrades,
+  snapGroup,
+  upsertCandle,
+} from './market'
 import type { Candle, MarketSpec, Trade } from './market'
 import type { Px, Qty } from './fixed'
 import { marketKey } from './ids'
 
 const hl = (px: 1 | 2 | 4): MarketSpec => ({
-  key: marketKey('hyperliquid', 'BTC'), venue: 'hyperliquid', base: 'BTC', quote: 'USDC', kind: 'perp', venueSymbol: 'BTC',
-  scale: { px, qty: 5 }, tick: { kind: 'sigfig', figures: 5 }, step: 1 as Qty,
+  key: marketKey('hyperliquid', 'BTC'),
+  venue: 'hyperliquid',
+  base: 'BTC',
+  quote: 'USDC',
+  kind: 'perp',
+  venueSymbol: 'BTC',
+  scale: { px, qty: 5 },
+  tick: { kind: 'sigfig', figures: 5 },
+  step: 1 as Qty,
 })
 const binance: MarketSpec = { ...hl(2), venue: 'binance', tick: { kind: 'fixed', tick: 1 as Px } }
 
@@ -39,7 +55,14 @@ describe('trades and candles', () => {
   })
 
   it('replaces the forming bar and ignores older ones', () => {
-    const bar = (open: number, c: number): Candle => ({ open, o: 1 as Px, h: 1 as Px, l: 1 as Px, c: c as Px, v: 1 as Qty })
+    const bar = (open: number, c: number): Candle => ({
+      open,
+      o: 1 as Px,
+      h: 1 as Px,
+      l: 1 as Px,
+      c: c as Px,
+      v: 1 as Qty,
+    })
     let bars = upsertCandle([], bar(60, 1))
     bars = upsertCandle(bars, bar(60, 2))
     bars = upsertCandle(bars, bar(0, 9))

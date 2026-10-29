@@ -7,7 +7,23 @@ import { checkPrice, checkSize } from '../intent'
 import { send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure } from '../types'
-import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderIntent, OrderLookup, OrderRef, SetupStep, StepId, TradeConfig, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
+import type {
+  AccountView,
+  Command,
+  CommandOutcome,
+  Decimal,
+  Network,
+  OrderIntent,
+  OrderLookup,
+  OrderRef,
+  SetupStep,
+  StepId,
+  TradeConfig,
+  TradeError,
+  TradingVenue,
+  VenueContext,
+  WalletSigner,
+} from '../types'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
 import { cancelPath, orderBody } from './wire'
@@ -28,7 +44,8 @@ function fail(error: TradeError): never {
 }
 
 export function classifyMessage(message: string): TradeError {
-  if (/orderly key|signature|not registered|account.*(not found|not exist)/i.test(message)) return { kind: 'needs-setup', detail: message }
+  if (/orderly key|signature|not registered|account.*(not found|not exist)/i.test(message))
+    return { kind: 'needs-setup', detail: message }
   if (/insufficient|margin|collateral/i.test(message)) return { kind: 'insufficient-margin', detail: message }
   if (/price|quantity|notional|tick|size/i.test(message)) return { kind: 'invalid-order', detail: message }
   return { kind: 'rejected', detail: message }
@@ -41,7 +58,7 @@ const classify: Classify = (status, body, text) => {
 }
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
-const publicGet = <T,>(ctx: VenueContext, path: string) =>
+const publicGet = <T>(ctx: VenueContext, path: string) =>
   send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { mutates: false }, (_s, body, text) => {
     const b = body as { success?: boolean; message?: string } | null
     return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
@@ -53,7 +70,9 @@ function keyOf(ctx: VenueContext): OrderlyKey | null {
 }
 
 function brokerFor(ctx: VenueContext): string {
-  return brokerOf(ctx.config, ctx.ref.network) ?? fail({ kind: 'unsupported', detail: 'No Orderly broker id configured' })
+  return (
+    brokerOf(ctx.config, ctx.ref.network) ?? fail({ kind: 'unsupported', detail: 'No Orderly broker id configured' })
+  )
 }
 
 async function signed<T>(ctx: VenueContext, method: 'GET' | 'POST' | 'DELETE', path: string, body = ''): Promise<T> {
@@ -62,7 +81,13 @@ async function signed<T>(ctx: VenueContext, method: 'GET' | 'POST' | 'DELETE', p
     ...signRequest(key, accountId(ctx.ref.owner, brokerFor(ctx)), Date.now(), method, path, body),
     'content-type': method === 'POST' ? 'application/json' : 'application/x-www-form-urlencoded',
   }
-  const reply = await send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { method, headers, ...(body ? { body } : {}), mutates: method !== 'GET' }, classify)
+  const reply = await send<{ data: T }>(
+    'orderly',
+    ctx.fetch,
+    `${API[ctx.ref.network]}${path}`,
+    { method, headers, ...(body ? { body } : {}), mutates: method !== 'GET' },
+    classify,
+  )
   return reply.data
 }
 
@@ -76,7 +101,12 @@ function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
       const quoteTick = plainDecimal(data.quote_tick)
       const baseTick = plainDecimal(data.base_tick)
       const scale: Scale = { px: decimalsOf(quoteTick), qty: decimalsOf(baseTick) }
-      return { venueSymbol: symbol, scale, tick: { kind: 'fixed', tick: parsePx(quoteTick, scale) }, step: parseQty(baseTick, scale) } as unknown as MarketSpec
+      return {
+        venueSymbol: symbol,
+        scale,
+        tick: { kind: 'fixed', tick: parsePx(quoteTick, scale) },
+        step: parseQty(baseTick, scale),
+      } as unknown as MarketSpec
     })
     cached.catch(() => specs.delete(cacheKey))
     specs.set(cacheKey, cached)
@@ -89,7 +119,12 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
     const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${intent.clientId}`)
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
   } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected' && /order.*(not exist|not found)/i.test(e.error.detail)) return { kind: 'absent', detail: e.error.detail }
+    if (
+      e instanceof TradeFailure &&
+      e.error.kind === 'rejected' &&
+      /order.*(not exist|not found)/i.test(e.error.detail)
+    )
+      return { kind: 'absent', detail: e.error.detail }
     throw e
   }
 }
@@ -110,16 +145,33 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
         if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
       }
       const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : 'MARKET'
-      const body = orderBody({ symbol, clientOrderId: intent.clientId, type, side: intent.side === 'buy' ? 'BUY' : 'SELL', price, quantity, reduceOnly: intent.reduceOnly })
+      const body = orderBody({
+        symbol,
+        clientOrderId: intent.clientId,
+        type,
+        side: intent.side === 'buy' ? 'BUY' : 'SELL',
+        price,
+        quantity,
+        reduceOnly: intent.reduceOnly,
+      })
       const data = await signed<{ order_id: string }>(ctx, 'POST', '/v1/order', body)
-      return { kind: 'placed', status: type === 'MARKET' || type === 'IOC' ? 'accepted' : 'resting', detail: `Order ${data.order_id}` }
+      return {
+        kind: 'placed',
+        status: type === 'MARKET' || type === 'IOC' ? 'accepted' : 'resting',
+        detail: `Order ${data.order_id}`,
+      }
     }
     case 'cancel': {
       const [symbol, id] = command.order.split(':') as [string, string]
       try {
         await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)))
       } catch (e) {
-        if (!(e instanceof TradeFailure && 'detail' in e.error && /order.*(not exist|not found)|already (filled|cancel)/i.test(e.error.detail))) throw e
+        if (!(
+          e instanceof TradeFailure &&
+          'detail' in e.error &&
+          /order.*(not exist|not found)|already (filled|cancel)/i.test(e.error.detail)
+        ))
+          throw e
       }
       return { kind: 'done', detail: 'Canceled' }
     }
@@ -136,30 +188,86 @@ const d = (n: string) => plainDecimal(n) as Decimal
 
 async function account(ctx: VenueContext): Promise<AccountView> {
   if (!keyOf(ctx) || ctx.keys.read()?.status !== 'linked') return { kind: 'unknown' }
-  type Positions = { total_collateral_value: string; free_collateral: string; rows: { symbol: string; position_qty: string; average_open_price: string; unsettled_pnl: string; est_liq_price: string }[] }
-  type Orders = { rows: { order_id: string; symbol: string; side: 'BUY' | 'SELL'; type: string; price: string | null; quantity: string; reduce_only: boolean; created_time: string }[] }
-  type Trades = { rows: { id: string; symbol: string; side: 'BUY' | 'SELL'; executed_price: string; executed_quantity: string; fee: string; executed_timestamp: string }[] }
+  type Positions = {
+    total_collateral_value: string
+    free_collateral: string
+    rows: {
+      symbol: string
+      position_qty: string
+      average_open_price: string
+      unsettled_pnl: string
+      est_liq_price: string
+    }[]
+  }
+  type Orders = {
+    rows: {
+      order_id: string
+      symbol: string
+      side: 'BUY' | 'SELL'
+      type: string
+      price: string | null
+      quantity: string
+      reduce_only: boolean
+      created_time: string
+    }[]
+  }
+  type Trades = {
+    rows: {
+      id: string
+      symbol: string
+      side: 'BUY' | 'SELL'
+      executed_price: string
+      executed_quantity: string
+      fee: string
+      executed_timestamp: string
+    }[]
+  }
   const [positions, orders, trades] = await Promise.all([
     signed<Positions>(ctx, 'GET', '/v1/positions'),
     signed<Orders>(ctx, 'GET', '/v1/orders?status=INCOMPLETE'),
     signed<Trades>(ctx, 'GET', '/v1/trades?size=20'),
   ])
   const live = positions.rows.filter((p) => Number(p.position_qty) !== 0)
-  if (Number(positions.total_collateral_value) === 0 && live.length === 0 && orders.rows.length === 0 && trades.rows.length === 0) return { kind: 'empty' }
+  if (
+    Number(positions.total_collateral_value) === 0 &&
+    live.length === 0 &&
+    orders.rows.length === 0 &&
+    trades.rows.length === 0
+  )
+    return { kind: 'empty' }
   return {
     kind: 'live',
     snapshot: {
       equity: d(positions.total_collateral_value),
       available: d(positions.free_collateral),
       positions: live.map((p) => ({
-        symbol: p.symbol, side: p.position_qty.startsWith('-') ? 'short' : 'long', size: d(p.position_qty.replace(/^-/, '')), entry: d(p.average_open_price),
-        unrealizedPnl: d(p.unsettled_pnl), liquidation: Number(p.est_liq_price) > 0 ? d(p.est_liq_price) : null, leverage: null,
+        symbol: p.symbol,
+        side: p.position_qty.startsWith('-') ? 'short' : 'long',
+        size: d(p.position_qty.replace(/^-/, '')),
+        entry: d(p.average_open_price),
+        unrealizedPnl: d(p.unsettled_pnl),
+        liquidation: Number(p.est_liq_price) > 0 ? d(p.est_liq_price) : null,
+        leverage: null,
       })),
       orders: orders.rows.map((o) => ({
-        ref: `${o.symbol}:${o.order_id}` as OrderRef, symbol: o.symbol, side: o.side === 'BUY' ? 'buy' : 'sell', kind: o.type,
-        px: o.price === null ? null : d(o.price), size: d(o.quantity), reduceOnly: o.reduce_only, placedAt: Number(o.created_time),
+        ref: `${o.symbol}:${o.order_id}` as OrderRef,
+        symbol: o.symbol,
+        side: o.side === 'BUY' ? 'buy' : 'sell',
+        kind: o.type,
+        px: o.price === null ? null : d(o.price),
+        size: d(o.quantity),
+        reduceOnly: o.reduce_only,
+        placedAt: Number(o.created_time),
       })),
-      fills: trades.rows.map((t) => ({ id: t.id, symbol: t.symbol, side: t.side === 'BUY' ? 'buy' : 'sell', px: d(t.executed_price), size: d(t.executed_quantity), fee: d(t.fee), time: Number(t.executed_timestamp) })),
+      fills: trades.rows.map((t) => ({
+        id: t.id,
+        symbol: t.symbol,
+        side: t.side === 'BUY' ? 'buy' : 'sell',
+        px: d(t.executed_price),
+        size: d(t.executed_quantity),
+        fee: d(t.fee),
+        time: Number(t.executed_timestamp),
+      })),
     },
   }
 }
@@ -178,7 +286,10 @@ async function keyValid(ctx: VenueContext): Promise<boolean> {
   const key = keyOf(ctx)
   if (!key) return false
   try {
-    const { data } = await publicGet<{ expiration?: string }>(ctx, `/v1/get_orderly_key?account_id=${accountId(ctx.ref.owner, brokerFor(ctx))}&orderly_key=${encodeURIComponent(key.id)}`)
+    const { data } = await publicGet<{ expiration?: string }>(
+      ctx,
+      `/v1/get_orderly_key?account_id=${accountId(ctx.ref.owner, brokerFor(ctx))}&orderly_key=${encodeURIComponent(key.id)}`,
+    )
     return Number(data.expiration ?? 0) > Date.now()
   } catch (e) {
     if (e instanceof TradeFailure && e.error.kind === 'rejected') return false
@@ -200,7 +311,18 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   const chainId = CHAIN_ID[network]
   if ((await wallet.chainId()) !== chainId) await wallet.switchChain(chainId)
   const submit = (path: string, message: Record<string, unknown>, signature: Hex) =>
-    send('orderly', ctx.fetch, `${API[network]}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message, signature, userAddress: wallet.address }), mutates: true }, classify)
+    send(
+      'orderly',
+      ctx.fetch,
+      `${API[network]}${path}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message, signature, userAddress: wallet.address }),
+        mutates: true,
+      },
+      classify,
+    )
   for (const step of (await steps(ctx)).filter((s) => !s.done)) {
     onStep(step.id)
     if (step.id === 'register-account') {
@@ -212,9 +334,17 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
     if (step.id === 'add-key') {
       const existing = ctx.keys.read()
       const key = existing?.secret ? orderlyKey(hexToBytes(existing.secret as Hex)) : orderlyKey()
-      if (!existing?.secret) ctx.keys.write({ status: 'draft', public: { key: key.id }, secret: bytesToHex(key.secret) })
+      if (!existing?.secret)
+        ctx.keys.write({ status: 'draft', public: { key: key.id }, secret: bytesToHex(key.secret) })
       const now = Date.now()
-      const typed = addKeyTypedData({ brokerId, chainId, orderlyKey: key.id, scope: SCOPE, timestamp: now, expiration: now + KEY_DAYS * 86_400_000 })
+      const typed = addKeyTypedData({
+        brokerId,
+        chainId,
+        orderlyKey: key.id,
+        scope: SCOPE,
+        timestamp: now,
+        expiration: now + KEY_DAYS * 86_400_000,
+      })
       await submit('/v1/orderly_key', typed.message, await wallet.signTypedData(typed))
     }
   }

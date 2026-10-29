@@ -83,7 +83,14 @@ function reconcile(state: OpenState, input: ConnInput, policy: ConnPolicy, effec
   if (input.desired.size === 0) return { state: { s: 'idle' }, effects: [...effects, { fx: 'close' }] }
   if (input.now - input.lastMessageAt > policy.silenceMs) {
     const stale = [...state.subscribed]
-    return { state: lost(state, input.now, input.rand), effects: [...effects, { fx: 'close' }, ...(stale.length ? [{ fx: 'streams-stale', streams: stale } as const] : [])] }
+    return {
+      state: lost(state, input.now, input.rand),
+      effects: [
+        ...effects,
+        { fx: 'close' },
+        ...(stale.length ? [{ fx: 'streams-stale', streams: stale } as const] : []),
+      ],
+    }
   }
   const holds = new Map([...state.holds].filter(([, h]) => input.now < h.until + HOLD_MAX_MS))
   const held = (s: StreamKey) => (holds.get(s)?.until ?? 0) > input.now
@@ -98,7 +105,10 @@ function reconcile(state: OpenState, input: ConnInput, policy: ConnPolicy, effec
     out.push({ fx: 'keepalive' })
     lastKeepaliveAt = input.now
   }
-  return { state: { ...state, subscribed: new Set(wanted), lastMessageAt: input.lastMessageAt, lastKeepaliveAt, holds }, effects: out }
+  return {
+    state: { ...state, subscribed: new Set(wanted), lastMessageAt: input.lastMessageAt, lastKeepaliveAt, holds },
+    effects: out,
+  }
 }
 
 export function stepConnection(state: ConnState, event: ConnEvent, input: ConnInput, policy: ConnPolicy): Step {
@@ -106,7 +116,15 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
     case 'opened':
       if (state.s !== 'connecting') return { state, effects: [] }
       return reconcile(
-        { s: 'open', subscribed: new Set(), lastMessageAt: input.now, lastKeepaliveAt: input.now, attempt: state.attempt, openedAt: input.now, holds: new Map() },
+        {
+          s: 'open',
+          subscribed: new Set(),
+          lastMessageAt: input.now,
+          lastKeepaliveAt: input.now,
+          attempt: state.attempt,
+          openedAt: input.now,
+          holds: new Map(),
+        },
         { ...input, lastMessageAt: input.now },
         policy,
         [],
@@ -114,7 +132,10 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
     case 'closed': {
       if (state.s === 'open') {
         const stale = [...state.subscribed]
-        return { state: lost(state, input.now, input.rand), effects: stale.length ? [{ fx: 'streams-stale', streams: stale }] : [] }
+        return {
+          state: lost(state, input.now, input.rand),
+          effects: stale.length ? [{ fx: 'streams-stale', streams: stale }] : [],
+        }
       }
       if (state.s === 'connecting') {
         const attempt = state.attempt + 1
@@ -149,12 +170,16 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
     case 'tick':
       switch (state.s) {
         case 'idle':
-          return input.desired.size ? { state: { s: 'connecting', attempt: 0 }, effects: [{ fx: 'open' }] } : { state, effects: [] }
+          return input.desired.size
+            ? { state: { s: 'connecting', attempt: 0 }, effects: [{ fx: 'open' }] }
+            : { state, effects: [] }
         case 'connecting':
           return { state, effects: [] }
         case 'backoff':
           if (!input.desired.size) return { state: { s: 'idle' }, effects: [] }
-          return input.now >= state.retryAt ? { state: { s: 'connecting', attempt: state.attempt }, effects: [{ fx: 'open' }] } : { state, effects: [] }
+          return input.now >= state.retryAt
+            ? { state: { s: 'connecting', attempt: state.attempt }, effects: [{ fx: 'open' }] }
+            : { state, effects: [] }
         case 'open':
           return reconcile(state, input, policy, [])
       }

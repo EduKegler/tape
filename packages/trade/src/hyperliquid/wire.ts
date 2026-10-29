@@ -6,7 +6,9 @@ import type { Address, Hex } from 'viem'
  */
 
 export type Tif = 'Gtc' | 'Ioc' | 'Alo'
-export type OrderType = { readonly limit: { readonly tif: Tif } } | { readonly trigger: { readonly isMarket: boolean; readonly triggerPx: string; readonly tpsl: 'tp' | 'sl' } }
+export type OrderType =
+  | { readonly limit: { readonly tif: Tif } }
+  | { readonly trigger: { readonly isMarket: boolean; readonly triggerPx: string; readonly tpsl: 'tp' | 'sl' } }
 
 export interface OrderWire {
   readonly a: number
@@ -24,13 +26,33 @@ export interface Builder {
   readonly f: number
 }
 
-export function orderWire(asset: number, isBuy: boolean, px: string, sz: string, reduceOnly: boolean, type: OrderType, cloid?: Hex): OrderWire {
-  const t = 'limit' in type ? { limit: { tif: type.limit.tif } } : { trigger: { isMarket: type.trigger.isMarket, triggerPx: type.trigger.triggerPx, tpsl: type.trigger.tpsl } }
+export function orderWire(
+  asset: number,
+  isBuy: boolean,
+  px: string,
+  sz: string,
+  reduceOnly: boolean,
+  type: OrderType,
+  cloid?: Hex,
+): OrderWire {
+  const t =
+    'limit' in type
+      ? { limit: { tif: type.limit.tif } }
+      : { trigger: { isMarket: type.trigger.isMarket, triggerPx: type.trigger.triggerPx, tpsl: type.trigger.tpsl } }
   return { a: asset, b: isBuy, p: px, s: sz, r: reduceOnly, t, ...(cloid ? { c: cloid } : {}) }
 }
 
-export function orderAction(orders: readonly OrderWire[], grouping: 'na' | 'normalTpsl' | 'positionTpsl', builder: Builder | null) {
-  return { type: 'order', orders, grouping, ...(builder ? { builder: { b: builder.b.toLowerCase(), f: builder.f } } : {}) }
+export function orderAction(
+  orders: readonly OrderWire[],
+  grouping: 'na' | 'normalTpsl' | 'positionTpsl',
+  builder: Builder | null,
+) {
+  return {
+    type: 'order',
+    orders,
+    grouping,
+    ...(builder ? { builder: { b: builder.b.toLowerCase(), f: builder.f } } : {}),
+  }
 }
 
 export function cancelAction(cancels: readonly { readonly asset: number; readonly oid: number }[]) {

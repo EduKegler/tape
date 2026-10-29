@@ -5,7 +5,11 @@ import type { Px, Qty } from './fixed'
 
 const lv = (px: number, qty: number): Level => [px as Px, qty as Qty]
 const delta = (bids: Level[], asks: Level[], seq: [number, number] | null = null): BookInput => ({
-  kind: 'delta', bids, asks, seq: seq && { from: seq[0], to: seq[1] }, time: 1,
+  kind: 'delta',
+  bids,
+  asks,
+  seq: seq && { from: seq[0], to: seq[1] },
+  time: 1,
 })
 const snapshot = (bids: Level[], asks: Level[]): BookInput => ({ kind: 'snapshot', bids, asks, time: 1 })
 
@@ -78,7 +82,11 @@ describe('rest-snapshot-sequenced (Binance)', () => {
 
 describe('snapshot-then-deltas (dYdX)', () => {
   it('drops deltas until the in-band snapshot', () => {
-    const steps = run('snapshot-then-deltas', [delta([lv(1, 1)], []), snapshot([lv(100, 1)], [lv(101, 1)]), delta([lv(99, 2)], [])])
+    const steps = run('snapshot-then-deltas', [
+      delta([lv(1, 1)], []),
+      snapshot([lv(100, 1)], [lv(101, 1)]),
+      delta([lv(99, 2)], []),
+    ])
     expect(topLevels(visibleBook(steps[2]!.sync)!.bids, 5)).toEqual([lv(100, 1), lv(99, 2)])
   })
 
@@ -102,7 +110,10 @@ describe('snapshot-then-deltas (dYdX)', () => {
   })
 
   it('asks the hub to resubscribe when the book is corrupt', () => {
-    const steps = run('snapshot-then-deltas', [snapshot([lv(100, 1)], [lv(101, 1)]), { kind: 'reset', reason: 'corrupt' }])
+    const steps = run('snapshot-then-deltas', [
+      snapshot([lv(100, 1)], [lv(101, 1)]),
+      { kind: 'reset', reason: 'corrupt' },
+    ])
     expect(steps[1]!.effect).toEqual({ kind: 'resubscribe' })
   })
 })

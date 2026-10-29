@@ -39,7 +39,10 @@ export function streamsFor(topic: Topic): readonly StreamKey[] {
     case 'candle':
       return [streamKey(topic.market, 'candle', topic.interval)]
     case 'compare':
-      return VENUE_IDS.flatMap((v) => [streamKey(marketKey(v, topic.base), 'book'), streamKey(marketKey(v, topic.base), 'trades')])
+      return VENUE_IDS.flatMap((v) => [
+        streamKey(marketKey(v, topic.base), 'book'),
+        streamKey(marketKey(v, topic.base), 'trades'),
+      ])
   }
 }
 

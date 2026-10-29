@@ -6,7 +6,9 @@ const json = (name: string): unknown => JSON.parse(readFileSync(new URL(name, di
 
 /** Recorded WebSocket frames, in arrival order. */
 export function wsFrames(venue: VenueId): string[] {
-  return readFileSync(new URL(`${venue}.ws.jsonl`, dir), 'utf8').trim().split('\n')
+  return readFileSync(new URL(`${venue}.ws.jsonl`, dir), 'utf8')
+    .trim()
+    .split('\n')
 }
 
 const ROUTES: [RegExp, string][] = [

@@ -86,7 +86,13 @@ export function wireDecimal(units: Px | Qty | bigint, decimals: number): string 
 export function plainDecimal(source: string): string {
   const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source)
   if (!match) throw new DecimalError(source, 'syntax')
-  const [, sign, whole, fraction = '', exp = '0'] = match as unknown as [string, string, string, string | undefined, string | undefined]
+  const [, sign, whole, fraction = '', exp = '0'] = match as unknown as [
+    string,
+    string,
+    string,
+    string | undefined,
+    string | undefined,
+  ]
   const digits = `${whole}${fraction}`
   const point = whole.length + Number(exp)
   const padded = point <= 0 ? `${'0'.repeat(1 - point)}${digits}` : digits.padEnd(point, '0')

@@ -30,7 +30,13 @@ export function formatChartTick(seconds: number, mark: keyof typeof tickFormats)
 }
 
 export function formatChartTime(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Date(seconds * 1000).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
 }
 
 export function shortAddress(address: string): string {

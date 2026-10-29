@@ -44,7 +44,8 @@ export type IntentFields = {
   readonly size: Qty
   readonly reduceOnly: boolean
   /** Market carries no price: the module reads the touch from the network it sends to. */
-  readonly order: { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif } | { readonly kind: 'market'; readonly slippage: Bps }
+  readonly order:
+    { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif } | { readonly kind: 'market'; readonly slippage: Bps }
   readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
 }
 
@@ -58,7 +59,8 @@ export type Command =
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
 
 /** What the venue says about an order whose send had no answer. `absent` is the venue's own reply, not a timeout. */
-export type OrderLookup = { readonly kind: 'found'; readonly detail: string } | { readonly kind: 'absent'; readonly detail: string }
+export type OrderLookup =
+  { readonly kind: 'found'; readonly detail: string } | { readonly kind: 'absent'; readonly detail: string }
 
 export type CommandOutcome =
   | { readonly kind: 'placed'; readonly status: 'resting' | 'filled' | 'accepted'; readonly detail: string }
@@ -104,7 +106,10 @@ export interface AccountSnapshot {
 }
 
 /** unknown: the venue account cannot be located before setup (dYdX's address comes from the key). */
-export type AccountView = { readonly kind: 'unknown' } | { readonly kind: 'empty' } | { readonly kind: 'live'; readonly snapshot: AccountSnapshot }
+export type AccountView =
+  | { readonly kind: 'unknown' }
+  | { readonly kind: 'empty' }
+  | { readonly kind: 'live'; readonly snapshot: AccountSnapshot }
 
 export type StepId = 'register-account' | 'approve-agent' | 'approve-builder' | 'derive-key' | 'add-key'
 export interface SetupStep {
