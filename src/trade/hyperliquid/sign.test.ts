@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { hashTypedData, hexToBigInt } from 'viem'
 import type { Hex } from 'viem'
-import { actionHash, l1TypedData, localSigner, signL1Action, signUserAction, typedDataDigest } from './sign'
+import { localSigner, typedDataDigest } from '../typed-data'
+import { actionHash, l1TypedData, signL1Action, signUserAction } from './sign'
 import type { HlSignature } from './sign'
 
 // Vectors from hyperliquid-python-sdk tests/signing_test.py. Python's to_hex drops leading zeros, so compare as integers.

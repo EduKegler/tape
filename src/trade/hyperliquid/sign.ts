@@ -1,6 +1,7 @@
 import { encode } from '@msgpack/msgpack'
-import { concat, encodeAbiParameters, hexToBytes, keccak256, numberToHex, parseSignature, stringToBytes } from 'viem'
+import { concat, hexToBytes, keccak256, numberToHex, parseSignature } from 'viem'
 import type { Address, Hex } from 'viem'
+import type { TypedData, TypedDataSigner } from '../typed-data'
 
 /**
  * Hyperliquid has two signing schemes, both EIP-712, mirrored from the official
@@ -17,56 +18,6 @@ export interface HlSignature {
   readonly r: Hex
   readonly s: Hex
   readonly v: number
-}
-
-type Field = { readonly name: string; readonly type: 'string' | 'address' | 'uint64' | 'bytes32' }
-
-/** EIP-712 typed data in the JSON shape `eth_signTypedData_v4` takes. */
-export interface TypedData {
-  readonly domain: { readonly name: string; readonly version: string; readonly chainId: number; readonly verifyingContract: Address }
-  readonly types: Readonly<Record<string, readonly Field[]>>
-  readonly primaryType: string
-  readonly message: Readonly<Record<string, string | number>>
-}
-
-/**
- * The one capability a signer needs. An agent key signs the digest, a wallet gets the JSON.
- * Typed data goes to wallets raw because viem refuses Hyperliquid's `HyperliquidTransaction:` type names.
- */
-export interface TypedDataSigner {
-  readonly address: Address
-  signTypedData(data: TypedData): Promise<Hex>
-}
-
-const DOMAIN_FIELDS: readonly Field[] = [
-  { name: 'name', type: 'string' },
-  { name: 'version', type: 'string' },
-  { name: 'chainId', type: 'uint64' },
-  { name: 'verifyingContract', type: 'address' },
-]
-
-function structHash(name: string, fields: readonly Field[], value: Readonly<Record<string, string | number>>, chainIdAsUint256 = false): Hex {
-  const signature = `${name}(${fields.map((f) => `${chainIdAsUint256 && f.name === 'chainId' ? 'uint256' : f.type} ${f.name}`).join(',')})`
-  const encoded = fields.map((f) => {
-    const v = value[f.name]
-    if (f.type === 'string') return keccak256(stringToBytes(String(v)))
-    if (f.type === 'address') return encodeAbiParameters([{ type: 'address' }], [v as Address])
-    if (f.type === 'bytes32') return v as Hex
-    return encodeAbiParameters([{ type: 'uint256' }], [BigInt(v as number)])
-  })
-  return keccak256(concat([keccak256(stringToBytes(signature)), ...encoded]))
-}
-
-/** The EIP-712 digest for flat structs, which is every struct Hyperliquid signs. */
-export function typedDataDigest(data: TypedData): Hex {
-  const fields = data.types[data.primaryType] as readonly Field[]
-  const domain = structHash('EIP712Domain', DOMAIN_FIELDS, data.domain, true)
-  return keccak256(concat(['0x1901', domain, structHash(data.primaryType, fields, data.message)]))
-}
-
-/** Wraps a local key, the agent wallet or a test key, as a signer. */
-export function localSigner(account: { readonly address: Address; sign(args: { hash: Hex }): Promise<Hex> }): TypedDataSigner {
-  return { address: account.address, signTypedData: (data) => account.sign({ hash: typedDataDigest(data) }) }
 }
 
 export function actionHash(action: unknown, vault: Address | null, nonce: number, expiresAfter: number | null): Hex {
