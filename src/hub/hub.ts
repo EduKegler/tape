@@ -65,7 +65,7 @@ export interface HubInspection {
 
 /** Hub to tab traffic stays at or under 10 Hz per tab, whatever the venues send. */
 const SNAPSHOT_TIMEOUT_MS = 8_000
-export const FLUSH_MS = 100
+const FLUSH_MS = 100
 const TICK_MS = 1000
 const SPEC_RETRY_MS = 5000
 
