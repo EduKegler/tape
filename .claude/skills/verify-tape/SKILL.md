@@ -137,4 +137,5 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 - Every tab of this Chrome shares one SharedWorker hub. Open extra tabs only when the journey needs them, and `close` them after, or the `Tabs` count is off for the next journey.
 - The wallet is the harness test wallet, never an extension. Branded Chrome ignores `--load-extension`. It has no funds, so trading proof is the venue's rejection naming the recovered address. See `features/trading.md`.
 - Each `up` makes a new wallet key. Compare addresses within one run only.
+- The build sends a Content Security Policy. A blocked script or host shows in the console as `violates the following Content Security Policy directive`, and the feature stalls without an error on screen. Read the console before blaming the venue.
 - `steps.jsonl` records commands that failed too, with the error. Read it when a journey stops halfway.

@@ -1,0 +1,45 @@
+import { describe, expect, it } from 'vitest'
+import { NETWORKS } from '@tape/core/ids'
+import type { Network } from '@tape/core/ids'
+import type { MarketSpec } from '@tape/core/market'
+import { venues } from '@tape/venues/index'
+import { CONNECT, contentSecurityPolicy } from './csp'
+
+async function originsReached(network: Network) {
+  const origins = new Set<string>()
+  const offline: typeof fetch = (input) => {
+    origins.add(new URL(String(input)).origin)
+    return Promise.reject(new Error('offline'))
+  }
+  for (const adapter of Object.values(venues(network))) {
+    origins.add(new URL(adapter.url).origin)
+    await Promise.allSettled([
+      adapter.fetchSpecs(offline),
+      adapter.fetchStats('BTC', offline),
+      adapter.fetchCandles('BTC', '1m', offline),
+      adapter.book.protocol === 'rest-snapshot-sequenced'
+        ? adapter.book.fetchSnapshot({ venueSymbol: 'BTCUSDT' } as MarketSpec, offline)
+        : null,
+    ])
+  }
+  return origins
+}
+
+describe('content security policy', () => {
+  it.each(NETWORKS)('lets the %s page reach every venue it streams from', async (network) => {
+    const reached = await originsReached(network)
+    expect(reached.size).toBeGreaterThanOrEqual(8)
+    expect([...reached].filter((o) => !CONNECT[network].includes(o))).toEqual([])
+  })
+
+  it('keeps every testnet origin off mainnet', () => {
+    expect(CONNECT.testnet.filter((o) => CONNECT.mainnet.includes(o))).toEqual([])
+  })
+
+  it('runs only scripts that carry the nonce', () => {
+    const script = contentSecurityPolicy('abc', 'testnet')
+      .split('; ')
+      .find((d) => d.startsWith('script-src'))
+    expect(script).toBe("script-src 'self' 'nonce-abc' 'wasm-unsafe-eval'")
+  })
+})

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { bestAsk, bestBid, initialSync, stepBook, visibleBook } from '@tape/core/book'
 import type { BookInput, BookSync } from '@tape/core/book'
 import { VENUE_IDS } from '@tape/core/ids'
-import type { MarketKey, Network } from '@tape/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedFetch, wsFrames } from './fixtures'
 import { venues } from './index'
@@ -93,34 +93,5 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
       orderly: /PERP_ETH_USDC@orderbook.*PERP_ETH_USDC@kline_5m/s,
     }
     expect(frames.join('\n')).toMatch(expected[venue])
-  })
-})
-
-describe('networks', () => {
-  async function hostsReached(network: Network) {
-    const hosts = new Set<string>()
-    const offline: typeof fetch = (input) => {
-      hosts.add(new URL(String(input)).host)
-      return Promise.reject(new Error('offline'))
-    }
-    for (const adapter of Object.values(venues(network))) {
-      hosts.add(new URL(adapter.url).host)
-      await Promise.allSettled([
-        adapter.fetchSpecs(offline),
-        adapter.fetchStats('BTC', offline),
-        adapter.fetchCandles('BTC', '1m', offline),
-        adapter.book.protocol === 'rest-snapshot-sequenced'
-          ? adapter.book.fetchSnapshot({ venueSymbol: 'BTCUSDT' } as MarketSpec, offline)
-          : null,
-      ])
-    }
-    return hosts
-  }
-
-  it('keeps every testnet socket and request off mainnet hosts', async () => {
-    const mainnet = await hostsReached('mainnet')
-    const testnet = await hostsReached('testnet')
-    expect(testnet.size).toBeGreaterThanOrEqual(4)
-    expect([...testnet].filter((h) => mainnet.has(h))).toEqual([])
   })
 })
