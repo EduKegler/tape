@@ -69,8 +69,7 @@ export interface BookFrame extends FrameBase {
   readonly groupOptions: readonly string[]
   readonly asks: readonly BookRow[]
   readonly bids: readonly BookRow[]
-  readonly bid: string
-  readonly ask: string
+  readonly touch: { readonly bid: string; readonly ask: string }
   readonly mid: string
   readonly spread: string
   readonly spreadBps: string

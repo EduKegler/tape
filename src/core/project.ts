@@ -80,8 +80,10 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
     groupOptions: options,
     asks: ladder(asks, askCum),
     bids: ladder(bids, bidCum),
-    bid: bid !== null ? formatPx(bid, spec.scale, tradeDecimals(spec, bid)) : '',
-    ask: ask !== null ? formatPx(ask, spec.scale, tradeDecimals(spec, ask)) : '',
+    touch: {
+      bid: bid !== null ? formatPx(bid, spec.scale, tradeDecimals(spec, bid)) : '',
+      ask: ask !== null ? formatPx(ask, spec.scale, tradeDecimals(spec, ask)) : '',
+    },
     mid: bid !== null && ask !== null ? formatMid(bid, ask, spec.scale) : '',
     spread: bid !== null && ask !== null ? formatPx((ask - bid) as Px, spec.scale) : '',
     spreadBps: bid !== null && ask !== null ? spreadBps(bid, ask) : '',

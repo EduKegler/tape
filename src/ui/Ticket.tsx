@@ -62,7 +62,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const [protect, setProtect] = useState(false)
   const touch = useFrame(
     { kind: 'book', market: spec.key, group },
-    (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }),
+    (f) => ({ bid: plain(f?.touch.bid), ask: plain(f?.touch.ask) }),
     shallow,
   )
   const near = side === 'buy' ? touch.bid : touch.ask

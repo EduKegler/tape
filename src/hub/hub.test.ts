@@ -107,10 +107,25 @@ describe('hub', () => {
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
     expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
+    hub.dispose()
+  })
+
+  it('sends the exact touch in a book grouped wider than the spread', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([
+      { kind: 'book', market: btc('binance'), group: '100' },
+      { kind: 'compare', base: 'BTC' },
+    ])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(1500)
+
     const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
+    const compare = a.frames.get('compare|BTC')
     const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
-    expect(wide.bid).toBe(venue?.bid)
-    expect(wide.ask).toBe(venue?.ask)
+    expect(wide.touch.bid).not.toBe('')
+    expect(wide.touch).toEqual({ bid: venue?.bid, ask: venue?.ask })
     hub.dispose()
   })
 
