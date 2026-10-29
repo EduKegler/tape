@@ -161,7 +161,7 @@ export function createHub(deps: HubDeps): Hub {
       .map((k) => `${markets.get(k)?.version ?? -1}:${markets.get(k) ? statusOf(markets.get(k)!) : ''}`)
       .join('|')
     const cached = topics.get(key)
-    if (cached && cached.signature === signature) return cached.frame
+    if (cached?.signature === signature) return cached.frame
     const version = (cached?.frame.version ?? 0) + 1
     const view = views[0]!
     let frame: Frame

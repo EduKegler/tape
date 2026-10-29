@@ -47,7 +47,7 @@ export function parseQty(input: string, scale: Scale): Qty {
 
 /** Decimal places a venue increment string implies: "0.01000000" is 2, "1" is 0. */
 export function decimalsOf(increment: string): Decimals {
-  const fraction = increment.split('.')[1]?.replace(/0+$/, '') ?? ''
+  const fraction = increment.split('.')[1]?.replace(/(?<!0)0+$/, '') ?? ''
   return Math.min(fraction.length, 8) as Decimals
 }
 
@@ -78,13 +78,13 @@ export function wireDecimal(units: Px | Qty | bigint, decimals: number): string 
   const abs = BigInt(units) < 0n ? -BigInt(units) : BigInt(units)
   const digits = abs.toString().padStart(decimals + 1, '0')
   const whole = digits.slice(0, digits.length - decimals)
-  const fraction = digits.slice(digits.length - decimals).replace(/0+$/, '')
+  const fraction = digits.slice(digits.length - decimals).replace(/(?<!0)0+$/, '')
   return `${BigInt(units) < 0n ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`
 }
 
 /** A JSON number's source text as a plain decimal: "1e-7" is "0.0000001", "-2.5E+3" is "-2500". */
 export function plainDecimal(source: string): string {
-  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source)
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(source)
   if (!match) throw new DecimalError(source, 'syntax')
   const [, sign, whole, fraction = '', exp = '0'] = match as unknown as [
     string,
@@ -98,7 +98,7 @@ export function plainDecimal(source: string): string {
   const padded = point <= 0 ? `${'0'.repeat(1 - point)}${digits}` : digits.padEnd(point, '0')
   const at = Math.max(point, 1)
   const int = padded.slice(0, at).replace(/^0+(?=\d)/, '')
-  const frac = padded.slice(at).replace(/0+$/, '')
+  const frac = padded.slice(at).replace(/(?<!0)0+$/, '')
   return `${sign}${int}${frac ? `.${frac}` : ''}`
 }
 

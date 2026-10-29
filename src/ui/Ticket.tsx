@@ -180,7 +180,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 name="tif"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value as Tif)}
-                className="rounded border border-rule bg-surface px-1.5 py-1 text-[12px] text-level1"
+                className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-[12px] text-level1"
               >
                 {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const)).map((t) => (
                   <option key={t} value={t}>
@@ -420,7 +420,7 @@ function Input(props: {
         onBlur={props.onBlur}
         aria-invalid={Boolean(props.error)}
         aria-describedby={props.error ? `${id}-error` : undefined}
-        className="num rounded border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
+        className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
       />
       {props.error && (
         <span id={`${id}-error`} className="text-ask">

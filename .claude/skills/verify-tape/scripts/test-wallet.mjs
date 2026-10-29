@@ -144,9 +144,9 @@ function verdict(url, method, body) {
   if (method === 'OPTIONS') return null
   if (url.startsWith('https://api.hyperliquid.xyz/exchange'))
     return 'Hyperliquid mainnet orders are blocked in verification'
-  if (/orderly\.org\/v1\/(register_account|orderly_key)/.test(url))
+  if (/orderly\.org\/v1\/(?:register_account|orderly_key)/.test(url))
     return 'Orderly account and key registration is blocked in verification'
-  if (/\/\/api\.orderly\.org\/v1\/(order|batch-order|client)/.test(url) && method !== 'GET')
+  if (/\/\/api\.orderly\.org\/v1\/(?:order|batch-order|client)/.test(url) && method !== 'GET')
     return 'Orderly mainnet orders are blocked in verification'
   if (/dydx/.test(url) && !/testnet|test-dydx/.test(url) && /broadcast_tx/.test(body ?? ''))
     return 'dYdX mainnet broadcasts are blocked in verification'

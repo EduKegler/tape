@@ -69,7 +69,7 @@ export function orderly(network: Network): VenueAdapter {
             { signal: signal ?? null },
           )
           const m = json.data
-          if (!m || m.status !== 'ACTIVE') return
+          if (m?.status !== 'ACTIVE') return
           const scale = { px: decimalsOf(m.quote_tick), qty: decimalsOf(m.base_tick) }
           specs.set(base, {
             key: marketKey('orderly', base),

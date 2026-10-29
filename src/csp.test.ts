@@ -8,7 +8,7 @@ import { CONNECT, contentSecurityPolicy } from './csp'
 async function originsReached(network: Network) {
   const origins = new Set<string>()
   const offline: typeof fetch = (input) => {
-    origins.add(new URL(String(input)).origin)
+    origins.add(new URL(input instanceof Request ? input.url : input).origin)
     return Promise.reject(new Error('offline'))
   }
   for (const adapter of Object.values(venues(network))) {

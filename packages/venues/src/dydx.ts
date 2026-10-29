@@ -86,6 +86,7 @@ function events(
       const candles = list.map(candle).sort((a, b) => a.open - b.open)
       return candles.length ? [{ kind: 'candle', market, interval, candles }] : []
     }
+    case undefined:
     default:
       return []
   }
@@ -113,7 +114,7 @@ export function dydx(network: Network): VenueAdapter {
             markets: Record<string, { tickSize: string; stepSize: string; status: string }>
           }>(fetch, `${indexer}/perpetualMarkets?ticker=${ticker}`, { signal: signal ?? null })
           const m = json.markets[ticker]
-          if (!m || m.status !== 'ACTIVE') return
+          if (m?.status !== 'ACTIVE') return
           const scale = { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) }
           specs.set(base, {
             key: marketKey('dydx', base),

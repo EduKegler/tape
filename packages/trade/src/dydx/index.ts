@@ -44,7 +44,7 @@ function fail(error: TradeError): never {
 
 /** The client queries the chain account before it signs, so an unfunded address fails there, not at broadcast. */
 export function classifyMessage(message: string): TradeError {
-  if (/account .*(does not exist|not found)|no subaccount/i.test(message))
+  if (/account .*(?:does not exist|not found)|no subaccount/i.test(message))
     return { kind: 'no-account', detail: message }
   if (/insufficient|undercollateralized|collateral/i.test(message))
     return { kind: 'insufficient-margin', detail: message }
@@ -251,7 +251,7 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
     if (!(
       e instanceof TradeFailure &&
       'detail' in e.error &&
-      /order.*(does not exist|not found)|already (filled|canceled|cancelled|removed)/i.test(e.error.detail)
+      /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)/i.test(e.error.detail)
     ))
       throw e
   }
