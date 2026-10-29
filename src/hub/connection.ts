@@ -14,7 +14,7 @@ export type ConnState =
     }
   | { readonly s: 'backoff'; readonly attempt: number; readonly retryAt: number }
 
-export interface Hold {
+interface Hold {
   readonly until: number
   readonly count: number
 }
@@ -46,11 +46,11 @@ export interface ConnInput {
   readonly rand: number
 }
 
-export function backoffMs(attempt: number, rand: number): number {
+function backoffMs(attempt: number, rand: number): number {
   return Math.round(Math.min(15_000, 500 * 2 ** attempt) * (0.5 + rand / 2))
 }
 
-export const STABLE_MS = 30_000
+const STABLE_MS = 30_000
 const HOLD_BASE_MS = 2_000
 const HOLD_MAX_MS = 60_000
 

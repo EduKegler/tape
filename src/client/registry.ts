@@ -12,7 +12,7 @@ export interface TabPort {
   listen: (onMessage: (message: HubToTab) => void) => void
 }
 
-export type ReadStore<T> = Pick<Store<T>, 'get' | 'subscribe'>
+type ReadStore<T> = Pick<Store<T>, 'get' | 'subscribe'>
 
 export interface HubClient {
   readonly mode: HubMode

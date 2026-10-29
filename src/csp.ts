@@ -28,7 +28,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
   ],
 }
 
-export const WALLETCONNECT = ['wss://relay.walletconnect.org']
+const WALLETCONNECT = ['wss://relay.walletconnect.org']
 
 export function contentSecurityPolicy(
   nonce: string,
