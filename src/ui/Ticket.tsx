@@ -261,7 +261,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                     </dd>
                   </>
                 )}
-                {NETWORK === 'mainnet' && <WalletUsdc />}
+                {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
               </dl>
               <SubmitArea
                 session={session}
@@ -350,7 +350,7 @@ function SubmitArea({
   }
 }
 
-function WalletUsdc() {
+function MainnetWalletUsdc() {
   const balance = useUsdcBalance()
   return (
     <>
