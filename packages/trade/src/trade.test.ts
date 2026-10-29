@@ -377,6 +377,30 @@ describe('hyperliquid module', () => {
     expect(view.snapshot.fills[0]).toMatchObject({ id: '151386843995060', side: 'sell' })
   })
 
+  it('reads a unified account balance from spot, where the venue keeps it', async () => {
+    const { fetch } = venue((_url, body) => {
+      if (body.type === 'meta') return testnetMeta
+      if (body.type === 'userAbstraction') return 'unifiedAccount'
+      if (body.type === 'clearinghouseState')
+        return { marginSummary: { accountValue: '0.0' }, withdrawable: '0.0', assetPositions: [] }
+      if (body.type === 'spotClearinghouseState')
+        return {
+          balances: [{ coin: 'USDC', token: 0, total: '907.158556', hold: '2.4', entryNtl: '0.0' }],
+          tokenToAvailableAfterMaintenance: [[0, '904.758556']],
+        }
+      if (body.type === 'frontendOpenOrders' || body.type === 'userFills') return []
+      return null
+    })
+    const view = await TRADING.hyperliquid.account({
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot(),
+      fetch,
+    })
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot).toMatchObject({ equity: '907.158556', available: '904.758556' })
+  })
+
   it('writes the agent as draft before the wallet signs, and keeps it when the venue says deposit first', async () => {
     const { fetch } = venue((url, body) =>
       url.endsWith('/info')

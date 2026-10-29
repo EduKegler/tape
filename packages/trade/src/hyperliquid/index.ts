@@ -287,6 +287,8 @@ async function openOf(ctx: VenueContext, symbol: string) {
   return orders.filter((o) => o.coin === symbol).map((o) => ({ asset: m.get(o.coin)?.index ?? -1, oid: Number(o.oid) }))
 }
 
+const UNIFIED = new Set(['unifiedAccount', 'portfolioMargin'])
+
 async function account(ctx: VenueContext): Promise<AccountView> {
   const user = ctx.ref.owner
   type State = {
@@ -303,26 +305,34 @@ async function account(ctx: VenueContext): Promise<AccountView> {
       }
     }[]
   }
+  type Spot = {
+    balances: { coin: string; token: number; total: string }[]
+    tokenToAvailableAfterMaintenance?: [number, string][]
+  }
   type HlFill = { coin: string; px: string; sz: string; side: 'A' | 'B'; time: string; fee: string; tid: string }
-  const [state, orders, fills, m] = await Promise.all([
+  const [state, spot, mode, orders, fills, m] = await Promise.all([
     info<State>(ctx, { type: 'clearinghouseState', user }),
+    info<Spot>(ctx, { type: 'spotClearinghouseState', user }),
+    info<string>(ctx, { type: 'userAbstraction', user }),
     info<HlOrder[]>(ctx, { type: 'frontendOpenOrders', user }),
     info<HlFill[]>(ctx, { type: 'userFills', user }),
     meta(ctx),
   ])
   const d = (s: string) => s as Decimal
-  if (
-    Number(state.marginSummary.accountValue) === 0 &&
-    state.assetPositions.length === 0 &&
-    orders.length === 0 &&
-    fills.length === 0
-  )
+  // A unified or portfolio margin account keeps one USDC balance in spot for spot and perps alike.
+  // Its perp state holds only the margin in use, so it is not the balance.
+  const usdc = UNIFIED.has(mode) ? spot.balances.find((b) => b.coin === 'USDC') : undefined
+  const equity = usdc ? usdc.total : state.marginSummary.accountValue
+  const available = usdc
+    ? (spot.tokenToAvailableAfterMaintenance?.find(([token]) => token === usdc.token)?.[1] ?? usdc.total)
+    : state.withdrawable
+  if (Number(equity) === 0 && state.assetPositions.length === 0 && orders.length === 0 && fills.length === 0)
     return { kind: 'empty' }
   return {
     kind: 'live',
     snapshot: {
-      equity: d(state.marginSummary.accountValue),
-      available: d(state.withdrawable),
+      equity: d(equity),
+      available: d(available),
       positions: state.assetPositions.map(({ position: p }) => ({
         symbol: p.coin,
         side: p.szi.startsWith('-') ? 'short' : 'long',
