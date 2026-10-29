@@ -1,13 +1,14 @@
 import { useState, useSyncExternalStore } from 'react'
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
+import { UserRejectedRequestError } from 'viem'
 import type { Address } from 'viem'
 import type { VenueId } from '@tape/core/ids'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
 import { TRADE_CONFIG } from './config'
 import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
-import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, OrderLookup, SetupStep, StepId, TradeError, TradeVenueId, VenueContext } from '@tape/trade/types'
+import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, OrderLookup, SetupStep, StepId, StoredKey, TradeError, TradeVenueId, VenueContext } from '@tape/trade/types'
 import { keySlot, subscribeVault } from './vault'
 import { walletSigner } from '@tape/trade/wallet'
 
@@ -20,13 +21,17 @@ export type TradeSession =
       readonly ref: AccountRef
       readonly capabilities: Capabilities
       readonly steps: readonly SetupStep[] | undefined
-      /** A key exists on this device, approved or not. Orders go out and the venue judges them. */
       readonly keyed: boolean
       readonly enable: () => void
       readonly progress: StepId | null
       readonly error: TradeError | null
     }
   | { readonly status: 'ready'; readonly ref: AccountRef; readonly capabilities: Capabilities; readonly forget: () => void }
+
+const ACCOUNT_POLL_MS = 10_000
+const LOOKUP_DELAY_MS = 2_000
+
+type SlotState = 'none' | `${StoredKey['status']}:${'keyed' | 'unkeyed'}`
 
 export function tradeKeys(ref: AccountRef) {
   const all = ['trade', ref.venue, ref.network, ref.owner] as const
@@ -37,13 +42,12 @@ function contextFor(ref: AccountRef): VenueContext {
   return { ref, config: TRADE_CONFIG, keys: keySlot(ref, TRADING[ref.venue].secrets), fetch: (input, init) => fetch(input, init) }
 }
 
-/** The one place a foreign throw becomes typed. EIP-1193 code 4001 is the user saying no. */
 async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> {
   try {
     return await run()
   } catch (e) {
     if (e instanceof TradeFailure) throw e
-    if ((e as { code?: number } | null)?.code === 4001) throw new TradeFailure(venue, { kind: 'wallet-rejected' })
+    if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code) throw new TradeFailure(venue, { kind: 'wallet-rejected' })
     throw new TradeFailure(venue, { kind: 'unexpected', detail: e instanceof Error ? e.message : String(e) })
   }
 }
@@ -53,14 +57,13 @@ function useRef(venue: VenueId, network: Network): AccountRef | null {
   return address && isTradeVenue(venue) ? { venue, network, owner: address.toLowerCase() as Address } : null
 }
 
-/** `status:secret` of the slot, a primitive so useSyncExternalStore can compare it. Null on the server. */
-function useSlot(ref: AccountRef | null): string | null {
+function useSlot(ref: AccountRef | null): SlotState | null {
   return useSyncExternalStore(
     subscribeVault,
-    () => {
+    (): SlotState | null => {
       if (!ref) return null
       const key = keySlot(ref, TRADING[ref.venue].secrets).read()
-      return key ? `${key.status}:${key.secret !== null}` : 'none'
+      return key ? `${key.status}:${key.secret === null ? 'unkeyed' : 'keyed'}` : 'none'
     },
     () => null,
   )
@@ -74,7 +77,7 @@ export function useTradeSession(venue: VenueId, network: Network): TradeSession 
   const [progress, setProgress] = useState<StepId | null>(null)
   const module = isTradeVenue(venue) ? TRADING[venue] : null
   const unavailable = module?.unavailable(network, TRADE_CONFIG) ?? null
-  const linked = slot === 'linked:true'
+  const linked = slot === 'linked:keyed'
   const steps = useQuery<readonly SetupStep[], TradeFailure>({
     queryKey: ref ? tradeKeys(ref).steps : ['trade', 'none'],
     queryFn: () => guard(ref!.venue, () => TRADING[ref!.venue].steps(contextFor(ref!))),
@@ -112,25 +115,23 @@ export function useTradeSession(venue: VenueId, network: Network): TradeSession 
     ref,
     capabilities: module.capabilities,
     steps: steps.data,
-    keyed: slot?.endsWith(':true') ?? false,
+    keyed: slot?.endsWith(':keyed') ?? false,
     enable: () => enable.mutate(),
     progress,
     error: enable.error?.error ?? steps.error?.error ?? null,
   }
 }
 
-/** Polls every 10 s while mounted and visible, inside Hyperliquid's weight budget with two tabs. Every command invalidates it. */
 export function useAccountView(ref: AccountRef | null) {
   const query = useQuery<AccountView, TradeFailure>({
     queryKey: ref ? tradeKeys(ref).account : ['trade', 'none', 'account'],
     queryFn: () => guard(ref!.venue, () => TRADING[ref!.venue].account(contextFor(ref!))),
     enabled: Boolean(ref),
-    refetchInterval: 10_000,
+    refetchInterval: ACCOUNT_POLL_MS,
   })
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
 
-/** Null ref: nothing to send to yet (Binance, no wallet). `run` is then a no-op. */
 export function useTradeCommands(ref: AccountRef | null) {
   const client = useQueryClient()
   const command = ref ? tradeKeys(ref).command : ['trade', 'none', 'command']
@@ -138,7 +139,6 @@ export function useTradeCommands(ref: AccountRef | null) {
     mutationKey: command,
     mutationFn: (c) => (ref ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), c)) : Promise.reject(new Error('no account'))),
     onError: (failure) => {
-      // The venue no longer knows the key (revoked, or replaced from another device): back to the checklist.
       if (!ref || failure.error.kind !== 'needs-setup') return
       const slot = keySlot(ref, TRADING[ref.venue].secrets)
       const key = slot.read()
@@ -156,8 +156,7 @@ export function useTradeCommands(ref: AccountRef | null) {
     queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientId ?? null],
     enabled: Boolean(ref && unknown),
     queryFn: async () => {
-      // What reached the venue may still be in flight there, so it gets a moment before the question.
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, LOOKUP_DELAY_MS))
       return guard(ref!.venue, () => TRADING[ref!.venue].lookup(contextFor(ref!), unknown!))
     },
     retry: false,

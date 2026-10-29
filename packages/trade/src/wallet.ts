@@ -8,7 +8,7 @@ interface Eip1193 {
 
 const DOMAIN_TYPES = { name: 'string', version: 'string', chainId: 'uint256', verifyingContract: 'address', salt: 'bytes32' } as const
 
-/** The domain's own keys, in EIP-712 order, as viem and MetaMask derive them. dYdX onboarding has only `name`. */
+/** The domain's own keys, in EIP-712 order, as viem and MetaMask derive them. */
 export function domainTypes(domain: Eip712['domain']) {
   return (Object.keys(DOMAIN_TYPES) as (keyof typeof DOMAIN_TYPES)[]).filter((k) => k in domain).map((name) => ({ name, type: DOMAIN_TYPES[name] }))
 }

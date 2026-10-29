@@ -4,7 +4,6 @@ import { injected } from 'wagmi/connectors'
 
 export const chains = [mainnet, arbitrum, base, optimism] as const
 
-/** Native USDC per chain, read for the ticket balance. */
 export const USDC: Record<(typeof chains)[number]['id'], `0x${string}`> = {
   [mainnet.id]: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
   [arbitrum.id]: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',

@@ -13,7 +13,6 @@ export function isTradeVenue(venue: VenueId): venue is TradeVenueId {
 export const NETWORKS = ['mainnet', 'testnet'] as const
 export type Network = (typeof NETWORKS)[number]
 
-/** Who trades where. Every storage slot, query key and lock name derives from it. */
 export interface AccountRef {
   readonly venue: TradeVenueId
   readonly network: Network
@@ -37,19 +36,17 @@ export type ClientOrderId = Brand<Hex, 'ClientOrderId'>
  * What the user asked for, in the units of the market on screen. The venue module re-reads the
  * same decimals against the rules of the network it sends to, which can differ on testnet.
  */
-export type OrderIntent = Brand<
-  {
-    readonly spec: MarketSpec
-    readonly side: Side
-    readonly size: Qty
-    readonly reduceOnly: boolean
-    readonly clientId: ClientOrderId
-    /** Market carries no price: the module reads the touch from the network it sends to. */
-    readonly order: { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif } | { readonly kind: 'market'; readonly slippage: Bps }
-    readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
-  },
-  'OrderIntent'
->
+export type OrderIntent = Brand<IntentFields & { readonly clientId: ClientOrderId }, 'OrderIntent'>
+
+export type IntentFields = {
+  readonly spec: MarketSpec
+  readonly side: Side
+  readonly size: Qty
+  readonly reduceOnly: boolean
+  /** Market carries no price: the module reads the touch from the network it sends to. */
+  readonly order: { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif } | { readonly kind: 'market'; readonly slippage: Bps }
+  readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
+}
 
 /** Opaque outside the module that made it. Carries what that venue needs to cancel. */
 export type OrderRef = Brand<string, 'OrderRef'>
@@ -122,7 +119,6 @@ export interface Capabilities {
   readonly leverage: boolean
 }
 
-/** The only failure vocabulary the UI sees. `detail` is the venue's own words, always shown. */
 export type TradeError =
   | { readonly kind: 'wallet-rejected' }
   | { readonly kind: 'needs-setup'; readonly detail: string }
@@ -132,9 +128,7 @@ export type TradeError =
   | { readonly kind: 'rejected'; readonly detail: string }
   | { readonly kind: 'rate-limited'; readonly detail: string }
   | { readonly kind: 'unsupported'; readonly detail: string }
-  /** Nothing left the browser. Retrying is free. */
   | { readonly kind: 'unreachable'; readonly detail: string }
-  /** A signed action left and no answer came back. The account refetch shows what happened. */
   | { readonly kind: 'unknown-outcome'; readonly detail: string }
   | { readonly kind: 'unexpected'; readonly detail: string }
 
@@ -194,10 +188,6 @@ export interface VenueContext {
   readonly fetch: typeof globalThis.fetch
 }
 
-/**
- * The trading twin of VenueAdapter. Endpoints per network, asset ids, signing and error mapping
- * stay inside. Every method rejects only with TradeFailure.
- */
 export interface TradingVenue {
   readonly id: TradeVenueId
   readonly label: string

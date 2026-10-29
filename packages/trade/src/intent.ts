@@ -3,9 +3,10 @@ import type { Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import { bytesToHex } from 'viem'
-import type { Bps, Capabilities, ClientOrderId, OrderIntent, Position, Side, Tif } from './types'
+import type { Bps, Capabilities, ClientOrderId, IntentFields, OrderIntent, Position, Side, Tif } from './types'
 
-/** Validation is exact: a price must sit on the tick and a size on the step, checked in integers. */
+const intentOf = (fields: IntentFields) => ({ ...fields, clientId: newClientId() }) as OrderIntent
+
 export function checkPrice(spec: MarketSpec, value: string): string | undefined {
   if (!value) return 'Enter a price'
   try {
@@ -48,7 +49,6 @@ export interface IntentDraft {
 export type DraftField = 'price' | 'size' | 'tif' | 'takeProfit' | 'stopLoss'
 export type Built = { readonly ok: true; readonly intent: OrderIntent } | { readonly ok: false; readonly errors: Partial<Record<DraftField, string>> }
 
-/** The only door to an OrderIntent. Every check is integer math on Px and Qty. */
 export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabilities): Built {
   const errors: Partial<Record<DraftField, string>> = {}
   const size = checkSize(spec, draft.size)
@@ -60,7 +60,6 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   }
   const trigger = (field: 'takeProfit' | 'stopLoss', value: string): Px | null => {
     if (!value) return null
-    // A market order has no price to check the trigger side against, so a stray TP could fire at once.
     if (draft.kind === 'market') {
       errors[field] = 'Only with a limit order'
       return null
@@ -88,7 +87,7 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   const order = draft.kind === 'limit' ? { kind: 'limit' as const, px: parsePx(draft.price, spec.scale), tif: draft.tif } : { kind: 'market' as const, slippage: draft.slippage }
   return {
     ok: true,
-    intent: { spec, side: draft.side, size: parseQty(draft.size, spec.scale), reduceOnly: draft.reduceOnly, clientId: newClientId(), order, triggers: { takeProfit, stopLoss } } as OrderIntent,
+    intent: intentOf({ spec, side: draft.side, size: parseQty(draft.size, spec.scale), reduceOnly: draft.reduceOnly, order, triggers: { takeProfit, stopLoss } }),
   }
 }
 
@@ -96,13 +95,12 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
 export function closeIntent(spec: MarketSpec, position: Position, slippage: Bps): OrderIntent | null {
   const size = position.size.replace(/^-/, '')
   if (checkSize(spec, size)) return null
-  return {
-    spec, side: position.side === 'long' ? 'sell' : 'buy', size: parseQty(size, spec.scale), reduceOnly: true, clientId: newClientId(),
+  return intentOf({
+    spec, side: position.side === 'long' ? 'sell' : 'buy', size: parseQty(size, spec.scale), reduceOnly: true,
     order: { kind: 'market', slippage }, triggers: { takeProfit: null, stopLoss: null },
-  } as OrderIntent
+  })
 }
 
-/** A fresh id per send: a retry with new nonce or block height would not dedup anyway. */
 export function newClientId(): ClientOrderId {
   return bytesToHex(crypto.getRandomValues(new Uint8Array(16))) as ClientOrderId
 }

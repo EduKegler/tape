@@ -49,7 +49,7 @@ const classify: Classify = (_status, body) => {
   return b?.status === 'err' ? classifyText(String(b.response)) : null
 }
 
-const info = <T,>(ctx: VenueContext, body: unknown) => send<T>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/info`, { ...post(body), signed: false }, () => null)
+const info = <T,>(ctx: VenueContext, body: unknown) => send<T>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/info`, { ...post(body), mutates: false }, () => null)
 
 /** Asset ids and szDecimals differ between mainnet and testnet, so each network gets its own rules. */
 function meta(ctx: VenueContext): Promise<Meta> {
@@ -76,8 +76,7 @@ async function asset(ctx: VenueContext, symbol: string): Promise<Asset> {
   return (await meta(ctx)).get(symbol) ?? fail({ kind: 'invalid-order', detail: `${symbol} is not listed on Hyperliquid ${ctx.ref.network}` })
 }
 
-/** The intent's decimals, read again under this network's rules. Never rounded: off-rule is invalid-order. */
-function onNetwork(a: Asset, intent: OrderIntent, px: Px, what: string): string {
+function recheckPx(a: Asset, intent: OrderIntent, px: Px, what: string): string {
   const wire = wireDecimal(px, intent.spec.scale.px)
   const issue = checkPrice(a.spec, wire)
   return issue ? fail({ kind: 'invalid-order', detail: `${what} ${wire}: ${issue} on this network` }) : wire
@@ -97,13 +96,13 @@ async function placeWires(ctx: VenueContext, intent: OrderIntent): Promise<{ wir
   const isBuy = intent.side === 'buy'
   const limit =
     intent.order.kind === 'limit'
-      ? { px: onNetwork(a, intent, intent.order.px, 'Price'), tif: TIF[intent.order.tif] }
+      ? { px: recheckPx(a, intent, intent.order.px, 'Price'), tif: TIF[intent.order.tif] }
       : { px: wireDecimal(worstPrice(a.spec, intent.side, await touch(ctx, a, intent.side), intent.order.slippage), a.spec.scale.px), tif: 'Ioc' as const }
   const wires = [orderWire(a.index, isBuy, limit.px, size, intent.reduceOnly, { limit: { tif: limit.tif } }, intent.clientId)]
   const closing = isBuy ? 'sell' : 'buy'
   for (const [tpsl, px] of [['tp', intent.triggers.takeProfit], ['sl', intent.triggers.stopLoss]] as const) {
     if (px === null) continue
-    const triggerPx = onNetwork(a, intent, px, tpsl === 'tp' ? 'Take profit' : 'Stop loss')
+    const triggerPx = recheckPx(a, intent, px, tpsl === 'tp' ? 'Take profit' : 'Stop loss')
     const bound = wireDecimal(worstPrice(a.spec, closing, parsePx(triggerPx, a.spec.scale), TRIGGER_SLIPPAGE_BPS), a.spec.scale.px)
     wires.push(orderWire(a.index, !isBuy, bound, size, true, { trigger: { isMarket: true, triggerPx, tpsl } }))
   }
@@ -125,11 +124,10 @@ const Status = z.union([
 const Reply = z.object({ status: z.literal('ok'), response: z.object({ type: z.string(), data: z.object({ statuses: z.array(Status) }).optional() }) })
 type Statuses = z.infer<typeof Reply>
 
-/** The action was signed and the venue answered, so a reply Tape cannot read may still mean it was applied. */
 async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
   const nonce = nextNonce()
   const signature = await signL1Action(localSigner(agentOf(ctx)), action, nonce, CHAIN[ctx.ref.network])
-  const body = await send<unknown>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/exchange`, { ...post({ action, nonce, signature }), signed: true }, classify)
+  const body = await send<unknown>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/exchange`, { ...post({ action, nonce, signature }), mutates: true }, classify)
   const reply = Reply.safeParse(body)
   return reply.success ? reply.data : fail({ kind: 'unknown-outcome', detail: `Unreadable reply: ${JSON.stringify(body)}` })
 }
@@ -238,7 +236,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   const signatureChainId = signatureChainIdHex(chainId)
   const user = async (primaryType: Parameters<typeof signUserAction>[1], message: Record<string, string | number>, action: Record<string, unknown>) => {
     const signature = await signUserAction({ address: wallet.address, signTypedData: (data) => wallet.signTypedData(data) }, primaryType, message, chainId)
-    await send('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/exchange`, { ...post({ action: { ...action, signatureChainId, hyperliquidChain: chain, ...message }, nonce: message.nonce, signature }), signed: true }, classify)
+    await send('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/exchange`, { ...post({ action: { ...action, signatureChainId, hyperliquidChain: chain, ...message }, nonce: message.nonce, signature }), mutates: true }, classify)
   }
   for (const step of (await steps(ctx)).filter((s) => !s.done)) {
     onStep(step.id)

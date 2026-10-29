@@ -26,7 +26,6 @@ const btc: MarketSpec = {
 const caps = TRADING.hyperliquid.capabilities
 const draft = { side: 'buy', kind: 'limit', price: '80000', size: '0.001', tif: 'gtc', reduceOnly: false, takeProfit: '', stopLoss: '', slippage: 100 as Bps } as const
 
-/** No builder fee, no mainnet, Orderly's public testnet broker. */
 const config: TradeConfig = { mainnet: false, hyperliquid: { builder: null }, dydx: { builder: null }, orderly: { brokerId: { mainnet: null, testnet: 'demo' } } }
 
 function memorySlot(initial: StoredKey | null = null): KeySlot {
@@ -34,7 +33,6 @@ function memorySlot(initial: StoredKey | null = null): KeySlot {
   return { read: () => key, write: (k) => void (key = k), clear: () => void (key = null) }
 }
 
-/** A venue that answers by request body, and records what was sent. */
 function venue(answer: (url: string, body: Record<string, unknown>) => unknown) {
   const sent: { url: string; body: Record<string, unknown> }[] = []
   const fetch = (async (url: string, init?: RequestInit) => {
@@ -71,9 +69,9 @@ describe('order intent', () => {
 })
 
 describe('failure classification', () => {
-  it('calls a signed 5xx an unknown outcome even when the body says it failed', async () => {
+  it('calls a 5xx on a mutating request an unknown outcome even when the body says it failed', async () => {
     const fetch = (async () => new Response('{"success":false,"message":"internal"}', { status: 502 })) as unknown as typeof globalThis.fetch
-    const error = await send('orderly', fetch, 'https://x', { method: 'POST', signed: true }, () => ({ kind: 'rejected', detail: 'internal' })).catch((e: unknown) => e)
+    const error = await send('orderly', fetch, 'https://x', { method: 'POST', mutates: true }, () => ({ kind: 'rejected', detail: 'internal' })).catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
   })
 

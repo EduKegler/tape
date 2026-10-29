@@ -1,7 +1,6 @@
 import type { TradeSession } from '#/trade/hooks'
 import { TradeNote } from './TradeNote'
 
-/** The checklist stays until every step is done. Each click asks the wallet for one signature per undone step. */
 export function EnableTrading({ session }: { session: Extract<TradeSession, { status: 'setup' }> }) {
   const busy = session.progress !== null
   return (

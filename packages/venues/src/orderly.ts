@@ -13,7 +13,6 @@ const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15
 const KLINE: Record<Interval, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h' }
 const INTERVAL_OF = Object.fromEntries(Object.entries(KLINE).map(([k, v]) => [v, k])) as Record<string, Interval>
 
-// Every number below is its JSON source text, read through parseExactJson.
 type Wire =
   | { topic: string; ts: string; data: { symbol: string; bids: RawLevel[]; asks: RawLevel[] } }
   | { topic: string; ts: string; data: { symbol: string; price: string; size: string; side: 'BUY' | 'SELL' } }

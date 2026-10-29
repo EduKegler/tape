@@ -1,7 +1,3 @@
-// Every import in packages/*/src must be relative, a node: builtin, or a dependency the package
-// declares. pnpm would otherwise resolve an undeclared import through the app's node_modules,
-// so a package could pull in React or app code and still pass tsc. Workspace dependencies must
-// also form no cycle.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 

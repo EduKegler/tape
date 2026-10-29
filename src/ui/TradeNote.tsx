@@ -1,7 +1,6 @@
 import type { CommandOutcome, OrderLookup, TradeError } from '@tape/trade/types'
 import { describeError } from './trade-errors'
 
-/** The venue's own words always show, so a rejection can be read and quoted. */
 export function TradeNote({ error, outcome, lookup }: { error: TradeError | null; outcome?: CommandOutcome | null; lookup?: Lookup | null }) {
   if (error) {
     const { title, detail } = describeError(error)
@@ -26,7 +25,6 @@ export function TradeNote({ error, outcome, lookup }: { error: TradeError | null
 
 type Lookup = { readonly result: OrderLookup | null; readonly error: TradeError | null }
 
-/** After a send with no answer, what the venue says about that clientId decides whether sending again is safe. */
 function LookupLine({ lookup }: { lookup: Lookup }) {
   const text = lookup.error
     ? `Could not ask the venue about this order. ${describeError(lookup.error).title}`

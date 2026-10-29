@@ -3,7 +3,6 @@ import { erc20Abi, formatUnits } from 'viem'
 import { USDC, chains } from './config'
 import { shortAddress } from '#/ui/format'
 
-/** Connect, pick a chain, read USDC. Trading signatures go through src/trade/wallet.ts. */
 export function WalletButton() {
   const { address, chainId, isConnected } = useAccount()
   const connectors = useConnectors()

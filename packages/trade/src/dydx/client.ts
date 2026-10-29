@@ -3,10 +3,6 @@
 import { Buffer } from 'buffer'
 import type { Network } from '../types'
 
-/**
- * The only file that touches @dydxprotocol/v4-client-js. It is about 2.7 MB of cosmjs, so it
- * loads with import() on the first dYdX action, never on SSR or the first paint.
- */
 export async function sdk() {
   const scope = globalThis as { Buffer?: unknown }
   scope.Buffer ??= Buffer

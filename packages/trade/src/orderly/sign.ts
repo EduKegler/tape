@@ -4,11 +4,6 @@ import { encodeAbiParameters, keccak256, stringToBytes } from 'viem'
 import type { Address, Hex } from 'viem'
 import type { TypedData } from '../typed-data'
 
-/**
- * Orderly signs twice. The wallet signs EIP-712 once to register and once to add an ed25519
- * key, and that key then signs every private REST request.
- */
-
 const VERIFYING_CONTRACT: Address = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC'
 const domain = (chainId: number) => ({ name: 'Orderly', version: '1', chainId, verifyingContract: VERIFYING_CONTRACT })
 
@@ -69,7 +64,7 @@ export function orderlyKey(secret: Uint8Array = ed25519.utils.randomPrivateKey()
   return { secret, id: `ed25519:${base58.encode(ed25519.getPublicKey(secret))}` }
 }
 
-/** The four auth headers for one private request. `path` includes the query string. */
+/** `path` includes the query string. */
 export function signRequest(key: OrderlyKey, account: Hex, timestamp: number, method: string, path: string, body = ''): Record<string, string> {
   const signature = ed25519.sign(stringToBytes(`${timestamp}${method.toUpperCase()}${path}${body}`), key.secret)
   return {

@@ -42,7 +42,7 @@ const classify: Classify = (status, body, text) => {
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
 const publicGet = <T,>(ctx: VenueContext, path: string) =>
-  send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { signed: false }, (_s, body, text) => {
+  send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { mutates: false }, (_s, body, text) => {
     const b = body as { success?: boolean; message?: string } | null
     return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
   })
@@ -56,20 +56,18 @@ function brokerFor(ctx: VenueContext): string {
   return brokerOf(ctx.config, ctx.ref.network) ?? fail({ kind: 'unsupported', detail: 'No Orderly broker id configured' })
 }
 
-/** A private request. The signed text and the sent body are the same string. */
 async function signed<T>(ctx: VenueContext, method: 'GET' | 'POST' | 'DELETE', path: string, body = ''): Promise<T> {
   const key = keyOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
   const headers = {
     ...signRequest(key, accountId(ctx.ref.owner, brokerFor(ctx)), Date.now(), method, path, body),
     'content-type': method === 'POST' ? 'application/json' : 'application/x-www-form-urlencoded',
   }
-  const reply = await send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { method, headers, ...(body ? { body } : {}), signed: method !== 'GET' }, classify)
+  const reply = await send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { method, headers, ...(body ? { body } : {}), mutates: method !== 'GET' }, classify)
   return reply.data
 }
 
 const specs = new Map<string, Promise<MarketSpec>>()
 
-/** Tick and step on the network the order goes to. */
 function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
   const cacheKey = `${ctx.ref.network}:${symbol}`
   let cached = specs.get(cacheKey)
@@ -91,7 +89,6 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
     const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${intent.clientId}`)
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
   } catch (e) {
-    // Only the order missing counts; a missing account or key stays an error.
     if (e instanceof TradeFailure && e.error.kind === 'rejected' && /order.*(not exist|not found)/i.test(e.error.detail)) return { kind: 'absent', detail: e.error.detail }
     throw e
   }
@@ -203,7 +200,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   const chainId = CHAIN_ID[network]
   if ((await wallet.chainId()) !== chainId) await wallet.switchChain(chainId)
   const submit = (path: string, message: Record<string, unknown>, signature: Hex) =>
-    send('orderly', ctx.fetch, `${API[network]}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message, signature, userAddress: wallet.address }), signed: true }, classify)
+    send('orderly', ctx.fetch, `${API[network]}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message, signature, userAddress: wallet.address }), mutates: true }, classify)
   for (const step of (await steps(ctx)).filter((s) => !s.done)) {
     onStep(step.id)
     if (step.id === 'register-account') {

@@ -20,7 +20,6 @@ export interface TypedData {
   readonly message: Readonly<Record<string, string | number>>
 }
 
-/** An agent or API key signs the digest. A wallet gets the JSON through `eth_signTypedData_v4`. */
 export interface TypedDataSigner {
   readonly address: Address
   signTypedData: (data: TypedData) => Promise<Hex>

@@ -36,9 +36,4 @@ export function clientIdOf(cloid: `0x${string}`): number {
   return Number(BigInt(cloid) & 0xffff_ffffn)
 }
 
-/**
- * IOC and FOK live in the block memory pool and expire by height. Resting orders are stateful
- * and expire by time, at most 95 days out; Tape uses 28.
- */
-export const SHORT_TERM_BLOCKS = 20
 export const LONG_TERM_SECONDS = 28 * 24 * 60 * 60

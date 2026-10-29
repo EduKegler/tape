@@ -12,8 +12,6 @@ import { LONG_TERM_SECONDS, clientIdOf, quantums, subticks } from './wire'
 import type { ClobMarket } from './wire'
 
 const INDEXER: Record<Network, string> = { mainnet: 'https://indexer.dydx.trade/v4', testnet: 'https://indexer.v4testnet.dydx.exchange/v4' }
-/** The chain's short block window is 20. An indexer height a block or two stale must still land inside it. */
-const SHORT_TERM_MARGIN = 10
 const CANCEL_SECONDS = 60
 const SIDE = { buy: 1, sell: 2 } as const
 const TIF = { gtc: 0, ioc: 1, 'post-only': 2 } as const
@@ -32,12 +30,11 @@ export function classifyMessage(message: string): TradeError {
   if (/account .*(does not exist|not found)|no subaccount/i.test(message)) return { kind: 'no-account', detail: message }
   if (/insufficient|undercollateralized|collateral/i.test(message)) return { kind: 'insufficient-margin', detail: message }
   if (/quantums|subticks|price|size|tick|step/i.test(message)) return { kind: 'invalid-order', detail: message }
-  // Timeouts, bad gateways and dropped sockets can follow a broadcast that landed. Saying "rejected" would invite a duplicate.
   return { kind: 'unknown-outcome', detail: message }
 }
 
 const indexer = <T,>(ctx: VenueContext, path: string) =>
-  send<T>('dydx', ctx.fetch, `${INDEXER[ctx.ref.network]}${path}`, { signed: false }, (status, _b, text) => (status === 404 ? { kind: 'rejected', detail: text } : null))
+  send<T>('dydx', ctx.fetch, `${INDEXER[ctx.ref.network]}${path}`, { mutates: false }, (status, _b, text) => (status === 404 ? { kind: 'rejected', detail: text } : null))
 
 const markets = new Map<string, Promise<Market>>()
 function market(ctx: VenueContext, ticker: string): Promise<Market> {
@@ -78,7 +75,6 @@ async function broadcast(run: () => Promise<unknown>): Promise<string> {
     if (e instanceof TradeFailure) throw e
     fail(classifyMessage(e instanceof Error ? e.message : String(e)))
   }
-  // A non-zero code is the chain's own refusal: nothing was placed.
   if (reply.code) {
     const log = reply.log ?? `code ${reply.code}`
     const error = classifyMessage(log)
@@ -87,7 +83,7 @@ async function broadcast(run: () => Promise<unknown>): Promise<string> {
   return typeof reply.hash === 'string' ? reply.hash : reply.hash ? bytesToHex(reply.hash).slice(2).toUpperCase() : ''
 }
 
-function onNetwork(m: Market, intent: OrderIntent, px: Px): Px {
+function recheckPx(m: Market, intent: OrderIntent, px: Px): Px {
   const wire = wireDecimal(px, intent.spec.scale.px)
   const issue = checkPrice(m.spec, wire)
   return issue ? fail({ kind: 'invalid-order', detail: `Price ${wire}: ${issue} on this network` }) : parsePx(wire, m.spec.scale)
@@ -101,7 +97,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   let px: Px
   let tif: 0 | 1 | 2
   if (intent.order.kind === 'limit') {
-    px = onNetwork(m, intent, intent.order.px)
+    px = recheckPx(m, intent, intent.order.px)
     tif = TIF[intent.order.tif]
   } else {
     const book = await indexer<{ bids: { price: string }[]; asks: { price: string }[] }>(ctx, `/orderbooks/perpetualMarket/${intent.spec.venueSymbol}`)
@@ -111,7 +107,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
     tif = TIF.ioc
   }
   const { default: Long } = await import('long')
-  const { SubaccountInfo } = await sdk()
+  const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const wallet = await walletOf(mnemonicOf(ctx))
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
   const client = await validatorOf(ctx.ref.network)
@@ -123,7 +119,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const hash = short
     ? await broadcast(async () => {
         const height = await client.get.latestBlockHeight()
-        return client.post.placeOrder(subaccount, clientId, m.clobPairId, SIDE[intent.side], q, s, tif, FLAGS.short, intent.reduceOnly, height + SHORT_TERM_MARGIN, undefined, undefined, undefined, undefined, undefined, builder)
+        return client.post.placeOrder(subaccount, clientId, m.clobPairId, SIDE[intent.side], q, s, tif, FLAGS.short, intent.reduceOnly, height + SHORT_BLOCK_FORWARD, undefined, undefined, undefined, undefined, undefined, builder)
       })
     : await sequenced(wallet.address ?? '', () =>
         broadcast(() => client.post.placeOrder(subaccount, clientId, m.clobPairId, SIDE[intent.side], q, s, tif, FLAGS.long, intent.reduceOnly, undefined, Math.floor(Date.now() / 1000) + LONG_TERM_SECONDS, undefined, undefined, undefined, undefined, builder)),
@@ -133,18 +129,17 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
 
 interface IndexerOrder { id: string; clientId: string; clobPairId: string; ticker: string; side: 'BUY' | 'SELL'; size: string; price: string; type: string; reduceOnly: boolean; orderFlags: string; goodTilBlock?: string; updatedAt?: string }
 
-/** Everything a cancel needs, which the indexer has and the UI does not. */
 const refOf = (o: IndexerOrder) => `${o.ticker}:${o.clientId}:${o.orderFlags}:${o.clobPairId}` as OrderRef
 
 async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
   const [, clientId, flags, clobPairId] = ref.split(':') as [string, string, string, string]
   const wallet = await walletOf(mnemonicOf(ctx))
-  const { SubaccountInfo } = await sdk()
+  const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
   const client = await validatorOf(ctx.ref.network)
   const isShort = Number(flags) === FLAGS.short
   const run = async () => {
-    const height = isShort ? (await client.get.latestBlockHeight()) + SHORT_TERM_MARGIN : undefined
+    const height = isShort ? (await client.get.latestBlockHeight()) + SHORT_BLOCK_FORWARD : undefined
     return client.post.cancelOrder(subaccount, Number(clientId), Number(flags), Number(clobPairId), height, isShort ? undefined : Math.floor(Date.now() / 1000) + CANCEL_SECONDS)
   }
   try {
@@ -230,7 +225,6 @@ async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
 async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void): Promise<void> {
   if (ctx.keys.read()?.secret) return
   onStep('derive-key')
-  // Wallets refuse typed data whose domain chain is not the active one.
   const chainId = ONBOARDING_CHAIN[ctx.ref.network]
   if ((await wallet.chainId()) !== chainId) await wallet.switchChain(chainId)
   const { mnemonic, address } = await deriveKey(await wallet.signTypedData(onboarding(ctx.ref.network)))

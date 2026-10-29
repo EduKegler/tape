@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// Test wallet for the harness Chrome. Stays attached to Chrome over CDP for the whole run and injects an
-// EIP-1193 provider into every page before the page's own scripts run. The provider forwards each request
-// here over HTTP, and this process signs with a key generated for the run. It never sends a transaction.
-// Started and stopped by verify-tape.mjs `up` and `down`.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
@@ -24,7 +20,6 @@ const key = existsSync(keyFile) ? JSON.parse(readFileSync(keyFile, 'utf8')).priv
 const account = privateKeyToAccount(key)
 writeFileSync(keyFile, JSON.stringify({ privateKey: key, address: account.address }, null, 2))
 let chainId = 1
-// Like MetaMask, the wallet lists no account until a page asks to connect.
 let connected = false
 
 const log = (entry) => appendFileSync(logFile, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`)
@@ -132,8 +127,6 @@ const PROVIDER = `(() => {
   announce()
 })()`
 
-// The guard: a harness run never reaches mainnet order endpoints and never creates an account or key at a
-// venue. Matching requests are answered here with 451 and logged with their body, which is the evidence.
 const GUARDED = [
   { urlPattern: 'https://api.hyperliquid.xyz/exchange*' },
   { urlPattern: '*orderly.org/v1/*' },

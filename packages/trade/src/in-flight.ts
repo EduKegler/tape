@@ -3,12 +3,13 @@ import type { AccountRef, Command } from './types'
 
 /**
  * Query marks a mutation pending a tick after `mutate`, so two clicks inside that tick would both
- * send. This set is checked and filled synchronously. Every order counts as one slot per account,
- * since each carries a fresh clientId; a cancel or leverage change is one slot per exact command.
+ * send.
  */
 const sending = new Set<string>()
 
-const slot = (ref: AccountRef, command: Command) => `${accountKey(ref)}|${command.kind === 'place' ? 'place' : JSON.stringify(command)}`
+const lane = (command: Command) => (command.kind === 'place' ? 'every order' : JSON.stringify(command))
+
+const slot = (ref: AccountRef, command: Command) => `${accountKey(ref)}|${lane(command)}`
 
 export function claim(ref: AccountRef, command: Command): boolean {
   const key = slot(ref, command)
