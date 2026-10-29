@@ -27,7 +27,7 @@ export async function send<T>(
   }
   if (init.mutates && response.status >= 500)
     throw new TradeFailure(venue, { kind: 'unknown-outcome', detail: `${response.status} ${text}` })
-  let body: unknown = null
+  let body: unknown
   try {
     body = parseExactJson(text)
   } catch {

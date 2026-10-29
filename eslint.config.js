@@ -116,6 +116,51 @@ export default [
     },
   },
   {
+    files: ['src/**', 'packages/**'],
+    rules: {
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-console': 'error',
+      'no-eval': 'error',
+      'no-new-func': 'error',
+      'no-unassigned-vars': 'error',
+      'no-useless-assignment': 'error',
+      'preserve-caught-error': 'error',
+    },
+  },
+  {
+    // Trading secrets live in the vault, so storage stays behind it.
+    files: ['src/**'],
+    ignores: ['src/trade/vault.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'localStorage', message: 'Read and write storage through src/trade/vault.ts.' },
+        { name: 'sessionStorage', message: 'Read and write storage through src/trade/vault.ts.' },
+      ],
+    },
+  },
+  {
+    // Private keys are made and used only inside the trading package.
+    files: ['src/**', 'packages/core/**', 'packages/venues/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { name: 'viem/accounts', message: 'Keys are made and used only in packages/trade.' },
+      ],
+    },
+  },
+  {
+    // Math.random is fine for reconnect jitter and nothing else: ids, nonces and keys use crypto.
+    files: ['src/**', 'packages/**'],
+    ignores: ['src/hub/worker.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'random', message: 'Use crypto.getRandomValues or crypto.randomUUID.' },
+      ],
+    },
+  },
+  {
     rules: {
       'import/no-cycle': 'off',
       'import/order': 'off',
