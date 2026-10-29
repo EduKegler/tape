@@ -47,6 +47,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tanstack/cli": "^0.72.0",
     "@tanstack/devtools-vite": "0.8.5",
     "@tanstack/eslint-config": "0.4.0",
     "@tanstack/intent": "^0.5.6",
