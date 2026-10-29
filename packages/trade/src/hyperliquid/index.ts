@@ -5,6 +5,8 @@ import { parsePx, wireDecimal } from '@tape/core/fixed'
 import type { Decimals, Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from '../intent'
+import { maintenanceMargin } from '../liquidation'
+import type { MarginState, MarginTier } from '../liquidation'
 import { post, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
@@ -43,6 +45,13 @@ const TIF: Record<'gtc' | 'ioc' | 'post-only', Tif> = { gtc: 'Gtc', ioc: 'Ioc', 
 interface Asset {
   readonly index: number
   readonly spec: MarketSpec
+  readonly tiers: readonly MarginTier[]
+  readonly isolatedOnly: boolean
+}
+
+type HlMeta = {
+  universe: { name: string; szDecimals: string; maxLeverage: number; marginTableId: number; onlyIsolated?: boolean }[]
+  marginTables: [number, { marginTiers: { lowerBound: string; maxLeverage: number }[] }][]
 }
 
 type Meta = ReadonlyMap<string, Asset>
@@ -75,21 +84,25 @@ function meta(ctx: VenueContext): Promise<Meta> {
   const network = ctx.ref.network
   let cached = metas.get(network)
   if (!cached) {
-    cached = info<{ universe: { name: string; szDecimals: string }[] }>(ctx, { type: 'meta' }).then(
-      (m) =>
-        new Map(
-          m.universe.map((u, index) => {
-            const qty = Number(u.szDecimals) as Decimals
-            const spec = {
-              venueSymbol: u.name,
-              scale: { px: (6 - qty) as Decimals, qty },
-              tick: { kind: 'sigfig', figures: 5 },
-              step: 1,
-            } as unknown as MarketSpec
-            return [u.name, { index, spec }] as const
-          }),
-        ),
-    )
+    cached = info<HlMeta>(ctx, { type: 'meta' }).then((m) => {
+      const tables = new Map(m.marginTables)
+      return new Map(
+        m.universe.map((u, index) => {
+          const qty = Number(u.szDecimals) as Decimals
+          const spec = {
+            venueSymbol: u.name,
+            scale: { px: (6 - qty) as Decimals, qty },
+            tick: { kind: 'sigfig', figures: 5 },
+            step: 1,
+          } as unknown as MarketSpec
+          // A table id the list lacks is a single tier at the asset's max leverage.
+          const tiers = (
+            tables.get(u.marginTableId)?.marginTiers ?? [{ lowerBound: '0', maxLeverage: u.maxLeverage }]
+          ).map((t) => ({ lowerBound: Number(t.lowerBound), maxLeverage: t.maxLeverage }))
+          return [u.name, { index, spec, tiers, isolatedOnly: Boolean(u.onlyIsolated) }] as const
+        }),
+      )
+    })
     cached.catch(() => metas.delete(network))
     metas.set(network, cached)
   }
@@ -366,6 +379,34 @@ async function account(ctx: VenueContext): Promise<AccountView> {
   }
 }
 
+async function margin(ctx: VenueContext, symbol: string): Promise<MarginState> {
+  const user = ctx.ref.owner
+  type State = {
+    crossMarginSummary: { accountValue: string }
+    crossMaintenanceMarginUsed: string
+    assetPositions: { position: { coin: string; szi: string; positionValue: string; leverage: { type: string } } }[]
+  }
+  const [a, mode, state, active] = await Promise.all([
+    asset(ctx, symbol),
+    info<string>(ctx, { type: 'userAbstraction', user }),
+    info<State>(ctx, { type: 'clearinghouseState', user }),
+    info<{ leverage: { type: string } }>(ctx, { type: 'activeAssetData', user, coin: symbol }),
+  ])
+  if (UNIFIED.has(mode)) return { kind: 'unsupported', reason: 'Not estimated for unified accounts' }
+  const held = state.assetPositions.find((p) => p.position.coin === symbol)?.position
+  if (a.isolatedOnly || (held ?? active).leverage.type !== 'cross')
+    return { kind: 'unsupported', reason: 'Not estimated for isolated margin' }
+  const size = held ? Number(held.szi) : 0
+  const value = held ? Number(held.positionValue) : 0
+  return {
+    kind: 'cross',
+    accountValue: Number(state.crossMarginSummary.accountValue),
+    othersMaintenance: Number(state.crossMaintenanceMarginUsed) - maintenanceMargin(a.tiers, value),
+    tiers: a.tiers,
+    position: size ? { size, mark: value / Math.abs(size) } : null,
+  }
+}
+
 async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
   const key = ctx.keys.read()
   const agent = key?.public.agent?.toLowerCase()
@@ -460,6 +501,7 @@ export const hyperliquid = {
   steps,
   enable,
   account,
+  margin,
   execute,
   lookup,
 } satisfies TradingVenue & { id: 'hyperliquid' }

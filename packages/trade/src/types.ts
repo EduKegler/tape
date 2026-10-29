@@ -2,6 +2,7 @@ import type { Address, Hex } from 'viem'
 import type { Brand, Network, VenueId } from '@tape/core/ids'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
+import type { MarginState } from './liquidation'
 
 export const READ_ONLY_VENUES = ['binance'] as const
 export type TradeVenueId = Exclude<VenueId, (typeof READ_ONLY_VENUES)[number]>
@@ -202,6 +203,8 @@ export interface TradingVenue {
   /** Runs the undone steps. A new key is written as draft before the wallet signs for it. */
   enable: (ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void) => Promise<void>
   account: (ctx: VenueContext) => Promise<AccountView>
+  /** Absent where Tape cannot rebuild the venue's liquidation math. */
+  margin?: (ctx: VenueContext, symbol: string) => Promise<MarginState>
   /** Signs with the slot's key, draft or linked, and lets the venue judge. */
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
   /** Asks the venue for the order by its clientId, after a send that ended in unknown-outcome. */

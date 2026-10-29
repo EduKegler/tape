@@ -3,13 +3,16 @@ import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
-import { formatNotional, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
+import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
+import type { Px } from '@tape/core/fixed'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { useFrame } from '#/client/hooks'
-import { useTradeCommands, useTradeSession } from '#/trade/hooks'
+import { useMarginState, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
 import { buildIntent, checkPrice, checkSize } from '@tape/trade/intent'
+import { estimateLiquidation } from '@tape/trade/liquidation'
+import type { Entry, MarginState } from '@tape/trade/liquidation'
 import type { Bps, Side, Tif, TradeError } from '@tape/trade/types'
 import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
@@ -72,6 +75,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
   const { run, last } = useTradeCommands(ref)
+  const margin = useMarginState(ref, spec.venueSymbol)
   const form = useForm({
     defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
     onSubmit: ({ value }) => {
@@ -236,8 +240,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       <form.Subscribe selector={(s) => [s.values.price, s.values.size, s.canSubmit] as const}>
         {([price, size, canSubmit]) => {
           const px = kind === 'market' ? far : price
+          const valid = Boolean(px && size && !checkSize(spec, size) && (kind === 'market' || !checkPrice(spec, px)))
           let total = '—'
-          if (px && size && !checkSize(spec, size) && (kind === 'market' || !checkPrice(spec, px))) {
+          if (valid) {
             try {
               total = `${formatNotional(notional(parsePx(px, spec.scale), parseQty(size, spec.scale)), spec.scale)} ${spec.quote}`
             } catch {
@@ -249,6 +254,14 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               <dl className="num grid grid-cols-2 gap-y-1 text-[12px]">
                 <dt className="text-level3">Notional</dt>
                 <dd className="text-right text-level1">{total}</dd>
+                {margin !== null && (
+                  <>
+                    <dt className="text-level3">Est. liquidation</dt>
+                    <dd className="text-right text-level1">
+                      {liquidationText(spec, margin, valid ? { side, size: Number(size), px: Number(px) } : null)}
+                    </dd>
+                  </>
+                )}
                 {NETWORK === 'mainnet' && <WalletUsdc />}
               </dl>
               <SubmitArea
@@ -266,6 +279,21 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />}
     </form>
   )
+}
+
+function liquidationText(spec: MarketSpec, margin: MarginState | undefined, entry: Entry | null): string {
+  if (!margin || !entry) return '—'
+  const liq = estimateLiquidation(margin, entry)
+  switch (liq.kind) {
+    case 'price':
+      return `${formatPx(Math.round(liq.px * 10 ** spec.scale.px) as Px, spec.scale)} ${spec.quote}`
+    case 'none':
+      return 'None'
+    case 'insufficient-margin':
+      return 'Not enough margin'
+    case 'unsupported':
+      return liq.reason
+  }
 }
 
 function SubmitArea({

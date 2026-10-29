@@ -25,6 +25,7 @@ import type {
 } from '@tape/trade/types'
 import { keySlot, subscribeVault } from './vault'
 import { walletSigner } from '@tape/trade/wallet'
+import type { MarginState } from '@tape/trade/liquidation'
 
 export type TradeSession =
   /** `venue`: Tape never trades there. `site`: this deployment only reads, as mainnet does without VITE_TRADE_MAINNET. */
@@ -167,6 +168,18 @@ export function useAccountView(ref: AccountRef | null) {
     refetchInterval: ACCOUNT_POLL_MS,
   })
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
+}
+
+/** Null where the venue has no estimate. Undefined while it loads or when the read fails. */
+export function useMarginState(ref: AccountRef | null, symbol: string): MarginState | null | undefined {
+  const margin = ref ? TRADING[ref.venue].margin : undefined
+  const query = useQuery<MarginState, TradeFailure>({
+    queryKey: ref ? [...tradeKeys(ref).all, 'margin', symbol] : ['trade', 'none', 'margin'],
+    queryFn: () => guard(ref!.venue, () => margin!(contextFor(ref!), symbol)),
+    enabled: Boolean(ref && margin),
+    refetchInterval: ACCOUNT_POLL_MS,
+  })
+  return margin ? query.data : null
 }
 
 export function useTradeCommands(ref: AccountRef | null) {
