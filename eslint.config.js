@@ -2,6 +2,7 @@
 
 import { tanstackConfig } from '@tanstack/eslint-config'
 import eslintReact from '@eslint-react/eslint-plugin'
+import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
@@ -51,6 +52,10 @@ export default [
       '@eslint-react/naming-convention-ref-name': 'off',
       '@eslint-react/no-use-context': 'off',
     },
+  },
+  {
+    ...jsxA11y.configs.recommended,
+    files: ['src/**/*.tsx'],
   },
   {
     ...reactHooks.configs.flat['recommended-latest'],
