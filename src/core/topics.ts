@@ -29,7 +29,7 @@ export function topicKey(topic: Topic): TopicKey {
   }
 }
 
-export function streamsFor(topic: Topic): readonly StreamKey[] {
+function streamsFor(topic: Topic): readonly StreamKey[] {
   switch (topic.kind) {
     case 'book':
     case 'depth':
