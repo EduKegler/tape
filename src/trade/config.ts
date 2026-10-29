@@ -3,6 +3,8 @@ import type { Address } from 'viem'
 import type { TradeConfig } from '@tape/trade/types'
 import { NETWORK } from '#/site'
 
+const ORDERLY_PUBLIC_TESTNET_BROKER = 'demo'
+
 const address = z
   .string()
   .regex(/^0x[0-9a-fA-F]{40}$/)
@@ -17,7 +19,7 @@ const env = z.object({
     .optional(),
   VITE_DYDX_BUILDER_FEE_PPM: z.coerce.number().int().min(1).max(10_000).default(100),
   VITE_ORDERLY_BROKER_ID: z.string().min(1).optional(),
-  VITE_ORDERLY_BROKER_ID_TESTNET: z.string().min(1).default('demo'),
+  VITE_ORDERLY_BROKER_ID_TESTNET: z.string().min(1).default(ORDERLY_PUBLIC_TESTNET_BROKER),
 })
 
 function toConfig(e: z.infer<typeof env>): TradeConfig {
