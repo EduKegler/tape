@@ -1,4 +1,5 @@
 import type { TabId } from '@tape/core/ids'
+import { createReporter } from '#/analytics/exception'
 import type { HubToTab } from '#/core/protocol'
 import { VENUES } from '#/site'
 import { createHub } from './hub'
@@ -7,7 +8,9 @@ import type { HubPort, SocketLike } from './hub'
 interface WorkerScope {
   onconnect?: unknown
   addEventListener: ((type: 'connect', listener: (event: MessageEvent) => void) => void) &
-    ((type: 'message', listener: (event: MessageEvent) => void) => void)
+    ((type: 'message', listener: (event: MessageEvent) => void) => void) &
+    ((type: 'error', listener: (event: ErrorEvent) => void) => void) &
+    ((type: 'unhandledrejection', listener: (event: PromiseRejectionEvent) => void) => void)
   postMessage: (message: unknown) => void
 }
 
@@ -40,6 +43,11 @@ const hub = createHub({
     ? (tab: TabId) => navigator.locks.request(`tape-tab:${tab}`, () => undefined).then(() => undefined)
     : () => new Promise<void>(() => {}),
 })
+
+// A SharedWorker's errors reach no page on their own, so the hub hands them to a tab.
+const report = createReporter((event) => hub.report(event))
+scope.addEventListener('error', (e) => report(e.error, 'hub', false))
+scope.addEventListener('unhandledrejection', (e) => report(e.reason, 'hub', false))
 
 function fromPort(port: MessagePort): HubPort {
   return {

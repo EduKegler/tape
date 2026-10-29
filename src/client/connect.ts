@@ -1,4 +1,5 @@
 import type { TabId } from '@tape/core/ids'
+import { track } from '#/analytics/track'
 import type { HubToTab, TabToHub } from '#/core/protocol'
 import { NETWORK } from '#/site'
 import { createRegistry } from './registry'
@@ -55,5 +56,5 @@ const browserLifecycle: Lifecycle = {
 export function connectHub(): HubClient {
   const forceDedicated = new URLSearchParams(location.search).get('hub') === 'dedicated'
   const shared = typeof SharedWorker === 'function' && !forceDedicated
-  return createRegistry(shared ? sharedPort : dedicatedPort, browserLifecycle)
+  return createRegistry(shared ? sharedPort : dedicatedPort, browserLifecycle, track)
 }
