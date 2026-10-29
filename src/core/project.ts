@@ -76,7 +76,6 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
     key,
     version,
     status: market.status,
-    venueTime: book?.time ?? 0,
     group: formatPx(step, spec.scale, decimals),
     groupOptions: options,
     asks: ladder(asks, askCum).reverse(),
@@ -113,7 +112,6 @@ export function projectDepth(key: TopicKey, market: MarketView, version: number)
     key,
     version,
     status: market.status,
-    venueTime: book?.time ?? 0,
     bids: book ? depthSide(book.bids, scale.px, scale.qty) : new Float64Array(),
     asks: book ? depthSide(book.asks, scale.px, scale.qty) : new Float64Array(),
     mid: bid !== null && ask !== null ? toDisplayFloat(((bid + ask) / 2) as Px, scale.px) : 0,
@@ -134,7 +132,6 @@ export function projectTrades(key: TopicKey, market: MarketView, version: number
     key,
     version,
     status: market.status,
-    venueTime: first?.time ?? 0,
     rows: items.map((t) => ({
       id: t.id,
       side: t.side,
@@ -155,7 +152,6 @@ export function projectCandle(key: TopicKey, market: MarketView, interval: Inter
     key,
     version,
     status: market.status,
-    venueTime: bars.at(-1)?.open ?? 0,
     bars: bars.map((b) => ({
       time: Math.floor(b.open / 1000),
       open: toDisplayFloat(b.o, scale.px),
@@ -222,7 +218,6 @@ export function projectCompare(
       bestAsk: asks.length > 1 && ask === Math.min(...asks),
     }
   })
-  const times = Object.values(markets).map((m) => visibleBook(m.sync)?.time ?? 0)
   const status: FrameStatus = rows.some((r) => r.status === 'live') ? 'live' : 'syncing'
-  return { kind: 'compare', key, version, status, venueTime: Math.max(0, ...times), rows }
+  return { kind: 'compare', key, version, status, rows }
 }
