@@ -18,7 +18,6 @@ import type {
   TradesFrame,
 } from './topics'
 
-/** Hub state for one market, read by the projections. */
 export interface MarketView {
   readonly spec: MarketSpec
   readonly sync: BookSync
@@ -30,7 +29,6 @@ export interface MarketView {
 
 const DEPTH_LEVELS = 400
 
-/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */
 function grouped(side: BookSide, step: number, rows: number): { px: number; qty: number }[] {
   const out: { px: number; qty: number }[] = []
   for (const px of side.prices) {
@@ -169,10 +167,6 @@ export function projectCandle(key: TopicKey, market: MarketView, interval: Inter
   }
 }
 
-/**
- * Cross-venue view. Prices are rescaled to the finest scale among the venues, so the best bid
- * and best ask flags are exact integer comparisons, not string or float ones.
- */
 export function projectCompare(
   key: TopicKey,
   _base: Base,

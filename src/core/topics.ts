@@ -1,10 +1,6 @@
 import { VENUE_IDS, marketKey, streamKey } from '@tape/core/ids'
 import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from '@tape/core/ids'
 
-/**
- * A Topic is a view a component wants, not a venue channel. Two tabs on the same view
- * share one TopicKey, so the hub projects it once per flush.
- */
 export const BOOK_ROWS = 14
 
 export type Topic =
@@ -50,14 +46,12 @@ export function marketsFor(topic: Topic): readonly MarketKey[] {
   return topic.kind === 'compare' ? VENUE_IDS.map((v) => marketKey(v, topic.base)) : [topic.market]
 }
 
-/** live: in sync. syncing: waiting for rules or a resync, last levels on screen. stale: socket down. */
 export type FrameStatus = 'live' | 'syncing' | 'stale'
 
 interface FrameBase {
   readonly key: TopicKey
   readonly version: number
   readonly status: FrameStatus
-  /** Venue event time of the newest input, ms. */
   readonly venueTime: number
 }
 
@@ -65,7 +59,6 @@ export interface BookRow {
   readonly px: string
   readonly qty: string
   readonly cum: string
-  /** cum / max cum over both sides, 0..1. Drives scaleX. */
   readonly fill: number
 }
 
@@ -75,10 +68,8 @@ export interface BookFrame extends FrameBase {
   readonly kind: 'book'
   readonly group: string
   readonly groupOptions: readonly string[]
-  /** Exactly BOOK_ROWS each. Asks best LAST so the ladder reads down toward the spread. */
   readonly asks: readonly BookRow[]
   readonly bids: readonly BookRow[]
-  /** Exact best bid and ask, never grouped, so the ticket proposes a price that is on the book. */
   readonly bid: string
   readonly ask: string
   readonly mid: string
@@ -89,7 +80,6 @@ export interface BookFrame extends FrameBase {
 
 export interface DepthFrame extends FrameBase {
   readonly kind: 'depth'
-  /** Interleaved [px, cum, px, cum, ...] from the mid outward, display floats. */
   readonly bids: Float64Array
   readonly asks: Float64Array
   readonly mid: number
@@ -121,7 +111,6 @@ export interface ChartBarFrame {
 
 export interface CandleFrame extends FrameBase {
   readonly kind: 'candle'
-  /** The last few bars, oldest first. series.update() each in order is idempotent. */
   readonly bars: readonly ChartBarFrame[]
 }
 
@@ -132,7 +121,6 @@ export interface CompareRow {
   readonly ask: string
   readonly mid: string
   readonly spreadBps: string
-  /** This venue's mid against the median mid across venues, in bps. */
   readonly basisBps: string
   readonly last: string
   readonly bestBid: boolean
@@ -157,11 +145,6 @@ export type FrameOf<T extends Topic> = FrameByKind[T['kind']]
 
 export const LINGER_MS = 10_000
 
-/**
- * Ref counting as a derivation over every live tab's want set. A stream stays up while some tab
- * wants it and for LINGER_MS after the last one lets go, so BTC to ETH to BTC skips a resync.
- * Nobody increments a counter, so a tab that dies without a word cannot leak one.
- */
 export function deriveStreams(
   wantSets: Iterable<ReadonlyMap<TopicKey, Topic>>,
   lastWanted: ReadonlyMap<StreamKey, number>,

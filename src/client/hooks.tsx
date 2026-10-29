@@ -10,7 +10,6 @@ import type { HubClient } from './registry'
 const HubContext = createContext<HubClient | null>(null)
 const NOTHING = createStore<null>(null)
 
-/** Starts the hub client after hydration. During SSR and the first paint every hook reads null. */
 export function HubProvider({ children }: { readonly children: ReactNode }) {
   const [client, setClient] = useState<HubClient | null>(null)
   useEffect(() => {
@@ -21,10 +20,6 @@ export function HubProvider({ children }: { readonly children: ReactNode }) {
 
 const identity = <T,>(x: T) => x
 
-/**
- * Reads a slice of a topic's latest frame and re-renders only when that slice changes under
- * `compare`. Passing an inline topic literal is fine: it is keyed by topicKey.
- */
 export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
   topic: T,
   select: (frame: FrameOf<T> | null) => TSelected = identity as never,
@@ -39,7 +34,6 @@ export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
   return useSelector(store, select, compare ? { compare } : undefined)
 }
 
-/** Runs an imperative callback per frame without rendering, for canvas and chart series. */
 export function useFrameEffect<T extends Topic>(topic: T, onFrame: (frame: FrameOf<T>) => void): void {
   const client = useContext(HubContext)
   const key = topicKey(topic)

@@ -11,12 +11,6 @@ type BookTopic = { kind: 'book'; market: MarketKey; group: string }
 
 const INDICES = Array.from({ length: BOOK_ROWS }, (_, i) => i)
 
-/**
- * Fixed rows keyed by index, so DOM nodes never move or remount. Each row subscribes to its own
- * slice with a shallow compare and skips frames where its slice is equal. In a busy book most
- * rows still change per frame, because a new level shifts every cumulative total below it. The
- * depth bar is a scaleX transform, which skips layout.
- */
 export function OrderBook({
   market,
   group,

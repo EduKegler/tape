@@ -49,7 +49,6 @@ const browserLifecycle: Lifecycle = {
   onPageRestore: (fn) => window.addEventListener('pageshow', (e) => e.persisted && fn()),
 }
 
-/** Browser only. `?hub=dedicated` forces the per-tab fallback so it can be tried on desktop. */
 export function connectHub(): HubClient {
   const forceDedicated = new URLSearchParams(location.search).get('hub') === 'dedicated'
   const shared = typeof SharedWorker === 'function' && !forceDedicated

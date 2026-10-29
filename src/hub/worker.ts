@@ -4,10 +4,6 @@ import { VENUES } from '#/site'
 import { createHub } from './hub'
 import type { HubPort, SocketLike } from './hub'
 
-/**
- * Worker entry. The same file boots as a SharedWorker, shared by every tab, or as a dedicated
- * Worker where SharedWorker does not exist (Chrome on Android). Only tab liveness differs.
- */
 interface WorkerScope {
   onconnect?: unknown
   addEventListener: ((type: 'connect', listener: (event: MessageEvent) => void) => void) &

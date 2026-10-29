@@ -60,7 +60,6 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const [kind, setKind] = useState<Kind>('limit')
   const [built, setBuilt] = useState<TradeError | null>(null)
   const [protect, setProtect] = useState(false)
-  // The exact touch, not the mid or a grouped row: a mid can fall between ticks, and a market order fills on the far side.
   const touch = useFrame(
     { kind: 'book', market: spec.key, group },
     (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }),
@@ -351,7 +350,6 @@ function SubmitArea({
   }
 }
 
-/** A mainnet balance, so a testnet build never mounts it and never calls a mainnet RPC. */
 function WalletUsdc() {
   const balance = useUsdcBalance()
   return (

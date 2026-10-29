@@ -28,7 +28,6 @@ import { walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 
 export type TradeSession =
-  /** `venue`: Tape never trades there. `site`: this deployment only reads, as mainnet does without VITE_TRADE_MAINNET. */
   | { readonly status: 'read-only'; readonly scope: 'venue' | 'site' }
   | { readonly status: 'unavailable'; readonly reason: string }
   | { readonly status: 'disconnected' }
@@ -170,7 +169,6 @@ export function useAccountView(ref: AccountRef | null) {
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
 
-/** Null where the venue has no estimate. Undefined while it loads or when the read fails. */
 export function useMarginState(ref: AccountRef | null, symbol: string): MarginState | null | undefined {
   const margin = ref ? TRADING[ref.venue].margin : undefined
   const query = useQuery<MarginState, TradeFailure>({

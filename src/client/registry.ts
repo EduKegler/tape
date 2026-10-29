@@ -5,7 +5,6 @@ import type { HubMode, HubStats, HubToTab, TabToHub } from '#/core/protocol'
 import { topicKey } from '#/core/topics'
 import type { Frame, FrameOf, Topic } from '#/core/topics'
 
-/** The tab's end of the wire: a SharedWorker port, a dedicated Worker, or a test channel. */
 export interface TabPort {
   readonly mode: HubMode
   post: (message: TabToHub) => void
@@ -13,12 +12,6 @@ export interface TabPort {
   listen: (onMessage: (message: HubToTab) => void) => void
 }
 
-/**
- * The tab's whole view of the streaming core. A topic's store is created on first read and
- * retained while mounted. Frames land in a latest-wins inbox flushed once per animation frame
- * inside `batch`, so React commits at most once per frame however fast the hub sends.
- */
-/** What a reader may do with a store: read and subscribe, never write. */
 export type ReadStore<T> = Pick<Store<T>, 'get' | 'subscribe'>
 
 export interface HubClient {
@@ -35,14 +28,12 @@ interface Entry {
 }
 
 export interface Lifecycle {
-  /** Holds a lock named after the tab for the page's life, then calls `ready`. */
   holdLiveness: (tab: TabId, ready: () => void) => void
   newTabId: () => TabId
   isVisible: () => boolean
   requestFrame: (fn: () => void) => void
   onVisibility: (fn: (visible: boolean) => void) => void
   onPageHide: (fn: () => void) => void
-  /** A page restored from the back/forward cache is a new tab to the hub. */
   onPageRestore: (fn: () => void) => void
 }
 
@@ -62,8 +53,6 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
     pending.clear()
   }
 
-  // Unwanted entries stay, so a component that read a store before retaining it never holds an
-  // orphan. Their frame is cleared so a later reader never sees old prices as current.
   const sendWant = () => {
     wantScheduled = false
     const wanted: Topic[] = []

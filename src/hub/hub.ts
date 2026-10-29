@@ -18,12 +18,6 @@ import type { StreamTarget, VenueAdapter, VenueEvent } from '@tape/venues/types'
 import { stepConnection } from './connection'
 import type { ConnEffect, ConnEvent, ConnState } from './connection'
 
-/**
- * The hub. One per SharedWorker (all tabs) or per dedicated Worker (one tab). It alone owns
- * sockets, specs, books, trades and candles. Tabs own their want set and the last frame they drew.
- * Ref counting, linger, reconnect, Binance resync, uncross, grouping, formatting, cadence and
- * hidden tabs all sit behind `connect`.
- */
 export interface Hub {
   connect: (port: HubPort) => void
   inspect: () => HubInspection
@@ -51,7 +45,6 @@ export interface HubDeps {
   readonly fetch: typeof globalThis.fetch
   now: () => number
   random: () => number
-  /** Resolves when the tab is gone. SharedWorker: a Web Lock on `tape-tab:<id>` is granted when the tab dies. */
   watchTabGone: (tab: TabId) => Promise<void>
 }
 
@@ -63,7 +56,6 @@ export interface HubInspection {
   readonly phases: Readonly<Record<string, BookSync['phase']>>
 }
 
-/** Hub to tab traffic stays at or under 10 Hz per tab, whatever the venues send. */
 const SNAPSHOT_TIMEOUT_MS = 8_000
 export const FLUSH_MS = 100
 const TICK_MS = 1000
@@ -146,8 +138,6 @@ export function createHub(deps: HubDeps): Hub {
     return m.sync.phase === 'live' ? 'live' : 'syncing'
   }
 
-  // Frames
-
   function project(topic: Topic, key: TopicKey): Frame | null {
     const keys = marketsFor(topic)
     const views = keys.flatMap((k) => {
@@ -221,8 +211,6 @@ export function createHub(deps: HubDeps): Hub {
     flush()
   }
 
-  // Books
-
   function feedBook(m: MarketState, input: BookInput): void {
     const v = venues[m.venue]
     const before = m.sync.phase
@@ -239,7 +227,6 @@ export function createHub(deps: HubDeps): Hub {
     const v = venues[m.venue]
     const spec = specOf(m.key)
     if (!spec || v.adapter.book.protocol !== 'rest-snapshot-sequenced') return
-    // A failed fetch retries only if this epoch is still the one waiting. A newer epoch may be live by then.
     const waiting = () => m.sync.phase === 'awaiting-snapshot' && m.sync.epoch === epoch
     v.adapter.book
       .fetchSnapshot(spec, deps.fetch, AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS))
@@ -256,8 +243,6 @@ export function createHub(deps: HubDeps): Hub {
         if (waiting()) setTimeout(() => waiting() && feedBook(m, { kind: 'reset', reason: 'corrupt' }), 2000)
       })
   }
-
-  // Venue messages
 
   function apply(e: VenueEvent, spec: MarketSpec): void {
     const m = market(e.market)
@@ -309,8 +294,6 @@ export function createHub(deps: HubDeps): Hub {
       if (spec) apply(e, spec)
     }
   }
-
-  // Sockets
 
   function targets(venue: VenueId, keys: readonly StreamKey[]): StreamTarget[] {
     return keys.flatMap((k) => {
@@ -430,8 +413,6 @@ export function createHub(deps: HubDeps): Hub {
       reconcile()
     })
   }
-
-  // Tabs
 
   function dropTab(id: TabId): void {
     const tab = tabs.get(id)

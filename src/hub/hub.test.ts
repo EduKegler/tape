@@ -49,7 +49,6 @@ function setup() {
   return { hub, sockets, gone }
 }
 
-/** A tab on the far side of a structured-clone boundary, like a MessagePort. */
 function tab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
   let deliver: (data: unknown) => void = () => {}
@@ -108,7 +107,6 @@ describe('hub', () => {
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
     expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
-    // A wide group still carries the exact touch, which the ticket proposes as a price.
     const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
     const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
     expect(wide.bid).toBe(venue?.bid)

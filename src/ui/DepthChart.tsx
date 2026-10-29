@@ -8,7 +8,6 @@ function cssVar(el: Element, name: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim()
 }
 
-/** Cumulative depth as two stepped areas around the mid, redrawn on a canvas with no React render. */
 function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
   const dpr = window.devicePixelRatio || 1
   const { clientWidth: w, clientHeight: h } = canvas
