@@ -161,20 +161,24 @@ function fromSnapshot(bids: readonly Level[], asks: readonly Level[], time: numb
   return { book, uncrossed: evictThrough(book.bids, ask) + evictThrough(book.asks, bid) }
 }
 
-export function initialSync(protocol: BookProtocol): BookStep {
-  const sync: BookSync = { phase: 'awaiting-snapshot', epoch: 1, buffer: [], previous: null }
-  const effect: BookEffect = protocol === 'rest-snapshot-sequenced' ? { kind: 'fetch-snapshot', epoch: 1 } : NONE
-  return { sync, effect, uncrossed: 0, changed: false }
+export function initialSync(_protocol: BookProtocol): BookStep {
+  return { sync: { phase: 'awaiting-snapshot', epoch: 1, buffer: [], previous: null }, effect: NONE, uncrossed: 0, changed: false }
 }
 
-function awaiting(protocol: BookProtocol, epoch: number, previous: Book | null, reason: 'subscribed' | 'corrupt' | 'gap'): BookStep {
+/**
+ * Back to awaiting. The REST protocol asks for its snapshot only once a diff is buffered, as Binance
+ * documents, so the snapshot can never predate the stream it anchors.
+ */
+function awaiting(protocol: BookProtocol, epoch: number, previous: Book | null, reason: 'subscribed' | 'corrupt', buffer: readonly SequencedDelta[] = []): BookStep {
   const effect: BookEffect =
     protocol === 'rest-snapshot-sequenced'
-      ? { kind: 'fetch-snapshot', epoch }
-      : protocol === 'snapshot-then-deltas' && reason !== 'subscribed'
+      ? buffer.length > 0
+        ? { kind: 'fetch-snapshot', epoch }
+        : NONE
+      : protocol === 'snapshot-then-deltas' && reason === 'corrupt'
         ? { kind: 'resubscribe' }
         : NONE
-  return { sync: { phase: 'awaiting-snapshot', epoch, buffer: [], previous }, effect, uncrossed: 0, changed: false }
+  return { sync: { phase: 'awaiting-snapshot', epoch, buffer, previous }, effect, uncrossed: 0, changed: false }
 }
 
 const unchanged = (sync: BookSync): BookStep => ({ sync, effect: NONE, uncrossed: 0, changed: false })
@@ -205,20 +209,25 @@ export function stepBook(protocol: BookProtocol, sync: BookSync, input: BookInpu
         const { book, uncrossed } = fromSnapshot(input.bids, input.asks, 0)
         book.lastSeq = input.lastUpdateId
         let step: BookStep = { sync: { phase: 'live', epoch: sync.epoch, book }, effect: NONE, uncrossed, changed: true }
-        for (const d of sync.buffer) {
+        for (const [i, d] of sync.buffer.entries()) {
           step = merge(step, stepBook(protocol, step.sync, { kind: 'delta', ...d }))
-          if (step.sync.phase !== 'live') break
+          if (step.sync.phase !== 'live') {
+            const rest = sync.buffer.slice(i)
+            return { ...step, sync: { phase: 'awaiting-snapshot', epoch: step.sync.epoch, buffer: rest, previous: step.sync.previous } }
+          }
         }
         return step
       }
       if (!input.seq) return unchanged(sync)
+      const diff: SequencedDelta = { bids: input.bids, asks: input.asks, seq: input.seq, time: input.time }
       if (sync.phase === 'awaiting-snapshot') {
-        const buffer = [...sync.buffer, { bids: input.bids, asks: input.asks, seq: input.seq, time: input.time }]
-        return unchanged({ ...sync, buffer })
+        const buffer = [...sync.buffer, diff]
+        const effect: BookEffect = sync.buffer.length === 0 ? { kind: 'fetch-snapshot', epoch: sync.epoch } : NONE
+        return { sync: { ...sync, buffer }, effect, uncrossed: 0, changed: false }
       }
       const last = sync.book.lastSeq ?? 0
       if (input.seq.to <= last) return unchanged(sync)
-      if (input.seq.from > last + 1) return awaiting(protocol, sync.epoch + 1, sync.book, 'gap')
+      if (input.seq.from > last + 1) return awaiting(protocol, sync.epoch + 1, sync.book, 'corrupt', [diff])
       const uncrossed = applyDelta(sync.book, input.bids, input.asks, input.time)
       sync.book.lastSeq = input.seq.to
       return { sync, effect: NONE, uncrossed, changed: true }

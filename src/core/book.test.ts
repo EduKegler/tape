@@ -21,8 +21,21 @@ function run(protocol: Parameters<typeof stepBook>[0], inputs: BookInput[]): Boo
 }
 
 describe('rest-snapshot-sequenced (Binance)', () => {
-  it('asks for a snapshot on start', () => {
-    expect(initialSync('rest-snapshot-sequenced').effect).toEqual({ kind: 'fetch-snapshot', epoch: 1 })
+  it('asks for the snapshot only after the first diff is buffered', () => {
+    expect(initialSync('rest-snapshot-sequenced').effect).toEqual({ kind: 'none' })
+    const steps = run('rest-snapshot-sequenced', [delta([lv(100, 5)], [], [8, 9]), delta([lv(99, 3)], [], [10, 12])])
+    expect(steps.map((s) => s.effect.kind)).toEqual(['fetch-snapshot', 'none'])
+  })
+
+  it('refetches when the snapshot predates the buffered diffs', () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [20, 21]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+      { kind: 'rest-snapshot', epoch: 2, lastUpdateId: 20, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    expect(steps[1]!.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
+    expect(steps[2]!.sync.phase).toBe('live')
+    expect(topLevels(visibleBook(steps[2]!.sync)!.bids, 1)).toEqual([lv(100, 5)])
   })
 
   it('buffers diffs, drops the ones the snapshot covers, applies the rest', () => {
@@ -40,24 +53,26 @@ describe('rest-snapshot-sequenced (Binance)', () => {
 
   it('refetches once on a gap and keeps the old book on screen', () => {
     const steps = run('rest-snapshot-sequenced', [
-      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
       delta([lv(100, 2)], [], [11, 11]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
       delta([lv(100, 3)], [], [14, 15]),
       delta([lv(100, 4)], [], [16, 16]),
     ])
     expect(steps[2]!.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
     expect(steps[3]!.effect).toEqual({ kind: 'none' })
     expect(steps[3]!.sync.phase).toBe('awaiting-snapshot')
+    expect(steps[3]!.sync.phase === 'awaiting-snapshot' && steps[3]!.sync.buffer.length).toBe(2)
     expect(bestBid(visibleBook(steps[3]!.sync)!)).toBe(100)
   })
 
   it('ignores a snapshot from an older epoch', () => {
     const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [11, 11]),
       { kind: 'reset', reason: 'subscribed' },
       { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
     ])
-    expect(steps[1]!.sync.phase).toBe('awaiting-snapshot')
-    expect(steps[1]!.changed).toBe(false)
+    expect(steps[2]!.sync.phase).toBe('awaiting-snapshot')
+    expect(steps[2]!.changed).toBe(false)
   })
 })
 
