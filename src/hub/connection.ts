@@ -58,6 +58,20 @@ function holdMs(count: number): number {
   return Math.min(HOLD_MAX_MS, HOLD_BASE_MS * 2 ** count)
 }
 
+function deferRepeatResubscribes(previous: ReadonlyMap<StreamKey, Hold>, streams: readonly StreamKey[], at: number) {
+  const holds = new Map(previous)
+  const now: StreamKey[] = []
+  const later: StreamKey[] = []
+  for (const s of streams) {
+    const hold = holds.get(s)
+    if (hold && at < hold.until) later.push(s)
+    else now.push(s)
+    const count = hold?.count ?? 0
+    holds.set(s, { until: at + holdMs(count), count: count + 1 })
+  }
+  return { holds, now, later }
+}
+
 type OpenState = Extract<ConnState, { s: 'open' }>
 
 function lost(state: OpenState, now: number, rand: number): ConnState {
@@ -135,19 +149,7 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
       if (state.s !== 'open') return { state, effects: [] }
       const streams = event.streams.filter((s) => state.subscribed.has(s))
       if (!streams.length) return { state, effects: [] }
-      const holds = new Map(state.holds)
-      const now: StreamKey[] = []
-      const later: StreamKey[] = []
-      for (const s of streams) {
-        const hold = holds.get(s)
-        if (hold && input.now < hold.until) {
-          later.push(s)
-          holds.set(s, { until: input.now + holdMs(hold.count), count: hold.count + 1 })
-        } else {
-          now.push(s)
-          holds.set(s, { until: input.now + holdMs(hold?.count ?? 0), count: (hold?.count ?? 0) + 1 })
-        }
-      }
+      const { holds, now, later } = deferRepeatResubscribes(state.holds, streams, input.now)
       const subscribed = new Set([...state.subscribed].filter((s) => !later.includes(s)))
       const effects: ConnEffect[] = [{ fx: 'unsubscribe', streams }]
       if (now.length) effects.push({ fx: 'subscribe', streams: now }, { fx: 'streams-reset', streams: now })
