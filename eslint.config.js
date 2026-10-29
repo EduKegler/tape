@@ -4,6 +4,7 @@ import { tanstackConfig } from '@tanstack/eslint-config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
 import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintReact from '@eslint-react/eslint-plugin'
+import vitest from '@vitest/eslint-plugin'
 import betterTailwind from 'eslint-plugin-better-tailwindcss'
 import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -92,6 +93,14 @@ export default [
     rules: {
       '@typescript-eslint/no-unsafe-enum-assignment': 'off',
       '@typescript-eslint/no-unsafe-enum-comparison': 'off',
+    },
+  },
+  {
+    ...vitest.configs.recommended,
+    files: ['**/*.test.{ts,tsx}'],
+    rules: {
+      ...vitest.configs.recommended.rules,
+      'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'expectSig'] }],
     },
   },
   {
