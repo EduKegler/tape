@@ -233,7 +233,7 @@ async function doctor() {
       const r = await fetch(`${s.base}/`, { signal: AbortSignal.timeout(30_000) })
       const body = await r.text()
       const title = body.match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
-      check('app serves /', r.ok && r.url.endsWith('/hyperliquid/BTC?interval=1m') && title.includes('Tape'), `${r.status} ${r.url} title "${title}"`)
+      check('app serves /', r.ok && /\/hyperliquid\/BTC\?interval=1m(&net=mainnet)?$/.test(r.url) && title.includes('Tape'), `${r.status} ${r.url} title "${title}"`)
     } catch (e) {
       check('app serves /', false, String(e))
     }

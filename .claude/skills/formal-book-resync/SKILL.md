@@ -47,7 +47,7 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 
 Each action is one JS task in the worker: a socket message, a fetch settling, a timer, or a tab message with the reconcile it queues as a microtask. Nothing else in the hub runs inside one of them, so each is one TLA+ step.
 
-Sync commit: `03801c4cdb92080005762ca4d75994fcdc81b3e8` (2026-10-29). The model describes the covered code at this commit.
+Sync commit: `b3f0839d49b9b55146a3975b98574bae3d2a90dc` (2026-10-29). The model describes the covered code at this commit.
 
 ## Bounds and assumptions
 
