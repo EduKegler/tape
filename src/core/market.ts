@@ -54,7 +54,7 @@ export function groupOptions(spec: MarketSpec, mid: Px): readonly GroupStep[] {
 }
 
 /** Fraction digits a step needs: 10 shows 0, 0.5 shows 1. */
-export function groupDecimals(spec: MarketSpec, step: GroupStep): Decimals {
+export function groupDecimals(spec: MarketSpec, step: Px): Decimals {
   let decimals = spec.scale.px as number
   let units = step as number
   while (decimals > 0 && units % 10 === 0) {
