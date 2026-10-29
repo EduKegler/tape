@@ -6,6 +6,7 @@ import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintReact from '@eslint-react/eslint-plugin'
 import vitest from '@vitest/eslint-plugin'
 import betterTailwind from 'eslint-plugin-better-tailwindcss'
+import noUnsanitized from 'eslint-plugin-no-unsanitized'
 import regexp from 'eslint-plugin-regexp'
 import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -59,6 +60,7 @@ export default [
     },
   },
   regexp.configs['flat/recommended'],
+  noUnsanitized.configs.recommended,
   ...pluginQuery.configs['flat/recommended-strict'],
   ...pluginRouter.configs['flat/recommended'],
   {
