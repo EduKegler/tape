@@ -79,6 +79,15 @@ async function handle(method, params) {
   }
 }
 
+async function answer(body) {
+  const { method, params = [] } = JSON.parse(body || '{}')
+  try {
+    return JSON.stringify({ result: await handle(method, params) })
+  } catch (e) {
+    return JSON.stringify({ error: { code: e.code ?? -32603, message: String(e.message ?? e) } })
+  }
+}
+
 const server = createServer((req, res) => {
   res.setHeader('access-control-allow-origin', '*')
   res.setHeader('access-control-allow-headers', 'content-type')
@@ -87,25 +96,22 @@ const server = createServer((req, res) => {
   let body = ''
   req.on('data', (c) => (body += c))
   req.on('end', async () => {
-    const { method, params = [] } = JSON.parse(body || '{}')
-    let reply
-    try {
-      reply = { result: await handle(method, params) }
-    } catch (e) {
-      reply = { error: { code: e.code ?? -32603, message: String(e.message ?? e) } }
-    }
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify(reply))
+    res.end(await answer(body))
   })
 })
 server.listen(Number(walletPort), '127.0.0.1')
 
+// The page reaches the wallet on its own origin, and CDP answers before the request leaves Chrome.
+// A real extension never goes through the page's connect-src, so neither does this one.
+const RPC_PATH = '/__tape-test-wallet'
 const PROVIDER = `(() => {
+  const RPC_PATH = '${RPC_PATH}'
   if (window.ethereum && window.ethereum.isTapeTestWallet) return
   const listeners = {}
   const emit = (event, value) => (listeners[event] || []).forEach((fn) => fn(value))
   async function rpc(method, params) {
-    const response = await fetch('http://127.0.0.1:${walletPort}/rpc', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ method, params }) })
+    const response = await fetch(RPC_PATH, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ method, params }) })
     const reply = await response.json()
     if (reply.error) throw Object.assign(new Error(reply.error.message), { code: reply.error.code })
     return reply.result
@@ -128,6 +134,7 @@ const PROVIDER = `(() => {
 })()`
 
 const GUARDED = [
+  { urlPattern: `*${RPC_PATH}` },
   { urlPattern: 'https://api.hyperliquid.xyz/exchange*' },
   { urlPattern: '*orderly.org/v1/*' },
   { urlPattern: '*dydx*rpc*' },
@@ -156,6 +163,19 @@ ws.onmessage = (event) => {
   const m = JSON.parse(event.data)
   if (m.method === 'Fetch.requestPaused') {
     const { requestId, request } = m.params
+    if (new URL(request.url).pathname === RPC_PATH)
+      return answer(request.postData).then((reply) =>
+        send(
+          'Fetch.fulfillRequest',
+          {
+            requestId,
+            responseCode: 200,
+            responseHeaders: [{ name: 'content-type', value: 'application/json' }],
+            body: Buffer.from(reply).toString('base64'),
+          },
+          m.sessionId,
+        ),
+      )
     const reason = verdict(request.url, request.method, request.postData)
     if (!reason) return send('Fetch.continueRequest', { requestId }, m.sessionId)
     log({ blocked: request.url, method: request.method, reason, body: request.postData ?? null })
