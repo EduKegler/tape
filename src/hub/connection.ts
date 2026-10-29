@@ -62,7 +62,7 @@ function backoffMs(attempt: number, rand: number): number {
 }
 
 /** A connection that lived this long was healthy, so the next failure starts the backoff over. */
-export const STABLE_MS = 30_000
+const STABLE_MS = 30_000
 const HOLD_BASE_MS = 2_000
 const HOLD_MAX_MS = 60_000
 
