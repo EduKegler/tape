@@ -28,8 +28,7 @@ import { walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 
 export type TradeSession =
-  /** `venue`: Tape never trades there. `site`: this deployment only reads, as mainnet does without VITE_TRADE_MAINNET. */
-  | { readonly status: 'read-only'; readonly scope: 'venue' | 'site' }
+  | { readonly status: 'read-only'; readonly cause: 'venue-not-traded' | 'site-reads-only' }
   | { readonly status: 'unavailable'; readonly reason: string }
   | { readonly status: 'disconnected' }
   | {
@@ -133,8 +132,8 @@ export function useTradeSession(venue: VenueId): TradeSession {
       if (ref) void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
     },
   })
-  if (!module) return { status: 'read-only', scope: 'venue' }
-  if (SITE_READ_ONLY) return { status: 'read-only', scope: 'site' }
+  if (!module) return { status: 'read-only', cause: 'venue-not-traded' }
+  if (SITE_READ_ONLY) return { status: 'read-only', cause: 'site-reads-only' }
   if (unavailable) return { status: 'unavailable', reason: unavailable }
   if (!ref) return { status: 'disconnected' }
   if (linked) {
@@ -170,8 +169,12 @@ export function useAccountView(ref: AccountRef | null) {
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
 
-/** Null where the venue has no estimate. Undefined while it loads or when the read fails. */
-export function useMarginState(ref: AccountRef | null, symbol: string): MarginState | null | undefined {
+export type MarginReading =
+  | { readonly status: 'no-estimate' }
+  | { readonly status: 'unknown' }
+  | { readonly status: 'known'; readonly state: MarginState }
+
+export function useMarginReading(ref: AccountRef | null, symbol: string): MarginReading {
   const margin = ref ? TRADING[ref.venue].margin : undefined
   const query = useQuery<MarginState, TradeFailure>({
     queryKey: ref ? [...tradeKeys(ref).all, 'margin', symbol] : ['trade', 'none', 'margin'],
@@ -179,7 +182,8 @@ export function useMarginState(ref: AccountRef | null, symbol: string): MarginSt
     enabled: Boolean(ref && margin),
     refetchInterval: ACCOUNT_POLL_MS,
   })
-  return margin ? query.data : null
+  if (!margin) return { status: 'no-estimate' }
+  return query.data ? { status: 'known', state: query.data } : { status: 'unknown' }
 }
 
 export function useTradeCommands(ref: AccountRef | null) {

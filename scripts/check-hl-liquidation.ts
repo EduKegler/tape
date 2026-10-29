@@ -1,5 +1,3 @@
-// Recomputes Hyperliquid's own liquidationPx for open cross positions of public mainnet accounts.
-// node scripts/check-hl-liquidation.ts [accounts]
 import { estimateLiquidation, maintenanceMargin } from '../packages/trade/src/liquidation.ts'
 import type { MarginTier } from '../packages/trade/src/liquidation.ts'
 

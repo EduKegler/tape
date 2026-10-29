@@ -9,14 +9,9 @@ import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
 
-const INDICES = Array.from({ length: BOOK_ROWS }, (_, i) => i)
+const BID_SLOTS = Array.from({ length: BOOK_ROWS }, (_, i) => i)
+const ASK_SLOTS = [...BID_SLOTS].reverse()
 
-/**
- * Fixed rows keyed by index, so DOM nodes never move or remount. Each row subscribes to its own
- * slice with a shallow compare and skips frames where its slice is equal. In a busy book most
- * rows still change per frame, because a new level shifts every cumulative total below it. The
- * depth bar is a scaleX transform, which skips layout.
- */
 export function OrderBook({
   market,
   group,
@@ -59,13 +54,13 @@ export function OrderBook({
           <span className="text-right">Total</span>
         </div>
         <div className="flex flex-1 flex-col">
-          {INDICES.map((i) => (
+          {ASK_SLOTS.map((i) => (
             <Row key={`a${i}`} topic={topic} side="asks" index={i} />
           ))}
         </div>
         <Spread topic={topic} />
         <div className="flex flex-1 flex-col">
-          {INDICES.map((i) => (
+          {BID_SLOTS.map((i) => (
             <Row key={`b${i}`} topic={topic} side="bids" index={i} />
           ))}
         </div>

@@ -8,11 +8,11 @@ import type { Px } from '@tape/core/fixed'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { useFrame } from '#/client/hooks'
-import { useMarginState, useTradeCommands, useTradeSession } from '#/trade/hooks'
-import type { TradeSession } from '#/trade/hooks'
+import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
+import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { buildIntent, checkPrice, checkSize } from '@tape/trade/intent'
 import { estimateLiquidation } from '@tape/trade/liquidation'
-import type { Entry, MarginState } from '@tape/trade/liquidation'
+import type { Entry } from '@tape/trade/liquidation'
 import type { Bps, Side, Tif, TradeError } from '@tape/trade/types'
 import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
@@ -60,10 +60,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const [kind, setKind] = useState<Kind>('limit')
   const [built, setBuilt] = useState<TradeError | null>(null)
   const [protect, setProtect] = useState(false)
-  // The exact touch, not the mid or a grouped row: a mid can fall between ticks, and a market order fills on the far side.
   const touch = useFrame(
     { kind: 'book', market: spec.key, group },
-    (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }),
+    (f) => ({ bid: plain(f?.touch.bid), ask: plain(f?.touch.ask) }),
     shallow,
   )
   const near = side === 'buy' ? touch.bid : touch.ask
@@ -75,7 +74,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
   const { run, last } = useTradeCommands(ref)
-  const margin = useMarginState(ref, spec.venueSymbol)
+  const margin = useMarginReading(ref, spec.venueSymbol)
   const form = useForm({
     defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
     onSubmit: ({ value }) => {
@@ -254,7 +253,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               <dl className="num grid grid-cols-2 gap-y-1 text-[12px]">
                 <dt className="text-level3">Notional</dt>
                 <dd className="text-right text-level1">{total}</dd>
-                {margin !== null && (
+                {margin.status !== 'no-estimate' && (
                   <>
                     <dt className="text-level3">Est. liquidation</dt>
                     <dd className="text-right text-level1">
@@ -262,7 +261,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                     </dd>
                   </>
                 )}
-                {NETWORK === 'mainnet' && <WalletUsdc />}
+                {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
               </dl>
               <SubmitArea
                 session={session}
@@ -281,9 +280,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   )
 }
 
-function liquidationText(spec: MarketSpec, margin: MarginState | undefined, entry: Entry | null): string {
-  if (!margin || !entry) return '—'
-  const liq = estimateLiquidation(margin, entry)
+function liquidationText(spec: MarketSpec, margin: MarginReading, entry: Entry | null): string {
+  if (margin.status !== 'known' || !entry) return '—'
+  const liq = estimateLiquidation(margin.state, entry)
   switch (liq.kind) {
     case 'price':
       return `${formatPx(Math.round(liq.px * 10 ** spec.scale.px) as Px, spec.scale)} ${spec.quote}`
@@ -321,7 +320,7 @@ function SubmitArea({
   )
   switch (session.status) {
     case 'read-only':
-      return session.scope === 'venue' ? (
+      return session.cause === 'venue-not-traded' ? (
         <p className="text-[11px] leading-snug text-level3">
           {venue} is read only in Tape. It never signs or sends an order here.
         </p>
@@ -351,8 +350,7 @@ function SubmitArea({
   }
 }
 
-/** A mainnet balance, so a testnet build never mounts it and never calls a mainnet RPC. */
-function WalletUsdc() {
+function MainnetWalletUsdc() {
   const balance = useUsdcBalance()
   return (
     <>

@@ -128,7 +128,6 @@ export function formatMid(bid: Px, ask: Px, scale: Scale): string {
   return sum % 2n === 0n ? formatUnits(sum / 2n, scale.px, scale.px) : formatUnits(sum * 5n, scale.px + 1, scale.px + 1)
 }
 
-/** The one exit from the integer domain, for chart coordinates and bar ratios. */
 export function toDisplayFloat(units: Px | Qty, decimals: Decimals): number {
   return units / 10 ** decimals
 }
