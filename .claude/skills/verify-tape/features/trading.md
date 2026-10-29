@@ -10,7 +10,7 @@ On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends order
 - `trade-market-hl` sends a market order as an IOC limit priced from the testnet book. Same answer.
 - `trade-tpsl-hl` sends the order with take profit and stop loss in one action. Same answer.
 - `trade-enable-dydx` asks the wallet for the dYdX onboarding signature and derives the dYdX key in the tab. The ticket turns ready.
-- `trade-order-dydx` signs and gets `account dydx1… not found` from the chain, with the derived address.
+- `trade-order-dydx` gets `account dydx1… not found` from the chain, with the derived address. The client looks the account up before it signs, so an unfunded wallet never reaches the order signature. This proves the derivation, not the order encoding.
 - `trade-enable-orderly` switches the wallet to Arbitrum Sepolia, signs `Registration`, and the guard blocks the POST. The ticket shows the 451 text and `wallet.jsonl` holds the signed body.
 - `trade-account` shows `No account on this venue yet. Deposit to start.` for an unfunded wallet, after setup on dYdX and right away on Hyperliquid.
 
@@ -40,6 +40,6 @@ Preconditions:
 - The guard blocks Hyperliquid mainnet `/exchange`, every Orderly `register_account` and `orderly_key`, Orderly mainnet order writes, and dYdX mainnet broadcasts, with a 451. CORS preflights pass. Blocks land in `wallet.jsonl` as `blocked` lines with the body.
 - Orderly registration creates an account at the venue, so it stays blocked. Orderly orders cannot be proven past setup here. Unit tests cover the signed body.
 - The dYdX key lives in sessionStorage. A new tab asks for the onboarding signature again. That is by design.
-- The `Account` panel polls every 5 s. Right after setup it can say `Enable trading to read this account.` for one poll.
+- The `Account` panel polls every 10 s. Right after setup it can say `Enable trading to read this account.` for one poll.
 - The book on screen is mainnet. Testnet orders are priced by the testnet book, which can be far from it.
 - A Hyperliquid testnet address that deposited elsewhere has a real account. The fresh harness wallet never has one.
