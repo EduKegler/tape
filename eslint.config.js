@@ -4,6 +4,7 @@ import { tanstackConfig } from '@tanstack/eslint-config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
 import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintReact from '@eslint-react/eslint-plugin'
+import betterTailwind from 'eslint-plugin-better-tailwindcss'
 import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
@@ -57,6 +58,18 @@ export default [
   },
   ...pluginQuery.configs['flat/recommended-strict'],
   ...pluginRouter.configs['flat/recommended'],
+  {
+    ...betterTailwind.configs.recommended,
+    files: ['src/**/*.tsx'],
+    settings: { 'better-tailwindcss': { entryPoint: 'src/styles.css' } },
+    rules: {
+      ...betterTailwind.configs.recommended.rules,
+      // Prettier owns line breaks.
+      'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
+      // Plain classes from src/styles.css: num for tabular figures, dark for the dark variant.
+      'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['num', 'dark'] }],
+    },
+  },
   {
     ...jsxA11y.configs.recommended,
     files: ['src/**/*.tsx'],

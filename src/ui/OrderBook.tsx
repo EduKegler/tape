@@ -41,7 +41,7 @@ export function OrderBook({
           <select
             value={head.group}
             onChange={(e) => onGroup(e.target.value)}
-            className="num rounded border border-rule bg-panel px-1 py-0.5 text-level2"
+            className="num rounded-sm border border-rule bg-panel px-1 py-0.5 text-level2"
           >
             {(head.options ? head.options.split('|') : [head.group]).map((o) => (
               <option key={o} value={o.replaceAll(',', '')}>
@@ -52,7 +52,7 @@ export function OrderBook({
         </label>
       }
     >
-      <div className="num flex h-full flex-col text-[12px] [contain:strict]" data-status={head.status}>
+      <div className="num flex h-full flex-col text-[12px] contain-strict" data-status={head.status}>
         <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-[11px] text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
@@ -105,7 +105,7 @@ function Spread({ topic }: { topic: BookTopic }) {
   return (
     <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
       <span className="text-[14px] text-level1">{s.mid || '—'}</span>
-      <span className="whitespace-nowrap text-[11px] text-level3">
+      <span className="text-[11px] whitespace-nowrap text-level3">
         {s.status === 'live'
           ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`
           : s.status === 'stale'

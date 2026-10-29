@@ -49,7 +49,7 @@ function Qr({ text }: { text: string }) {
       aria-label="WalletConnect pairing QR code"
       viewBox={`0 0 ${size} ${size}`}
       shapeRendering="crispEdges"
-      className="size-60 rounded bg-white"
+      className="size-60 rounded-sm bg-white"
     >
       <path d={path} fill="black" />
     </svg>

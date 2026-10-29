@@ -39,7 +39,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             to="/$venue/$base"
             params={{ venue: v, base }}
             search={(s) => s}
-            className="flex flex-col rounded px-2 py-0.5 leading-tight text-level3 hover:text-level1"
+            className="flex flex-col rounded-sm px-2 py-0.5 leading-tight text-level3 hover:text-level1"
             activeProps={{ className: 'bg-level1/8 text-level1', 'aria-current': 'page' }}
           >
             <span className="text-[13px]">{VENUES[v].label}</span>
