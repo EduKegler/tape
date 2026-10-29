@@ -76,10 +76,15 @@ export interface BookFrame extends FrameBase {
   readonly uncrossed: number
 }
 
+export interface DepthSide {
+  readonly px: Float64Array
+  readonly cum: Float64Array
+}
+
 export interface DepthFrame extends FrameBase {
   readonly kind: 'depth'
-  readonly bids: Float64Array
-  readonly asks: Float64Array
+  readonly bids: DepthSide
+  readonly asks: DepthSide
   readonly mid: number
 }
 

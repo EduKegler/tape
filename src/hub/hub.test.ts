@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TabId } from '@tape/core/ids'
 import { marketKey } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
-import type { BookFrame, Frame, Topic } from '#/core/topics'
+import type { BookFrame, DepthFrame, Frame, Topic } from '#/core/topics'
 import { recordedFetch, wsFrames } from '@tape/venues/fixtures'
 import { venues } from '@tape/venues/index'
 import { createHub } from './hub'
@@ -126,6 +126,30 @@ describe('hub', () => {
     const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
     expect(wide.touch.bid).not.toBe('')
     expect(wide.touch).toEqual({ bid: venue?.bid, ask: venue?.ask })
+    hub.dispose()
+  })
+
+  it('sends depth as prices and running totals from the mid outward', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([{ kind: 'depth', market: btc('binance') }])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(1500)
+
+    const depth = a.frames.get(`depth|${btc('binance')}`) as DepthFrame
+    for (const [side, away] of [
+      [depth.bids, -1],
+      [depth.asks, 1],
+    ] as const) {
+      expect(side.px.length).toBeGreaterThan(1)
+      expect(side.cum).toHaveLength(side.px.length)
+      expect((side.px[0]! - depth.mid) * away).toBeGreaterThan(0)
+      for (let i = 1; i < side.px.length; i++) {
+        expect((side.px[i]! - side.px[i - 1]!) * away).toBeGreaterThan(0)
+        expect(side.cum[i]!).toBeGreaterThan(side.cum[i - 1]!)
+      }
+    }
     hub.dispose()
   })
 

@@ -14,6 +14,7 @@ import type {
   CompareFrame,
   CompareRow,
   DepthFrame,
+  DepthSide,
   FrameStatus,
   TradesFrame,
 } from './topics'
@@ -91,15 +92,17 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
   }
 }
 
-function depthSide(side: BookSide, pxDecimals: Decimals, qtyDecimals: Decimals): Float64Array {
+const NO_DEPTH: DepthSide = { px: new Float64Array(), cum: new Float64Array() }
+
+function depthSide(side: BookSide, pxDecimals: Decimals, qtyDecimals: Decimals): DepthSide {
   const n = Math.min(side.prices.length, DEPTH_LEVELS)
-  const out = new Float64Array(n * 2)
+  const out = { px: new Float64Array(n), cum: new Float64Array(n) }
   let cum = 0
   for (let i = 0; i < n; i++) {
     const px = side.prices[i] as Px
     cum += side.qty.get(px) as number
-    out[i * 2] = toDisplayFloat(px, pxDecimals)
-    out[i * 2 + 1] = toDisplayFloat(cum as Qty, qtyDecimals)
+    out.px[i] = toDisplayFloat(px, pxDecimals)
+    out.cum[i] = toDisplayFloat(cum as Qty, qtyDecimals)
   }
   return out
 }
@@ -114,8 +117,8 @@ export function projectDepth(key: TopicKey, market: MarketView, version: number)
     key,
     version,
     status: market.status,
-    bids: book ? depthSide(book.bids, scale.px, scale.qty) : new Float64Array(),
-    asks: book ? depthSide(book.asks, scale.px, scale.qty) : new Float64Array(),
+    bids: book ? depthSide(book.bids, scale.px, scale.qty) : NO_DEPTH,
+    asks: book ? depthSide(book.asks, scale.px, scale.qty) : NO_DEPTH,
     mid: bid !== null && ask !== null ? toDisplayFloat(((bid + ask) / 2) as Px, scale.px) : 0,
   }
 }

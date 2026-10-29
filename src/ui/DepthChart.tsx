@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrameEffect } from '#/client/hooks'
 import type { MarketKey } from '@tape/core/ids'
-import type { DepthFrame } from '#/core/topics'
+import type { DepthFrame, DepthSide } from '#/core/topics'
 import { Panel } from './Panel'
 
 function cssVar(el: Element, name: string): string {
@@ -19,33 +19,31 @@ function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, w, h)
-  const bidN = f.bids.length / 2
-  const askN = f.asks.length / 2
-  if (!bidN || !askN || !f.mid) return
-  const reach = Math.min(f.mid - (f.bids[(bidN - 1) * 2] ?? f.mid), (f.asks[(askN - 1) * 2] ?? f.mid) - f.mid)
+  if (!f.bids.px.length || !f.asks.px.length || !f.mid) return
+  const reach = Math.min(f.mid - (f.bids.px.at(-1) ?? f.mid), (f.asks.px.at(-1) ?? f.mid) - f.mid)
   const lo = f.mid - reach
   const hi = f.mid + reach
-  const cumAt = (side: Float64Array, n: number, inside: (px: number) => boolean) => {
+  const cumAt = (side: DepthSide, inside: (px: number) => boolean) => {
     let c = 0
-    for (let i = 0; i < n && inside(side[i * 2]!); i++) c = side[i * 2 + 1]!
+    for (let i = 0; i < side.px.length && inside(side.px[i]!); i++) c = side.cum[i]!
     return c
   }
   const max =
     Math.max(
-      cumAt(f.bids, bidN, (p) => p >= lo),
-      cumAt(f.asks, askN, (p) => p <= hi),
+      cumAt(f.bids, (p) => p >= lo),
+      cumAt(f.asks, (p) => p <= hi),
     ) || 1
   const x = (px: number) => ((px - lo) / (hi - lo)) * w
   const y = (cum: number) => h - 4 - (cum / max) * (h - 20)
-  const area = (side: Float64Array, n: number, sign: 1 | -1, stroke: string, fill: string) => {
+  const area = (side: DepthSide, sign: 1 | -1, stroke: string, fill: string) => {
     ctx.beginPath()
     ctx.moveTo(x(f.mid), h)
     let prev = 0
-    for (let i = 0; i < n; i++) {
-      const px = side[i * 2]!
+    for (let i = 0; i < side.px.length; i++) {
+      const px = side.px[i]!
       if (sign === -1 ? px < lo : px > hi) break
       ctx.lineTo(x(px), y(prev))
-      prev = side[i * 2 + 1]!
+      prev = side.cum[i]!
       ctx.lineTo(x(px), y(prev))
     }
     ctx.lineTo(x(sign === -1 ? lo : hi), y(prev))
@@ -57,8 +55,8 @@ function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
     ctx.lineWidth = 1.25
     ctx.stroke()
   }
-  area(f.bids, bidN, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
-  area(f.asks, askN, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
+  area(f.bids, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
+  area(f.asks, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
   ctx.fillStyle = cssVar(canvas, '--level3')
   ctx.font = `11px ${cssVar(canvas, '--font-mono')}`
   ctx.textAlign = 'left'
