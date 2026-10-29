@@ -6,3 +6,6 @@ export const proposedPrice = createStore<{ readonly price: string; readonly at: 
 export function proposePrice(price: string): void {
   proposedPrice.setState(() => ({ price: price.replaceAll(',', ''), at: Date.now() }))
 }
+
+/** Max slippage for market and close orders, in basis points. */
+export const slippageBps = createStore(100)

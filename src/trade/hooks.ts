@@ -126,15 +126,16 @@ export function useAccountView(ref: AccountRef | null) {
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
 
-export function useTradeCommands(ref: AccountRef) {
+/** Null ref: nothing to send to yet (Binance, no wallet). `run` is then a no-op. */
+export function useTradeCommands(ref: AccountRef | null) {
   const client = useQueryClient()
-  const keys = tradeKeys(ref)
+  const command = ref ? tradeKeys(ref).command : ['trade', 'none', 'command']
   const mutation = useMutation<CommandOutcome, TradeFailure, Command>({
-    mutationKey: keys.command,
-    mutationFn: (command) => guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), command)),
-    onSettled: () => client.invalidateQueries({ queryKey: keys.all }),
+    mutationKey: command,
+    mutationFn: (c) => (ref ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), c)) : Promise.reject(new Error('no account'))),
+    onSettled: () => (ref ? client.invalidateQueries({ queryKey: tradeKeys(ref).all }) : undefined),
   })
-  const inFlight = useMutationState({ filters: { mutationKey: keys.command, status: 'pending' }, select: (m) => m.state.variables as Command })
+  const inFlight = useMutationState({ filters: { mutationKey: command, status: 'pending' }, select: (m) => m.state.variables as Command })
   return {
     run: mutation.mutate,
     last: { outcome: mutation.data ?? null, error: mutation.error?.error ?? null, pending: mutation.isPending, command: mutation.variables ?? null },
