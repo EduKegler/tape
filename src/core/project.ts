@@ -78,7 +78,7 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
     status: market.status,
     group: formatPx(step, spec.scale, decimals),
     groupOptions: options,
-    asks: ladder(asks, askCum).reverse(),
+    asks: ladder(asks, askCum),
     bids: ladder(bids, bidCum),
     bid: bid !== null ? formatPx(bid, spec.scale, tradeDecimals(spec, bid)) : '',
     ask: ask !== null ? formatPx(ask, spec.scale, tradeDecimals(spec, ask)) : '',

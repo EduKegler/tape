@@ -9,7 +9,8 @@ import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
 
-const INDICES = Array.from({ length: BOOK_ROWS }, (_, i) => i)
+const BID_SLOTS = Array.from({ length: BOOK_ROWS }, (_, i) => i)
+const ASK_SLOTS = [...BID_SLOTS].reverse()
 
 export function OrderBook({
   market,
@@ -53,13 +54,13 @@ export function OrderBook({
           <span className="text-right">Total</span>
         </div>
         <div className="flex flex-1 flex-col">
-          {INDICES.map((i) => (
+          {ASK_SLOTS.map((i) => (
             <Row key={`a${i}`} topic={topic} side="asks" index={i} />
           ))}
         </div>
         <Spread topic={topic} />
         <div className="flex flex-1 flex-col">
-          {INDICES.map((i) => (
+          {BID_SLOTS.map((i) => (
             <Row key={`b${i}`} topic={topic} side="bids" index={i} />
           ))}
         </div>

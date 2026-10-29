@@ -103,7 +103,7 @@ describe('hub', () => {
     expect(book.status).toBe('live')
     expect(book.bids).toHaveLength(14)
     expect(book.bids.every((r) => r.px !== '')).toBe(true)
-    expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks.at(-1)!.px.replaceAll(',', '')))
+    expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks[0]!.px.replaceAll(',', '')))
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
     expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
