@@ -19,7 +19,7 @@ export interface TabPort {
  * inside `batch`, so React commits at most once per frame however fast the hub sends.
  */
 /** What a reader may do with a store: read and subscribe, never write. */
-export type ReadStore<T> = Pick<Store<T>, 'get' | 'subscribe'>
+type ReadStore<T> = Pick<Store<T>, 'get' | 'subscribe'>
 
 export interface HubClient {
   readonly mode: HubMode
