@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useEffectEvent, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createStore } from '@tanstack/store'
 import { useSelector } from '@tanstack/react-store'
@@ -32,10 +32,9 @@ export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
 ): TSelected {
   const client = useContext(HubContext)
   const key = topicKey(topic)
-  const latest = useRef(topic)
-  latest.current = topic
+  const retain = useEffectEvent(() => client?.retain(topic))
   const store = client ? client.store(topic) : NOTHING
-  useEffect(() => client?.retain(latest.current), [client, key])
+  useEffect(() => retain(), [client, key])
   return useSelector(store, select, compare ? { compare } : undefined)
 }
 
@@ -43,20 +42,20 @@ export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
 export function useFrameEffect<T extends Topic>(topic: T, onFrame: (frame: FrameOf<T>) => void): void {
   const client = useContext(HubContext)
   const key = topicKey(topic)
-  const latest = useRef({ topic, onFrame })
-  latest.current = { topic, onFrame }
-  useEffect(() => {
+  const emit = useEffectEvent(onFrame)
+  const start = useEffectEvent(() => {
     if (!client) return
-    const release = client.retain(latest.current.topic)
-    const store = client.store(latest.current.topic)
+    const release = client.retain(topic)
+    const store = client.store(topic)
     const current = store.get()
-    if (current) latest.current.onFrame(current)
-    const sub = store.subscribe((f) => f && latest.current.onFrame(f))
+    if (current) emit(current)
+    const sub = store.subscribe((f) => f && emit(f))
     return () => {
       sub.unsubscribe()
       release()
     }
-  }, [client, key])
+  })
+  useEffect(() => start(), [client, key])
 }
 
 export function useHubStats(): HubStats | null {
