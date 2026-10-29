@@ -51,11 +51,15 @@ export default [
   },
   {
     ...eslintReact.configs['recommended-type-checked'],
-    files: ['src/**/*.tsx'],
+    files: ['src/**/*.{ts,tsx}'],
   },
   {
-    files: ['src/**/*.tsx'],
+    files: ['src/**/*.{ts,tsx}'],
     rules: {
+      // react-hooks owns the hook rules.
+      '@eslint-react/exhaustive-deps': 'off',
+      '@eslint-react/rules-of-hooks': 'off',
+      '@eslint-react/set-state-in-effect': 'off',
       '@eslint-react/naming-convention-ref-name': 'off',
       '@eslint-react/no-use-context': 'off',
     },
