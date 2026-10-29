@@ -120,6 +120,8 @@ async function up(flags) {
     die(`wallet port ${WALLET_PORT} is in use. Set VERIFY_TAPE_WALLET_PORT to a free port.`)
   if (!existsSync(CHROME)) die(`Chrome not found at ${CHROME}. Set CHROME to a Chrome binary.`)
 
+  const network = flags.network ?? 'mainnet'
+  if (network !== 'mainnet' && network !== 'testnet') die(`--network takes mainnet or testnet, not ${network}`)
   const runId = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', '')
   mkdirSync(STATE_DIR, { recursive: true })
   mkdirSync(join(ARTIFACTS, runId), { recursive: true })
@@ -127,11 +129,12 @@ async function up(flags) {
   const serverLog = join(STATE_DIR, 'server.log')
   const sha = git(['rev-parse', '--short', 'HEAD'])
   const dirty = git(['status', '--porcelain', '--', 'src', 'packages']).split('\n').filter(Boolean).length
-  if (flags['reuse-build'] && existsSync(join(OUTPUT, 'server/index.mjs'))) {
+  const builtFor = existsSync(join(OUTPUT, 'network')) ? readFileSync(join(OUTPUT, 'network'), 'utf8') : null
+  if (flags['reuse-build'] && existsSync(join(OUTPUT, 'server/index.mjs')) && builtFor === network) {
     console.log(`up: reusing the build in ${OUTPUT}. It may not match the working tree.`)
   } else {
     console.log(
-      `up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/ and packages/` : ''} into ${OUTPUT}`,
+      `up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/ and packages/` : ''} for ${network} into ${OUTPUT}`,
     )
     try {
       execFileSync(
@@ -142,8 +145,13 @@ async function up(flags) {
           '--config',
           join(SKILL, 'scripts/vite.verify.config.ts'),
         ],
-        { cwd: REPO, stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')] },
+        {
+          cwd: REPO,
+          env: { ...process.env, VITE_NETWORK: network },
+          stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')],
+        },
       )
+      writeFileSync(join(OUTPUT, 'network'), network)
     } catch {
       console.error(readFileSync(buildLog, 'utf8').split('\n').slice(-30).join('\n'))
       rmSync(STATE_DIR, { recursive: true, force: true })
@@ -181,6 +189,7 @@ async function up(flags) {
     serverPid: server.pid,
     chromePid: chrome.pid,
     sha,
+    network,
     dirtySrcFiles: dirty,
     startedAt: new Date().toISOString(),
   }
@@ -234,9 +243,9 @@ async function up(flags) {
       address = JSON.parse(readFileSync(join(STATE_DIR, 'wallet-key.json'), 'utf8')).address
   }
   if (!address) die('the test wallet did not start. Log: .state/wallet.log. Run `down`.')
-  record(s, { cmd: 'up', base: BASE, sha: s.sha, wallet: address })
+  record(s, { cmd: 'up', base: BASE, sha: s.sha, network, wallet: address })
   console.log(
-    `up: run ${runId}\n  app     ${BASE}\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
+    `up: run ${runId}\n  app     ${BASE} (${network})\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
   )
 }
 
@@ -288,7 +297,7 @@ async function doctor() {
   if (!s) {
     check('run state', false, `no ${STATE}. Run \`up\`.`)
   } else {
-    check('run state', true, `run ${s.runId}, started ${s.startedAt} at ${s.sha}`)
+    check('run state', true, `run ${s.runId}, started ${s.startedAt} at ${s.sha}, ${s.network ?? 'mainnet'}`)
     check('server process', alive(s.serverPid), `pid ${s.serverPid}`)
     check('chrome process', alive(s.chromePid), `pid ${s.chromePid}`)
     check(
@@ -308,7 +317,7 @@ async function doctor() {
       const title = body.match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
       check(
         'app serves /',
-        r.ok && /\/hyperliquid\/BTC\?interval=1m(&net=mainnet)?$/.test(r.url) && title.includes('Tape'),
+        r.ok && /\/hyperliquid\/BTC\?interval=1m$/.test(r.url) && title.includes('Tape'),
         `${r.status} ${r.url} title "${title}"`,
       )
     } catch (e) {
@@ -329,19 +338,39 @@ async function doctor() {
       `HEAD ${head}${head !== s.sha ? ` but the build is from ${s.sha}. Run down and up to rebuild` : ''}, ${dirty} uncommitted file(s) under src/ and packages/ now, ${s.dirtySrcFiles} at build time`,
     )
   }
+  const testnet = s?.network === 'testnet'
   const venues = [
-    ['binance', () => fetch('https://data-api.binance.vision/api/v3/ping', { signal: AbortSignal.timeout(5000) })],
+    [
+      'binance',
+      () =>
+        fetch(`https://${testnet ? 'testnet.binance.vision' : 'data-api.binance.vision'}/api/v3/ping`, {
+          signal: AbortSignal.timeout(5000),
+        }),
+    ],
     [
       'hyperliquid',
       () =>
-        fetch('https://api.hyperliquid.xyz/info', {
+        fetch(`https://${testnet ? 'api.hyperliquid-testnet.xyz' : 'api.hyperliquid.xyz'}/info`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: '{"type":"meta"}',
           signal: AbortSignal.timeout(5000),
         }),
     ],
-    ['dydx', () => fetch('https://indexer.dydx.trade/v4/height', { signal: AbortSignal.timeout(5000) })],
+    [
+      'dydx',
+      () =>
+        fetch(`https://${testnet ? 'indexer.v4testnet.dydx.exchange' : 'indexer.dydx.trade'}/v4/height`, {
+          signal: AbortSignal.timeout(5000),
+        }),
+    ],
+    [
+      'orderly',
+      () =>
+        fetch(`https://${testnet ? 'testnet-api.orderly.org' : 'api.orderly.org'}/v1/public/system_info`, {
+          signal: AbortSignal.timeout(5000),
+        }),
+    ],
   ]
   for (const [name, probe] of venues) {
     try {
@@ -518,7 +547,9 @@ async function browserCmd(cmd, pos, flags) {
 const HELP = `verify-tape <command> [flags]
 
 Lifecycle
-  up [--reuse-build]         build into .cache/output, serve it on 127.0.0.1:${PORT}, start headless Chrome (CDP ${CDP_PORT})
+  up [--network testnet] [--reuse-build]
+                             build for mainnet (default) or testnet into .cache/output, serve it on 127.0.0.1:${PORT},
+                             start headless Chrome (CDP ${CDP_PORT})
   doctor                     read-only health check. Exit 1: instance broken. Exit 2: a venue is unreachable.
   down                       stop both processes this run started. Evidence stays.
 

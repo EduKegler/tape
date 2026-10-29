@@ -5,7 +5,7 @@ description: Drive the real Tape web app (TanStack Start trading screen with ord
 
 # Verify Tape
 
-Tape is one browser screen at `/$venue/$base`, fed live by public Binance, Hyperliquid, dYdX and Orderly websockets through a SharedWorker hub. Hyperliquid, dYdX and Orderly also trade, on mainnet or testnet. This skill builds the app, serves the build on its own port, starts its own headless Chrome, and drives both with one helper script. Read `features/README.md` before driving, then the feature file that matches the change.
+Tape is one browser screen at `/$venue/$base`, fed live by public Binance, Hyperliquid, dYdX and Orderly websockets through a SharedWorker hub. Hyperliquid, dYdX and Orderly also trade. Each build is one network: `up` builds mainnet, which only reads, and `up --network testnet` builds testnet, where market data and trading both run on the testnets. This skill builds the app, serves the build on its own port, starts its own headless Chrome, and drives both with one helper script. Read `features/README.md` before driving, then the feature file that matches the change.
 
 Everything below runs from the repo root. The helper is:
 
@@ -37,7 +37,7 @@ node .claude/skills/verify-tape/scripts/verify-tape.mjs up
 
 Ready prints the run id, both pids and the evidence folder. Server ready is not data ready. Live data arrives in the browser a few seconds later. Each feature file says what to wait for.
 
-`up --reuse-build` skips the build and serves the last one. Only use it when `src/` has not changed since that build.
+`up --network testnet` builds with `VITE_NETWORK=testnet`. Trading journeys need it. `up --reuse-build` skips the build and serves the last one when it was built for the same network. Only use it when `src/` has not changed since that build.
 
 Override ports with `VERIFY_TAPE_PORT` and `VERIFY_TAPE_CDP_PORT`, and the browser with `CHROME` (default `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`). No Playwright browser download is needed. The script uses `playwright-core` from the repo's devDependencies.
 
@@ -69,7 +69,9 @@ Verification needs the network. There is no offline mode the browser can use. `p
 - `wss://indexer.dydx.trade/v4/ws` and `https://indexer.dydx.trade/v4`
 - `wss://ws-evm.orderly.org/ws/stream/…` and `https://api.orderly.org/v1`
 
-Trading journeys add the testnets: `api.hyperliquid-testnet.xyz`, `indexer.v4testnet.dydx.exchange` with `test-dydx-rpc.kingnodes.com`, and `testnet-api.orderly.org`.
+A testnet build opens the testnets instead: `stream.testnet.binance.vision` and `testnet.binance.vision`, `api.hyperliquid-testnet.xyz`, `indexer.v4testnet.dydx.exchange` with `test-dydx-rpc.kingnodes.com` for orders, and `testnet-ws-evm.orderly.org` with `testnet-api.orderly.org`. `doctor` probes the hosts of the network the run was built for.
+
+Testnet books are thin. The Orderly testnet sometimes sends a book with no asks for a few seconds, so wait for the state you need rather than reading the first frame.
 
 A venue outage shows up like this: `doctor` exits 2 for that venue, the book panel stays at `Syncing…` (or `Reconnecting…` after it was live), the `Sockets` count in the status bar is below 4, the Venues row for that venue shows `—`, the ticket says `Market rules unavailable.`, and the chart says `Could not load history.`. Prove the feature on another venue and report the outage.
 
