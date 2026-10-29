@@ -25,7 +25,7 @@ export interface BookSide {
   readonly qty: Map<Px, Qty>
 }
 
-/** Owned by one market in the hub and mutated in place, so no message copies 1000 levels. */
+/** Owned by one market in the hub and mutated in place. */
 export interface Book {
   readonly bids: BookSide
   readonly asks: BookSide
@@ -100,7 +100,6 @@ function emptyBook(): Book {
 
 const better = (side: Side, a: number, b: number) => (side === 'bid' ? a > b : a < b)
 
-/** Index of `px`, or where it would go to keep the side best-first. */
 function seek(side: BookSide, px: Px): number {
   let lo = 0
   let hi = side.prices.length
@@ -126,7 +125,6 @@ function write(side: BookSide, px: Px, qty: Qty): void {
   side.qty.set(px, qty)
 }
 
-/** Removes levels on `side` at or through `px`: asks <= px, or bids >= px. */
 function evictThrough(side: BookSide, px: Px): number {
   let count = 0
   while (side.prices.length > 0) {
@@ -139,7 +137,6 @@ function evictThrough(side: BookSide, px: Px): number {
   return count
 }
 
-/** A write is fresher than whatever it crosses, so it evicts the opposite levels it crosses. */
 function applyDelta(book: Book, bids: readonly Level[], asks: readonly Level[], time: number): number {
   let uncrossed = 0
   for (const [px, qty] of bids) {
@@ -154,7 +151,6 @@ function applyDelta(book: Book, bids: readonly Level[], asks: readonly Level[], 
   return uncrossed
 }
 
-/** A crossed snapshot has no freshness signal, so both sides lose their crossed levels. */
 function fromSnapshot(bids: readonly Level[], asks: readonly Level[], time: number): { book: Book; uncrossed: number } {
   const book = emptyBook()
   for (const [px, qty] of bids) write(book.bids, px, qty)
@@ -176,8 +172,8 @@ export function initialSync(_protocol: BookProtocol): BookStep {
 }
 
 /**
- * Back to awaiting. The REST protocol asks for its snapshot only once a diff is buffered, as Binance
- * documents, so the snapshot can never predate the stream it anchors.
+ * The REST protocol asks for its snapshot only once a diff is buffered, as Binance documents, so the
+ * snapshot can never predate the stream it anchors.
  */
 function awaiting(
   protocol: BookProtocol,
@@ -200,7 +196,6 @@ function awaiting(
 const unchanged = (sync: BookSync): BookStep => ({ sync, effect: NONE, uncrossed: 0, changed: false })
 
 /**
- * The whole sync procedure, deterministic and free of I/O.
  * Binance's two rules (U <= lastUpdateId + 1 <= u for the first diff, U == prev u + 1 after) fold into
  * one check against lastSeq: drop to <= lastSeq, apply from <= lastSeq + 1, anything else is a gap.
  */

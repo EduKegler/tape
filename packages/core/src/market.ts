@@ -9,7 +9,6 @@ export type TickRule = { readonly kind: 'fixed'; readonly tick: Px } | { readonl
 
 export type Quote = 'USDT' | 'USDC' | 'USD'
 
-/** Parsed once from venue REST metadata at the adapter boundary. */
 export interface MarketSpec {
   readonly key: MarketKey
   readonly venue: VenueId
