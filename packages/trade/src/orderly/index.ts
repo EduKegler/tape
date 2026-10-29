@@ -44,7 +44,7 @@ function fail(error: TradeError): never {
 }
 
 export function classifyMessage(message: string): TradeError {
-  if (/orderly key|signature|not registered|account.*(not found|not exist)/i.test(message))
+  if (/orderly key|signature|not registered|account.*(?:not found|not exist)/i.test(message))
     return { kind: 'needs-setup', detail: message }
   if (/insufficient|margin|collateral/i.test(message)) return { kind: 'insufficient-margin', detail: message }
   if (/price|quantity|notional|tick|size/i.test(message)) return { kind: 'invalid-order', detail: message }
@@ -122,7 +122,7 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
     if (
       e instanceof TradeFailure &&
       e.error.kind === 'rejected' &&
-      /order.*(not exist|not found)/i.test(e.error.detail)
+      /order.*(?:not exist|not found)/i.test(e.error.detail)
     )
       return { kind: 'absent', detail: e.error.detail }
     throw e
@@ -169,7 +169,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
         if (!(
           e instanceof TradeFailure &&
           'detail' in e.error &&
-          /order.*(not exist|not found)|already (filled|cancel)/i.test(e.error.detail)
+          /order.*(?:not exist|not found)|already (?:filled|cancel)/i.test(e.error.detail)
         ))
           throw e
       }

@@ -84,7 +84,7 @@ export function wireDecimal(units: Px | Qty | bigint, decimals: number): string 
 
 /** A JSON number's source text as a plain decimal: "1e-7" is "0.0000001", "-2.5E+3" is "-2500". */
 export function plainDecimal(source: string): string {
-  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source)
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(source)
   if (!match) throw new DecimalError(source, 'syntax')
   const [, sign, whole, fraction = '', exp = '0'] = match as unknown as [
     string,

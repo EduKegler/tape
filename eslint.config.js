@@ -6,6 +6,7 @@ import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintReact from '@eslint-react/eslint-plugin'
 import vitest from '@vitest/eslint-plugin'
 import betterTailwind from 'eslint-plugin-better-tailwindcss'
+import regexp from 'eslint-plugin-regexp'
 import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
@@ -57,6 +58,7 @@ export default [
       '@eslint-react/no-use-context': 'off',
     },
   },
+  regexp.configs['flat/recommended'],
   ...pluginQuery.configs['flat/recommended-strict'],
   ...pluginRouter.configs['flat/recommended'],
   {
@@ -127,6 +129,7 @@ export default [
       '.output/**',
       '**/.cache/**',
       '.claude/worktrees/**',
+      '.intent/**',
       '.claude/skills/verify-tape/scripts/vite.verify.config.ts',
     ],
   },

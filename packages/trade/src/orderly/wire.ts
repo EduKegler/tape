@@ -10,7 +10,7 @@ export interface Raw {
   readonly raw: string
 }
 
-const DECIMAL = /^-?\d+(\.\d+)?$/
+const DECIMAL = /^-?\d+(?:\.\d+)?$/
 export function raw(decimal: string): Raw {
   if (!DECIMAL.test(decimal)) throw new Error(`not a decimal: ${decimal}`)
   return { raw: decimal }
