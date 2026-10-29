@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DecimalError, formatMid, formatNotional, formatPx, formatQty, notional, parsePx, parseQty, rescalePx, spreadBps, toDisplayFloat } from './fixed'
+import { DecimalError, formatMid, formatNotional, formatPx, formatQty, notional, parsePx, parseQty, rescalePx, spreadBps, toDisplayFloat, wireDecimal } from './fixed'
 
 const btc = { px: 2, qty: 5 } as const
 
@@ -65,5 +65,15 @@ describe('cross-scale math', () => {
 
   it('leaves the integer domain only through toDisplayFloat', () => {
     expect(toDisplayFloat(parsePx('80798.01', btc), 2)).toBe(80798.01)
+  })
+})
+
+describe('wireDecimal', () => {
+  it('writes the shortest exact decimal a venue accepts', () => {
+    expect(wireDecimal(parsePx('80798.10', btc), btc.px)).toBe('80798.1')
+    expect(wireDecimal(parsePx('80798', btc), btc.px)).toBe('80798')
+    expect(wireDecimal(parseQty('0.00120', btc), btc.qty)).toBe('0.0012')
+    expect(wireDecimal(0n, 6)).toBe('0')
+    expect(wireDecimal(-1500n, 3)).toBe('-1.5')
   })
 })

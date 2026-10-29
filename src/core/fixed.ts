@@ -73,6 +73,15 @@ export function formatQty(qty: Qty, scale: Scale, decimals: number = scale.qty):
   return formatUnits(BigInt(qty), scale.qty, decimals)
 }
 
+/** The shortest exact decimal for a venue's wire: no grouping, no trailing zeros. */
+export function wireDecimal(units: Px | Qty | bigint, decimals: number): string {
+  const abs = BigInt(units) < 0n ? -BigInt(units) : BigInt(units)
+  const digits = abs.toString().padStart(decimals + 1, '0')
+  const whole = digits.slice(0, digits.length - decimals)
+  const fraction = digits.slice(digits.length - decimals).replace(/0+$/, '')
+  return `${BigInt(units) < 0n ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`
+}
+
 /** Px * Qty at scale px + qty. */
 export function notional(px: Px, qty: Qty): bigint {
   return BigInt(px) * BigInt(qty)

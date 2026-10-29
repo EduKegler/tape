@@ -18,6 +18,7 @@ const ARTIFACTS = join(SKILL, 'artifacts')
 const OUTPUT = join(SKILL, '.cache/output')
 const PORT = Number(process.env.VERIFY_TAPE_PORT ?? 4391)
 const CDP_PORT = Number(process.env.VERIFY_TAPE_CDP_PORT ?? 9391)
+const WALLET_PORT = Number(process.env.VERIFY_TAPE_WALLET_PORT ?? 4392)
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = `http://127.0.0.1:${PORT}`
 
@@ -59,7 +60,7 @@ const readState = () => (existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf
 function requireState() {
   const s = readState()
   if (!s) die('no run started by this harness. Run `up` first. This harness never drives an instance it did not start.')
-  if (!alive(s.serverPid) || !alive(s.chromePid)) die('a process from this run is gone. Run `down`, then `up`.')
+  if (!alive(s.serverPid) || !alive(s.chromePid) || (s.walletPid && !alive(s.walletPid))) die('a process from this run is gone. Run `down`, then `up`.')
   return s
 }
 
@@ -106,6 +107,7 @@ async function up(flags) {
   if (prior) rmSync(STATE_DIR, { recursive: true, force: true })
   if (await portBusy(PORT)) die(`port ${PORT} is already in use by a process this harness did not start. Refusing to drive it. Set VERIFY_TAPE_PORT to a free port.`)
   if (await portBusy(CDP_PORT)) die(`CDP port ${CDP_PORT} is in use. Set VERIFY_TAPE_CDP_PORT to a free port.`)
+  if (await portBusy(WALLET_PORT)) die(`wallet port ${WALLET_PORT} is in use. Set VERIFY_TAPE_WALLET_PORT to a free port.`)
   if (!existsSync(CHROME)) die(`Chrome not found at ${CHROME}. Set CHROME to a Chrome binary.`)
 
   const runId = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', '')
@@ -171,8 +173,18 @@ async function up(flags) {
     }
   }
   if (!cdp) die('Chrome did not open its CDP port. Run `down`.')
-  record(s, { cmd: 'up', base: BASE, sha: s.sha })
-  console.log(`up: run ${runId}\n  app     ${BASE}\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  evidence ${join(ARTIFACTS, runId)}`)
+  const walletLog = openSync(join(STATE_DIR, 'wallet.log'), 'a')
+  const wallet = spawn(process.execPath, [join(SKILL, 'scripts/test-wallet.mjs'), String(CDP_PORT), String(WALLET_PORT), join(STATE_DIR, 'wallet-key.json'), join(ARTIFACTS, runId, 'wallet.jsonl')], { cwd: REPO, detached: true, stdio: ['ignore', walletLog, walletLog] })
+  wallet.unref()
+  writeFileSync(STATE, JSON.stringify({ ...s, walletPid: wallet.pid, walletPort: WALLET_PORT }, null, 2))
+  let address = null
+  for (let i = 0; i < 40 && !address; i++) {
+    await sleep(250)
+    if (existsSync(join(STATE_DIR, 'wallet-key.json')) && (await portBusy(WALLET_PORT))) address = JSON.parse(readFileSync(join(STATE_DIR, 'wallet-key.json'), 'utf8')).address
+  }
+  if (!address) die('the test wallet did not start. Log: .state/wallet.log. Run `down`.')
+  record(s, { cmd: 'up', base: BASE, sha: s.sha, wallet: address })
+  console.log(`up: run ${runId}\n  app     ${BASE}\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`)
 }
 
 function killGroup(pid) {
@@ -193,9 +205,9 @@ async function down() {
     console.log('down: nothing to stop. No run state.')
     return
   }
-  const killed = [killGroup(s.chromePid) && `chrome ${s.chromePid}`, killGroup(s.serverPid) && `server ${s.serverPid}`].filter(Boolean)
-  for (let i = 0; i < 20 && (alive(s.serverPid) || alive(s.chromePid)); i++) await sleep(250)
-  for (const pid of [s.serverPid, s.chromePid]) if (alive(pid)) try { process.kill(-pid, 'SIGKILL') } catch {}
+  const killed = [killGroup(s.walletPid) && `wallet ${s.walletPid}`, killGroup(s.chromePid) && `chrome ${s.chromePid}`, killGroup(s.serverPid) && `server ${s.serverPid}`].filter(Boolean)
+  for (let i = 0; i < 20 && (alive(s.serverPid) || alive(s.chromePid) || (s.walletPid && alive(s.walletPid))); i++) await sleep(250)
+  for (const pid of [s.serverPid, s.chromePid, s.walletPid]) if (pid && alive(pid)) try { process.kill(-pid, 'SIGKILL') } catch {}
   const leftover = listenerPids(s.port)
   if (existsSync(join(ARTIFACTS, s.runId))) record(s, { cmd: 'down', killed })
   rmSync(STATE_DIR, { recursive: true, force: true })
@@ -214,6 +226,7 @@ async function doctor() {
     check('run state', true, `run ${s.runId}, started ${s.startedAt} at ${s.sha}`)
     check('server process', alive(s.serverPid), `pid ${s.serverPid}`)
     check('chrome process', alive(s.chromePid), `pid ${s.chromePid}`)
+    check('test wallet process', Boolean(s.walletPid) && alive(s.walletPid), `pid ${s.walletPid ?? 'none'}, port ${s.walletPort ?? 'none'}`)
     const owners = listenerPids(s.port)
     check(`port ${s.port} owned by this run`, owners.length > 0 && owners.every((p) => p === s.serverPid), `listeners ${owners.join(',') || 'none'}`)
     try {
