@@ -119,6 +119,21 @@ describe('hyperliquid module', () => {
     expect(error instanceof TradeFailure && error.error.kind).toBe('invalid-order')
   })
 
+  it('reads positions, orders and fills by address in the venue shapes', async () => {
+    const { fetch } = venue((_url, body) => {
+      if (body.type === 'meta') return testnetMeta
+      if (body.type === 'clearinghouseState') return { marginSummary: { accountValue: '1008.5' }, withdrawable: '900.25', assetPositions: [{ position: { coin: 'BTC', szi: '-0.01', entryPx: '80100.0', unrealizedPnl: '-1.5', liquidationPx: '95000.0', leverage: { type: 'cross', value: 5 } } }] }
+      if (body.type === 'frontendOpenOrders') return [{ coin: 'BTC', side: 'B', limitPx: '70000.0', sz: '0.001', oid: 589008353129, timestamp: 1793248070251, orderType: 'Limit', reduceOnly: false, isTrigger: false, triggerPx: '0.0' }]
+      if (body.type === 'userFills') return [{ coin: 'BTC', px: '80100.0', sz: '0.01', side: 'A', time: 1793248071468, fee: '0.36', tid: 151386843995060 }]
+      return null
+    })
+    const view = await TRADING.hyperliquid.account({ ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot(), fetch })
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.positions[0]).toMatchObject({ symbol: 'BTC', side: 'short', size: '0.01', leverage: '5x cross' })
+    expect(view.snapshot.orders[0]).toMatchObject({ ref: '3:589008353129', side: 'buy', px: '70000.0' })
+    expect(view.snapshot.fills[0]).toMatchObject({ id: '151386843995060', side: 'sell' })
+  })
+
   it('writes the agent as draft before the wallet signs, and keeps it when the venue says deposit first', async () => {
     const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'extraAgents' ? [] : null) : { status: 'err', response: `Must deposit before performing actions. User: ${owner}` }))
     const keys = memorySlot()

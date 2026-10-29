@@ -4,8 +4,8 @@ One hub owns the venue sockets for every tab of the origin. The status bar at th
 
 ## Sub-features
 
-- `hub-stats` shows `Hub shared`, `Tabs 1`, `Sockets 3` and live rates on one tab.
-- `hub-share` shows `Tabs 2` and still `Sockets 3` in both tabs after a second tab opens.
+- `hub-stats` shows `Hub shared`, `Tabs 1`, `Sockets 4` and live rates on one tab.
+- `hub-share` shows `Tabs 2` and still `Sockets 4` in both tabs after a second tab opens.
 - `hub-close` drops back to `Tabs 1` after a tab closes.
 - `hub-dedicated` shows `Hub dedicated` and counts only its own tab with `?hub=dedicated`.
 
@@ -22,15 +22,15 @@ Preconditions:
 
 - Baseline from `features/README.md`. Only one tab is open. Check with `vt pages`.
 
-- **One tab.** Run `vt wait --js "/Sockets 3/.test(document.querySelector('footer')?.innerText ?? '')"` and `vt text --css footer`. It reads `Hub shared`, `Tabs 1`, `Sockets 3`.
-- **Second tab.** Run `vt open "/hyperliquid/BTC" --new` and `vt wait --js "/Tabs 2/.test(document.querySelector('footer')?.innerText ?? '')"`. Then `vt text --css footer` reads `Tabs 2` and `Sockets 3`. Switch to the first tab with `vt pages` and `vt text --css footer --page <id>`. It reads `Tabs 2` too.
+- **One tab.** Run `vt wait --js "/Sockets 4/.test(document.querySelector('footer')?.innerText ?? '')"` and `vt text --css footer`. It reads `Hub shared`, `Tabs 1`, `Sockets 4`.
+- **Second tab.** Run `vt open "/hyperliquid/BTC" --new` and `vt wait --js "/Tabs 2/.test(document.querySelector('footer')?.innerText ?? '')"`. Then `vt text --css footer` reads `Tabs 2` and `Sockets 4`. Switch to the first tab with `vt pages` and `vt text --css footer --page <id>`. It reads `Tabs 2` too.
 - **Close a tab.** Run `vt close --page <second id>`, then `vt wait --js "/Tabs 1/.test(document.querySelector('footer')?.innerText ?? '')" --page <first id>`. The count drops within a few seconds.
 - **Dedicated.** Run `vt open "/binance/BTC?hub=dedicated" --new` and `vt wait --js "/Hub dedicated/.test(document.querySelector('footer')?.innerText ?? '')"`. Its footer reads `Hub dedicated` and `Tabs 1` while the shared tab still reads `Tabs 1`.
 - **Proof.** Run `vt shot --css footer --path hub/footer-two-tabs.png` while two shared tabs are open, and save `vt text --css footer` output from each tab. The steps file keeps both.
 
 ## Gotchas
 
-- `Sockets` counts open venue sockets across all three venues, because the `Venues` table subscribes to every venue. One market page already opens 3.
+- `Sockets` counts open venue sockets across all four venues, because the `Venues` table subscribes to every venue. One market page already opens 4.
 - Streams linger 10 s after the last tab lets go. `Streams` can read higher than expected right after a market change.
 - After a tab sat on `Not Found` for 10 s, the hub closes idle sockets. `Sockets 0` then recovers when a market page subscribes again. Wait for the count, do not read it once.
 - `--new` makes the new tab current. Pass `--page <id>` to act on the other one.
