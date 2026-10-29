@@ -60,6 +60,11 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   }
   const trigger = (field: 'takeProfit' | 'stopLoss', value: string): Px | null => {
     if (!value) return null
+    // A market order has no price to check the trigger side against, so a stray TP could fire at once.
+    if (draft.kind === 'market') {
+      errors[field] = 'Only with a limit order'
+      return null
+    }
     if (!caps.triggers) {
       errors[field] = 'Not offered on this venue'
       return null

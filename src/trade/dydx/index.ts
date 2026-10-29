@@ -32,7 +32,8 @@ export function classifyMessage(message: string): TradeError {
   if (/account .*(does not exist|not found)|no subaccount/i.test(message)) return { kind: 'no-account', detail: message }
   if (/insufficient|undercollateralized|collateral/i.test(message)) return { kind: 'insufficient-margin', detail: message }
   if (/quantums|subticks|price|size|tick|step/i.test(message)) return { kind: 'invalid-order', detail: message }
-  return { kind: 'rejected', detail: message }
+  // Timeouts, bad gateways and dropped sockets can follow a broadcast that landed. Saying "rejected" would invite a duplicate.
+  return { kind: 'unknown-outcome', detail: message }
 }
 
 const indexer = <T,>(ctx: VenueContext, path: string) =>
@@ -75,11 +76,14 @@ async function broadcast(run: () => Promise<unknown>): Promise<string> {
     reply = (await run()) as typeof reply
   } catch (e) {
     if (e instanceof TradeFailure) throw e
-    const message = e instanceof Error ? e.message : String(e)
-    if (/fetch|network|timeout|ECONN/i.test(message)) fail({ kind: 'unknown-outcome', detail: message })
-    fail(classifyMessage(message))
+    fail(classifyMessage(e instanceof Error ? e.message : String(e)))
   }
-  if (reply.code) fail(classifyMessage(reply.log ?? `code ${reply.code}`))
+  // A non-zero code is the chain's own refusal: nothing was placed.
+  if (reply.code) {
+    const log = reply.log ?? `code ${reply.code}`
+    const error = classifyMessage(log)
+    fail(error.kind === 'unknown-outcome' ? { kind: 'rejected', detail: log } : error)
+  }
   return typeof reply.hash === 'string' ? reply.hash : reply.hash ? bytesToHex(reply.hash).slice(2).toUpperCase() : ''
 }
 
@@ -146,7 +150,7 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
   try {
     await (isShort ? broadcast(run) : sequenced(wallet.address ?? '', () => broadcast(run)))
   } catch (e) {
-    if (!(e instanceof TradeFailure && 'detail' in e.error && /does not exist|not found|already/i.test(e.error.detail))) throw e
+    if (!(e instanceof TradeFailure && 'detail' in e.error && /order.*(does not exist|not found)|already (filled|canceled|cancelled|removed)/i.test(e.error.detail))) throw e
   }
 }
 

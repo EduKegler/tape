@@ -112,7 +112,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       try {
         await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)))
       } catch (e) {
-        if (!(e instanceof TradeFailure && 'detail' in e.error && /not exist|already|filled|cancel/i.test(e.error.detail))) throw e
+        if (!(e instanceof TradeFailure && 'detail' in e.error && /order.*(not exist|not found)|already (filled|cancel)/i.test(e.error.detail))) throw e
       }
       return { kind: 'done', detail: 'Canceled' }
     }

@@ -40,9 +40,11 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
   const busy = (c: Command) => inFlight.some((x) => JSON.stringify(x) === JSON.stringify(c))
+  const [closeError, setCloseError] = useState<string | null>(null)
   const close = (p: Position) => {
     const spec = [...(specs.data?.values() ?? [])].find((s) => s.venueSymbol === p.symbol)
     const intent = spec ? closeIntent(spec, p, slippage) : null
+    setCloseError(intent ? null : `${p.symbol} ${p.size} does not fit the size step Tape knows for it. Close it on the venue.`)
     if (intent) run({ kind: 'place', intent })
   }
   return (
@@ -64,7 +66,8 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
         {!view && !error && <p className="p-3 text-[12px] text-level3">Loading account…</p>}
         {view?.kind === 'unknown' && <p className="p-3 text-[12px] text-level3">Enable trading to read this account.</p>}
         {view?.kind === 'empty' && <p className="p-3 text-[12px] text-level3">No account on this venue yet. Deposit to start.</p>}
-        {snapshot && tab === 'positions' && <Positions rows={snapshot.positions} onClose={close} />}
+        {closeError && <div className="p-2"><TradeNote error={{ kind: 'invalid-order', detail: closeError }} /></div>}
+        {snapshot && tab === 'positions' && <Positions rows={snapshot.positions} busy={last.pending} onClose={close} />}
         {snapshot && tab === 'orders' && <Orders rows={snapshot.orders} busy={(o) => busy({ kind: 'cancel', order: o.ref })} onCancel={(o) => run({ kind: 'cancel', order: o.ref })} />}
         {snapshot && tab === 'fills' && <Fills rows={snapshot.fills} />}
       </div>
@@ -115,7 +118,7 @@ function Table<T extends RowData>({ rows, columns, empty }: { rows: T[]; columns
 
 const side = (s: 'long' | 'short' | 'buy' | 'sell') => <span className={s === 'long' || s === 'buy' ? 'text-bid' : 'text-ask'}>{s}</span>
 
-function Positions({ rows, onClose }: { rows: readonly Position[]; onClose: (p: Position) => void }) {
+function Positions({ rows, busy, onClose }: { rows: readonly Position[]; busy: boolean; onClose: (p: Position) => void }) {
   const h = createColumnHelper<typeof features, Position>()
   const columns = h.columns([
     h.accessor('symbol', { header: 'Market' }),
@@ -124,7 +127,7 @@ function Positions({ rows, onClose }: { rows: readonly Position[]; onClose: (p: 
     h.accessor('entry', { header: 'Entry' }),
     h.accessor('unrealizedPnl', { header: 'PnL' }),
     h.accessor('liquidation', { header: 'Liq.', cell: (c) => c.getValue() ?? '—' }),
-    h.display({ id: 'close', header: '', cell: (c) => <button type="button" onClick={() => onClose(c.row.original)} className="text-level3 hover:text-ask">Close</button> }),
+    h.display({ id: 'close', header: '', cell: (c) => <button type="button" disabled={busy} onClick={() => onClose(c.row.original)} className="text-level3 hover:text-ask disabled:opacity-40">Close</button> }),
   ])
   return <Table rows={[...rows]} columns={columns} empty="No open positions." />
 }

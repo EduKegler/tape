@@ -7,6 +7,8 @@ import type { Qty } from '#/core/fixed'
 import { marketKey } from '#/core/ids'
 import type { MarketSpec } from '#/core/market'
 import { ONBOARDING } from './dydx/client'
+import { classifyMessage as dydxMessage } from './dydx'
+import { send } from './send'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { TRADING } from './index'
@@ -46,6 +48,11 @@ describe('order intent', () => {
     expect(!bad.ok && bad.errors.takeProfit).toBe('Must be above the price')
   })
 
+  it('refuses take profit and stop loss on a market order', () => {
+    const built = buildIntent(btc, { ...draft, kind: 'market', price: '', takeProfit: '90000' }, caps)
+    expect(!built.ok && built.errors.takeProfit).toBe('Only with a limit order')
+  })
+
   it('gives every build a fresh client id', () => {
     const a = buildIntent(btc, draft, caps)
     const b = buildIntent(btc, draft, caps)
@@ -55,6 +62,19 @@ describe('order intent', () => {
   it('closes a short with a reduce-only market buy of the whole size', () => {
     const intent = closeIntent(btc, { symbol: 'BTC', side: 'short', size: '0.0123' as never, entry: '1' as never, unrealizedPnl: '0' as never, liquidation: null, leverage: null }, 100 as Bps)
     expect(intent && { side: intent.side, size: intent.size, reduceOnly: intent.reduceOnly, kind: intent.order.kind }).toEqual({ side: 'buy', size: 1230, reduceOnly: true, kind: 'market' })
+  })
+})
+
+describe('failure classification', () => {
+  it('calls a signed 5xx an unknown outcome even when the body says it failed', async () => {
+    const fetch = (async () => new Response('{"success":false,"message":"internal"}', { status: 502 })) as unknown as typeof globalThis.fetch
+    const error = await send('orderly', fetch, 'https://x', { method: 'POST', signed: true }, () => ({ kind: 'rejected', detail: 'internal' })).catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
+  })
+
+  it('treats a dYdX timeout as unknown and a missing chain account as no account', () => {
+    expect(dydxMessage('Transaction with hash 0xAB was submitted but was not yet found on the chain. You might want to check later. There was a wait of 60 seconds. timed out').kind).toBe('unknown-outcome')
+    expect(dydxMessage('Query failed with (22): rpc error: code = NotFound desc = account dydx1abc not found: key not found').kind).toBe('no-account')
   })
 })
 

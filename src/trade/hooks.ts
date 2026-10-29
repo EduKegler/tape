@@ -117,13 +117,13 @@ export function useTradeSession(venue: VenueId, network: Network): TradeSession 
   }
 }
 
-/** Polls every 5 s while mounted and visible. Every command invalidates it. */
+/** Polls every 10 s while mounted and visible, inside Hyperliquid's weight budget with two tabs. Every command invalidates it. */
 export function useAccountView(ref: AccountRef | null) {
   const query = useQuery<AccountView, TradeFailure>({
     queryKey: ref ? tradeKeys(ref).account : ['trade', 'none', 'account'],
     queryFn: () => guard(ref!.venue, () => TRADING[ref!.venue].account(contextFor(ref!))),
     enabled: Boolean(ref),
-    refetchInterval: 5_000,
+    refetchInterval: 10_000,
   })
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
@@ -135,6 +135,13 @@ export function useTradeCommands(ref: AccountRef | null) {
   const mutation = useMutation<CommandOutcome, TradeFailure, Command>({
     mutationKey: command,
     mutationFn: (c) => (ref ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), c)) : Promise.reject(new Error('no account'))),
+    onError: (failure) => {
+      // The venue no longer knows the key (revoked, or replaced from another device): back to the checklist.
+      if (!ref || failure.error.kind !== 'needs-setup') return
+      const slot = keySlot(ref, TRADING[ref.venue].secrets)
+      const key = slot.read()
+      if (key?.status === 'linked') slot.write({ ...key, status: 'draft' })
+    },
     onSettled: () => (ref ? client.invalidateQueries({ queryKey: tradeKeys(ref).all }) : undefined),
   })
   const inFlight = useMutationState({ filters: { mutationKey: command, status: 'pending' }, select: (m) => m.state.variables as Command })

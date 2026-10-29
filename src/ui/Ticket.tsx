@@ -60,8 +60,8 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
   const form = useForm({
     defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
     onSubmit: ({ value }) => {
-      if (!ref || !canSend) return
-      const triggers = protect ? {} : { takeProfit: '', stopLoss: '' }
+      if (!ref || !canSend || last.pending) return
+      const triggers = protect && kind === 'limit' ? {} : { takeProfit: '', stopLoss: '' }
       const result = buildIntent(spec, { ...value, ...triggers, side, kind, slippage: slippage as Bps }, caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false })
       if (!result.ok) {
         setBuilt({ kind: 'invalid-order', detail: Object.entries(result.errors).map(([k, v]) => `${k}: ${v}`).join('; ') })
@@ -173,7 +173,7 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
                 <dt className="text-level3">Wallet USDC</dt>
                 <dd className="text-right text-level1">{balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}</dd>
               </dl>
-              <SubmitArea session={session} side={side} base={spec.base} canSubmit={canSubmit && canSend} />
+              <SubmitArea session={session} side={side} base={spec.base} canSubmit={canSubmit && canSend && !last.pending} />
             </>
           )
         }}

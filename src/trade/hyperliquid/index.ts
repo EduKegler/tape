@@ -127,17 +127,21 @@ async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
 }
 
 const GONE = /never placed|already canceled|filled/i
+const legName = (w: OrderWire | undefined) => (w && 'trigger' in w.t ? w.t.trigger.tpsl.toUpperCase() : 'Leg')
 
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place': {
       const { wires, grouping } = await placeWires(ctx, command.intent)
       const reply = await exchange(ctx, orderAction(wires, grouping, TRADE_CONFIG.hyperliquid.builder))
-      const first = reply.response.data?.statuses[0]
+      const [first, ...legs] = reply.response.data?.statuses ?? []
       if (typeof first === 'object' && first.error) fail(classifyText(first.error))
-      if (typeof first === 'object' && first.filled) return { kind: 'placed', status: 'filled', detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}` }
-      if (typeof first === 'object' && first.resting) return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}` }
-      return { kind: 'placed', status: 'accepted', detail: String(first ?? 'accepted') }
+      // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
+      const refused = legs.flatMap((s, i) => (typeof s === 'object' && s.error ? [`${legName(wires[i + 1])} not placed: ${s.error}`] : []))
+      const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
+      if (typeof first === 'object' && first.filled) return { kind: 'placed', status: 'filled', detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}` }
+      if (typeof first === 'object' && first.resting) return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
+      return { kind: 'placed', status: 'accepted', detail: `${String(first ?? 'accepted')}${note}` }
     }
     case 'cancel':
     case 'cancel-all': {

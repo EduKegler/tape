@@ -17,7 +17,15 @@ export async function send<T>(venue: TradeVenueId, fetch: typeof globalThis.fetc
     const detail = e instanceof Error ? e.message : String(e)
     throw new TradeFailure(venue, init.signed ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
   }
-  const text = await response.text()
+  let text: string
+  try {
+    text = await response.text()
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
+    throw new TradeFailure(venue, init.signed ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
+  }
+  // A signed request the server failed on may still have been applied, whatever its body says.
+  if (init.signed && response.status >= 500) throw new TradeFailure(venue, { kind: 'unknown-outcome', detail: `${response.status} ${text}` })
   let body: unknown = null
   try {
     body = parseExactJson(text)
