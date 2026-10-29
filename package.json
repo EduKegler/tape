@@ -10,13 +10,13 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings 0",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
     "test": "vitest run",
     "typecheck": "node scripts/check-packages.mjs && tsc -p packages/core && tsc -p packages/venues && tsc -p packages/trade && tsc --noEmit",
     "fixtures": "node scripts/record-fixtures.mjs 8",
-    "verify": "pnpm typecheck && eslint && prettier --check . && vitest run",
+    "verify": "pnpm typecheck && eslint --max-warnings 0 && prettier --check . && vitest run",
     "prepare": "lefthook install"
   },
   "commitlint": {

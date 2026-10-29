@@ -46,7 +46,7 @@ export default [
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/switch-exhaustiveness-check': ['error', { considerDefaultExhaustiveForUnions: false }],
       'no-shadow': 'off',
-      '@typescript-eslint/no-shadow': 'warn',
+      '@typescript-eslint/no-shadow': 'error',
     },
   },
   {
