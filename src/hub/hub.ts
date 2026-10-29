@@ -48,7 +48,7 @@ export interface HubDeps {
   watchTabGone: (tab: TabId) => Promise<void>
 }
 
-export interface HubInspection {
+interface HubInspection {
   readonly tabs: number
   readonly streams: readonly StreamKey[]
   readonly connections: Readonly<Record<VenueId, ConnState['s']>>
@@ -57,7 +57,7 @@ export interface HubInspection {
 }
 
 const SNAPSHOT_TIMEOUT_MS = 8_000
-export const FLUSH_MS = 100
+const FLUSH_MS = 100
 const TICK_MS = 1000
 const SPEC_RETRY_MS = 5000
 

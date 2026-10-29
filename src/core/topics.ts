@@ -10,7 +10,7 @@ export type Topic =
   | { readonly kind: 'candle'; readonly market: MarketKey; readonly interval: Interval }
   | { readonly kind: 'compare'; readonly base: Base }
 
-export type TopicKind = Topic['kind']
+type TopicKind = Topic['kind']
 
 export function topicKey(topic: Topic): TopicKey {
   switch (topic.kind) {
@@ -26,7 +26,7 @@ export function topicKey(topic: Topic): TopicKey {
   }
 }
 
-export function streamsFor(topic: Topic): readonly StreamKey[] {
+function streamsFor(topic: Topic): readonly StreamKey[] {
   switch (topic.kind) {
     case 'book':
     case 'depth':
@@ -104,7 +104,7 @@ export interface TradesFrame extends FrameBase {
   readonly lastSide: 'buy' | 'sell' | null
 }
 
-export interface ChartBarFrame {
+interface ChartBarFrame {
   readonly time: number
   readonly open: number
   readonly high: number
@@ -147,7 +147,7 @@ interface FrameByKind {
 export type Frame = FrameByKind[TopicKind]
 export type FrameOf<T extends Topic> = FrameByKind[T['kind']]
 
-export const LINGER_MS = 10_000
+const LINGER_MS = 10_000
 
 export function deriveStreams(
   wantSets: Iterable<ReadonlyMap<TopicKey, Topic>>,
