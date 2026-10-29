@@ -24,6 +24,7 @@ import type {
   VenueContext,
 } from '@tape/trade/types'
 import { keySlot, subscribeVault } from './vault'
+import { commandResult, commandSent, track } from '#/analytics/track'
 import { walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 
@@ -125,11 +126,25 @@ export function useTradeSession(venue: VenueId): TradeSession {
     mutationFn: async () => {
       const r = ref!
       const provider = (await connector!.getProvider()) as Parameters<typeof walletSigner>[0]
+      const onStep = (step: StepId) => {
+        setProgress(step)
+        track({ event: 'trading_enable_step', venue: r.venue, step })
+      }
       const run = () =>
-        guard(r.venue, () => TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner), setProgress))
+        guard(r.venue, () => TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner), onStep))
       await (typeof navigator !== 'undefined' && 'locks' in navigator
         ? navigator.locks.request(`tape:enable:${accountKey(r)}`, run)
         : run())
+    },
+    onMutate: () => {
+      if (ref) track({ event: 'trading_enable_started', venue: ref.venue })
+    },
+    onSuccess: () => {
+      if (ref) track({ event: 'trading_enabled', venue: ref.venue })
+    },
+    onError: (failure) => {
+      const error = failure instanceof TradeFailure ? failure.error.kind : 'unexpected'
+      if (ref) track({ event: 'trading_enable_failed', venue: ref.venue, error })
     },
     onSettled: () => {
       setProgress(null)
@@ -201,7 +216,14 @@ export function useTradeCommands(ref: AccountRef | null) {
       ref
         ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), c))
         : Promise.reject(new Error('no account')),
-    onError: (failure) => {
+    onMutate: (c) => {
+      if (ref) track(commandSent(ref.venue, c))
+    },
+    onSuccess: (outcome, c) => {
+      if (ref) track(commandResult(ref.venue, c, { ok: outcome }))
+    },
+    onError: (failure, c) => {
+      if (ref) track(commandResult(ref.venue, c, { failed: failure.error.kind }))
       if (!ref || failure.error.kind !== 'needs-setup') return
       const slot = keySlot(ref, TRADING[ref.venue].secrets)
       const key = slot.read()
@@ -229,7 +251,9 @@ export function useTradeCommands(ref: AccountRef | null) {
         ref && unknown
           ? async () => {
               await new Promise((resolve) => setTimeout(resolve, LOOKUP_DELAY_MS))
-              return guard(ref.venue, () => TRADING[ref.venue].lookup(contextFor(ref), unknown))
+              const result = await guard(ref.venue, () => TRADING[ref.venue].lookup(contextFor(ref), unknown))
+              track({ event: 'order_lookup', venue: ref.venue, found: result.kind === 'found' })
+              return result
             }
           : skipToken,
       retry: false,

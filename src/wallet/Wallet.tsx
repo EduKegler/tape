@@ -8,18 +8,43 @@ import {
   useReadContract,
   useSwitchChain,
 } from 'wagmi'
-import type { Connector } from 'wagmi'
-import { erc20Abi, formatUnits } from 'viem'
+import type { Connector, CreateConnectorFn } from 'wagmi'
+import { UserRejectedRequestError, erc20Abi, formatUnits } from 'viem'
 import { USDC, chains } from './config'
 import { shortAddress } from '#/ui/format'
 import { PairingQr } from './PairingQr'
+import { track } from '#/analytics/track'
 
 const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
+
+const kindOf = (c: Connector | CreateConnectorFn) =>
+  'type' in c && (c.type === 'injected' || c.type === 'walletConnect') ? c.type : 'other'
 
 export function WalletButton() {
   const { address, chainId, isConnected } = useConnection()
   const connectors = useConnectors()
-  const { mutate: connect, isPending, error, reset } = useConnect()
+  // Callbacks on the hook, not on connect(): the ticket's button unmounts as soon as the wallet connects.
+  const {
+    mutate: connect,
+    isPending,
+    error,
+    reset,
+  } = useConnect({
+    mutation: {
+      onSuccess: (_data, { connector }) => track({ event: 'wallet_connected', connector: kindOf(connector) }),
+      onError: (e, { connector }) =>
+        track({
+          event: 'wallet_connect_failed',
+          connector: kindOf(connector),
+          reason:
+            e instanceof ProviderNotFoundError
+              ? 'no-wallet'
+              : (e as { code?: number }).code === UserRejectedRequestError.code
+                ? 'rejected'
+                : 'other',
+        }),
+    },
+  })
   const { mutate: disconnect } = useDisconnect()
   const { mutate: switchChain } = useSwitchChain()
   const [chosen, setChosen] = useState<Connector | null>(null)

@@ -8,6 +8,7 @@ import appCss from '../styles.css?url'
 import { WagmiProvider } from 'wagmi'
 import { HubProvider } from '#/client/hooks'
 import { wagmiConfig } from '#/wallet/config'
+import { usePageViews } from '#/analytics/track'
 
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -46,6 +47,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  usePageViews()
   return (
     <html lang="en" className="dark">
       <head>
