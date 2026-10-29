@@ -31,7 +31,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
 }
 
 /** WalletConnect's relay, on both networks, for builds that offer WalletConnect. Its verify page loads in a frame. */
-export const WALLETCONNECT = ['wss://relay.walletconnect.org']
+const WALLETCONNECT = ['wss://relay.walletconnect.org']
 
 /** Trading keys live in localStorage, so no script runs unless the server rendered it. */
 export function contentSecurityPolicy(
