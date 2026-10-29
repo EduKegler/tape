@@ -1,6 +1,6 @@
 import type { TabId } from '@tape/core/ids'
 import type { HubToTab } from '#/core/protocol'
-import { VENUES } from '@tape/venues/index'
+import { VENUES } from '#/site'
 import { createHub } from './hub'
 import type { HubPort, SocketLike } from './hub'
 

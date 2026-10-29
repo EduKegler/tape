@@ -8,13 +8,13 @@ import { checkPrice, checkSize, worstPrice } from '../intent'
 import { post, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
+import type { Network } from '@tape/core/ids'
 import { TradeFailure } from '../types'
 import type {
   AccountView,
   Command,
   CommandOutcome,
   Decimal,
-  Network,
   OrderIntent,
   OrderLookup,
   OrderRef,

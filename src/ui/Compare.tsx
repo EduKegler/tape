@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useFrame } from '#/client/hooks'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { CompareRow } from '#/core/topics'
-import { VENUES } from '@tape/venues/index'
+import { VENUES } from '#/site'
 import { Panel } from './Panel'
 
 const features = tableFeatures({})

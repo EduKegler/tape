@@ -4,13 +4,13 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { send } from '../send'
+import type { Network } from '@tape/core/ids'
 import { TradeFailure } from '../types'
 import type {
   AccountView,
   Command,
   CommandOutcome,
   Decimal,
-  Network,
   OrderIntent,
   OrderLookup,
   OrderRef,

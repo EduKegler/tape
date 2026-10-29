@@ -4,9 +4,11 @@ import { marketKey } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
 import type { BookFrame, Frame, Topic } from '#/core/topics'
 import { recordedFetch, wsFrames } from '@tape/venues/fixtures'
-import { VENUES } from '@tape/venues/index'
+import { venues } from '@tape/venues/index'
 import { createHub } from './hub'
 import type { Hub, SocketLike } from './hub'
+
+const VENUES = venues('mainnet')
 
 interface FakeSocket extends SocketLike {
   readonly url: string

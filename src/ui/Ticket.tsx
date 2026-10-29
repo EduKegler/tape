@@ -10,9 +10,9 @@ import { useFrame } from '#/client/hooks'
 import { useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
 import { buildIntent, checkPrice, checkSize } from '@tape/trade/intent'
-import type { Bps, Network, Side, Tif, TradeError } from '@tape/trade/types'
+import type { Bps, Side, Tif, TradeError } from '@tape/trade/types'
 import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
-import { VENUES } from '@tape/venues/index'
+import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
 import { specsQuery } from './queries'
@@ -27,45 +27,23 @@ const TIF_LABEL: Record<Tif, string> = {
   'post-only': 'Post only',
 }
 
-export function Ticket({
-  venue,
-  base,
-  group,
-  network,
-  onNetwork,
-}: {
-  venue: VenueId
-  base: Base
-  group: string
-  network: Network
-  onNetwork: (n: Network) => void
-}) {
+export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; group: string }) {
   const specs = useQuery(specsQuery(venue))
   const spec = specs.data?.get(base)
-  const session = useTradeSession(venue, network)
-  const aside =
-    session.status === 'read-only' ? (
-      <span className="text-[11px] text-level3">Read only</span>
-    ) : (
-      <Segmented
-        label="Network"
-        value={network}
-        onChange={onNetwork}
-        options={[
-          { value: 'mainnet', label: 'Mainnet' },
-          { value: 'testnet', label: 'Testnet' },
-        ]}
-      />
-    )
+  const session = useTradeSession(venue)
+  const aside = (
+    <span className="text-[11px] text-level3">
+      {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
+    </span>
+  )
   return (
     <Panel title="Order ticket" aside={aside}>
       {spec ? (
         <TicketForm
-          key={`${spec.key}:${network}:${'ref' in session ? session.ref.owner : ''}`}
+          key={`${spec.key}:${'ref' in session ? session.ref.owner : ''}`}
           spec={spec}
           group={group}
           session={session}
-          network={network}
         />
       ) : (
         <p className="p-3 text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>
@@ -74,17 +52,7 @@ export function Ticket({
   )
 }
 
-function TicketForm({
-  spec,
-  group,
-  session,
-  network,
-}: {
-  spec: MarketSpec
-  group: string
-  session: TradeSession
-  network: Network
-}) {
+function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string; session: TradeSession }) {
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
   const [built, setBuilt] = useState<TradeError | null>(null)
@@ -100,7 +68,6 @@ function TicketForm({
   const [mountedAt] = useState(() => Date.now())
   const proposed = useSelector(proposedPrice, (p) => (p && p.at >= mountedAt ? p : null))
   const slippage = useSelector(slippageBps, (s) => s)
-  const balance = useUsdcBalance()
   const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
   const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
@@ -282,10 +249,7 @@ function TicketForm({
               <dl className="num grid grid-cols-2 gap-y-1 text-[12px]">
                 <dt className="text-level3">Notional</dt>
                 <dd className="text-right text-level1">{total}</dd>
-                <dt className="text-level3">Wallet USDC</dt>
-                <dd className="text-right text-level1">
-                  {balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}
-                </dd>
+                {NETWORK === 'mainnet' && <WalletUsdc />}
               </dl>
               <SubmitArea
                 session={session}
@@ -300,11 +264,6 @@ function TicketForm({
       </form.Subscribe>
       {built && <TradeNote error={built} />}
       {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />}
-      {network === 'testnet' && session.status !== 'read-only' && (
-        <p className="text-[11px] leading-snug text-level3">
-          Testnet orders are priced by the testnet book. The book on screen is mainnet.
-        </p>
-      )}
     </form>
   )
 }
@@ -334,10 +293,12 @@ function SubmitArea({
   )
   switch (session.status) {
     case 'read-only':
-      return (
+      return session.scope === 'venue' ? (
         <p className="text-[11px] leading-snug text-level3">
           {venue} is read only in Tape. It never signs or sends an order here.
         </p>
+      ) : (
+        <SiteReadOnly />
       )
     case 'unavailable':
       return <p className="text-[12px] text-level3">{session.reason}.</p>
@@ -360,6 +321,34 @@ function SubmitArea({
         </>
       )
   }
+}
+
+/** A mainnet balance, so a testnet build never mounts it and never calls a mainnet RPC. */
+function WalletUsdc() {
+  const balance = useUsdcBalance()
+  return (
+    <>
+      <dt className="text-level3">Wallet USDC</dt>
+      <dd className="text-right text-level1">{balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}</dd>
+    </>
+  )
+}
+
+export function SiteReadOnly() {
+  return (
+    <p className="text-[11px] leading-snug text-level3">
+      Mainnet is read only in Tape.{' '}
+      {TESTNET_SITE && (
+        <>
+          Trading runs on{' '}
+          <a href={TESTNET_SITE} className="text-level1 underline underline-offset-2">
+            testnet
+          </a>
+          .
+        </>
+      )}
+    </p>
+  )
 }
 
 function SlippageField() {

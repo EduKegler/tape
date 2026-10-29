@@ -1,7 +1,7 @@
 // The npm polyfill, not Node's module: this runs in the browser, where cosmjs expects a global Buffer.
 // eslint-disable-next-line node/prefer-node-protocol
 import { Buffer } from 'buffer'
-import type { Network } from '../types'
+import type { Network } from '@tape/core/ids'
 
 export async function sdk() {
   const scope = globalThis as { Buffer?: unknown }

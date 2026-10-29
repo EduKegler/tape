@@ -2,7 +2,7 @@
 
 Live order books for BTC, ETH and SOL on Binance, Hyperliquid, dYdX and Orderly, with order entry on Hyperliquid, dYdX and Orderly. Built with TanStack Start on TanStack Redact.
 
-Demo: [tape.kegler.dev](https://tape.kegler.dev)
+Demo: [tape.kegler.dev](https://tape.kegler.dev) reads mainnet. [tape.testnet.kegler.dev](https://tape.testnet.kegler.dev) trades on testnet.
 
 ![Tape showing the BTC book on Hyperliquid](docs/screenshot.png)
 
@@ -66,7 +66,9 @@ Tape has no server between the user and the venue. Each trading venue is one mod
 | dYdX v4 | The wallet signs dYdX's onboarding message, and the dYdX key derives from it | The key lives in the tab only, since it can withdraw |
 | Orderly | The wallet registers the account and adds an ed25519 key | The key signs each request |
 
-Every send gets a new client id and nothing resends on its own. A send with no answer is an unknown outcome: the ticket says so, asks the venue for that client id, and tells whether the order is there. A rejection always shows the venue's own words. Mainnet trading is off unless the build sets `VITE_TRADE_MAINNET=1`.
+Every send gets a new client id and nothing resends on its own. A send with no answer is an unknown outcome: the ticket says so, asks the venue for that client id, and tells whether the order is there. A rejection always shows the venue's own words.
+
+Each build is one network, set by `VITE_NETWORK`. A `testnet` build reads books, trades and candles from the testnets and trades there too, so the price on screen is the price the order meets. The default `mainnet` build only reads: the ticket validates and sends nothing unless the build also sets `VITE_TRADE_MAINNET=1`. `VITE_TESTNET_SITE` links the mainnet site to the testnet one.
 
 ## Stack
 
@@ -91,6 +93,10 @@ Every send gets a new client id and nothing resends on its own. A send with no a
 ```bash
 pnpm install
 pnpm dev
+```
+
+```bash
+VITE_NETWORK=testnet pnpm dev
 ```
 
 ```bash

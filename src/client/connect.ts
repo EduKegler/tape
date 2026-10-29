@@ -1,10 +1,14 @@
 import type { TabId } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
+import { NETWORK } from '#/site'
 import { createRegistry } from './registry'
 import type { HubClient, Lifecycle, TabPort } from './registry'
 
 function sharedPort(): TabPort {
-  const worker = new SharedWorker(new URL('../hub/worker.ts', import.meta.url), { type: 'module', name: 'tape-hub' })
+  const worker = new SharedWorker(new URL('../hub/worker.ts', import.meta.url), {
+    type: 'module',
+    name: `tape-hub:${NETWORK}`,
+  })
   worker.port.start()
   return {
     mode: 'shared',
@@ -15,7 +19,10 @@ function sharedPort(): TabPort {
 }
 
 function dedicatedPort(): TabPort {
-  const worker = new Worker(new URL('../hub/worker.ts', import.meta.url), { type: 'module', name: 'tape-hub' })
+  const worker = new Worker(new URL('../hub/worker.ts', import.meta.url), {
+    type: 'module',
+    name: `tape-hub:${NETWORK}`,
+  })
   return {
     mode: 'dedicated',
     post: (m: TabToHub) => worker.postMessage(m),

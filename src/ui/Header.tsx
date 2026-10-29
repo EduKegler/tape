@@ -4,7 +4,7 @@ import { shallow } from '@tanstack/store'
 import { useFrame } from '#/client/hooks'
 import { BASES, VENUE_IDS, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
-import { VENUES } from '@tape/venues/index'
+import { NETWORK, VENUES } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
 import { formatCompact, formatPct } from './format'
 import { statsQuery } from './queries'
@@ -12,8 +12,11 @@ import { statsQuery } from './queries'
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
   return (
     <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule px-4 py-2">
-      <Link to="/" className="font-display text-[22px] leading-none text-level1">
+      <Link to="/" className="flex items-baseline gap-2 font-display text-[22px] leading-none text-level1">
         Tape
+        {NETWORK === 'testnet' && (
+          <span className="rounded-full bg-level1/12 px-2 py-0.5 font-sans text-[11px] text-level1">Testnet</span>
+        )}
       </Link>
       <nav aria-label="Market" className="flex items-center gap-1">
         {BASES.map((b) => (

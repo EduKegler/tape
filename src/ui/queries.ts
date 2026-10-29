@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { Base, Interval, VenueId } from '@tape/core/ids'
-import { VENUES } from '@tape/venues/index'
+import { VENUES } from '#/site'
 
 export const specsQuery = (venue: VenueId) =>
   queryOptions({

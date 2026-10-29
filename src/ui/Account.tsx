@@ -5,21 +5,23 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, VenueId } from '@tape/core/ids'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
+import type { TradeSession } from '#/trade/hooks'
 import { closeIntent } from '@tape/trade/intent'
-import type { AccountRef, Bps, Command, Fill, Network, OpenOrder, Position } from '@tape/trade/types'
+import type { AccountRef, Bps, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
 import { Panel, Segmented } from './Panel'
 import { specsQuery } from './queries'
 import { slippageBps } from './ticket-store'
+import { SiteReadOnly } from './Ticket'
 import { TradeNote } from './TradeNote'
 
 type Tab = 'positions' | 'orders' | 'fills'
 const features = tableFeatures({})
 
-export function Account({ venue, base, network }: { venue: VenueId; base: Base; network: Network }) {
-  const session = useTradeSession(venue, network)
+export function Account({ venue, base }: { venue: VenueId; base: Base }) {
+  const session = useTradeSession(venue)
   const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
   return (
-    <Panel title="Account" aside={ref ? <span className="num text-[11px] text-level3">{network}</span> : null}>
+    <Panel title="Account" aside={ref ? <span className="num text-[11px] text-level3">{ref.network}</span> : null}>
       {ref ? (
         <AccountBody
           key={`${ref.venue}:${ref.network}:${ref.owner}`}
@@ -28,15 +30,16 @@ export function Account({ venue, base, network }: { venue: VenueId; base: Base; 
           leverage={session.status === 'ready' && session.capabilities.leverage}
         />
       ) : (
-        <p className="p-3 text-[12px] text-level3">{message(session.status)}</p>
+        <div className="p-3 text-[12px] text-level3">{message(session)}</div>
       )}
     </Panel>
   )
 }
 
-function message(status: string) {
-  if (status === 'read-only') return 'This venue is read only in Tape.'
-  if (status === 'disconnected') return 'Connect a wallet to see positions and orders.'
+function message(session: TradeSession) {
+  if (session.status === 'read-only')
+    return session.scope === 'site' ? <SiteReadOnly /> : 'This venue is read only in Tape.'
+  if (session.status === 'disconnected') return 'Connect a wallet to see positions and orders.'
   return 'Trading is not available here.'
 }
 

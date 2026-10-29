@@ -4,6 +4,9 @@ export type Brand<T, TBrand extends string> = T & { readonly [brand]: TBrand }
 export const VENUE_IDS = ['binance', 'hyperliquid', 'dydx', 'orderly'] as const
 export type VenueId = (typeof VENUE_IDS)[number]
 
+export const NETWORKS = ['mainnet', 'testnet'] as const
+export type Network = (typeof NETWORKS)[number]
+
 export const BASES = ['BTC', 'ETH', 'SOL'] as const
 export type Base = (typeof BASES)[number]
 

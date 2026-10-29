@@ -4,6 +4,7 @@ import { useAccount } from 'wagmi'
 import { UserRejectedRequestError } from 'viem'
 import type { Address } from 'viem'
 import type { VenueId } from '@tape/core/ids'
+import { NETWORK } from '#/site'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
 import { TRADE_CONFIG } from './config'
@@ -14,7 +15,6 @@ import type {
   Capabilities,
   Command,
   CommandOutcome,
-  Network,
   OrderLookup,
   SetupStep,
   StepId,
@@ -27,7 +27,8 @@ import { keySlot, subscribeVault } from './vault'
 import { walletSigner } from '@tape/trade/wallet'
 
 export type TradeSession =
-  | { readonly status: 'read-only' }
+  /** `venue`: Tape never trades there. `site`: this deployment only reads, as mainnet does without VITE_TRADE_MAINNET. */
+  | { readonly status: 'read-only'; readonly scope: 'venue' | 'site' }
   | { readonly status: 'unavailable'; readonly reason: string }
   | { readonly status: 'disconnected' }
   | {
@@ -82,9 +83,13 @@ async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> 
   }
 }
 
-function useRef(venue: VenueId, network: Network): AccountRef | null {
+const SITE_READ_ONLY = NETWORK === 'mainnet' && !TRADE_CONFIG.mainnet
+
+function useRef(venue: VenueId): AccountRef | null {
   const { address } = useAccount()
-  return address && isTradeVenue(venue) ? { venue, network, owner: address.toLowerCase() as Address } : null
+  return address && isTradeVenue(venue) && !SITE_READ_ONLY
+    ? { venue, network: NETWORK, owner: address.toLowerCase() as Address }
+    : null
 }
 
 function useSlot(ref: AccountRef | null): SlotState | null {
@@ -99,14 +104,14 @@ function useSlot(ref: AccountRef | null): SlotState | null {
   )
 }
 
-export function useTradeSession(venue: VenueId, network: Network): TradeSession {
-  const ref = useRef(venue, network)
+export function useTradeSession(venue: VenueId): TradeSession {
+  const ref = useRef(venue)
   const slot = useSlot(ref)
   const client = useQueryClient()
   const { connector } = useAccount()
   const [progress, setProgress] = useState<StepId | null>(null)
   const module = isTradeVenue(venue) ? TRADING[venue] : null
-  const unavailable = module?.unavailable(network, TRADE_CONFIG) ?? null
+  const unavailable = module?.unavailable(NETWORK, TRADE_CONFIG) ?? null
   const linked = slot === 'linked:keyed'
   const steps = useQuery<readonly SetupStep[], TradeFailure>({
     queryKey: ref ? tradeKeys(ref).steps : ['trade', 'none'],
@@ -129,7 +134,8 @@ export function useTradeSession(venue: VenueId, network: Network): TradeSession 
       if (ref) void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
     },
   })
-  if (!module) return { status: 'read-only' }
+  if (!module) return { status: 'read-only', scope: 'venue' }
+  if (SITE_READ_ONLY) return { status: 'read-only', scope: 'site' }
   if (unavailable) return { status: 'unavailable', reason: unavailable }
   if (!ref) return { status: 'disconnected' }
   if (linked) {
