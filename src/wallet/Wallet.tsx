@@ -1,4 +1,12 @@
-import { useAccount, useConnect, useConnectors, useDisconnect, useReadContract, useSwitchChain } from 'wagmi'
+import {
+  ProviderNotFoundError,
+  useAccount,
+  useConnect,
+  useConnectors,
+  useDisconnect,
+  useReadContract,
+  useSwitchChain,
+} from 'wagmi'
 import { erc20Abi, formatUnits } from 'viem'
 import { USDC, chains } from './config'
 import { shortAddress } from '#/ui/format'
@@ -6,20 +14,27 @@ import { shortAddress } from '#/ui/format'
 export function WalletButton() {
   const { address, chainId, isConnected } = useAccount()
   const connectors = useConnectors()
-  const { connect, isPending } = useConnect()
+  const { connect, isPending, error } = useConnect()
   const { disconnect } = useDisconnect()
   const { switchChain } = useSwitchChain()
   if (!isConnected || !address) {
     const injected = connectors[0]
     return (
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => connect({ connector: injected })}
-        className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-ink-contrast disabled:opacity-50"
-      >
-        {isPending ? 'Connecting…' : 'Connect wallet'}
-      </button>
+      <div className="flex flex-col items-end gap-1">
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => connect({ connector: injected })}
+          className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-ink-contrast disabled:opacity-50"
+        >
+          {isPending ? 'Connecting…' : 'Connect wallet'}
+        </button>
+        {error && (
+          <p role="alert" className="text-[11px] text-level3">
+            {error instanceof ProviderNotFoundError ? 'No wallet in this browser.' : error.message.split('\n')[0]}
+          </p>
+        )}
+      </div>
     )
   }
   return (
