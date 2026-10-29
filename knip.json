@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [".claude/skills/verify-tape/.cache/**", ".intent/**"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*", ".claude/skills/verify-tape/scripts/*"],
+      "ignoreDependencies": ["@walletconnect/ethereum-provider", "@tanstack/cli", "@tanstack/intent"]
+    },
+    "packages/trade": { "ignoreDependencies": ["buffer"] }
+  }
+}
