@@ -196,6 +196,8 @@ export interface TradingVenue {
   readonly label: string
   readonly secrets: SecretLifetime
   readonly capabilities: Capabilities
+  /** The chain id the wallet switches to before it signs setup. Absent where any chain works. */
+  readonly walletChain?: Readonly<Record<Network, number>>
   /** Null when trading works on this network, otherwise why not. */
   unavailable: (network: Network, config: TradeConfig) => string | null
   /** Read from the venue and the slot. Funding is not a step: an unfunded account gets no-account from the venue. */

@@ -396,6 +396,7 @@ export const dydx = {
   label: 'dYdX',
   secrets: 'tab',
   capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
+  walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
   steps,

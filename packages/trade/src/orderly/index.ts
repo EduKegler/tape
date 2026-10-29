@@ -357,6 +357,7 @@ export const orderly = {
   label: 'Orderly',
   secrets: 'device',
   capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true },
+  walletChain: CHAIN_ID,
   unavailable: (network, config) => {
     if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'
     return brokerOf(config, network) ? null : 'No Orderly broker id is configured'
