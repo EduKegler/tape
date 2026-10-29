@@ -15,7 +15,7 @@ TLA_SHA256="936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
 TLA_URL="https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar"
 JAR="${TAPE_TLA_JAR:-$HOME/.cache/tape-formal/tla2tools-${TLA_VERSION}/tla2tools.jar}"
 
-COVERED=(src/core/book.ts src/hub/hub.ts src/hub/connection.ts src/core/topics.ts src/venues/binance.ts)
+COVERED=(packages/core/src/book.ts src/hub/hub.ts src/hub/connection.ts src/core/topics.ts packages/venues/src/binance.ts)
 
 ensure_tools() {
   command -v java >/dev/null || { echo "java not found. TLC needs Java 11 or newer." >&2; exit 2; }
@@ -97,9 +97,9 @@ expect_break() {
 
 self_test() {
   local bad=0
-  expect_break "gap check removed (book.ts:230)" no-gap-check LiveBookMatchesVenue || bad=1
-  expect_break "merge keeps the first effect (book.ts:241)" merge-keeps-first ResyncHasOwner || bad=1
-  expect_break "no retry after a failed fetch (hub.ts:217-219)" no-retry ResyncHasOwner || bad=1
+  expect_break "gap check removed (book.ts:254)" no-gap-check LiveBookMatchesVenue || bad=1
+  expect_break "merge keeps the first effect (book.ts:265)" merge-keeps-first ResyncHasOwner || bad=1
+  expect_break "no retry after a failed fetch (hub.ts:255-257)" no-retry ResyncHasOwner || bad=1
   expect_break "witness: a book goes live" none NeverLive || bad=1
   expect_break "witness: a live book resyncs" none NeverResyncAfterLive || bad=1
   expect_break "witness: a late snapshot is in flight" none NeverLateSnapshot || bad=1

@@ -1,6 +1,6 @@
 import { batch, createStore } from '@tanstack/store'
 import type { Store } from '@tanstack/store'
-import type { TabId, TopicKey } from '#/core/ids'
+import type { TabId, TopicKey } from '@tape/core/ids'
 import type { HubMode, HubStats, HubToTab, TabToHub } from '#/core/protocol'
 import { topicKey } from '#/core/topics'
 import type { Frame, FrameOf, Topic } from '#/core/topics'
@@ -8,9 +8,9 @@ import type { Frame, FrameOf, Topic } from '#/core/topics'
 /** The tab's end of the wire: a SharedWorker port, a dedicated Worker, or a test channel. */
 export interface TabPort {
   readonly mode: HubMode
-  post(message: TabToHub): void
-  close(): void
-  listen(onMessage: (message: HubToTab) => void): void
+  post: (message: TabToHub) => void
+  close: () => void
+  listen: (onMessage: (message: HubToTab) => void) => void
 }
 
 /**
@@ -24,8 +24,8 @@ export type ReadStore<T> = Pick<Store<T>, 'get' | 'subscribe'>
 export interface HubClient {
   readonly mode: HubMode
   readonly stats: ReadStore<HubStats | null>
-  store<T extends Topic>(topic: T): ReadStore<FrameOf<T> | null>
-  retain(topic: Topic): () => void
+  store: <T extends Topic>(topic: T) => ReadStore<FrameOf<T> | null>
+  retain: (topic: Topic) => () => void
 }
 
 interface Entry {
@@ -36,14 +36,14 @@ interface Entry {
 
 export interface Lifecycle {
   /** Holds a lock named after the tab for the page's life, then calls `ready`. */
-  holdLiveness(tab: TabId, ready: () => void): void
-  newTabId(): TabId
-  isVisible(): boolean
-  requestFrame(fn: () => void): void
-  onVisibility(fn: (visible: boolean) => void): void
-  onPageHide(fn: () => void): void
+  holdLiveness: (tab: TabId, ready: () => void) => void
+  newTabId: () => TabId
+  isVisible: () => boolean
+  requestFrame: (fn: () => void) => void
+  onVisibility: (fn: (visible: boolean) => void) => void
+  onPageHide: (fn: () => void) => void
   /** A page restored from the back/forward cache is a new tab to the hub. */
-  onPageRestore(fn: () => void): void
+  onPageRestore: (fn: () => void) => void
 }
 
 export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClient {

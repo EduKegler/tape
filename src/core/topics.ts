@@ -1,5 +1,5 @@
-import { VENUE_IDS, marketKey, streamKey } from './ids'
-import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from './ids'
+import { VENUE_IDS, marketKey, streamKey } from '@tape/core/ids'
+import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from '@tape/core/ids'
 
 /**
  * A Topic is a view a component wants, not a venue channel. Two tabs on the same view
@@ -39,7 +39,10 @@ export function streamsFor(topic: Topic): readonly StreamKey[] {
     case 'candle':
       return [streamKey(topic.market, 'candle', topic.interval)]
     case 'compare':
-      return VENUE_IDS.flatMap((v) => [streamKey(marketKey(v, topic.base), 'book'), streamKey(marketKey(v, topic.base), 'trades')])
+      return VENUE_IDS.flatMap((v) => [
+        streamKey(marketKey(v, topic.base), 'book'),
+        streamKey(marketKey(v, topic.base), 'trades'),
+      ])
   }
 }
 

@@ -5,7 +5,7 @@ description: Drive the real Tape web app (TanStack Start trading screen with ord
 
 # Verify Tape
 
-Tape is one browser screen at `/$venue/$base`, fed live by public Binance, Hyperliquid and dYdX websockets through a SharedWorker hub. This skill builds the app, serves the build on its own port, starts its own headless Chrome, and drives both with one helper script. Read `features/README.md` before driving, then the feature file that matches the change.
+Tape is one browser screen at `/$venue/$base`, fed live by public Binance, Hyperliquid, dYdX and Orderly websockets through a SharedWorker hub. Hyperliquid, dYdX and Orderly also trade, on mainnet or testnet. This skill builds the app, serves the build on its own port, starts its own headless Chrome, and drives both with one helper script. Read `features/README.md` before driving, then the feature file that matches the change.
 
 Everything below runs from the repo root. The helper is:
 
@@ -27,12 +27,13 @@ Run it with no command for the full flag list.
 node .claude/skills/verify-tape/scripts/verify-tape.mjs up
 ```
 
-`up` does four things and fails loudly on each:
+`up` does five things and fails loudly on each:
 
 1. Refuses if port 4391 (app) or 9391 (Chrome CDP) is in use, or if a run from this harness is still up. It never attaches to a server it did not start. Port 3000 is the user's `pnpm dev` and is never touched.
 2. Runs `vite build` with `scripts/vite.verify.config.ts`, which is the repo's `vite.config.ts` with all output moved to `.claude/skills/verify-tape/.cache/`. The user's `.output/` and Vite cache are not touched. The build takes about 2 s and includes uncommitted changes in `src/`.
 3. Starts the built Nitro server (`.cache/output/server/index.mjs`) on `127.0.0.1:4391`, and headless Chrome with a throwaway profile in `.state/chrome`.
 4. Waits until `GET /hyperliquid/BTC?interval=1m` returns 200 with the title `BTC on Hyperliquid`, and the CDP port answers.
+5. Starts the test wallet on `127.0.0.1:4392`. It attaches to Chrome over CDP, injects an EIP-1193 provider into every page, signs with a fresh throwaway key, and blocks mainnet order writes and Orderly registration with a 451. Every request it signs or blocks lands in `artifacts/<run-id>/wallet.jsonl`.
 
 Ready prints the run id, both pids and the evidence folder. Server ready is not data ready. Live data arrives in the browser a few seconds later. Each feature file says what to wait for.
 
@@ -61,13 +62,16 @@ Exit 0 means drive it. Exit 1 means the instance is broken: run `down`, then `up
 
 ## Network and fixtures
 
-Verification needs the network. There is no offline mode the browser can use. `src/venues/fixtures.ts` reads recorded frames with `node:fs` and only feeds the Vitest suites. The hub in the browser always opens the real sockets:
+Verification needs the network. There is no offline mode the browser can use. `packages/venues/src/fixtures.ts` reads recorded frames with `node:fs` and only feeds the Vitest suites. The hub in the browser always opens the real sockets:
 
 - `wss://data-stream.binance.vision/ws` and `https://data-api.binance.vision/api/v3`
 - `wss://api.hyperliquid.xyz/ws` and `https://api.hyperliquid.xyz/info`
 - `wss://indexer.dydx.trade/v4/ws` and `https://indexer.dydx.trade/v4`
+- `wss://ws-evm.orderly.org/ws/stream/…` and `https://api.orderly.org/v1`
 
-A venue outage shows up like this: `doctor` exits 2 for that venue, the book panel stays at `Syncing…` (or `Reconnecting…` after it was live), the `Sockets` count in the status bar is below 3, the Venues row for that venue shows `—`, the ticket says `Market rules unavailable.`, and the chart says `Could not load history.`. Prove the feature on another venue and report the outage.
+Trading journeys add the testnets: `api.hyperliquid-testnet.xyz`, `indexer.v4testnet.dydx.exchange` with `test-dydx-rpc.kingnodes.com`, and `testnet-api.orderly.org`.
+
+A venue outage shows up like this: `doctor` exits 2 for that venue, the book panel stays at `Syncing…` (or `Reconnecting…` after it was live), the `Sockets` count in the status bar is below 4, the Venues row for that venue shows `—`, the ticket says `Market rules unavailable.`, and the chart says `Could not load history.`. Prove the feature on another venue and report the outage.
 
 ## Drive
 
@@ -87,8 +91,8 @@ vt shot --panel "Order book" --path order-book/after.png
 
 Locators, in order of preference:
 
-- `--panel "<h2 text>"` scopes to one panel. Panel titles: `Chart`, `Order book`, `Trades`, `Order ticket`, `Depth`, `Venues`.
-- `--nav Market` (BTC, ETH, SOL) and `--nav Venue` (Binance, Hyperliquid, dYdX) scope to the header navs.
+- `--panel "<h2 text>"` scopes to one panel. Panel titles: `Chart`, `Order book`, `Trades`, `Order ticket`, `Depth`, `Venues`, `Account`.
+- `--nav Market` (BTC, ETH, SOL) and `--nav Venue` (Binance, Hyperliquid, dYdX, Orderly) scope to the header navs.
 - `--role <role> --name <name>` with `--exact`, or `--regex` to treat the name as a regular expression. Names are substring, case-insensitive matches without `--exact`.
 - `--text`, `--label`, then `--css` as the last resort. Each feature file names the CSS it needs and why.
 
@@ -114,7 +118,7 @@ Proof standards:
 node .claude/skills/verify-tape/scripts/verify-tape.mjs down
 ```
 
-`down` sends SIGTERM to the process groups of the two pids in `.state/run.json`, then SIGKILL if they are still alive after 5 s. It never kills by name. It removes `.state/` (run file, server log, Chrome profile) and keeps `artifacts/` and `.cache/`. It warns if port 4391 still has a listener afterwards, and leaves that process alone. Run `down` after every run, including failed ones, before you report.
+`down` sends SIGTERM to the process groups of the three pids in `.state/run.json`, then SIGKILL if they are still alive after 5 s. It never kills by name. It removes `.state/` (run file, server log, Chrome profile) and keeps `artifacts/` and `.cache/`. It warns if port 4391 still has a listener afterwards, and leaves that process alone. Run `down` after every run, including failed ones, before you report.
 
 To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop old evidence: delete folders under `artifacts/` by hand.
 
@@ -126,8 +130,9 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 ## Gotchas
 
 - TanStack Router links carry `data-status="active"`. Select the book's status with `section div[data-status]`, never a bare `[data-status]`.
-- The status bar text arrives a few seconds after load and changes as sockets open. Wait for the value you need, such as `Sockets 3`.
+- The status bar text arrives a few seconds after load and changes as sockets open. Wait for the value you need, such as `Sockets 4`.
 - Leaving a market for 10 s closes its streams. A tab on `Not Found` holds no wants, so `Sockets` can drop to 0 and recover when another tab subscribes.
 - Every tab of this Chrome shares one SharedWorker hub. Open extra tabs only when the journey needs them, and `close` them after, or the `Tabs` count is off for the next journey.
-- The wallet needs an injected provider (a browser extension). The harness Chrome has none, so only the disconnected state is verifiable.
+- The wallet is the harness test wallet, never an extension. Branded Chrome ignores `--load-extension`. It has no funds, so trading proof is the venue's rejection naming the recovered address. See `features/trading.md`.
+- Each `up` makes a new wallet key. Compare addresses within one run only.
 - `steps.jsonl` records commands that failed too, with the error. Read it when a journey stops halfway.

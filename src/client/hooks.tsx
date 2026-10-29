@@ -25,18 +25,18 @@ const identity = <T,>(x: T) => x
  * Reads a slice of a topic's latest frame and re-renders only when that slice changes under
  * `compare`. Passing an inline topic literal is fine: it is keyed by topicKey.
  */
-export function useFrame<T extends Topic, S = FrameOf<T> | null>(
+export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
   topic: T,
-  select: (frame: FrameOf<T> | null) => S = identity as never,
-  compare?: (a: S, b: S) => boolean,
-): S {
+  select: (frame: FrameOf<T> | null) => TSelected = identity as never,
+  compare?: (a: TSelected, b: TSelected) => boolean,
+): TSelected {
   const client = useContext(HubContext)
   const key = topicKey(topic)
   const latest = useRef(topic)
   latest.current = topic
   const store = client ? client.store(topic) : NOTHING
   useEffect(() => client?.retain(latest.current), [client, key])
-  return useSelector(store, select as (f: FrameOf<T> | null) => S, compare ? { compare } : undefined)
+  return useSelector(store, select, compare ? { compare } : undefined)
 }
 
 /** Runs an imperative callback per frame without rendering, for canvas and chart series. */

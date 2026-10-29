@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TabId } from '#/core/ids'
-import { marketKey } from '#/core/ids'
+import type { TabId } from '@tape/core/ids'
+import { marketKey } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
 import type { BookFrame, Frame, Topic } from '#/core/topics'
-import { recordedFetch, wsFrames } from '#/venues/fixtures'
-import { VENUES } from '#/venues/index'
+import { recordedFetch, wsFrames } from '@tape/venues/fixtures'
+import { VENUES } from '@tape/venues/index'
 import { createHub } from './hub'
 import type { Hub, SocketLike } from './hub'
 
@@ -23,12 +23,21 @@ function setup() {
     fetch: recordedFetch,
     now: () => Date.now(),
     random: () => 0.5,
-    watchTabGone: (tab) => new Promise<void>((resolve) => gone.set(tab, resolve)),
+    watchTabGone: (id) => new Promise<void>((resolve) => gone.set(id, resolve)),
     openSocket(url) {
       const socket: FakeSocket = {
-        url, sent: [], closed: false, onopen: null, onmessage: null, onclose: null,
-        send(data) { this.sent.push(data) },
-        close() { this.closed = true },
+        url,
+        sent: [],
+        closed: false,
+        onopen: null,
+        onmessage: null,
+        onclose: null,
+        send(data) {
+          this.sent.push(data)
+        },
+        close() {
+          this.closed = true
+        },
       }
       sockets.push(socket)
       queueMicrotask(() => socket.onopen?.())
@@ -71,13 +80,24 @@ describe('hub', () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')
     const b = tab(hub, 'b')
-    a.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'book', market: btc('binance'), group: '100' }, { kind: 'trades', market: btc('dydx') }])
-    b.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'compare', base: 'BTC' }])
+    a.want([
+      { kind: 'book', market: btc('binance'), group: '1' },
+      { kind: 'book', market: btc('binance'), group: '100' },
+      { kind: 'trades', market: btc('dydx') },
+    ])
+    b.want([
+      { kind: 'book', market: btc('binance'), group: '1' },
+      { kind: 'compare', base: 'BTC' },
+    ])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    expect(sockets.map((s) => s.url).sort()).toEqual([VENUES.binance.url, VENUES.dydx.url, VENUES.hyperliquid.url].sort())
+    expect(sockets.map((s) => s.url).sort()).toEqual(
+      Object.values(VENUES)
+        .map((v) => v.url)
+        .sort(),
+    )
     const book = a.frames.get(`book|${btc('binance')}|1`) as BookFrame
     expect(book.status).toBe('live')
     expect(book.bids).toHaveLength(14)
@@ -85,7 +105,7 @@ describe('hub', () => {
     expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks.at(-1)!.px.replaceAll(',', '')))
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
-    expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(3)
+    expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
     // A wide group still carries the exact touch, which the ticket proposes as a price.
     const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
     const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
@@ -99,7 +119,10 @@ describe('hub', () => {
     const a = tab(hub, 'a')
     const b = tab(hub, 'b')
     a.want([{ kind: 'trades', market: btc('hyperliquid') }])
-    b.want([{ kind: 'trades', market: btc('hyperliquid') }, { kind: 'book', market: btc('hyperliquid'), group: '1' }])
+    b.want([
+      { kind: 'trades', market: btc('hyperliquid') },
+      { kind: 'book', market: btc('hyperliquid'), group: '1' },
+    ])
     await vi.advanceTimersByTimeAsync(1100)
     const socket = sockets[0]!
     gone.get('b' as TabId)!()

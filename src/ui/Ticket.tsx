@@ -3,76 +3,129 @@ import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
-import { DecimalError, formatNotional, formatPx, formatQty, notional, parsePx, parseQty } from '#/core/fixed'
-import type { Base, VenueId } from '#/core/ids'
-import type { MarketSpec } from '#/core/market'
-import { priceTick } from '#/core/market'
+import { formatNotional, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
+import type { Base, VenueId } from '@tape/core/ids'
+import type { MarketSpec } from '@tape/core/market'
 import { useFrame } from '#/client/hooks'
-import { useUsdcBalance } from '#/wallet/Wallet'
-import { VENUES } from '#/venues/index'
+import { useTradeCommands, useTradeSession } from '#/trade/hooks'
+import type { TradeSession } from '#/trade/hooks'
+import { buildIntent, checkPrice, checkSize } from '@tape/trade/intent'
+import type { Bps, Network, Side, Tif, TradeError } from '@tape/trade/types'
+import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
+import { VENUES } from '@tape/venues/index'
+import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
 import { specsQuery } from './queries'
-import { proposedPrice } from './ticket-store'
-
-type Side = 'buy' | 'sell'
+import { TradeNote } from './TradeNote'
+import { proposedPrice, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market'
-
-/** Validation is exact: a price must sit on the tick and a size on the step, checked in integers. */
-function checkPrice(spec: MarketSpec, value: string): string | undefined {
-  if (!value) return 'Enter a price'
-  try {
-    const px = parsePx(value, spec.scale)
-    if (px <= 0) return 'Price must be above zero'
-    const tick = priceTick(spec, px)
-    if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
-  } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
-    throw e
-  }
-  return undefined
+const TIF_LABEL: Record<Tif, string> = {
+  gtc: 'Good til canceled',
+  ioc: 'Immediate or cancel',
+  'post-only': 'Post only',
 }
 
-function checkSize(spec: MarketSpec, value: string): string | undefined {
-  if (!value) return 'Enter a size'
-  try {
-    const qty = parseQty(value, spec.scale)
-    if (qty < spec.step) return `Minimum is ${formatQty(spec.step, spec.scale)}`
-    if (qty % spec.step !== 0) return `Size must be a multiple of ${formatQty(spec.step, spec.scale)}`
-  } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.qty} decimals` : 'Not a number'
-    throw e
-  }
-  return undefined
-}
-
-export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; group: string }) {
+export function Ticket({
+  venue,
+  base,
+  group,
+  network,
+  onNetwork,
+}: {
+  venue: VenueId
+  base: Base
+  group: string
+  network: Network
+  onNetwork: (n: Network) => void
+}) {
   const specs = useQuery(specsQuery(venue))
   const spec = specs.data?.get(base)
+  const session = useTradeSession(venue, network)
+  const aside =
+    session.status === 'read-only' ? (
+      <span className="text-[11px] text-level3">Read only</span>
+    ) : (
+      <Segmented
+        label="Network"
+        value={network}
+        onChange={onNetwork}
+        options={[
+          { value: 'mainnet', label: 'Mainnet' },
+          { value: 'testnet', label: 'Testnet' },
+        ]}
+      />
+    )
   return (
-    <Panel title="Order ticket" aside={<span className="text-[11px] text-level3">Preview only</span>}>
-      {spec ? <TicketForm key={spec.key} spec={spec} group={group} /> : <p className="p-3 text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>}
+    <Panel title="Order ticket" aside={aside}>
+      {spec ? (
+        <TicketForm
+          key={`${spec.key}:${network}:${'ref' in session ? session.ref.owner : ''}`}
+          spec={spec}
+          group={group}
+          session={session}
+          network={network}
+        />
+      ) : (
+        <p className="p-3 text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>
+      )}
     </Panel>
   )
 }
 
-function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
+function TicketForm({
+  spec,
+  group,
+  session,
+  network,
+}: {
+  spec: MarketSpec
+  group: string
+  session: TradeSession
+  network: Network
+}) {
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
-  const [preview, setPreview] = useState<string | null>(null)
+  const [built, setBuilt] = useState<TradeError | null>(null)
+  const [protect, setProtect] = useState(false)
   // The exact touch, not the mid or a grouped row: a mid can fall between ticks, and a market order fills on the far side.
-  const touch = useFrame({ kind: 'book', market: spec.key, group }, (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }), shallow)
+  const touch = useFrame(
+    { kind: 'book', market: spec.key, group },
+    (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }),
+    shallow,
+  )
   const near = side === 'buy' ? touch.bid : touch.ask
   const far = side === 'buy' ? touch.ask : touch.bid
   const [mountedAt] = useState(() => Date.now())
   const proposed = useSelector(proposedPrice, (p) => (p && p.at >= mountedAt ? p : null))
+  const slippage = useSelector(slippageBps, (s) => s)
   const balance = useUsdcBalance()
+  const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
+  const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
+  const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
+  const { run, last } = useTradeCommands(ref)
   const form = useForm({
-    defaultValues: { price: '', size: '' },
+    defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
     onSubmit: ({ value }) => {
-      const px = kind === 'market' ? far : value.price
-      setPreview(`${side === 'buy' ? 'Buy' : 'Sell'} ${value.size} ${spec.base} ${kind === 'market' ? 'at market' : `at ${px}`} on ${VENUES[spec.venue].label}. Nothing was sent.`)
+      if (!ref || !canSend || last.pending) return
+      const triggers = protect && kind === 'limit' ? {} : { takeProfit: '', stopLoss: '' }
+      const result = buildIntent(
+        spec,
+        { ...value, ...triggers, side, kind, slippage: slippage as Bps },
+        caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
+      )
+      if (!result.ok) {
+        setBuilt({
+          kind: 'invalid-order',
+          detail: Object.entries(result.errors)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join('; '),
+        })
+        return
+      }
+      setBuilt(null)
+      run({ kind: 'place', intent: result.intent })
     },
   })
 
@@ -101,23 +154,118 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
           </button>
         ))}
       </div>
-      <Segmented label="Order type" value={kind} onChange={setKind} options={[{ value: 'limit', label: 'Limit' }, { value: 'market', label: 'Market' }]} />
+      <Segmented
+        label="Order type"
+        value={kind}
+        onChange={setKind}
+        options={[
+          { value: 'limit', label: 'Limit' },
+          { value: 'market', label: 'Market' },
+        ]}
+      />
       {kind === 'limit' && (
         <form.Field name="price" validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
           {(field) => (
-            <Input label={`Price (${spec.quote})`} name={field.name} value={field.state.value} onBlur={field.handleBlur} onChange={field.handleChange}
+            <Input
+              label={`Price (${spec.quote})`}
+              name={field.name}
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={field.handleChange}
               error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-              hint={near ? <button type="button" className="text-level3 hover:text-level1" onClick={() => field.handleChange(near)}>{side === 'buy' ? 'Bid' : 'Ask'} {near}</button> : null} />
+              hint={
+                near ? (
+                  <button
+                    type="button"
+                    className="text-level3 hover:text-level1"
+                    onClick={() => field.handleChange(near)}
+                  >
+                    {side === 'buy' ? 'Bid' : 'Ask'} {near}
+                  </button>
+                ) : null
+              }
+            />
           )}
         </form.Field>
       )}
       <form.Field name="size" validators={{ onChange: ({ value }) => checkSize(spec, value) }}>
         {(field) => (
-          <Input label={`Size (${spec.base})`} name={field.name} value={field.state.value} onBlur={field.handleBlur} onChange={field.handleChange}
+          <Input
+            label={`Size (${spec.base})`}
+            name={field.name}
+            value={field.state.value}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
             error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-            hint={<span className="text-level3">Step {formatQty(spec.step, spec.scale)}</span>} />
+            hint={<span className="text-level3">Step {formatQty(spec.step, spec.scale)}</span>}
+          />
         )}
       </form.Field>
+      {kind === 'limit' ? (
+        <form.Field name="tif">
+          {(field) => (
+            <label className="flex items-center justify-between text-[12px] text-level3">
+              Time in force
+              <select
+                name="tif"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value as Tif)}
+                className="rounded border border-rule bg-surface px-1.5 py-1 text-[12px] text-level1"
+              >
+                {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const)).map((t) => (
+                  <option key={t} value={t}>
+                    {TIF_LABEL[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </form.Field>
+      ) : (
+        <SlippageField />
+      )}
+      <form.Field name="reduceOnly">
+        {(field) => (
+          <label className="flex items-center gap-2 text-[12px] text-level2">
+            <input
+              type="checkbox"
+              name="reduceOnly"
+              checked={field.state.value}
+              onChange={(e) => field.handleChange(e.target.checked)}
+            />
+            Reduce only
+          </label>
+        )}
+      </form.Field>
+      {caps?.triggers && kind === 'limit' && (
+        <label className="flex items-center gap-2 text-[12px] text-level2">
+          <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
+          Take profit and stop loss
+        </label>
+      )}
+      {caps?.triggers && kind === 'limit' && protect && (
+        <div className="grid grid-cols-2 gap-2">
+          {(['takeProfit', 'stopLoss'] as const).map((name) => (
+            <form.Field
+              key={name}
+              name={name}
+              validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
+            >
+              {(field) => (
+                <Input
+                  label={name === 'takeProfit' ? 'Take profit' : 'Stop loss'}
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  hint={null}
+                />
+              )}
+            </form.Field>
+          ))}
+        </div>
+      )}
       <form.Subscribe selector={(s) => [s.values.price, s.values.size, s.canSubmit] as const}>
         {([price, size, canSubmit]) => {
           const px = kind === 'market' ? far : price
@@ -135,26 +283,110 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
                 <dt className="text-level3">Notional</dt>
                 <dd className="text-right text-level1">{total}</dd>
                 <dt className="text-level3">Wallet USDC</dt>
-                <dd className="text-right text-level1">{balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}</dd>
+                <dd className="text-right text-level1">
+                  {balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}
+                </dd>
               </dl>
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className={`rounded-full py-2 text-[13px] disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}
-              >
-                Preview {side} {spec.base}
-              </button>
+              <SubmitArea
+                session={session}
+                venue={VENUES[spec.venue].label}
+                side={side}
+                base={spec.base}
+                canSubmit={canSubmit && canSend && !last.pending}
+              />
             </>
           )
         }}
       </form.Subscribe>
-      {preview && <p className="rounded border border-rule p-2 text-[12px] text-level2" role="status">{preview}</p>}
-      <p className="text-[11px] leading-snug text-level3">Tape is read-only. It never signs, sends or stores an order.</p>
+      {built && <TradeNote error={built} />}
+      {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />}
+      {network === 'testnet' && session.status !== 'read-only' && (
+        <p className="text-[11px] leading-snug text-level3">
+          Testnet orders are priced by the testnet book. The book on screen is mainnet.
+        </p>
+      )}
     </form>
   )
 }
 
-function Input(props: { label: string; name: string; value: string; error: string | undefined; hint: React.ReactNode; onChange: (v: string) => void; onBlur: () => void }) {
+function SubmitArea({
+  session,
+  venue,
+  side,
+  base,
+  canSubmit,
+}: {
+  session: TradeSession
+  venue: string
+  side: Side
+  base: string
+  canSubmit: boolean
+}) {
+  const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
+  const button = (
+    <button
+      type="submit"
+      disabled={!canSubmit}
+      className={`rounded-full py-2 text-[13px] disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}
+    >
+      {label}
+    </button>
+  )
+  switch (session.status) {
+    case 'read-only':
+      return (
+        <p className="text-[11px] leading-snug text-level3">
+          {venue} is read only in Tape. It never signs or sends an order here.
+        </p>
+      )
+    case 'unavailable':
+      return <p className="text-[12px] text-level3">{session.reason}.</p>
+    case 'disconnected':
+      return <WalletButton />
+    case 'setup':
+      return (
+        <>
+          <EnableTrading session={session} />
+          {session.keyed && button}
+        </>
+      )
+    case 'ready':
+      return (
+        <>
+          {button}
+          <button type="button" onClick={session.forget} className="self-end text-[11px] text-level3 hover:text-level1">
+            Forget trading key on this device
+          </button>
+        </>
+      )
+  }
+}
+
+function SlippageField() {
+  const value = useSelector(slippageBps, (s) => s)
+  const options = [10, 50, 100, 300] as const
+  return (
+    <div className="flex items-center justify-between text-[12px] text-level3">
+      Max slippage
+      <Segmented
+        label="Max slippage"
+        value={String(value)}
+        onChange={(v) => slippageBps.setState(() => Number(v))}
+        options={options.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
+      />
+    </div>
+  )
+}
+
+function Input(props: {
+  label: string
+  name: string
+  value: string
+  error: string | undefined
+  hint: React.ReactNode
+  onChange: (v: string) => void
+  onBlur: () => void
+}) {
   const id = useId()
   // The hint can be a button, so it sits beside the label and not inside it.
   return (
@@ -175,7 +407,11 @@ function Input(props: { label: string; name: string; value: string; error: strin
         aria-describedby={props.error ? `${id}-error` : undefined}
         className="num rounded border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
       />
-      {props.error && <span id={`${id}-error`} className="text-ask">{props.error}</span>}
+      {props.error && (
+        <span id={`${id}-error`} className="text-ask">
+          {props.error}
+        </span>
+      )}
     </div>
   )
 }

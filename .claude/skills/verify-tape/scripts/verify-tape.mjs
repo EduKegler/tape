@@ -18,6 +18,7 @@ const ARTIFACTS = join(SKILL, 'artifacts')
 const OUTPUT = join(SKILL, '.cache/output')
 const PORT = Number(process.env.VERIFY_TAPE_PORT ?? 4391)
 const CDP_PORT = Number(process.env.VERIFY_TAPE_CDP_PORT ?? 9391)
+const WALLET_PORT = Number(process.env.VERIFY_TAPE_WALLET_PORT ?? 4392)
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = `http://127.0.0.1:${PORT}`
 
@@ -59,7 +60,8 @@ const readState = () => (existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf
 function requireState() {
   const s = readState()
   if (!s) die('no run started by this harness. Run `up` first. This harness never drives an instance it did not start.')
-  if (!alive(s.serverPid) || !alive(s.chromePid)) die('a process from this run is gone. Run `down`, then `up`.')
+  if (!alive(s.serverPid) || !alive(s.chromePid) || (s.walletPid && !alive(s.walletPid)))
+    die('a process from this run is gone. Run `down`, then `up`.')
   return s
 }
 
@@ -73,7 +75,11 @@ function portBusy(port) {
 
 function listenerPids(port) {
   try {
-    return execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean).map(Number)
+    return execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(Number)
   } catch {
     return []
   }
@@ -102,10 +108,16 @@ function record(s, entry) {
 
 async function up(flags) {
   const prior = readState()
-  if (prior && (alive(prior.serverPid) || alive(prior.chromePid))) die(`a run is already up (run ${prior.runId}). Use it, or run \`down\` first.`)
+  if (prior && (alive(prior.serverPid) || alive(prior.chromePid)))
+    die(`a run is already up (run ${prior.runId}). Use it, or run \`down\` first.`)
   if (prior) rmSync(STATE_DIR, { recursive: true, force: true })
-  if (await portBusy(PORT)) die(`port ${PORT} is already in use by a process this harness did not start. Refusing to drive it. Set VERIFY_TAPE_PORT to a free port.`)
+  if (await portBusy(PORT))
+    die(
+      `port ${PORT} is already in use by a process this harness did not start. Refusing to drive it. Set VERIFY_TAPE_PORT to a free port.`,
+    )
   if (await portBusy(CDP_PORT)) die(`CDP port ${CDP_PORT} is in use. Set VERIFY_TAPE_CDP_PORT to a free port.`)
+  if (await portBusy(WALLET_PORT))
+    die(`wallet port ${WALLET_PORT} is in use. Set VERIFY_TAPE_WALLET_PORT to a free port.`)
   if (!existsSync(CHROME)) die(`Chrome not found at ${CHROME}. Set CHROME to a Chrome binary.`)
 
   const runId = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', '')
@@ -114,13 +126,24 @@ async function up(flags) {
   const buildLog = join(ARTIFACTS, runId, 'build.log')
   const serverLog = join(STATE_DIR, 'server.log')
   const sha = git(['rev-parse', '--short', 'HEAD'])
-  const dirty = git(['status', '--porcelain', '--', 'src']).split('\n').filter(Boolean).length
+  const dirty = git(['status', '--porcelain', '--', 'src', 'packages']).split('\n').filter(Boolean).length
   if (flags['reuse-build'] && existsSync(join(OUTPUT, 'server/index.mjs'))) {
     console.log(`up: reusing the build in ${OUTPUT}. It may not match the working tree.`)
   } else {
-    console.log(`up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/` : ''} into ${OUTPUT}`)
+    console.log(
+      `up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/ and packages/` : ''} into ${OUTPUT}`,
+    )
     try {
-      execFileSync(process.execPath, [join(REPO, 'node_modules/vite/bin/vite.js'), 'build', '--config', join(SKILL, 'scripts/vite.verify.config.ts')], { cwd: REPO, stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')] })
+      execFileSync(
+        process.execPath,
+        [
+          join(REPO, 'node_modules/vite/bin/vite.js'),
+          'build',
+          '--config',
+          join(SKILL, 'scripts/vite.verify.config.ts'),
+        ],
+        { cwd: REPO, stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')] },
+      )
     } catch {
       console.error(readFileSync(buildLog, 'utf8').split('\n').slice(-30).join('\n'))
       rmSync(STATE_DIR, { recursive: true, force: true })
@@ -137,11 +160,30 @@ async function up(flags) {
   server.unref()
   const chrome = spawn(
     CHROME,
-    ['--headless=new', `--remote-debugging-port=${CDP_PORT}`, '--remote-debugging-address=127.0.0.1', `--user-data-dir=${join(STATE_DIR, 'chrome')}`, '--no-first-run', '--no-default-browser-check', '--window-size=1440,900', 'about:blank'],
+    [
+      '--headless=new',
+      `--remote-debugging-port=${CDP_PORT}`,
+      '--remote-debugging-address=127.0.0.1',
+      `--user-data-dir=${join(STATE_DIR, 'chrome')}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--window-size=1440,900',
+      'about:blank',
+    ],
     { detached: true, stdio: 'ignore' },
   )
   chrome.unref()
-  const s = { runId, port: PORT, cdpPort: CDP_PORT, base: BASE, serverPid: server.pid, chromePid: chrome.pid, sha, dirtySrcFiles: dirty, startedAt: new Date().toISOString() }
+  const s = {
+    runId,
+    port: PORT,
+    cdpPort: CDP_PORT,
+    base: BASE,
+    serverPid: server.pid,
+    chromePid: chrome.pid,
+    sha,
+    dirtySrcFiles: dirty,
+    startedAt: new Date().toISOString(),
+  }
   writeFileSync(STATE, JSON.stringify(s, null, 2))
 
   const deadline = Date.now() + 60_000
@@ -171,8 +213,31 @@ async function up(flags) {
     }
   }
   if (!cdp) die('Chrome did not open its CDP port. Run `down`.')
-  record(s, { cmd: 'up', base: BASE, sha: s.sha })
-  console.log(`up: run ${runId}\n  app     ${BASE}\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  evidence ${join(ARTIFACTS, runId)}`)
+  const walletLog = openSync(join(STATE_DIR, 'wallet.log'), 'a')
+  const wallet = spawn(
+    process.execPath,
+    [
+      join(SKILL, 'scripts/test-wallet.mjs'),
+      String(CDP_PORT),
+      String(WALLET_PORT),
+      join(STATE_DIR, 'wallet-key.json'),
+      join(ARTIFACTS, runId, 'wallet.jsonl'),
+    ],
+    { cwd: REPO, detached: true, stdio: ['ignore', walletLog, walletLog] },
+  )
+  wallet.unref()
+  writeFileSync(STATE, JSON.stringify({ ...s, walletPid: wallet.pid, walletPort: WALLET_PORT }, null, 2))
+  let address = null
+  for (let i = 0; i < 40 && !address; i++) {
+    await sleep(250)
+    if (existsSync(join(STATE_DIR, 'wallet-key.json')) && (await portBusy(WALLET_PORT)))
+      address = JSON.parse(readFileSync(join(STATE_DIR, 'wallet-key.json'), 'utf8')).address
+  }
+  if (!address) die('the test wallet did not start. Log: .state/wallet.log. Run `down`.')
+  record(s, { cmd: 'up', base: BASE, sha: s.sha, wallet: address })
+  console.log(
+    `up: run ${runId}\n  app     ${BASE}\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
+  )
 }
 
 function killGroup(pid) {
@@ -193,15 +258,27 @@ async function down() {
     console.log('down: nothing to stop. No run state.')
     return
   }
-  const killed = [killGroup(s.chromePid) && `chrome ${s.chromePid}`, killGroup(s.serverPid) && `server ${s.serverPid}`].filter(Boolean)
-  for (let i = 0; i < 20 && (alive(s.serverPid) || alive(s.chromePid)); i++) await sleep(250)
-  for (const pid of [s.serverPid, s.chromePid]) if (alive(pid)) try { process.kill(-pid, 'SIGKILL') } catch {}
+  const killed = [
+    killGroup(s.walletPid) && `wallet ${s.walletPid}`,
+    killGroup(s.chromePid) && `chrome ${s.chromePid}`,
+    killGroup(s.serverPid) && `server ${s.serverPid}`,
+  ].filter(Boolean)
+  for (let i = 0; i < 20 && (alive(s.serverPid) || alive(s.chromePid) || (s.walletPid && alive(s.walletPid))); i++)
+    await sleep(250)
+  for (const pid of [s.serverPid, s.chromePid, s.walletPid])
+    if (pid && alive(pid))
+      try {
+        process.kill(-pid, 'SIGKILL')
+      } catch {}
   const leftover = listenerPids(s.port)
   if (existsSync(join(ARTIFACTS, s.runId))) record(s, { cmd: 'down', killed })
   rmSync(STATE_DIR, { recursive: true, force: true })
   console.log(`down: stopped ${killed.join(', ') || 'nothing (already gone)'}. Removed ${STATE_DIR}.`)
   console.log(`  evidence kept at ${join(ARTIFACTS, s.runId)}`)
-  if (leftover.length) console.log(`  warning: port ${s.port} still has listener(s) ${leftover.join(', ')}. Check they are not yours before killing.`)
+  if (leftover.length)
+    console.log(
+      `  warning: port ${s.port} still has listener(s) ${leftover.join(', ')}. Check they are not yours before killing.`,
+    )
 }
 
 async function doctor() {
@@ -214,13 +291,26 @@ async function doctor() {
     check('run state', true, `run ${s.runId}, started ${s.startedAt} at ${s.sha}`)
     check('server process', alive(s.serverPid), `pid ${s.serverPid}`)
     check('chrome process', alive(s.chromePid), `pid ${s.chromePid}`)
+    check(
+      'test wallet process',
+      Boolean(s.walletPid) && alive(s.walletPid),
+      `pid ${s.walletPid ?? 'none'}, port ${s.walletPort ?? 'none'}`,
+    )
     const owners = listenerPids(s.port)
-    check(`port ${s.port} owned by this run`, owners.length > 0 && owners.every((p) => p === s.serverPid), `listeners ${owners.join(',') || 'none'}`)
+    check(
+      `port ${s.port} owned by this run`,
+      owners.length > 0 && owners.every((p) => p === s.serverPid),
+      `listeners ${owners.join(',') || 'none'}`,
+    )
     try {
       const r = await fetch(`${s.base}/`, { signal: AbortSignal.timeout(30_000) })
       const body = await r.text()
       const title = body.match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
-      check('app serves /', r.ok && r.url.endsWith('/hyperliquid/BTC?interval=1m') && title.includes('Tape'), `${r.status} ${r.url} title "${title}"`)
+      check(
+        'app serves /',
+        r.ok && /\/hyperliquid\/BTC\?interval=1m(&net=mainnet)?$/.test(r.url) && title.includes('Tape'),
+        `${r.status} ${r.url} title "${title}"`,
+      )
     } catch (e) {
       check('app serves /', false, String(e))
     }
@@ -232,12 +322,25 @@ async function doctor() {
       check('chrome cdp', false, String(e))
     }
     const head = git(['rev-parse', '--short', 'HEAD'])
-    const dirty = git(['status', '--porcelain', '--', 'src']).split('\n').filter(Boolean).length
-    check('build', true, `HEAD ${head}${head !== s.sha ? ` but the build is from ${s.sha}. Run down and up to rebuild` : ''}, ${dirty} uncommitted file(s) under src/ now, ${s.dirtySrcFiles} at build time`)
+    const dirty = git(['status', '--porcelain', '--', 'src', 'packages']).split('\n').filter(Boolean).length
+    check(
+      'build',
+      true,
+      `HEAD ${head}${head !== s.sha ? ` but the build is from ${s.sha}. Run down and up to rebuild` : ''}, ${dirty} uncommitted file(s) under src/ and packages/ now, ${s.dirtySrcFiles} at build time`,
+    )
   }
   const venues = [
     ['binance', () => fetch('https://data-api.binance.vision/api/v3/ping', { signal: AbortSignal.timeout(5000) })],
-    ['hyperliquid', () => fetch('https://api.hyperliquid.xyz/info', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"type":"meta"}', signal: AbortSignal.timeout(5000) })],
+    [
+      'hyperliquid',
+      () =>
+        fetch('https://api.hyperliquid.xyz/info', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{"type":"meta"}',
+          signal: AbortSignal.timeout(5000),
+        }),
+    ],
     ['dydx', () => fetch('https://indexer.dydx.trade/v4/height', { signal: AbortSignal.timeout(5000) })],
   ]
   for (const [name, probe] of venues) {
@@ -289,7 +392,10 @@ async function withPage(s, flags, fn) {
 }
 
 function scope(page, flags) {
-  if (flags.panel) return page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name: flags.panel, exact: true }) })
+  if (flags.panel)
+    return page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { level: 2, name: flags.panel, exact: true }) })
   if (flags.nav) return page.getByRole('navigation', { name: flags.nav, exact: true })
   if (flags.within) return page.locator(flags.within)
   return page
@@ -309,7 +415,10 @@ function target(page, flags) {
 }
 
 function describe(flags) {
-  return ['panel', 'nav', 'within', 'role', 'name', 'css', 'text', 'label', 'nth'].filter((k) => flags[k] !== undefined).map((k) => `${k}=${flags[k]}`).join(' ')
+  return ['panel', 'nav', 'within', 'role', 'name', 'css', 'text', 'label', 'nth']
+    .filter((k) => flags[k] !== undefined)
+    .map((k) => `${k}=${flags[k]}`)
+    .join(' ')
 }
 
 async function browserCmd(cmd, pos, flags) {
@@ -344,17 +453,29 @@ async function browserCmd(cmd, pos, flags) {
         const start = Date.now()
         if (flags.js) await page.waitForFunction(flags.js, null, { timeout: Number(flags.timeout ?? 30000) })
         else if (flags.url) await page.waitForURL(new RegExp(flags.url), { timeout: Number(flags.timeout ?? 30000) })
-        else await target(page, flags).first().waitFor({ state: flags.state ?? 'visible', timeout: Number(flags.timeout ?? 30000) })
+        else
+          await target(page, flags)
+            .first()
+            .waitFor({ state: flags.state ?? 'visible', timeout: Number(flags.timeout ?? 30000) })
         result = { page: index, waited: flags.js ?? flags.url ?? describe(flags), ms: Date.now() - start }
         break
       }
       case 'text': {
         const loc = target(page, flags)
-        result = { page: index, of: describe(flags) || 'page', text: flags.all ? await loc.allInnerTexts() : await loc.first().innerText() }
+        result = {
+          page: index,
+          of: describe(flags) || 'page',
+          text: flags.all ? await loc.allInnerTexts() : await loc.first().innerText(),
+        }
         break
       }
       case 'attr':
-        result = { page: index, of: describe(flags), attr: flags.attr, value: await target(page, flags).first().getAttribute(String(flags.attr)) }
+        result = {
+          page: index,
+          of: describe(flags),
+          attr: flags.attr,
+          value: await target(page, flags).first().getAttribute(String(flags.attr)),
+        }
         break
       case 'eval':
         result = { page: index, value: await page.evaluate(pos.join(' ')) }
@@ -376,7 +497,12 @@ async function browserCmd(cmd, pos, flags) {
         break
       }
       case 'pages':
-        result = { current: index, pages: await Promise.all([...ids].map(async ([p, id]) => ({ id, url: p.url(), title: await p.title().catch(() => '') }))) }
+        result = {
+          current: index,
+          pages: await Promise.all(
+            [...ids].map(async ([p, id]) => ({ id, url: p.url(), title: await p.title().catch(() => '') })),
+          ),
+        }
         break
       case 'close':
         await page.close()
@@ -420,13 +546,38 @@ try {
   if (cmd === 'up') await up(flags)
   else if (cmd === 'down') await down()
   else if (cmd === 'doctor') await doctor()
-  else if (['open', 'click', 'fill', 'select', 'press', 'wait', 'text', 'attr', 'eval', 'aria', 'shot', 'pages', 'close'].includes(cmd)) await browserCmd(cmd, pos, flags)
+  else if (
+    [
+      'open',
+      'click',
+      'fill',
+      'select',
+      'press',
+      'wait',
+      'text',
+      'attr',
+      'eval',
+      'aria',
+      'shot',
+      'pages',
+      'close',
+    ].includes(cmd)
+  )
+    await browserCmd(cmd, pos, flags)
   else {
     console.log(HELP)
     if (cmd && cmd !== 'help') process.exit(1)
   }
 } catch (e) {
   const s = readState()
-  if (s && cmd !== 'up') try { record(s, { cmd, args: pos, flags, error: String(e.message ?? e) }) } catch {}
-  die(String(e.message ?? e).split('\n').slice(0, 6).join('\n'))
+  if (s && cmd !== 'up')
+    try {
+      record(s, { cmd, args: pos, flags, error: String(e.message ?? e) })
+    } catch {}
+  die(
+    String(e.message ?? e)
+      .split('\n')
+      .slice(0, 6)
+      .join('\n'),
+  )
 }

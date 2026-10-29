@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { shallow } from '@tanstack/store'
 import { useFrame } from '#/client/hooks'
-import type { MarketKey } from '#/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
 import { Panel } from './Panel'
@@ -17,18 +17,36 @@ const INDICES = Array.from({ length: BOOK_ROWS }, (_, i) => i)
  * rows still change per frame, because a new level shifts every cumulative total below it. The
  * depth bar is a scaleX transform, which skips layout.
  */
-export function OrderBook({ market, group, onGroup }: { market: MarketKey; group: string; onGroup: (g: string) => void }) {
+export function OrderBook({
+  market,
+  group,
+  onGroup,
+}: {
+  market: MarketKey
+  group: string
+  onGroup: (g: string) => void
+}) {
   const topic: BookTopic = { kind: 'book', market, group }
-  const head = useFrame(topic, (f) => ({ group: f?.group ?? group, options: f?.groupOptions.join('|') ?? '', status: f?.status ?? 'syncing' }), shallow)
+  const head = useFrame(
+    topic,
+    (f) => ({ group: f?.group ?? group, options: f?.groupOptions.join('|') ?? '', status: f?.status ?? 'syncing' }),
+    shallow,
+  )
   return (
     <Panel
       title="Order book"
       aside={
         <label className="flex items-center gap-1.5 text-[12px] text-level3">
           Group
-          <select value={head.group} onChange={(e) => onGroup(e.target.value)} className="num rounded border border-rule bg-panel px-1 py-0.5 text-level2">
+          <select
+            value={head.group}
+            onChange={(e) => onGroup(e.target.value)}
+            className="num rounded border border-rule bg-panel px-1 py-0.5 text-level2"
+          >
             {(head.options ? head.options.split('|') : [head.group]).map((o) => (
-              <option key={o} value={o.replaceAll(',', '')}>{o}</option>
+              <option key={o} value={o.replaceAll(',', '')}>
+                {o}
+              </option>
             ))}
           </select>
         </label>
@@ -41,11 +59,15 @@ export function OrderBook({ market, group, onGroup }: { market: MarketKey; group
           <span className="text-right">Total</span>
         </div>
         <div className="flex flex-1 flex-col">
-          {INDICES.map((i) => <Row key={`a${i}`} topic={topic} side="asks" index={i} />)}
+          {INDICES.map((i) => (
+            <Row key={`a${i}`} topic={topic} side="asks" index={i} />
+          ))}
         </div>
         <Spread topic={topic} />
         <div className="flex flex-1 flex-col">
-          {INDICES.map((i) => <Row key={`b${i}`} topic={topic} side="bids" index={i} />)}
+          {INDICES.map((i) => (
+            <Row key={`b${i}`} topic={topic} side="bids" index={i} />
+          ))}
         </div>
       </div>
     </Panel>
@@ -75,12 +97,20 @@ const Row = memo(function Row({ topic, side, index }: { topic: BookTopic; side: 
 })
 
 function Spread({ topic }: { topic: BookTopic }) {
-  const s = useFrame(topic, (f) => ({ mid: f?.mid ?? '', spread: f?.spread ?? '', bps: f?.spreadBps ?? '', status: f?.status ?? 'syncing' }), shallow)
+  const s = useFrame(
+    topic,
+    (f) => ({ mid: f?.mid ?? '', spread: f?.spread ?? '', bps: f?.spreadBps ?? '', status: f?.status ?? 'syncing' }),
+    shallow,
+  )
   return (
     <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
       <span className="text-[14px] text-level1">{s.mid || '—'}</span>
       <span className="whitespace-nowrap text-[11px] text-level3">
-        {s.status === 'live' ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps` : s.status === 'stale' ? 'Reconnecting…' : 'Syncing…'}
+        {s.status === 'live'
+          ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`
+          : s.status === 'stale'
+            ? 'Reconnecting…'
+            : 'Syncing…'}
       </span>
     </div>
   )

@@ -2,7 +2,13 @@
 
 # Tape
 
-Read-only multi-venue trading frontend. TanStack Start on TanStack Redact.
+Multi-venue trading frontend. TanStack Start on TanStack Redact.
+
+## Workspace
+
+pnpm workspace: the app at the root, `@tape/core`, `@tape/venues` and `@tape/trade` under `packages/`, consumed as TypeScript source through `workspace:*`. Packages import no React, no `#/` and nothing they don't declare. `pnpm verify` checks that first. See Layout in the README.
+
+This repo is public. Research, competitor notes and decision logs never go here.
 
 ## TanStack docs and add-ons
 

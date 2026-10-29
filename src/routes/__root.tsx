@@ -1,8 +1,4 @@
-import {
-  HeadContent,
-  Scripts,
-  createRootRouteWithContext,
-} from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRouteWithContext } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
@@ -34,7 +30,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
       {
         name: 'description',
-        content: 'Read-only order book, trades and depth for BTC, ETH and SOL on Binance, Hyperliquid and dYdX.',
+        content:
+          'Order book, trades, depth and order entry for BTC, ETH and SOL on Hyperliquid, dYdX and Orderly, with Binance read only.',
       },
     ],
     links: [

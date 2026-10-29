@@ -1,20 +1,20 @@
 import { throttle } from '@tanstack/pacer'
-import { initialSync, stepBook } from '#/core/book'
-import type { BookInput, BookSync } from '#/core/book'
-import { DecimalError } from '#/core/fixed'
-import { VENUE_IDS, parseStreamKey, splitMarketKey, streamKey } from '#/core/ids'
-import type { Interval, MarketKey, StreamKey, TabId, TopicKey, VenueId } from '#/core/ids'
-import { emptyTape, pushTrades, upsertCandle } from '#/core/market'
-import type { Candle, MarketSpec, TradeTape } from '#/core/market'
+import { initialSync, stepBook } from '@tape/core/book'
+import type { BookInput, BookSync } from '@tape/core/book'
+import { DecimalError } from '@tape/core/fixed'
+import { VENUE_IDS, parseStreamKey, splitMarketKey, streamKey } from '@tape/core/ids'
+import type { Interval, MarketKey, StreamKey, TabId, TopicKey, VenueId } from '@tape/core/ids'
+import { emptyTape, pushTrades, upsertCandle } from '@tape/core/market'
+import type { Candle, MarketSpec, TradeTape } from '@tape/core/market'
 import { projectBook, projectCandle, projectCompare, projectDepth, projectTrades } from '#/core/project'
 import type { MarketView } from '#/core/project'
 import { parseTabMessage } from '#/core/protocol'
 import type { HubMode, HubStats, HubToTab } from '#/core/protocol'
 import { deriveStreams, marketsFor, topicKey } from '#/core/topics'
 import type { Frame, FrameStatus, Topic } from '#/core/topics'
-import { toCandle, toLevels, toTrades } from '#/venues/normalize'
-import { VenueParseError } from '#/venues/types'
-import type { StreamTarget, VenueAdapter, VenueEvent } from '#/venues/types'
+import { toCandle, toLevels, toTrades } from '@tape/venues/normalize'
+import { VenueParseError } from '@tape/venues/types'
+import type { StreamTarget, VenueAdapter, VenueEvent } from '@tape/venues/types'
 import { stepConnection } from './connection'
 import type { ConnEffect, ConnEvent, ConnState } from './connection'
 
@@ -25,20 +25,20 @@ import type { ConnEffect, ConnEvent, ConnState } from './connection'
  * hidden tabs all sit behind `connect`.
  */
 export interface Hub {
-  connect(port: HubPort): void
-  inspect(): HubInspection
-  dispose(): void
+  connect: (port: HubPort) => void
+  inspect: () => HubInspection
+  dispose: () => void
 }
 
 export interface HubPort {
-  post(message: HubToTab): void
-  listen(onMessage: (data: unknown) => void): void
-  close(): void
+  post: (message: HubToTab) => void
+  listen: (onMessage: (data: unknown) => void) => void
+  close: () => void
 }
 
 export interface SocketLike {
-  send(data: string): void
-  close(): void
+  send: (data: string) => void
+  close: () => void
   onopen: (() => void) | null
   onmessage: ((data: string) => void) | null
   onclose: (() => void) | null
@@ -47,12 +47,12 @@ export interface SocketLike {
 export interface HubDeps {
   readonly mode: HubMode
   readonly venues: Readonly<Record<VenueId, VenueAdapter>>
-  openSocket(url: string): SocketLike
+  openSocket: (url: string) => SocketLike
   readonly fetch: typeof globalThis.fetch
-  now(): number
-  random(): number
+  now: () => number
+  random: () => number
   /** Resolves when the tab is gone. SharedWorker: a Web Lock on `tape-tab:<id>` is granted when the tab dies. */
-  watchTabGone(tab: TabId): Promise<void>
+  watchTabGone: (tab: TabId) => Promise<void>
 }
 
 export interface HubInspection {
@@ -103,9 +103,17 @@ export function createHub(deps: HubDeps): Hub {
   const markets = new Map<MarketKey, MarketState>()
   const topics = new Map<TopicKey, { frame: Frame; signature: string }>()
   const venueState = (id: VenueId): VenueState => ({
-    adapter: deps.venues[id], conn: { s: 'idle' }, socket: null, lastMessageAt: 0, opened: 0, specs: null, bySymbol: new Map(), specFetch: 'idle', specRetryAt: 0,
+    adapter: deps.venues[id],
+    conn: { s: 'idle' },
+    socket: null,
+    lastMessageAt: 0,
+    opened: 0,
+    specs: null,
+    bySymbol: new Map(),
+    specFetch: 'idle',
+    specRetryAt: 0,
   })
-  const venues: Record<VenueId, VenueState> = { binance: venueState('binance'), hyperliquid: venueState('hyperliquid'), dydx: venueState('dydx') }
+  const venues = Object.fromEntries(VENUE_IDS.map((id) => [id, venueState(id)])) as Record<VenueId, VenueState>
   let lastWanted: ReadonlyMap<StreamKey, number> = new Map()
   let streams: ReadonlySet<StreamKey> = new Set()
   let messages = 0
@@ -116,7 +124,15 @@ export function createHub(deps: HubDeps): Hub {
     let m = markets.get(key)
     if (!m) {
       const { venue } = splitMarketKey(key)
-      m = { key, venue, sync: initialSync(venues[venue].adapter.book.protocol).sync, trades: emptyTape(), candles: new Map(), uncrossed: 0, version: 0 }
+      m = {
+        key,
+        venue,
+        sync: initialSync(venues[venue].adapter.book.protocol).sync,
+        trades: emptyTape(),
+        candles: new Map(),
+        uncrossed: 0,
+        version: 0,
+      }
       markets.set(key, m)
     }
     return m
@@ -137,10 +153,23 @@ export function createHub(deps: HubDeps): Hub {
     const views = keys.flatMap((k) => {
       const spec = specOf(k)
       const m = markets.get(k)
-      return spec && m ? [{ spec, sync: m.sync, trades: m.trades, candles: m.candles, status: statusOf(m), uncrossed: m.uncrossed } satisfies MarketView] : []
+      return spec && m
+        ? [
+            {
+              spec,
+              sync: m.sync,
+              trades: m.trades,
+              candles: m.candles,
+              status: statusOf(m),
+              uncrossed: m.uncrossed,
+            } satisfies MarketView,
+          ]
+        : []
     })
     if (views.length === 0) return null
-    const signature = keys.map((k) => `${markets.get(k)?.version ?? -1}:${markets.get(k) ? statusOf(markets.get(k)!) : ''}`).join('|')
+    const signature = keys
+      .map((k) => `${markets.get(k)?.version ?? -1}:${markets.get(k) ? statusOf(markets.get(k)!) : ''}`)
+      .join('|')
     const cached = topics.get(key)
     if (cached && cached.signature === signature) return cached.frame
     const version = (cached?.frame.version ?? 0) + 1
@@ -202,7 +231,8 @@ export function createHub(deps: HubDeps): Hub {
     m.uncrossed += step.uncrossed
     if (step.changed || step.sync.phase !== before) touch(m)
     if (step.effect.kind === 'fetch-snapshot') fetchSnapshot(m, step.effect.epoch)
-    if (step.effect.kind === 'resubscribe') stepVenue(m.venue, { e: 'resubscribe', streams: [streamKey(m.key, 'book')] })
+    if (step.effect.kind === 'resubscribe')
+      stepVenue(m.venue, { e: 'resubscribe', streams: [streamKey(m.key, 'book')] })
   }
 
   function fetchSnapshot(m: MarketState, epoch: number): void {
@@ -213,7 +243,15 @@ export function createHub(deps: HubDeps): Hub {
     const waiting = () => m.sync.phase === 'awaiting-snapshot' && m.sync.epoch === epoch
     v.adapter.book
       .fetchSnapshot(spec, deps.fetch, AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS))
-      .then((snap) => feedBook(m, { kind: 'rest-snapshot', epoch, lastUpdateId: snap.lastUpdateId, bids: toLevels(snap.bids, spec), asks: toLevels(snap.asks, spec) }))
+      .then((snap) =>
+        feedBook(m, {
+          kind: 'rest-snapshot',
+          epoch,
+          lastUpdateId: snap.lastUpdateId,
+          bids: toLevels(snap.bids, spec),
+          asks: toLevels(snap.asks, spec),
+        }),
+      )
       .catch(() => {
         if (waiting()) setTimeout(() => waiting() && feedBook(m, { kind: 'reset', reason: 'corrupt' }), 2000)
       })
@@ -229,7 +267,13 @@ export function createHub(deps: HubDeps): Hub {
           feedBook(m, { kind: 'snapshot', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), time: e.time })
           return
         case 'book-delta':
-          feedBook(m, { kind: 'delta', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), seq: e.seq, time: e.time })
+          feedBook(m, {
+            kind: 'delta',
+            bids: toLevels(e.bids, spec),
+            asks: toLevels(e.asks, spec),
+            seq: e.seq,
+            time: e.time,
+          })
           return
         case 'trades':
           if (pushTrades(m.trades, toTrades(e.trades, spec))) touch(m)
@@ -256,7 +300,8 @@ export function createHub(deps: HubDeps): Hub {
     try {
       events = v.adapter.parse(raw, (symbol) => v.bySymbol.get(symbol) ?? null)
     } catch (error) {
-      if (error instanceof VenueParseError && error.market) feedBook(market(error.market), { kind: 'reset', reason: 'corrupt' })
+      if (error instanceof VenueParseError && error.market)
+        feedBook(market(error.market), { kind: 'reset', reason: 'corrupt' })
       return
     }
     for (const e of events) {
@@ -327,10 +372,15 @@ export function createHub(deps: HubDeps): Hub {
     const v = venues[venue]
     const now = deps.now()
     const before = v.conn.s
-    const { state, effects } = stepConnection(v.conn, event, { desired: desiredFor(venue), now, lastMessageAt: v.lastMessageAt, rand: deps.random() }, {
-      silenceMs: v.adapter.silenceMs,
-      keepaliveMs: v.adapter.keepalive?.everyMs ?? null,
-    })
+    const { state, effects } = stepConnection(
+      v.conn,
+      event,
+      { desired: desiredFor(venue), now, lastMessageAt: v.lastMessageAt, rand: deps.random() },
+      {
+        silenceMs: v.adapter.silenceMs,
+        keepaliveMs: v.adapter.keepalive?.everyMs ?? null,
+      },
+    )
     v.conn = state
     if (state.s === 'open' && event.e === 'opened') v.lastMessageAt = now
     for (const effect of effects) run(venue, effect)
@@ -357,7 +407,11 @@ export function createHub(deps: HubDeps): Hub {
   }
 
   function reconcile(): void {
-    const derived = deriveStreams([...tabs.values()].map((t) => t.wants), lastWanted, deps.now())
+    const derived = deriveStreams(
+      [...tabs.values()].map((t) => t.wants),
+      lastWanted,
+      deps.now(),
+    )
     streams = derived.streams
     lastWanted = derived.lastWanted
     for (const key of topics.keys()) if (![...tabs.values()].some((t) => t.wants.has(key))) topics.delete(key)
@@ -442,7 +496,10 @@ export function createHub(deps: HubDeps): Hub {
       return {
         tabs: tabs.size,
         streams: [...streams],
-        connections: Object.fromEntries(VENUE_IDS.map((id) => [id, venues[id].conn.s])) as Record<VenueId, ConnState['s']>,
+        connections: Object.fromEntries(VENUE_IDS.map((id) => [id, venues[id].conn.s])) as Record<
+          VenueId,
+          ConnState['s']
+        >,
         socketsOpened: Object.fromEntries(VENUE_IDS.map((id) => [id, venues[id].opened])) as Record<VenueId, number>,
         phases: Object.fromEntries([...markets.values()].map((m) => [m.key, m.sync.phase])),
       }

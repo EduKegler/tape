@@ -1,5 +1,5 @@
-import { isBase, isInterval, parseMarketKey } from './ids'
-import type { TabId } from './ids'
+import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
+import type { TabId } from '@tape/core/ids'
 import type { Frame, Topic } from './topics'
 
 /**
@@ -26,13 +26,13 @@ export interface HubStats {
 }
 
 export type HubToTab =
-  | { readonly t: 'frames'; readonly frames: readonly Frame[] }
-  | { readonly t: 'stats'; readonly stats: HubStats }
+  { readonly t: 'frames'; readonly frames: readonly Frame[] } | { readonly t: 'stats'; readonly stats: HubStats }
 
 function parseTopic(value: unknown): Topic | null {
   if (typeof value !== 'object' || value === null) return null
   const v = value as Record<string, unknown>
-  if (v.kind === 'compare') return typeof v.base === 'string' && isBase(v.base) ? { kind: 'compare', base: v.base } : null
+  if (v.kind === 'compare')
+    return typeof v.base === 'string' && isBase(v.base) ? { kind: 'compare', base: v.base } : null
   const [venue, base] = typeof v.market === 'string' ? v.market.split(':') : []
   const market = venue && base ? parseMarketKey(venue, base) : null
   if (!market) return null
@@ -43,7 +43,9 @@ function parseTopic(value: unknown): Topic | null {
     case 'trades':
       return { kind: v.kind, market }
     case 'candle':
-      return typeof v.interval === 'string' && isInterval(v.interval) ? { kind: 'candle', market, interval: v.interval } : null
+      return typeof v.interval === 'string' && isInterval(v.interval)
+        ? { kind: 'candle', market, interval: v.interval }
+        : null
     default:
       return null
   }
@@ -55,9 +57,13 @@ export function parseTabMessage(data: unknown): TabToHub | null {
   const m = data as Record<string, unknown>
   switch (m.t) {
     case 'hello':
-      return typeof m.tab === 'string' && typeof m.visible === 'boolean' ? { t: 'hello', tab: m.tab as TabId, visible: m.visible } : null
+      return typeof m.tab === 'string' && typeof m.visible === 'boolean'
+        ? { t: 'hello', tab: m.tab as TabId, visible: m.visible }
+        : null
     case 'want':
-      return Array.isArray(m.topics) ? { t: 'want', topics: m.topics.map(parseTopic).filter((x): x is Topic => x !== null) } : null
+      return Array.isArray(m.topics)
+        ? { t: 'want', topics: m.topics.map(parseTopic).filter((x): x is Topic => x !== null) }
+        : null
     case 'visible':
       return typeof m.visible === 'boolean' ? { t: 'visible', visible: m.visible } : null
     case 'bye':

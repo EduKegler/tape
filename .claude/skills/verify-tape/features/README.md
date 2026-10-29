@@ -17,7 +17,7 @@ This folder is the maintained source for verifying what a Tape user sees and doe
 - Scope by panel title (`--panel "Order book"`) or header nav (`--nav Market`), then use ARIA role and name. Use `--css` only where a feature file says the UI has no better handle.
 - Wait for the data state the step needs. The book is ready when `section div[data-status]` has `live`.
 - Treat every command as literal. Keep quoted names and flags unchanged.
-- Nothing in Tape persists. A reload restores the defaults, except what the URL carries (`interval`, `group`).
+- A reload restores the defaults, except what the URL carries (`interval`, `group`, `net`) and the trading keys in browser storage. The harness Chrome profile is thrown away on `down`.
 
 ## Proof and skip reporting
 
@@ -25,7 +25,7 @@ This folder is the maintained source for verifying what a Tape user sees and doe
 - Every command lands in `artifacts/<run-id>/steps.jsonl`. Name that folder in the report.
 - Prices move between commands. Assert what holds across frames, not one exact number.
 - Record the feature file and sub-feature ids with the evidence paths.
-- Report a step blocked by a venue outage or a missing wallet extension as skipped, with the reason. Do not report a skipped entry point as verified through another one.
+- Report a step blocked by a venue outage as skipped, with the reason. Do not report a skipped entry point as verified through another one.
 
 ## Feature entry contract
 
@@ -41,7 +41,8 @@ Keep implementation details out of the map. Name only user paths, stable handles
 ## Features
 
 - [Order book](./order-book.md) covers the live book, price grouping, the spread line and clicking a level into the ticket.
-- [Order ticket](./order-ticket.md) covers side, limit and market, tick and step validation, touch price hints and the preview.
+- [Order ticket](./order-ticket.md) covers side, limit and market, tick and step validation, touch price hints, TIF, TP/SL and the network switch.
+- [Trading](./trading.md) covers connecting the test wallet, enabling trading and sending orders on Hyperliquid, dYdX and Orderly testnets, and the Account panel.
 - [Market navigation](./market-navigation.md) covers the root redirect, the market and venue navs, the Venues table, chart intervals and unknown routes.
 - [Hub and status bar](./hub-status.md) covers the shared hub counters, a second tab, tab close and the dedicated worker fallback.
 - [Live panels](./live-panels.md) covers the header ticker, the trade feed, the depth chart and the candle chart.

@@ -15,6 +15,12 @@ export default [
     },
   },
   {
-    ignores: ['eslint.config.js', 'prettier.config.js'],
+    ignores: [
+      'eslint.config.js',
+      'prettier.config.js',
+      '.output/**',
+      '**/.cache/**',
+      '.claude/skills/verify-tape/scripts/vite.verify.config.ts',
+    ],
   },
 ]

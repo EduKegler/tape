@@ -1,6 +1,6 @@
 # Market navigation
 
-A user picks one of three bases (BTC, ETH, SOL) on one of three venues (Binance, Hyperliquid, dYdX). The route is `/$venue/$base`, the page title follows it, and `interval` and `group` ride along in the URL. `/` redirects to Hyperliquid BTC. Unknown venues or bases show `Not Found`.
+A user picks one of three bases (BTC, ETH, SOL) on one of four venues (Binance, Hyperliquid, dYdX, Orderly). The route is `/$venue/$base`, the page title follows it, and `interval` and `group` ride along in the URL. `/` redirects to Hyperliquid BTC. Unknown venues or bases show `Not Found`.
 
 ## Sub-features
 

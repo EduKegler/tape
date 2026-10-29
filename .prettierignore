@@ -1,3 +1,13 @@
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+
+src/routeTree.gen.ts
+packages/venues/src/__fixtures__/
+.claude/skills/verify-tape/.cache/
+.claude/skills/verify-tape/.state/
+.claude/skills/verify-tape/artifacts/
+.intent/
+.cta.json
+AGENTS.md
+*.md

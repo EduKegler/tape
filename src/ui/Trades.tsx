@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useFrame } from '#/client/hooks'
-import type { MarketKey } from '#/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import type { TradeRow } from '#/core/topics'
 import { formatClock } from './format'
 import { Panel } from './Panel'
@@ -13,7 +13,13 @@ const NO_ROWS: readonly TradeRow[] = []
 export function Trades({ market }: { market: MarketKey }) {
   const rows = useFrame({ kind: 'trades', market }, (f) => f?.rows ?? NO_ROWS)
   const scroller = useRef<HTMLDivElement>(null)
-  const virtual = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => ROW, overscan: 8, getItemKey: (i) => rows[i]?.id ?? i })
+  const virtual = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scroller.current,
+    estimateSize: () => ROW,
+    overscan: 8,
+    getItemKey: (i) => rows[i]?.id ?? i,
+  })
   return (
     <Panel title="Trades">
       <div className="num flex h-full flex-col text-[12px]">

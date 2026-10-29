@@ -10,17 +10,31 @@ export function StatusBar() {
           <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">
             Hub <span className="text-level2">{stats.mode}</span>
           </span>
-          <span>Tabs <span className="text-level2">{stats.tabs}</span></span>
-          <span>Sockets <span className="text-level2">{stats.sockets}</span></span>
-          <span>Streams <span className="text-level2">{stats.streams}</span></span>
-          <span>In <span className="text-level2">{stats.messagesPerSecond}</span> msg/s</span>
-          <span>Out <span className="text-level2">{stats.framesPerSecond}</span> frames/s</span>
+          <span>
+            Tabs <span className="text-level2">{stats.tabs}</span>
+          </span>
+          <span>
+            Sockets <span className="text-level2">{stats.sockets}</span>
+          </span>
+          <span>
+            Streams <span className="text-level2">{stats.streams}</span>
+          </span>
+          <span>
+            In <span className="text-level2">{stats.messagesPerSecond}</span> msg/s
+          </span>
+          <span>
+            Out <span className="text-level2">{stats.framesPerSecond}</span> frames/s
+          </span>
         </>
       ) : (
         <span>Starting hub…</span>
       )}
-      <span className="ml-auto font-sans">Read-only. Public market data. Nothing is ever signed or sent.</span>
-      <a className="font-sans hover:text-level1" href="https://github.com/EduKegler/tape">Source</a>
+      <span className="ml-auto font-sans">
+        Orders are signed in your browser and sent straight to the venue. Tape has no server in between.
+      </span>
+      <a className="font-sans hover:text-level1" href="https://github.com/EduKegler/tape">
+        Source
+      </a>
     </footer>
   )
 }

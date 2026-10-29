@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useFrameEffect } from '#/client/hooks'
-import type { MarketKey } from '#/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import type { DepthFrame } from '#/core/topics'
 import { Panel } from './Panel'
 
@@ -31,7 +31,11 @@ function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
     for (let i = 0; i < n && inside(side[i * 2]!); i++) c = side[i * 2 + 1]!
     return c
   }
-  const max = Math.max(cumAt(f.bids, bidN, (p) => p >= lo), cumAt(f.asks, askN, (p) => p <= hi)) || 1
+  const max =
+    Math.max(
+      cumAt(f.bids, bidN, (p) => p >= lo),
+      cumAt(f.asks, askN, (p) => p <= hi),
+    ) || 1
   const x = (px: number) => ((px - lo) / (hi - lo)) * w
   const y = (cum: number) => h - 4 - (cum / max) * (h - 20)
   const area = (side: Float64Array, n: number, sign: 1 | -1, stroke: string, fill: string) => {

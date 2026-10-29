@@ -12,9 +12,7 @@
           {
             "type": "command",
             "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/.intent/hooks/intent-claude-gate.mjs"
-            ],
+            "args": ["${CLAUDE_PROJECT_DIR}/.intent/hooks/intent-claude-gate.mjs"],
             "timeout": 10,
             "statusMessage": "Loading Intent skill catalog"
           }
@@ -28,9 +26,7 @@
           {
             "type": "command",
             "command": "node",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/.intent/hooks/intent-claude-gate.mjs"
-            ],
+            "args": ["${CLAUDE_PROJECT_DIR}/.intent/hooks/intent-claude-gate.mjs"],
             "timeout": 10,
             "statusMessage": "Checking Intent guidance"
           }
