@@ -139,13 +139,18 @@ export default [
   },
   {
     // Trading secrets live in the vault, so storage stays behind it.
-    files: ['src/**'],
+    files: ['src/**', 'packages/**'],
     ignores: ['src/trade/vault.ts'],
     rules: {
       'no-restricted-globals': [
         'error',
-        { name: 'localStorage', message: 'Read and write storage through src/trade/vault.ts.' },
-        { name: 'sessionStorage', message: 'Read and write storage through src/trade/vault.ts.' },
+        {
+          globals: [
+            { name: 'localStorage', message: 'Read and write storage through src/trade/vault.ts.' },
+            { name: 'sessionStorage', message: 'Read and write storage through src/trade/vault.ts.' },
+          ],
+          checkGlobalObject: true,
+        },
       ],
     },
   },
@@ -155,7 +160,21 @@ export default [
     rules: {
       'no-restricted-imports': [
         'error',
-        { name: 'viem/accounts', message: 'Keys are made and used only in packages/trade.' },
+        {
+          patterns: [
+            {
+              group: ['viem/accounts', '@noble/curves', '@noble/curves/*', '@dydxprotocol/v4-client-js'],
+              message: 'Keys are made and used only in packages/trade.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression[source.value=/^(viem\\/accounts|@noble\\/curves|@dydxprotocol\\/v4-client-js)/]',
+          message: 'Keys are made and used only in packages/trade.',
+        },
       ],
     },
   },
