@@ -74,7 +74,7 @@ export function OrderBook({
   )
 }
 
-const Row = memo(function Row({ topic, side, index }: { topic: BookTopic; side: 'asks' | 'bids'; index: number }) {
+const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; side: 'asks' | 'bids'; index: number }) {
   const row = useFrame(topic, (f: BookFrame | null) => f?.[side][index] ?? EMPTY_ROW, shallow)
   const ask = side === 'asks'
   return (
