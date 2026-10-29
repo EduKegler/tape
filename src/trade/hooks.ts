@@ -169,7 +169,12 @@ export function useAccountView(ref: AccountRef | null) {
   return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
 }
 
-export function useMarginState(ref: AccountRef | null, symbol: string): MarginState | null | undefined {
+export type MarginReading =
+  | { readonly status: 'no-estimate' }
+  | { readonly status: 'unknown' }
+  | { readonly status: 'known'; readonly state: MarginState }
+
+export function useMarginReading(ref: AccountRef | null, symbol: string): MarginReading {
   const margin = ref ? TRADING[ref.venue].margin : undefined
   const query = useQuery<MarginState, TradeFailure>({
     queryKey: ref ? [...tradeKeys(ref).all, 'margin', symbol] : ['trade', 'none', 'margin'],
@@ -177,7 +182,8 @@ export function useMarginState(ref: AccountRef | null, symbol: string): MarginSt
     enabled: Boolean(ref && margin),
     refetchInterval: ACCOUNT_POLL_MS,
   })
-  return margin ? query.data : null
+  if (!margin) return { status: 'no-estimate' }
+  return query.data ? { status: 'known', state: query.data } : { status: 'unknown' }
 }
 
 export function useTradeCommands(ref: AccountRef | null) {
