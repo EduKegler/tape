@@ -21,7 +21,7 @@ export type ConnState =
     }
   | { readonly s: 'backoff'; readonly attempt: number; readonly retryAt: number }
 
-export interface Hold {
+interface Hold {
   readonly until: number
   readonly count: number
 }
