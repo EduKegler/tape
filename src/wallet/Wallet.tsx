@@ -14,8 +14,8 @@ export function WalletButton() {
     return (
       <button
         type="button"
-        disabled={!injected || isPending}
-        onClick={() => injected && connect({ connector: injected })}
+        disabled={isPending}
+        onClick={() => connect({ connector: injected })}
         className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-ink-contrast disabled:opacity-50"
       >
         {isPending ? 'Connecting…' : 'Connect wallet'}

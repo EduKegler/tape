@@ -10,9 +10,8 @@ import type { HubPort, SocketLike } from './hub'
  */
 interface WorkerScope {
   onconnect?: unknown
-  addEventListener(type: 'connect', listener: (event: MessageEvent) => void): void
-  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void
-  postMessage(message: unknown): void
+  addEventListener: ((type: 'connect', listener: (event: MessageEvent) => void) => void) & ((type: 'message', listener: (event: MessageEvent) => void) => void)
+  postMessage: (message: unknown) => void
 }
 
 const scope = self as unknown as WorkerScope

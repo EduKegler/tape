@@ -1,5 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
+  "files": ["packages/trade/src/dydx/long.d.ts"],
   "include": ["**/*.ts", "**/*.tsx", "eslint.config.js", "prettier.config.js", "vite.config.js"],
   "exclude": ["node_modules", "packages"],
   "compilerOptions": {

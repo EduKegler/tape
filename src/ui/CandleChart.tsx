@@ -5,7 +5,6 @@ import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts'
 import { useFrameEffect } from '#/client/hooks'
 import { INTERVALS, marketKey } from '@tape/core/ids'
 import type { Base, Interval, VenueId } from '@tape/core/ids'
-import type { ChartBarFrame } from '#/core/topics'
 import { formatChartTick, formatChartTime } from './format'
 import { Panel, Segmented } from './Panel'
 import { candlesQuery, specsQuery } from './queries'
@@ -71,7 +70,7 @@ export function CandleChart({ venue, base, interval, onInterval }: { venue: Venu
   useFrameEffect({ kind: 'candle', market: marketKey(venue, base), interval }, (f) => {
     const s = series.current
     if (!s || !s.lastTime) return
-    for (const bar of f.bars as readonly ChartBarFrame[]) {
+    for (const bar of f.bars) {
       if (bar.time < s.lastTime) continue
       s.candles.update({ time: bar.time as UTCTimestamp, open: bar.open, high: bar.high, low: bar.low, close: bar.close })
       s.volume.update({ time: bar.time as UTCTimestamp, value: bar.volume, color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash') })

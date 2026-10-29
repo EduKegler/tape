@@ -143,12 +143,12 @@ export function projectCompare(key: TopicKey, _base: Base, markets: Readonly<Par
   })
   const bids = quotes.flatMap((q) => (q.bid === null ? [] : [q.bid]))
   const asks = quotes.flatMap((q) => (q.ask === null ? [] : [q.ask]))
-  const mids = quotes.flatMap((q) => (q.bid === null || q.ask === null ? [] : [(q.bid + q.ask) / 2])).sort((a, b) => a - b)
+  const mids = quotes.flatMap((q) => (q.bid === null ? [] : [(q.bid + q.ask) / 2])).sort((a, b) => a - b)
   const median = mids.length ? (mids[Math.floor((mids.length - 1) / 2)]! + mids[Math.ceil((mids.length - 1) / 2)]!) / 2 : 0
   const fineScale = { px: fine, qty: 0 } as const
   const rows: CompareRow[] = quotes.map(({ venue, m, bid, ask }) => {
     const last = m?.trades.items[0]
-    if (!m || bid === null || ask === null) {
+    if (!m || bid === null) {
       return { venue, status: m?.status ?? 'syncing', bid: '', ask: '', mid: '', spreadBps: '', basisBps: '', last: '', bestBid: false, bestAsk: false }
     }
     const mid = (bid + ask) / 2

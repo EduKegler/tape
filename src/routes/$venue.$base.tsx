@@ -14,7 +14,7 @@ import { Account } from '#/ui/Account'
 import { NETWORKS } from '@tape/trade/types'
 import { Trades } from '#/ui/Trades'
 
-const search = z.object({
+const searchSchema = z.object({
   group: z.number().positive().optional().catch(undefined),
   interval: z.enum(INTERVALS).default('1m').catch('1m'),
   net: z.enum(NETWORKS).default('mainnet').catch('mainnet'),
@@ -28,7 +28,7 @@ export const Route = createFileRoute('/$venue/$base')({
     },
     stringify: (p) => p,
   },
-  validateSearch: search,
+  validateSearch: searchSchema,
   head: ({ params }) => ({ meta: [{ title: `${params.base} on ${VENUES[params.venue].label} · Tape` }] }),
   component: Market,
 })

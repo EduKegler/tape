@@ -29,8 +29,8 @@ export const onboarding = (network: Network) =>
   }) as const
 
 export async function deriveKey(signature: string): Promise<{ mnemonic: string; address: string }> {
-  const { onboarding, LocalWallet } = await sdk()
-  const { mnemonic } = onboarding.deriveHDKeyFromEthereumSignature(signature)
+  const { onboarding: derivation, LocalWallet } = await sdk()
+  const { mnemonic } = derivation.deriveHDKeyFromEthereumSignature(signature)
   const wallet = await LocalWallet.fromMnemonic(mnemonic, 'dydx')
   return { mnemonic, address: wallet.address ?? '' }
 }

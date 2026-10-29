@@ -1,4 +1,3 @@
-/// <reference path="./long.d.ts" />
 import { bytesToHex } from 'viem'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'

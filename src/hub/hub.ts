@@ -25,20 +25,20 @@ import type { ConnEffect, ConnEvent, ConnState } from './connection'
  * hidden tabs all sit behind `connect`.
  */
 export interface Hub {
-  connect(port: HubPort): void
-  inspect(): HubInspection
-  dispose(): void
+  connect: (port: HubPort) => void
+  inspect: () => HubInspection
+  dispose: () => void
 }
 
 export interface HubPort {
-  post(message: HubToTab): void
-  listen(onMessage: (data: unknown) => void): void
-  close(): void
+  post: (message: HubToTab) => void
+  listen: (onMessage: (data: unknown) => void) => void
+  close: () => void
 }
 
 export interface SocketLike {
-  send(data: string): void
-  close(): void
+  send: (data: string) => void
+  close: () => void
   onopen: (() => void) | null
   onmessage: ((data: string) => void) | null
   onclose: (() => void) | null
@@ -47,12 +47,12 @@ export interface SocketLike {
 export interface HubDeps {
   readonly mode: HubMode
   readonly venues: Readonly<Record<VenueId, VenueAdapter>>
-  openSocket(url: string): SocketLike
+  openSocket: (url: string) => SocketLike
   readonly fetch: typeof globalThis.fetch
-  now(): number
-  random(): number
+  now: () => number
+  random: () => number
   /** Resolves when the tab is gone. SharedWorker: a Web Lock on `tape-tab:<id>` is granted when the tab dies. */
-  watchTabGone(tab: TabId): Promise<void>
+  watchTabGone: (tab: TabId) => Promise<void>
 }
 
 export interface HubInspection {

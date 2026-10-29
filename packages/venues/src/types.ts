@@ -21,15 +21,15 @@ export interface VenueAdapter {
   readonly keepalive: { readonly everyMs: number; readonly frame: string } | null
   /** No message for this long on an open socket means it is dead. */
   readonly silenceMs: number
-  fetchSpecs(fetch: typeof globalThis.fetch, signal?: AbortSignal): Promise<ReadonlyMap<Base, MarketSpec>>
-  subscribeFrames(targets: readonly StreamTarget[]): readonly string[]
-  unsubscribeFrames(targets: readonly StreamTarget[]): readonly string[]
+  fetchSpecs: (fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<ReadonlyMap<Base, MarketSpec>>
+  subscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]
+  unsubscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]
   /** One wire message to zero or more events. Acks map to []. Malformed known messages throw VenueParseError. */
-  parse(raw: string, symbols: SymbolLookup): readonly VenueEvent[]
+  parse: (raw: string, symbols: SymbolLookup) => readonly VenueEvent[]
   /** 24h numbers for the header, refreshed by Query. Display only. */
-  fetchStats(base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal): Promise<MarketStats>
+  fetchStats: (base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<MarketStats>
   /** Candle history for the chart. Display data, so it is the one place prices become floats. */
-  fetchCandles(base: Base, interval: Interval, fetch: typeof globalThis.fetch, signal?: AbortSignal): Promise<readonly ChartBar[]>
+  fetchCandles: (base: Base, interval: Interval, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<readonly ChartBar[]>
 }
 
 /** Only the REST protocol carries the snapshot fetch, so an adapter cannot declare one without the other. */
@@ -37,7 +37,7 @@ export type BookSource =
   | { readonly protocol: Exclude<BookProtocol, 'rest-snapshot-sequenced'> }
   | {
       readonly protocol: 'rest-snapshot-sequenced'
-      fetchSnapshot(spec: MarketSpec, fetch: typeof globalThis.fetch, signal?: AbortSignal): Promise<RawSnapshot>
+      fetchSnapshot: (spec: MarketSpec, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<RawSnapshot>
     }
 
 export interface RawSnapshot {

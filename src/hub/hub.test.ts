@@ -23,7 +23,7 @@ function setup() {
     fetch: recordedFetch,
     now: () => Date.now(),
     random: () => 0.5,
-    watchTabGone: (tab) => new Promise<void>((resolve) => gone.set(tab, resolve)),
+    watchTabGone: (id) => new Promise<void>((resolve) => gone.set(id, resolve)),
     openSocket(url) {
       const socket: FakeSocket = {
         url, sent: [], closed: false, onopen: null, onmessage: null, onclose: null,

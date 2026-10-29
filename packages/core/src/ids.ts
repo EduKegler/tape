@@ -1,5 +1,5 @@
 declare const brand: unique symbol
-export type Brand<T, B extends string> = T & { readonly [brand]: B }
+export type Brand<T, TBrand extends string> = T & { readonly [brand]: TBrand }
 
 export const VENUE_IDS = ['binance', 'hyperliquid', 'dydx', 'orderly'] as const
 export type VenueId = (typeof VENUE_IDS)[number]
