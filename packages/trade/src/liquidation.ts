@@ -61,13 +61,13 @@ export function estimateLiquidation(state: MarginState, entry: Entry | null): Li
   const added = entry ? (entry.side === 'buy' ? entry.size : -entry.size) : 0
   const size = held + added
   if (Math.abs(size) < 1e-12) return { kind: 'none' }
-  const fixed = state.accountValue - held * (state.position?.mark ?? 0) - added * (entry?.px ?? 0)
+  const equityAtZeroMark = state.accountValue - held * (state.position?.mark ?? 0) - added * (entry?.px ?? 0)
   const at = entry?.px ?? state.position?.mark ?? 0
-  if (fixed + size * at <= state.othersMaintenance + maintenanceMargin(state.tiers, Math.abs(size) * at)) {
+  if (equityAtZeroMark + size * at <= state.othersMaintenance + maintenanceMargin(state.tiers, Math.abs(size) * at)) {
     return { kind: 'insufficient-margin' }
   }
   for (const step of maintenanceSteps(state.tiers)) {
-    const px = (state.othersMaintenance - step.deduction - fixed) / (size - Math.abs(size) * step.rate)
+    const px = (state.othersMaintenance - step.deduction - equityAtZeroMark) / (size - Math.abs(size) * step.rate)
     const notional = Math.abs(size) * px
     if (px > 0 && notional >= step.lowerBound && notional < step.upperBound) return { kind: 'price', px }
   }
