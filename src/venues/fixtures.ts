@@ -18,6 +18,11 @@ const ROUTES: [RegExp, string][] = [
   [/perpetualMarkets\?ticker=ETH-USD/, 'dydx.markets-ETH.json'],
   [/perpetualMarkets\?ticker=SOL-USD/, 'dydx.markets-SOL.json'],
   [/indexer\.dydx\.trade\/v4\/candles/, 'dydx.candles.json'],
+  [/orderly\.org\/v1\/public\/info\/PERP_BTC_USDC/, 'orderly.info-BTC.json'],
+  [/orderly\.org\/v1\/public\/info\/PERP_ETH_USDC/, 'orderly.info-ETH.json'],
+  [/orderly\.org\/v1\/public\/info\/PERP_SOL_USDC/, 'orderly.info-SOL.json'],
+  [/orderly\.org\/v1\/public\/futures/, 'orderly.futures.json'],
+  [/orderly\.org\/v1\/tv\/history/, 'orderly.history.json'],
 ]
 
 /** A fetch that answers from recorded REST responses and fails loudly on any URL it was not recorded with. */

@@ -112,6 +112,20 @@ export async function getJson<T>(fetch: typeof globalThis.fetch, url: string, in
   return (await response.json()) as T
 }
 
+/**
+ * JSON.parse that keeps every number as its source text. Orderly sends prices as JSON numbers,
+ * and the text is exact where a double is not. Browsers without reviver source fall back to String.
+ */
+export function parseExactJson<T>(raw: string): T {
+  return JSON.parse(raw, (_key, value: unknown, context?: { source?: string }) => (typeof value === 'number' ? (context?.source ?? String(value)) : value)) as T
+}
+
+export async function getExactJson<T>(fetch: typeof globalThis.fetch, url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init)
+  if (!response.ok) throw new Error(`${response.status} ${url}`)
+  return parseExactJson<T>(await response.text())
+}
+
 export function chartBar(open: number, o: string, h: string, l: string, c: string, v: string): ChartBar {
   return { time: Math.floor(open / 1000), open: Number(o), high: Number(h), low: Number(l), close: Number(c), volume: Number(v) }
 }

@@ -149,8 +149,7 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
         }}
       </form.Subscribe>
       {preview && <p className="rounded border border-rule p-2 text-[12px] text-level2" role="status">{preview}</p>}
-      <p className="text-[11px] leading-snug text-level3">Tape is read-only. It never signs, sends or stores an order.</p>
-    </form>
+      <p className="text-[11px] leading-snug text-level3">Tape is read-only. It never signs, sends or stores an order.</p>    </form>
   )
 }
 

@@ -73,6 +73,7 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
     const { byKey } = await specsOf(venue)
     const spec = byKey.get(`${venue}:ETH` as MarketKey)!
     const frames = adapter.subscribeFrames([{ spec, channel: 'book', interval: null }, { spec, channel: 'candle', interval: '5m' }])
-    expect(frames.join('\n')).toMatch(venue === 'binance' ? /ethusdt@depth@100ms.*ethusdt@kline_5m/ : venue === 'dydx' ? /ETH-USD\/5MINS/ : /"coin":"ETH","interval":"5m"/)
+    const expected = { binance: /ethusdt@depth@100ms.*ethusdt@kline_5m/s, dydx: /ETH-USD\/5MINS/, hyperliquid: /"coin":"ETH","interval":"5m"/, orderly: /PERP_ETH_USDC@orderbook.*PERP_ETH_USDC@kline_5m/s }
+    expect(frames.join('\n')).toMatch(expected[venue])
   })
 })

@@ -77,7 +77,7 @@ describe('hub', () => {
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    expect(sockets.map((s) => s.url).sort()).toEqual([VENUES.binance.url, VENUES.dydx.url, VENUES.hyperliquid.url].sort())
+    expect(sockets.map((s) => s.url).sort()).toEqual(Object.values(VENUES).map((v) => v.url).sort())
     const book = a.frames.get(`book|${btc('binance')}|1`) as BookFrame
     expect(book.status).toBe('live')
     expect(book.bids).toHaveLength(14)
@@ -85,7 +85,7 @@ describe('hub', () => {
     expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks.at(-1)!.px.replaceAll(',', '')))
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
-    expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(3)
+    expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
     // A wide group still carries the exact touch, which the ticket proposes as a price.
     const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
     const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined

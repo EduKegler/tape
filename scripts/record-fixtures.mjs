@@ -40,6 +40,17 @@ const venues = {
       candles: 'https://indexer.dydx.trade/v4/candles/perpetualMarkets/BTC-USD?resolution=1MIN&limit=5',
     },
   },
+  orderly: {
+    url: 'wss://ws-evm.orderly.org/ws/stream/OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY',
+    subscribe: ['orderbook', 'trade', 'kline_1m'].map((s) => ({ id: s, topic: `PERP_BTC_USDC@${s}`, event: 'subscribe' })),
+    rest: {
+      'info-BTC': 'https://api.orderly.org/v1/public/info/PERP_BTC_USDC',
+      'info-ETH': 'https://api.orderly.org/v1/public/info/PERP_ETH_USDC',
+      'info-SOL': 'https://api.orderly.org/v1/public/info/PERP_SOL_USDC',
+      futures: 'https://api.orderly.org/v1/public/futures/PERP_BTC_USDC',
+      history: `https://api.orderly.org/v1/tv/history?symbol=PERP_BTC_USDC&resolution=1&from=${Math.floor(Date.now() / 1000) - 300}&to=${Math.floor(Date.now() / 1000)}`,
+    },
+  },
 }
 
 // Binance documents that the depth snapshot must be taken after the first diff is buffered.
@@ -61,7 +72,8 @@ function record(name, { url, subscribe }) {
 }
 
 await mkdir(out, { recursive: true })
-await Promise.all(Object.entries(venues).map(async ([name, v]) => {
+const only = process.argv[3]
+await Promise.all(Object.entries(venues).filter(([name]) => !only || name === only).map(async ([name, v]) => {
   const [frames, ...rest] = await Promise.all([
     record(name, v),
     ...Object.entries(v.rest).map(async ([k, u]) => {

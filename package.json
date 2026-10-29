@@ -19,6 +19,7 @@
     "verify": "tsc --noEmit && vitest run"
   },
   "dependencies": {
+    "@dydxprotocol/v4-client-js": "3.6.0",
     "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
     "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@fontsource-variable/brygada-1918": "^5.3.0",
@@ -38,6 +39,7 @@
     "@tanstack/react-virtual": "^3.14.23",
     "@tanstack/redact": "^0.2.3",
     "@tanstack/store": "^0.11.2",
+    "buffer": "^6.0.3",
     "lightweight-charts": "^5.2.1",
     "nitro": "3.0.260610-beta",
     "react": "^19.2.0",

@@ -105,7 +105,7 @@ export function createHub(deps: HubDeps): Hub {
   const venueState = (id: VenueId): VenueState => ({
     adapter: deps.venues[id], conn: { s: 'idle' }, socket: null, lastMessageAt: 0, opened: 0, specs: null, bySymbol: new Map(), specFetch: 'idle', specRetryAt: 0,
   })
-  const venues: Record<VenueId, VenueState> = { binance: venueState('binance'), hyperliquid: venueState('hyperliquid'), dydx: venueState('dydx') }
+  const venues = Object.fromEntries(VENUE_IDS.map((id) => [id, venueState(id)])) as Record<VenueId, VenueState>
   let lastWanted: ReadonlyMap<StreamKey, number> = new Map()
   let streams: ReadonlySet<StreamKey> = new Set()
   let messages = 0
