@@ -8,6 +8,7 @@ On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends order
 - `trade-enable-hl` asks the wallet to approve a Tape agent key. An unfunded wallet gets `Must deposit before performing actions. User: <wallet>`. The key stays on the device as a draft and `Buy BTC` appears.
 - `trade-order-hl` signs the order with that agent. The venue answers `User or API Wallet <agent> does not exist.`, with the agent the wallet approved.
 - `trade-market-hl` sends a market order as an IOC limit priced from the testnet book. Same answer.
+- `trade-double-submit` sends one order for three clicks inside the same tick, and a second one only after the first answer. Count `/exchange` calls with a `window.fetch` wrapper installed by `vt eval` before filling the form.
 - `trade-tpsl-hl` sends the order with take profit and stop loss in one action. Same answer.
 - `trade-enable-dydx` asks the wallet for the dYdX onboarding signature and derives the dYdX key in the tab. The ticket turns ready.
 - `trade-order-dydx` gets `account dydx1… not found` from the chain, with the derived address. The client looks the account up before it signs, so an unfunded wallet never reaches the order signature. This proves the derivation, not the order encoding.

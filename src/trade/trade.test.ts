@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { hashTypedData, recoverAddress } from 'viem'
+import { bech32 } from '@scure/base'
+import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address, Hex } from 'viem'
 import { plainDecimal } from '#/core/fixed'
 import type { Qty } from '#/core/fixed'
 import { marketKey } from '#/core/ids'
 import type { MarketSpec } from '#/core/market'
-import { ONBOARDING } from './dydx/client'
+import { ONBOARDING, deriveKey } from './dydx/client'
 import { classifyMessage as dydxMessage } from './dydx'
 import { send } from './send'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { TRADING } from './index'
+import { claim, release } from './in-flight'
 import { buildIntent, closeIntent } from './intent'
 import type { Bps, KeySlot, StoredKey, VenueContext } from './types'
 import { TradeFailure } from './types'
@@ -78,6 +80,43 @@ describe('failure classification', () => {
   })
 })
 
+describe('commands in flight', () => {
+  const ref = { venue: 'hyperliquid', network: 'testnet', owner: '0x0000000000000000000000000000000000000001' } as const
+  const built = buildIntent(btc, draft, caps)
+  if (!built.ok) throw new Error('intent')
+  const place = { kind: 'place', intent: built.intent } as const
+
+  it('lets one order out per account until it settles, even from another button', () => {
+    expect(claim(ref, place)).toBe(true)
+    expect(claim(ref, { kind: 'place', intent: { ...built.intent, clientId: '0x02' as never } })).toBe(false)
+    expect(claim({ ...ref, network: 'mainnet' }, place)).toBe(true)
+    release(ref, place)
+    expect(claim(ref, place)).toBe(true)
+    release(ref, place)
+    release({ ...ref, network: 'mainnet' }, place)
+  })
+
+  it('lets two different cancels out together but not the same cancel twice', () => {
+    const a = { kind: 'cancel', order: '3:1' as never } as const
+    const b = { kind: 'cancel', order: '3:2' as never } as const
+    expect([claim(ref, a), claim(ref, b), claim(ref, a)]).toEqual([true, true, false])
+    release(ref, a)
+    release(ref, b)
+  })
+})
+
+describe('dydx key', () => {
+  it('derives the mnemonic and address of the official onboarding vector', async () => {
+    // From v4-client-js __tests__/helpers/constants.ts: SIGNATURE_RESULT, MNEMONIC_ and PUBLIC_KEY_FROM_SIGNATURE_RESULT.
+    const signature = '0xf2006b4fc0afa08a6048b40d3d67e437ac2e20e6bacf3f947f9b33aa2756d204287f5fb2155bec067d879a25d7ddac791826cf28e2786919065e19848020f1531b'
+    const publicKey = new Uint8Array([2, 204, 94, 45, 7, 83, 196, 55, 195, 107, 10, 35, 169, 32, 24, 37, 193, 196, 34, 210, 84, 26, 107, 89, 119, 240, 211, 63, 187, 34, 162, 197, 36])
+    const address = bech32.encode('dydx', bech32.toWords(ripemd160(sha256(publicKey, 'bytes'), 'bytes')))
+    const key = await deriveKey(signature)
+    expect(key.mnemonic).toBe('waste sample once ocean tenant mushroom festival hollow regret convince stage able candy jazz champion isolate diary group under entry decorate glare quiz job')
+    expect(key.address).toBe(address)
+  })
+})
+
 describe('exact numbers', () => {
   it('expands JSON exponents without a float', () => {
     expect(plainDecimal('1e-7')).toBe('0.0000001')
@@ -128,6 +167,17 @@ describe('hyperliquid module', () => {
     if (!built.ok) throw new Error('intent')
     const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'needs-setup', detail: `User or API Wallet ${agent} does not exist.` })
+  })
+
+  it('calls a 200 it cannot read an unknown outcome, since the signed order may be placed', async () => {
+    for (const reply of [{ status: 'ok' }, { status: 'ok', response: { type: 'order', data: { statuses: [] } } }]) {
+      const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : reply))
+      const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+      const built = buildIntent(btc, draft, caps)
+      if (!built.ok) throw new Error('intent')
+      const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
+      expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
+    }
   })
 
   it('refuses a price the testnet rules reject instead of rounding it', async () => {

@@ -1,4 +1,5 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import { z } from 'zod'
 import type { Address, Hex } from 'viem'
 import { parsePx, wireDecimal } from '#/core/fixed'
 import type { Decimals, Px } from '#/core/fixed'
@@ -118,12 +119,20 @@ function agentOf(ctx: VenueContext) {
   return secret ? privateKeyToAccount(secret as Hex) : fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
 }
 
-type Statuses = { response: { data?: { statuses: (string | { resting?: { oid: string }; filled?: { totalSz: string; avgPx: string }; error?: string })[] } } }
+const Status = z.union([
+  z.string(),
+  z.looseObject({ resting: z.object({ oid: z.string() }).optional(), filled: z.object({ totalSz: z.string(), avgPx: z.string() }).optional(), error: z.string().optional() }),
+])
+const Reply = z.object({ status: z.literal('ok'), response: z.object({ type: z.string(), data: z.object({ statuses: z.array(Status) }).optional() }) })
+type Statuses = z.infer<typeof Reply>
 
+/** The action was signed and the venue answered, so a reply Tape cannot read may still mean it was applied. */
 async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
   const nonce = nextNonce()
   const signature = await signL1Action(localSigner(agentOf(ctx)), action, nonce, CHAIN[ctx.ref.network])
-  return send<Statuses>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/exchange`, { ...post({ action, nonce, signature }), signed: true }, classify)
+  const body = await send<unknown>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/exchange`, { ...post({ action, nonce, signature }), signed: true }, classify)
+  const reply = Reply.safeParse(body)
+  return reply.success ? reply.data : fail({ kind: 'unknown-outcome', detail: `Unreadable reply: ${JSON.stringify(body)}` })
 }
 
 const GONE = /never placed|already canceled|filled/i
@@ -135,13 +144,14 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       const { wires, grouping } = await placeWires(ctx, command.intent)
       const reply = await exchange(ctx, orderAction(wires, grouping, TRADE_CONFIG.hyperliquid.builder))
       const [first, ...legs] = reply.response.data?.statuses ?? []
+      if (first === undefined) fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
       if (typeof first === 'object' && first.error) fail(classifyText(first.error))
       // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
       const refused = legs.flatMap((s, i) => (typeof s === 'object' && s.error ? [`${legName(wires[i + 1])} not placed: ${s.error}`] : []))
       const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
       if (typeof first === 'object' && first.filled) return { kind: 'placed', status: 'filled', detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}` }
       if (typeof first === 'object' && first.resting) return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
-      return { kind: 'placed', status: 'accepted', detail: `${String(first ?? 'accepted')}${note}` }
+      return { kind: 'placed', status: 'accepted', detail: `${typeof first === 'string' ? first : JSON.stringify(first)}${note}` }
     }
     case 'cancel':
     case 'cancel-all': {

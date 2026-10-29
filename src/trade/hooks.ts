@@ -3,6 +3,7 @@ import { useMutation, useMutationState, useQuery, useQueryClient } from '@tansta
 import { useAccount } from 'wagmi'
 import type { Address } from 'viem'
 import type { VenueId } from '#/core/ids'
+import { claim, release } from './in-flight'
 import { TRADING } from './index'
 import { TradeFailure, accountKey, isTradeVenue } from './types'
 import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, SetupStep, StepId, TradeError, TradeVenueId, VenueContext } from './types'
@@ -142,11 +143,17 @@ export function useTradeCommands(ref: AccountRef | null) {
       const key = slot.read()
       if (key?.status === 'linked') slot.write({ ...key, status: 'draft' })
     },
-    onSettled: () => (ref ? client.invalidateQueries({ queryKey: tradeKeys(ref).all }) : undefined),
+    onSettled: (_data, _error, c) => {
+      if (!ref) return
+      release(ref, c)
+      return client.invalidateQueries({ queryKey: tradeKeys(ref).all })
+    },
   })
   const inFlight = useMutationState({ filters: { mutationKey: command, status: 'pending' }, select: (m) => m.state.variables as Command })
   return {
-    run: mutation.mutate,
+    run: (c: Command) => {
+      if (ref && claim(ref, c)) mutation.mutate(c)
+    },
     last: { outcome: mutation.data ?? null, error: mutation.error?.error ?? null, pending: mutation.isPending, command: mutation.variables ?? null },
     inFlight,
   }

@@ -173,7 +173,7 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
                 <dt className="text-level3">Wallet USDC</dt>
                 <dd className="text-right text-level1">{balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}</dd>
               </dl>
-              <SubmitArea session={session} side={side} base={spec.base} canSubmit={canSubmit && canSend && !last.pending} />
+              <SubmitArea session={session} venue={VENUES[spec.venue].label} side={side} base={spec.base} canSubmit={canSubmit && canSend && !last.pending} />
             </>
           )
         }}
@@ -185,7 +185,7 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
   )
 }
 
-function SubmitArea({ session, side, base, canSubmit }: { session: TradeSession; side: Side; base: string; canSubmit: boolean }) {
+function SubmitArea({ session, venue, side, base, canSubmit }: { session: TradeSession; venue: string; side: Side; base: string; canSubmit: boolean }) {
   const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
   const button = (
     <button type="submit" disabled={!canSubmit} className={`rounded-full py-2 text-[13px] disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}>
@@ -194,7 +194,7 @@ function SubmitArea({ session, side, base, canSubmit }: { session: TradeSession;
   )
   switch (session.status) {
     case 'read-only':
-      return <p className="text-[11px] leading-snug text-level3">{VENUES.binance.label} is read only in Tape. It never signs or sends an order here.</p>
+      return <p className="text-[11px] leading-snug text-level3">{venue} is read only in Tape. It never signs or sends an order here.</p>
     case 'unavailable':
       return <p className="text-[12px] text-level3">{session.reason}.</p>
     case 'disconnected':
