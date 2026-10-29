@@ -339,7 +339,8 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         size: d(p.szi.replace(/^-/, '')),
         entry: d(p.entryPx),
         unrealizedPnl: d(p.unrealizedPnl),
-        liquidation: p.liquidationPx ? d(p.liquidationPx) : null,
+        // An estimate the venue sends unrounded, so it gets the market's price decimals.
+        liquidation: p.liquidationPx ? d(Number(p.liquidationPx).toFixed(m.get(p.coin)?.spec.scale.px ?? 6)) : null,
         leverage: `${p.leverage.value}x ${p.leverage.type}`,
       })),
       orders: orders.map((o) => ({
