@@ -3,14 +3,6 @@ import type { Base, Interval, MarketKey, StreamChannel, VenueId } from '@tape/co
 import type { MarketSpec } from '@tape/core/market'
 import { parseExactJson } from '@tape/core/json'
 
-/**
- * Everything venue-specific lives behind this contract. Adapters own wire shapes
- * (JSON layout, side conventions, symbols, subscribe frames) and hand decimal strings
- * to `normalize.ts`, so precision rules live in one place.
- *
- * A fourth venue costs one file implementing this, a fixture recording and one id in
- * VENUE_IDS. The registry is a Record<VenueId, VenueAdapter>, so a missing adapter fails the build.
- */
 export interface VenueAdapter {
   readonly id: VenueId
   readonly label: string
@@ -26,9 +18,8 @@ export interface VenueAdapter {
   unsubscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]
   /** One wire message to zero or more events. Acks map to []. Malformed known messages throw VenueParseError. */
   parse: (raw: string, symbols: SymbolLookup) => readonly VenueEvent[]
-  /** 24h numbers for the header, refreshed by Query. Display only. */
+  /** 24h numbers, display only. */
   fetchStats: (base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<MarketStats>
-  /** Candle history for the chart. Display data, so it is the one place prices become floats. */
   fetchCandles: (
     base: Base,
     interval: Interval,
@@ -37,7 +28,6 @@ export interface VenueAdapter {
   ) => Promise<readonly ChartBar[]>
 }
 
-/** Only the REST protocol carries the snapshot fetch, so an adapter cannot declare one without the other. */
 export type BookSource =
   | { readonly protocol: Exclude<BookProtocol, 'rest-snapshot-sequenced'> }
   | {
