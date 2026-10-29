@@ -34,6 +34,7 @@ export default [
       ],
       '@typescript-eslint/prefer-nullish-coalescing': ['error', { ignorePrimitives: { string: true } }],
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+      '@typescript-eslint/switch-exhaustiveness-check': ['error', { considerDefaultExhaustiveForUnions: false }],
       'no-shadow': 'off',
       '@typescript-eslint/no-shadow': 'warn',
     },

@@ -116,6 +116,7 @@ export function hyperliquid(network: Network): VenueAdapter {
           const { t, o, h, l, c, v, i } = m.data
           return [{ kind: 'candle', market, interval: i, candles: [{ open: t, o, h, l, c, v }] }]
         }
+        case 'error':
         default:
           throw new VenueParseError('hyperliquid', null, raw)
       }

@@ -86,6 +86,7 @@ function events(
       const candles = list.map(candle).sort((a, b) => a.open - b.open)
       return candles.length ? [{ kind: 'candle', market, interval, candles }] : []
     }
+    case undefined:
     default:
       return []
   }

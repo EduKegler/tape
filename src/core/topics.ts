@@ -24,7 +24,8 @@ export function topicKey(topic: Topic): TopicKey {
       return `candle|${topic.market}|${topic.interval}` as TopicKey
     case 'compare':
       return `compare|${topic.base}` as TopicKey
-    default:
+    case 'depth':
+    case 'trades':
       return `${topic.kind}|${topic.market}` as TopicKey
   }
 }
