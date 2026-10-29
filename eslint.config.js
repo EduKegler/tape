@@ -70,6 +70,7 @@ export default [
     rules: { '@eslint-community/eslint-comments/require-description': 'error' },
   },
   regexp.configs['flat/recommended'],
+  { rules: { 'regexp/no-super-linear-move': 'error' } },
   noUnsanitized.configs.recommended,
   ...pluginQuery.configs['flat/recommended-strict'],
   ...pluginRouter.configs['flat/recommended'],
