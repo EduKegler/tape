@@ -43,6 +43,7 @@
     "@tanstack/store": "^0.11.2",
     "buffer": "^6.0.3",
     "lightweight-charts": "^5.2.1",
+    "long": "4.0.0",
     "nitro": "3.0.260610-beta",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -23,7 +23,7 @@ export interface TypedData {
 /** An agent or API key signs the digest. A wallet gets the JSON through `eth_signTypedData_v4`. */
 export interface TypedDataSigner {
   readonly address: Address
-  signTypedData(data: TypedData): Promise<Hex>
+  signTypedData: (data: TypedData) => Promise<Hex>
 }
 
 const DOMAIN_FIELDS: readonly Field[] = [
@@ -50,11 +50,6 @@ export function typedDataDigest(data: TypedData): Hex {
   return keccak256(concat(['0x1901', structHash('EIP712Domain', DOMAIN_FIELDS, data.domain), structHash(data.primaryType, fields, data.message)]))
 }
 
-/** The JSON a wallet signs. MetaMask hashes the domain with the fields listed here, so they must be. */
-export function walletJson(data: TypedData): string {
-  return JSON.stringify({ ...data, types: { EIP712Domain: DOMAIN_FIELDS, ...data.types } })
-}
-
-export function localSigner(account: { readonly address: Address; sign(args: { hash: Hex }): Promise<Hex> }): TypedDataSigner {
+export function localSigner(account: { readonly address: Address; sign: (args: { hash: Hex }) => Promise<Hex> }): TypedDataSigner {
   return { address: account.address, signTypedData: (data) => account.sign({ hash: typedDataDigest(data) }) }
 }

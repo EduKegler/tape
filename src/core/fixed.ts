@@ -82,6 +82,20 @@ export function wireDecimal(units: Px | Qty | bigint, decimals: number): string 
   return `${BigInt(units) < 0n ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`
 }
 
+/** A JSON number's source text as a plain decimal: "1e-7" is "0.0000001", "-2.5E+3" is "-2500". */
+export function plainDecimal(source: string): string {
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source)
+  if (!match) throw new DecimalError(source, 'syntax')
+  const [, sign, whole, fraction = '', exp = '0'] = match as unknown as [string, string, string, string | undefined, string | undefined]
+  const digits = `${whole}${fraction}`
+  const point = whole.length + Number(exp)
+  const padded = point <= 0 ? `${'0'.repeat(1 - point)}${digits}` : digits.padEnd(point, '0')
+  const at = Math.max(point, 1)
+  const int = padded.slice(0, at).replace(/^0+(?=\d)/, '')
+  const frac = padded.slice(at).replace(/0+$/, '')
+  return `${sign}${int}${frac ? `.${frac}` : ''}`
+}
+
 /** Px * Qty at scale px + qty. */
 export function notional(px: Px, qty: Qty): bigint {
   return BigInt(px) * BigInt(qty)
