@@ -1,6 +1,8 @@
 //  @ts-check
 
 import { tanstackConfig } from '@tanstack/eslint-config'
+import pluginQuery from '@tanstack/eslint-plugin-query'
+import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintReact from '@eslint-react/eslint-plugin'
 import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -53,6 +55,8 @@ export default [
       '@eslint-react/no-use-context': 'off',
     },
   },
+  ...pluginQuery.configs['flat/recommended-strict'],
+  ...pluginRouter.configs['flat/recommended'],
   {
     ...jsxA11y.configs.recommended,
     files: ['src/**/*.tsx'],
