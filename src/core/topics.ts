@@ -155,7 +155,7 @@ interface FrameByKind {
 export type Frame = FrameByKind[TopicKind]
 export type FrameOf<T extends Topic> = FrameByKind[T['kind']]
 
-export const LINGER_MS = 10_000
+const LINGER_MS = 10_000
 
 /**
  * Ref counting as a derivation over every live tab's want set. A stream stays up while some tab
