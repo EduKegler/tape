@@ -12,7 +12,9 @@ This repo is public. Research, competitor notes and decision logs never go here.
 
 ## Commits
 
-Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. Never skip the hook. One change per commit: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits.
+Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. Never skip the hook.
+
+One logical change per commit: one reason to change, which a reviewer keeps or reverts as a whole, and a subject that names it with no "and" or list. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits. Split: the same edit at many sites is one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol. Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it.
 
 ## TanStack docs and add-ons
 
