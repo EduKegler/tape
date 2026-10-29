@@ -450,6 +450,15 @@ function describe(flags) {
     .join(' ')
 }
 
+// waitForFunction wraps a string in eval inside the page, which the app's CSP blocks. evaluate goes through CDP.
+async function waitForExpression(page, expression, timeout) {
+  const deadline = Date.now() + timeout
+  while (!(await page.evaluate(expression))) {
+    if (Date.now() > deadline) throw new Error(`wait: ${expression} still falsy after ${timeout}ms`)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
 async function browserCmd(cmd, pos, flags) {
   const s = requireState()
   await withPage(s, flags, async (page, ctx, index, ids) => {
@@ -480,7 +489,7 @@ async function browserCmd(cmd, pos, flags) {
         break
       case 'wait': {
         const start = Date.now()
-        if (flags.js) await page.waitForFunction(flags.js, null, { timeout: Number(flags.timeout ?? 30000) })
+        if (flags.js) await waitForExpression(page, String(flags.js), Number(flags.timeout ?? 30000))
         else if (flags.url) await page.waitForURL(new RegExp(flags.url), { timeout: Number(flags.timeout ?? 30000) })
         else
           await target(page, flags)
