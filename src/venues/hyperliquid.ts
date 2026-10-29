@@ -89,6 +89,15 @@ export const hyperliquid: VenueAdapter = {
     }
   },
 
+  async fetchStats(base, fetch, signal) {
+    type Ctx = { funding: string; prevDayPx: string; dayNtlVlm: string; oraclePx: string; markPx: string }
+    const [meta, ctxs] = await getJson<[{ universe: { name: string }[] }, Ctx[]]>(fetch, INFO, post({ type: 'metaAndAssetCtxs' }, signal))
+    const ctx = ctxs[meta.universe.findIndex((u) => u.name === base)]
+    if (!ctx) throw new Error(`no ${base} on hyperliquid`)
+    const prev = Number(ctx.prevDayPx)
+    return { changePct: ((Number(ctx.markPx) - prev) / prev) * 100, volumeQuote: Number(ctx.dayNtlVlm), fundingRate: Number(ctx.funding), indexPrice: Number(ctx.oraclePx) }
+  },
+
   async fetchCandles(base, interval, fetch, signal) {
     const endTime = Date.now()
     const req = { coin: base, interval, startTime: endTime - 500 * INTERVAL_MS[interval], endTime }

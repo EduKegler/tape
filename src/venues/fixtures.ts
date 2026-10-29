@@ -13,6 +13,7 @@ const ROUTES: [RegExp, string][] = [
   [/binance\.vision\/api\/v3\/exchangeInfo/, 'binance.exchangeInfo.json'],
   [/binance\.vision\/api\/v3\/depth/, 'binance.depth.json'],
   [/binance\.vision\/api\/v3\/klines/, 'binance.klines.json'],
+  [/binance\.vision\/api\/v3\/ticker\/24hr/, 'binance.ticker.json'],
   [/perpetualMarkets\?ticker=BTC-USD/, 'dydx.markets-BTC.json'],
   [/perpetualMarkets\?ticker=ETH-USD/, 'dydx.markets-ETH.json'],
   [/perpetualMarkets\?ticker=SOL-USD/, 'dydx.markets-SOL.json'],
@@ -25,7 +26,7 @@ export const recordedFetch: typeof globalThis.fetch = async (input, init) => {
   let file = ROUTES.find(([re]) => re.test(url))?.[1]
   if (url.includes('api.hyperliquid.xyz/info')) {
     const body = JSON.parse(String(init?.body)) as { type: string }
-    file = body.type === 'meta' ? 'hyperliquid.meta.json' : 'hyperliquid.candleSnapshot.json'
+    file = `hyperliquid.${body.type}.json`
   }
   if (!file) throw new Error(`no recording for ${url}`)
   return new Response(JSON.stringify(json(file)), { status: 200, headers: { 'content-type': 'application/json' } })

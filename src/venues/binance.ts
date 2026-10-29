@@ -89,6 +89,11 @@ export const binance: VenueAdapter = {
     }
   },
 
+  async fetchStats(base, fetch, signal) {
+    const t = await getJson<{ priceChangePercent: string; quoteVolume: string }>(fetch, `${REST}/ticker/24hr?symbol=${symbolOf(base)}`, { signal: signal ?? null })
+    return { changePct: Number(t.priceChangePercent), volumeQuote: Number(t.quoteVolume), fundingRate: null, indexPrice: null }
+  },
+
   async fetchCandles(base, interval, fetch, signal) {
     const url = `${REST}/klines?symbol=${symbolOf(base)}&interval=${interval}&limit=500`
     const rows = await getJson<[number, string, string, string, string, string][]>(fetch, url, { signal: signal ?? null })

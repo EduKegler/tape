@@ -25,6 +25,8 @@ export interface VenueAdapter {
   unsubscribeFrames(targets: readonly StreamTarget[]): readonly string[]
   /** One wire message to zero or more events. Acks map to []. Malformed known messages throw VenueParseError. */
   parse(raw: string, symbols: SymbolLookup): readonly VenueEvent[]
+  /** 24h numbers for the header, refreshed by Query. Display only. */
+  fetchStats(base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal): Promise<MarketStats>
   /** Candle history for the chart. Display data, so it is the one place prices become floats. */
   fetchCandles(base: Base, interval: Interval, fetch: typeof globalThis.fetch, signal?: AbortSignal): Promise<readonly ChartBar[]>
 }
@@ -75,6 +77,14 @@ export type VenueEvent =
   | { readonly kind: 'book-delta'; readonly market: MarketKey; readonly bids: readonly RawLevel[]; readonly asks: readonly RawLevel[]; readonly seq: Seq | null; readonly time: number }
   | { readonly kind: 'trades'; readonly market: MarketKey; readonly trades: readonly RawTrade[] }
   | { readonly kind: 'candle'; readonly market: MarketKey; readonly interval: Interval; readonly candles: readonly RawCandle[] }
+
+/** Header numbers. `fundingRate` is per hour as a fraction, null on spot. */
+export interface MarketStats {
+  readonly changePct: number
+  readonly volumeQuote: number
+  readonly fundingRate: number | null
+  readonly indexPrice: number | null
+}
 
 /** lightweight-charts bar. `time` in UTC seconds. */
 export interface ChartBar {

@@ -62,6 +62,13 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
     expect(bars[0]!.close).toBeGreaterThan(1000)
   })
 
+  it('reads 24h stats', async () => {
+    const stats = await adapter.fetchStats('BTC', recordedFetch)
+    expect(Math.abs(stats.changePct)).toBeLessThan(50)
+    expect(stats.volumeQuote).toBeGreaterThan(0)
+    expect(stats.fundingRate === null).toBe(venue === 'binance')
+  })
+
   it('writes subscribe frames the venue understands', async () => {
     const { byKey } = await specsOf(venue)
     const spec = byKey.get(`${venue}:ETH` as MarketKey)!

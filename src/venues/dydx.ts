@@ -118,6 +118,17 @@ export const dydx: VenueAdapter = {
     return events(m.channel, market, interval, m.type === 'subscribed', m.contents)
   },
 
+  async fetchStats(base, fetch, signal) {
+    type Market = { oraclePrice: string; priceChange24H: string; volume24H: string; nextFundingRate: string }
+    const ticker = tickerOf(base)
+    const json = await getJson<{ markets: Record<string, Market> }>(fetch, `${INDEXER}/perpetualMarkets?ticker=${ticker}`, { signal: signal ?? null })
+    const m = json.markets[ticker]
+    if (!m) throw new Error(`no ${ticker} on dydx`)
+    const oracle = Number(m.oraclePrice)
+    const change = Number(m.priceChange24H)
+    return { changePct: (change / (oracle - change)) * 100, volumeQuote: Number(m.volume24H), fundingRate: Number(m.nextFundingRate), indexPrice: oracle }
+  },
+
   async fetchCandles(base, interval, fetch, signal) {
     const url = `${INDEXER}/candles/perpetualMarkets/${tickerOf(base)}?resolution=${RESOLUTION[interval]}&limit=500`
     const json = await getJson<{ candles: WireCandle[] }>(fetch, url, { signal: signal ?? null })

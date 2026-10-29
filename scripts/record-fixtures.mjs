@@ -12,6 +12,7 @@ const venues = {
       depth: 'https://data-api.binance.vision/api/v3/depth?symbol=BTCUSDT&limit=1000',
       exchangeInfo: `https://data-api.binance.vision/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
       klines: 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5',
+      ticker: 'https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT',
     },
   },
   hyperliquid: {
@@ -21,6 +22,7 @@ const venues = {
     rest: {},
     post: {
       meta: { type: 'meta' },
+      metaAndAssetCtxs: { type: 'metaAndAssetCtxs' },
       candleSnapshot: { type: 'candleSnapshot', req: { coin: 'BTC', interval: '1m', startTime: Date.now() - 5 * 60_000, endTime: Date.now() } },
     },
   },
