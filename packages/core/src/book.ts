@@ -137,7 +137,7 @@ function evictThrough(side: BookSide, px: Px): number {
   return count
 }
 
-function applyDelta(book: Book, bids: readonly Level[], asks: readonly Level[], time: number): number {
+function applyDeltaEvictingCrossed(book: Book, bids: readonly Level[], asks: readonly Level[], time: number): number {
   let uncrossed = 0
   for (const [px, qty] of bids) {
     write(book.bids, px, qty)
@@ -151,7 +151,11 @@ function applyDelta(book: Book, bids: readonly Level[], asks: readonly Level[], 
   return uncrossed
 }
 
-function fromSnapshot(bids: readonly Level[], asks: readonly Level[], time: number): { book: Book; uncrossed: number } {
+function snapshotDroppingCrossed(
+  bids: readonly Level[],
+  asks: readonly Level[],
+  time: number,
+): { book: Book; uncrossed: number } {
   const book = emptyBook()
   for (const [px, qty] of bids) write(book.bids, px, qty)
   for (const [px, qty] of asks) write(book.asks, px, qty)
@@ -206,18 +210,18 @@ export function stepBook(protocol: BookProtocol, sync: BookSync, input: BookInpu
     case 'snapshots':
     case 'snapshot-then-deltas': {
       if (input.kind === 'snapshot') {
-        const { book, uncrossed } = fromSnapshot(input.bids, input.asks, input.time)
+        const { book, uncrossed } = snapshotDroppingCrossed(input.bids, input.asks, input.time)
         return { sync: { phase: 'live', epoch: sync.epoch, book }, effect: NONE, uncrossed, changed: true }
       }
       if (input.kind !== 'delta' || sync.phase !== 'live' || protocol === 'snapshots') return unchanged(sync)
-      const uncrossed = applyDelta(sync.book, input.bids, input.asks, input.time)
+      const uncrossed = applyDeltaEvictingCrossed(sync.book, input.bids, input.asks, input.time)
       return { sync, effect: NONE, uncrossed, changed: true }
     }
     case 'rest-snapshot-sequenced': {
       if (input.kind === 'snapshot') return unchanged(sync)
       if (input.kind === 'rest-snapshot') {
         if (sync.phase !== 'awaiting-snapshot' || input.epoch !== sync.epoch) return unchanged(sync)
-        const { book, uncrossed } = fromSnapshot(input.bids, input.asks, 0)
+        const { book, uncrossed } = snapshotDroppingCrossed(input.bids, input.asks, 0)
         book.lastSeq = input.lastUpdateId
         let step: BookStep = {
           sync: { phase: 'live', epoch: sync.epoch, book },
@@ -247,7 +251,7 @@ export function stepBook(protocol: BookProtocol, sync: BookSync, input: BookInpu
       const last = sync.book.lastSeq ?? 0
       if (input.seq.to <= last) return unchanged(sync)
       if (input.seq.from > last + 1) return awaiting(protocol, sync.epoch + 1, sync.book, 'corrupt', [diff])
-      const uncrossed = applyDelta(sync.book, input.bids, input.asks, input.time)
+      const uncrossed = applyDeltaEvictingCrossed(sync.book, input.bids, input.asks, input.time)
       sync.book.lastSeq = input.seq.to
       return { sync, effect: NONE, uncrossed, changed: true }
     }
