@@ -12,9 +12,10 @@ type BookTopic = { kind: 'book'; market: MarketKey; group: string }
 const INDICES = Array.from({ length: BOOK_ROWS }, (_, i) => i)
 
 /**
- * Fixed rows keyed by index, so DOM nodes never move. Each row subscribes to its own slice of the
- * frame with a shallow compare, so a frame where 3 of 28 levels changed renders 3 rows. The depth
- * bar is a scaleX transform, which skips layout.
+ * Fixed rows keyed by index, so DOM nodes never move or remount. Each row subscribes to its own
+ * slice with a shallow compare and skips frames where its slice is equal. In a busy book most
+ * rows still change per frame, because a new level shifts every cumulative total below it. The
+ * depth bar is a scaleX transform, which skips layout.
  */
 export function OrderBook({ market, group, onGroup }: { market: MarketKey; group: string; onGroup: (g: string) => void }) {
   const topic: BookTopic = { kind: 'book', market, group }
@@ -39,11 +40,11 @@ export function OrderBook({ market, group, onGroup }: { market: MarketKey; group
           <span className="text-right">Size</span>
           <span className="text-right">Total</span>
         </div>
-        <div className="flex flex-1 flex-col justify-end">
+        <div className="flex flex-1 flex-col">
           {INDICES.map((i) => <Row key={`a${i}`} topic={topic} side="asks" index={i} />)}
         </div>
         <Spread topic={topic} />
-        <div className="flex-1">
+        <div className="flex flex-1 flex-col">
           {INDICES.map((i) => <Row key={`b${i}`} topic={topic} side="bids" index={i} />)}
         </div>
       </div>
@@ -59,7 +60,7 @@ const Row = memo(function Row({ topic, side, index }: { topic: BookTopic; side: 
       type="button"
       tabIndex={row.px ? 0 : -1}
       onClick={() => row.px && proposePrice(row.px)}
-      className="relative grid h-5 w-full grid-cols-3 items-center px-3 text-left hover:bg-level1/5"
+      className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3 text-left hover:bg-level1/5"
     >
       <span
         aria-hidden

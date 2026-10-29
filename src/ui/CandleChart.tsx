@@ -59,6 +59,8 @@ export function CandleChart({ venue, base, interval, onInterval }: { venue: Venu
 
   useEffect(() => {
     if (decimals === undefined) return
+    const format = new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    series.current?.chart.applyOptions({ localization: { priceFormatter: (p: number) => format.format(p) } })
     series.current?.candles.applyOptions({ priceFormat: { type: 'price', precision: decimals, minMove: 10 ** -decimals } })
   }, [decimals])
 
