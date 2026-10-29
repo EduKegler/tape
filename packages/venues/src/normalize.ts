@@ -3,7 +3,7 @@ import type { Level } from '@tape/core/book'
 import type { Candle, MarketSpec, Trade } from '@tape/core/market'
 import type { RawCandle, RawLevel, RawTrade } from './types'
 
-/** The boundary from venue strings to fixed-point values. Throws DecimalError on anything the spec does not allow. */
+/** Throws DecimalError on anything the spec does not allow. */
 export function toLevels(raw: readonly RawLevel[], spec: MarketSpec): Level[] {
   return raw.map(([px, qty]) => [parsePx(px, spec.scale), parseQty(qty, spec.scale)] as const)
 }

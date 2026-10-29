@@ -26,7 +26,6 @@ interface Series {
   lastTime: number
 }
 
-/** History comes from REST through Query. The live bar comes from the hub and goes straight into the series. */
 export function CandleChart({
   venue,
   base,

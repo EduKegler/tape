@@ -2,16 +2,10 @@ import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
 import type { TabId } from '@tape/core/ids'
 import type { Frame, Topic } from './topics'
 
-/**
- * Tab and hub talk declaratively. A tab never says "subscribe X". It says "this is everything I
- * want now", so a duplicated or replayed message converges to the same state.
- */
 export type TabToHub =
   | { readonly t: 'hello'; readonly tab: TabId; readonly visible: boolean }
   | { readonly t: 'want'; readonly topics: readonly Topic[] }
-  /** Hidden tabs keep their streams, so there is no resync on return, but get no frames. */
   | { readonly t: 'visible'; readonly visible: boolean }
-  /** pagehide fast path. The Web Lock is the guarantee. */
   | { readonly t: 'bye' }
 
 export type HubMode = 'shared' | 'dedicated'
@@ -51,7 +45,6 @@ function parseTopic(value: unknown): Topic | null {
   }
 }
 
-/** The hub's boundary: postMessage data is unknown until this says otherwise. */
 export function parseTabMessage(data: unknown): TabToHub | null {
   if (typeof data !== 'object' || data === null) return null
   const m = data as Record<string, unknown>

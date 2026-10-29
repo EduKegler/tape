@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TabId } from '@tape/core/ids'
 import { marketKey } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
-import type { BookFrame, Frame, Topic } from '#/core/topics'
+import type { BookFrame, DepthFrame, Frame, Topic } from '#/core/topics'
 import { recordedFetch, wsFrames } from '@tape/venues/fixtures'
 import { venues } from '@tape/venues/index'
 import { createHub } from './hub'
@@ -49,7 +49,6 @@ function setup() {
   return { hub, sockets, gone }
 }
 
-/** A tab on the far side of a structured-clone boundary, like a MessagePort. */
 function tab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
   let deliver: (data: unknown) => void = () => {}
@@ -104,15 +103,53 @@ describe('hub', () => {
     expect(book.status).toBe('live')
     expect(book.bids).toHaveLength(14)
     expect(book.bids.every((r) => r.px !== '')).toBe(true)
-    expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks.at(-1)!.px.replaceAll(',', '')))
+    expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks[0]!.px.replaceAll(',', '')))
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
     expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
-    // A wide group still carries the exact touch, which the ticket proposes as a price.
+    hub.dispose()
+  })
+
+  it('sends the exact touch in a book grouped wider than the spread', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([
+      { kind: 'book', market: btc('binance'), group: '100' },
+      { kind: 'compare', base: 'BTC' },
+    ])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(1500)
+
     const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
+    const compare = a.frames.get('compare|BTC')
     const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
-    expect(wide.bid).toBe(venue?.bid)
-    expect(wide.ask).toBe(venue?.ask)
+    expect(wide.touch.bid).not.toBe('')
+    expect(wide.touch).toEqual({ bid: venue?.bid, ask: venue?.ask })
+    hub.dispose()
+  })
+
+  it('sends depth as prices and running totals from the mid outward', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([{ kind: 'depth', market: btc('binance') }])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(1500)
+
+    const depth = a.frames.get(`depth|${btc('binance')}`) as DepthFrame
+    for (const [side, away] of [
+      [depth.bids, -1],
+      [depth.asks, 1],
+    ] as const) {
+      expect(side.px.length).toBeGreaterThan(1)
+      expect(side.cum).toHaveLength(side.px.length)
+      expect((side.px[0]! - depth.mid) * away).toBeGreaterThan(0)
+      for (let i = 1; i < side.px.length; i++) {
+        expect((side.px[i]! - side.px[i - 1]!) * away).toBeGreaterThan(0)
+        expect(side.cum[i]!).toBeGreaterThan(side.cum[i - 1]!)
+      }
+    }
     hub.dispose()
   })
 

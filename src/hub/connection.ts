@@ -1,10 +1,5 @@
 import type { StreamKey } from '@tape/core/ids'
 
-/**
- * One venue socket as a pure state machine. The hub feeds it events and runs the effects.
- * `desired` comes in on every step and is never stored: the connection only remembers what the
- * venue was told, and every step moves that toward `desired`, so running a step twice sends nothing.
- */
 export type ConnState =
   | { readonly s: 'idle' }
   | { readonly s: 'connecting'; readonly attempt: number }
@@ -13,10 +8,8 @@ export type ConnState =
       readonly subscribed: ReadonlySet<StreamKey>
       readonly lastMessageAt: number
       readonly lastKeepaliveAt: number
-      /** Carried from connecting, so a venue that accepts and drops at once still backs off. */
       readonly attempt: number
       readonly openedAt: number
-      /** Streams resubscribed recently. A held stream stays unsubscribed until `until`. */
       readonly holds: ReadonlyMap<StreamKey, Hold>
     }
   | { readonly s: 'backoff'; readonly attempt: number; readonly retryAt: number }
@@ -30,7 +23,6 @@ export type ConnEvent =
   | { readonly e: 'tick' }
   | { readonly e: 'opened' }
   | { readonly e: 'closed' }
-  /** The book behind these streams cannot be trusted. Ask the venue to send them again. */
   | { readonly e: 'resubscribe'; readonly streams: readonly StreamKey[] }
 
 export type ConnEffect =
@@ -39,9 +31,7 @@ export type ConnEffect =
   | { readonly fx: 'subscribe'; readonly streams: readonly StreamKey[] }
   | { readonly fx: 'unsubscribe'; readonly streams: readonly StreamKey[] }
   | { readonly fx: 'keepalive' }
-  /** Just subscribed. Each book starts a new epoch. */
   | { readonly fx: 'streams-reset'; readonly streams: readonly StreamKey[] }
-  /** Socket lost. These streams keep their last state on screen, marked stale. */
   | { readonly fx: 'streams-stale'; readonly streams: readonly StreamKey[] }
 
 export interface ConnPolicy {
@@ -52,7 +42,6 @@ export interface ConnPolicy {
 export interface ConnInput {
   readonly desired: ReadonlySet<StreamKey>
   readonly now: number
-  /** Last inbound message, tracked by the hub so messages need no step. */
   readonly lastMessageAt: number
   readonly rand: number
 }
@@ -61,13 +50,26 @@ function backoffMs(attempt: number, rand: number): number {
   return Math.round(Math.min(15_000, 500 * 2 ** attempt) * (0.5 + rand / 2))
 }
 
-/** A connection that lived this long was healthy, so the next failure starts the backoff over. */
 const STABLE_MS = 30_000
 const HOLD_BASE_MS = 2_000
 const HOLD_MAX_MS = 60_000
 
 function holdMs(count: number): number {
   return Math.min(HOLD_MAX_MS, HOLD_BASE_MS * 2 ** count)
+}
+
+function deferRepeatResubscribes(previous: ReadonlyMap<StreamKey, Hold>, streams: readonly StreamKey[], at: number) {
+  const holds = new Map(previous)
+  const now: StreamKey[] = []
+  const later: StreamKey[] = []
+  for (const s of streams) {
+    const hold = holds.get(s)
+    if (hold && at < hold.until) later.push(s)
+    else now.push(s)
+    const count = hold?.count ?? 0
+    holds.set(s, { until: at + holdMs(count), count: count + 1 })
+  }
+  return { holds, now, later }
 }
 
 type OpenState = Extract<ConnState, { s: 'open' }>
@@ -144,24 +146,10 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
       return { state, effects: [] }
     }
     case 'resubscribe': {
-      // The first resubscribe is immediate. A stream that goes bad again inside its hold waits
-      // out a doubling hold unsubscribed, so a book that can never parse cannot spin the socket.
       if (state.s !== 'open') return { state, effects: [] }
       const streams = event.streams.filter((s) => state.subscribed.has(s))
       if (!streams.length) return { state, effects: [] }
-      const holds = new Map(state.holds)
-      const now: StreamKey[] = []
-      const later: StreamKey[] = []
-      for (const s of streams) {
-        const hold = holds.get(s)
-        if (hold && input.now < hold.until) {
-          later.push(s)
-          holds.set(s, { until: input.now + holdMs(hold.count), count: hold.count + 1 })
-        } else {
-          now.push(s)
-          holds.set(s, { until: input.now + holdMs(hold?.count ?? 0), count: (hold?.count ?? 0) + 1 })
-        }
-      }
+      const { holds, now, later } = deferRepeatResubscribes(state.holds, streams, input.now)
       const subscribed = new Set([...state.subscribed].filter((s) => !later.includes(s)))
       const effects: ConnEffect[] = [{ fx: 'unsubscribe', streams }]
       if (now.length) effects.push({ fx: 'subscribe', streams: now }, { fx: 'streams-reset', streams: now })

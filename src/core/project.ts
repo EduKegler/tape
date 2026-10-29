@@ -14,11 +14,11 @@ import type {
   CompareFrame,
   CompareRow,
   DepthFrame,
+  DepthSide,
   FrameStatus,
   TradesFrame,
 } from './topics'
 
-/** Hub state for one market, read by the projections. */
 export interface MarketView {
   readonly spec: MarketSpec
   readonly sync: BookSync
@@ -30,7 +30,6 @@ export interface MarketView {
 
 const DEPTH_LEVELS = 400
 
-/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */
 function grouped(side: BookSide, step: number, rows: number): { px: number; qty: number }[] {
   const out: { px: number; qty: number }[] = []
   for (const px of side.prices) {
@@ -78,13 +77,14 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
     key,
     version,
     status: market.status,
-    venueTime: book?.time ?? 0,
     group: formatPx(step, spec.scale, decimals),
     groupOptions: options,
-    asks: ladder(asks, askCum).reverse(),
+    asks: ladder(asks, askCum),
     bids: ladder(bids, bidCum),
-    bid: bid !== null ? formatPx(bid, spec.scale, tradeDecimals(spec, bid)) : '',
-    ask: ask !== null ? formatPx(ask, spec.scale, tradeDecimals(spec, ask)) : '',
+    touch: {
+      bid: bid !== null ? formatPx(bid, spec.scale, tradeDecimals(spec, bid)) : '',
+      ask: ask !== null ? formatPx(ask, spec.scale, tradeDecimals(spec, ask)) : '',
+    },
     mid: bid !== null && ask !== null ? formatMid(bid, ask, spec.scale) : '',
     spread: bid !== null && ask !== null ? formatPx((ask - bid) as Px, spec.scale) : '',
     spreadBps: bid !== null && ask !== null ? spreadBps(bid, ask) : '',
@@ -92,15 +92,17 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
   }
 }
 
-function depthSide(side: BookSide, pxDecimals: Decimals, qtyDecimals: Decimals): Float64Array {
+const NO_DEPTH: DepthSide = { px: new Float64Array(), cum: new Float64Array() }
+
+function depthSide(side: BookSide, pxDecimals: Decimals, qtyDecimals: Decimals): DepthSide {
   const n = Math.min(side.prices.length, DEPTH_LEVELS)
-  const out = new Float64Array(n * 2)
+  const out = { px: new Float64Array(n), cum: new Float64Array(n) }
   let cum = 0
   for (let i = 0; i < n; i++) {
     const px = side.prices[i] as Px
     cum += side.qty.get(px) as number
-    out[i * 2] = toDisplayFloat(px, pxDecimals)
-    out[i * 2 + 1] = toDisplayFloat(cum as Qty, qtyDecimals)
+    out.px[i] = toDisplayFloat(px, pxDecimals)
+    out.cum[i] = toDisplayFloat(cum as Qty, qtyDecimals)
   }
   return out
 }
@@ -115,9 +117,8 @@ export function projectDepth(key: TopicKey, market: MarketView, version: number)
     key,
     version,
     status: market.status,
-    venueTime: book?.time ?? 0,
-    bids: book ? depthSide(book.bids, scale.px, scale.qty) : new Float64Array(),
-    asks: book ? depthSide(book.asks, scale.px, scale.qty) : new Float64Array(),
+    bids: book ? depthSide(book.bids, scale.px, scale.qty) : NO_DEPTH,
+    asks: book ? depthSide(book.asks, scale.px, scale.qty) : NO_DEPTH,
     mid: bid !== null && ask !== null ? toDisplayFloat(((bid + ask) / 2) as Px, scale.px) : 0,
   }
 }
@@ -136,7 +137,6 @@ export function projectTrades(key: TopicKey, market: MarketView, version: number
     key,
     version,
     status: market.status,
-    venueTime: first?.time ?? 0,
     rows: items.map((t) => ({
       id: t.id,
       side: t.side,
@@ -157,7 +157,6 @@ export function projectCandle(key: TopicKey, market: MarketView, interval: Inter
     key,
     version,
     status: market.status,
-    venueTime: bars.at(-1)?.open ?? 0,
     bars: bars.map((b) => ({
       time: Math.floor(b.open / 1000),
       open: toDisplayFloat(b.o, scale.px),
@@ -169,10 +168,6 @@ export function projectCandle(key: TopicKey, market: MarketView, interval: Inter
   }
 }
 
-/**
- * Cross-venue view. Prices are rescaled to the finest scale among the venues, so the best bid
- * and best ask flags are exact integer comparisons, not string or float ones.
- */
 export function projectCompare(
   key: TopicKey,
   _base: Base,
@@ -228,7 +223,6 @@ export function projectCompare(
       bestAsk: asks.length > 1 && ask === Math.min(...asks),
     }
   })
-  const times = Object.values(markets).map((m) => visibleBook(m.sync)?.time ?? 0)
   const status: FrameStatus = rows.some((r) => r.status === 'live') ? 'live' : 'syncing'
-  return { kind: 'compare', key, version, status, venueTime: Math.max(0, ...times), rows }
+  return { kind: 'compare', key, version, status, rows }
 }

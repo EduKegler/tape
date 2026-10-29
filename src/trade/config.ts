@@ -3,6 +3,8 @@ import type { Address } from 'viem'
 import type { TradeConfig } from '@tape/trade/types'
 import { NETWORK } from '#/site'
 
+const ORDERLY_PUBLIC_TESTNET_BROKER = 'demo'
+
 const address = z
   .string()
   .regex(/^0x[0-9a-fA-F]{40}$/)
@@ -17,8 +19,7 @@ const env = z.object({
     .optional(),
   VITE_DYDX_BUILDER_FEE_PPM: z.coerce.number().int().min(1).max(10_000).default(100),
   VITE_ORDERLY_BROKER_ID: z.string().min(1).optional(),
-  /** `demo` is Orderly's public example broker on testnet. */
-  VITE_ORDERLY_BROKER_ID_TESTNET: z.string().min(1).default('demo'),
+  VITE_ORDERLY_BROKER_ID_TESTNET: z.string().min(1).default(ORDERLY_PUBLIC_TESTNET_BROKER),
 })
 
 function toConfig(e: z.infer<typeof env>): TradeConfig {
@@ -38,5 +39,4 @@ function toConfig(e: z.infer<typeof env>): TradeConfig {
 
 export const TRADE_CONFIG: TradeConfig = toConfig(env.parse(import.meta.env))
 
-/** Mainnet only reads unless the build opts in with VITE_TRADE_MAINNET. */
 export const SITE_READ_ONLY = NETWORK === 'mainnet' && !TRADE_CONFIG.mainnet

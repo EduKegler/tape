@@ -22,7 +22,6 @@ const columns = helper.columns([
 ])
 const NO_ROWS: CompareRow[] = []
 
-/** The same base asset on every venue. Best bid and ask are flagged from exact rescaled integers. */
 export function Compare({ base, current }: { base: Base; current: VenueId }) {
   const rows = useFrame({ kind: 'compare', base }, (f) => (f?.rows as CompareRow[] | undefined) ?? NO_ROWS)
   const table = useTable({ features, columns, data: rows })
