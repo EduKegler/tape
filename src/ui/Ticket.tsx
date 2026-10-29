@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
+import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
 import { DecimalError, formatNotional, formatPx, formatQty, notional, parsePx, parseQty } from '#/core/fixed'
 import type { Base, VenueId } from '#/core/ids'
 import type { MarketSpec } from '#/core/market'
-import { effectiveTick } from '#/core/market'
+import { priceTick } from '#/core/market'
 import { useFrame } from '#/client/hooks'
 import { useUsdcBalance } from '#/wallet/Wallet'
 import { VENUES } from '#/venues/index'
@@ -14,6 +15,8 @@ import { specsQuery } from './queries'
 import { proposedPrice } from './ticket-store'
 
 type Side = 'buy' | 'sell'
+
+const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market'
 
 /** Validation is exact: a price must sit on the tick and a size on the step, checked in integers. */
@@ -22,7 +25,7 @@ function checkPrice(spec: MarketSpec, value: string): string | undefined {
   try {
     const px = parsePx(value, spec.scale)
     if (px <= 0) return 'Price must be above zero'
-    const tick = effectiveTick(spec, px)
+    const tick = priceTick(spec, px)
     if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
   } catch (e) {
     if (e instanceof DecimalError) return e.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
@@ -58,13 +61,17 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
   const [preview, setPreview] = useState<string | null>(null)
-  const mid = useFrame({ kind: 'book', market: spec.key, group }, (f) => f?.mid.replaceAll(',', '') ?? '')
-  const proposed = useSelector(proposedPrice)
+  // The touch prices, not the mid: a mid can fall between ticks, and a market order fills on the far side.
+  const touch = useFrame({ kind: 'book', market: spec.key, group }, (f) => ({ bid: plain(f?.bids[0]?.px), ask: plain(f?.asks.at(-1)?.px) }), shallow)
+  const near = side === 'buy' ? touch.bid : touch.ask
+  const far = side === 'buy' ? touch.ask : touch.bid
+  const [mountedAt] = useState(() => Date.now())
+  const proposed = useSelector(proposedPrice, (p) => (p && p.at >= mountedAt ? p : null))
   const balance = useUsdcBalance()
   const form = useForm({
     defaultValues: { price: '', size: '' },
     onSubmit: ({ value }) => {
-      const px = kind === 'market' ? mid : value.price
+      const px = kind === 'market' ? far : value.price
       setPreview(`${side === 'buy' ? 'Buy' : 'Sell'} ${value.size} ${spec.base} ${kind === 'market' ? 'at market' : `at ${px}`} on ${VENUES[spec.venue].label}. Nothing was sent.`)
     },
   })
@@ -100,7 +107,7 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
           {(field) => (
             <Input label={`Price (${spec.quote})`} name={field.name} value={field.state.value} onBlur={field.handleBlur} onChange={field.handleChange}
               error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-              hint={mid ? <button type="button" className="text-level3 hover:text-level1" onClick={() => field.handleChange(mid)}>Mid {mid}</button> : null} />
+              hint={near ? <button type="button" className="text-level3 hover:text-level1" onClick={() => field.handleChange(near)}>{side === 'buy' ? 'Bid' : 'Ask'} {near}</button> : null} />
           )}
         </form.Field>
       )}
@@ -113,7 +120,7 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
       </form.Field>
       <form.Subscribe selector={(s) => [s.values.price, s.values.size, s.canSubmit] as const}>
         {([price, size, canSubmit]) => {
-          const px = kind === 'market' ? mid : price
+          const px = kind === 'market' ? far : price
           let total = '—'
           if (px && size && !checkSize(spec, size) && (kind === 'market' || !checkPrice(spec, px))) {
             try {

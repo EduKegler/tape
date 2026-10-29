@@ -16,7 +16,7 @@ A SharedWorker hub owns the sockets. Each tab sends its full want set, for examp
 
 SharedWorker ports never fire a close event. Each tab holds a Web Lock named after its id, and the hub asks for the same lock. The browser grants it when the tab dies, and the hub drops that tab's wants. `pagehide` sends a goodbye as the fast path.
 
-Reconnects go through a pure state machine in `src/hub/connection.ts`: backoff with jitter, a silence watchdog, keepalive and resubscribe. The status bar shows the hub's own numbers. Open a second tab and it reads `Tabs 2 · Sockets 3`.
+Reconnects go through a pure state machine in `src/hub/connection.ts`: backoff with jitter, a silence watchdog, keepalive and resubscribe. A venue that accepts the socket and drops it at once keeps backing off, and a book that keeps failing to parse waits out a doubling hold instead of resubscribing in a loop. The status bar shows the hub's own numbers. Open a second tab and it reads `Tabs 2 · Sockets 3`.
 
 Chrome Android has no SharedWorker. There each tab runs the same hub in a dedicated worker, so you get one socket per venue per tab. `?hub=dedicated` forces that mode anywhere.
 
@@ -68,6 +68,7 @@ The tests replay frames recorded from each venue in `src/venues/__fixtures__` un
 - Chrome Android falls back to one socket per venue per tab.
 - Tab death through Web Locks is verified in Chrome. Safari and Firefox support Web Locks, but this path is not tested there yet.
 - Hyperliquid sends 20 levels per side, so wide grouping shows fewer rows.
+- The ticket checks tick and step, not each venue's minimum order value.
 - Market data only, from public endpoints. Binance comes from the `data-api.binance.vision` mirrors.
 
 ## Run it

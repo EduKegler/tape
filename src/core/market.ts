@@ -30,6 +30,11 @@ export function effectiveTick(spec: MarketSpec, ref: Px): Px {
   return Math.max(1, 10 ** (exponent + spec.scale.px)) as Px
 }
 
+/** The step an order price must sit on. Hyperliquid also accepts any whole price, above 5 figures too. */
+export function priceTick(spec: MarketSpec, px: Px): Px {
+  return Math.min(effectiveTick(spec, px), 10 ** spec.scale.px) as Px
+}
+
 /** A grouping increment in px units, a positive multiple of the effective tick. */
 export type GroupStep = Brand<Px, 'GroupStep'>
 

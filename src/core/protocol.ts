@@ -7,7 +7,7 @@ import type { Frame, Topic } from './topics'
  * want now", so a duplicated or replayed message converges to the same state.
  */
 export type TabToHub =
-  | { readonly t: 'hello'; readonly tab: TabId }
+  | { readonly t: 'hello'; readonly tab: TabId; readonly visible: boolean }
   | { readonly t: 'want'; readonly topics: readonly Topic[] }
   /** Hidden tabs keep their streams, so there is no resync on return, but get no frames. */
   | { readonly t: 'visible'; readonly visible: boolean }
@@ -55,7 +55,7 @@ export function parseTabMessage(data: unknown): TabToHub | null {
   const m = data as Record<string, unknown>
   switch (m.t) {
     case 'hello':
-      return typeof m.tab === 'string' ? { t: 'hello', tab: m.tab as TabId } : null
+      return typeof m.tab === 'string' && typeof m.visible === 'boolean' ? { t: 'hello', tab: m.tab as TabId, visible: m.visible } : null
     case 'want':
       return Array.isArray(m.topics) ? { t: 'want', topics: m.topics.map(parseTopic).filter((x): x is Topic => x !== null) } : null
     case 'visible':

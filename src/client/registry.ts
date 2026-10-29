@@ -9,6 +9,7 @@ import type { Frame, FrameOf, Topic } from '#/core/topics'
 export interface TabPort {
   readonly mode: HubMode
   post(message: TabToHub): void
+  close(): void
   listen(onMessage: (message: HubToTab) => void): void
 }
 
@@ -37,6 +38,7 @@ export interface Lifecycle {
   /** Holds a lock named after the tab for the page's life, then calls `ready`. */
   holdLiveness(tab: TabId, ready: () => void): void
   newTabId(): TabId
+  isVisible(): boolean
   requestFrame(fn: () => void): void
   onVisibility(fn: (visible: boolean) => void): void
   onPageHide(fn: () => void): void
@@ -60,10 +62,19 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
     pending.clear()
   }
 
+  // Unwanted entries stay, so a component that read a store before retaining it never holds an
+  // orphan. Their frame is cleared so a later reader never sees old prices as current.
   const sendWant = () => {
     wantScheduled = false
-    for (const [key, e] of entries) if (e.refs === 0) entries.delete(key)
-    port.post({ t: 'want', topics: [...entries.values()].map((e) => e.topic) })
+    const wanted: Topic[] = []
+    for (const [key, e] of entries) {
+      if (e.refs > 0) wanted.push(e.topic)
+      else if (e.store.get() !== null) {
+        pending.delete(key)
+        e.store.setState(() => null)
+      }
+    }
+    port.post({ t: 'want', topics: wanted })
   }
 
   const scheduleWant = () => {
@@ -77,14 +88,14 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
     port.listen((m) => {
       if (m.t === 'stats') stats.setState(() => m.stats)
       if (m.t !== 'frames') return
-      for (const f of m.frames) if (entries.has(f.key)) pending.set(f.key, f)
+      for (const f of m.frames) if (entries.get(f.key)?.refs) pending.set(f.key, f)
       if (!rafScheduled && pending.size) {
         rafScheduled = true
         life.requestFrame(flushInbox)
       }
     })
     life.holdLiveness(tab, () => {
-      port.post({ t: 'hello', tab })
+      port.post({ t: 'hello', tab, visible: life.isVisible() })
       sendWant()
     })
   }
@@ -93,6 +104,7 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
   life.onVisibility((visible) => port.post({ t: 'visible', visible }))
   life.onPageHide(() => port.post({ t: 'bye' }))
   life.onPageRestore(() => {
+    port.close()
     port = connect()
     start()
   })

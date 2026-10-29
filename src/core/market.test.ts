@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveTick, emptyTape, groupDecimals, groupOptions, pushTrades, snapGroup, upsertCandle } from './market'
+import { effectiveTick, emptyTape, priceTick, groupDecimals, groupOptions, pushTrades, snapGroup, upsertCandle } from './market'
 import type { Candle, MarketSpec, Trade } from './market'
 import type { Px, Qty } from './fixed'
 import { marketKey } from './ids'
@@ -15,6 +15,8 @@ describe('ticks', () => {
     expect(effectiveTick(hl(1), 809_990 as Px)).toBe(10)
     expect(effectiveTick(hl(2), 400_012 as Px)).toBe(10)
     expect(effectiveTick(hl(4), 2_001_234 as Px)).toBe(100)
+    expect(priceTick(hl(1), 1_000_010 as Px)).toBe(10)
+    expect(effectiveTick(hl(1), 1_000_010 as Px)).toBe(100)
   })
 
   it('snaps a requested group to the closest allowed step', () => {

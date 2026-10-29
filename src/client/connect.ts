@@ -10,6 +10,7 @@ function sharedPort(): TabPort {
     mode: 'shared',
     post: (m: TabToHub) => worker.port.postMessage(m),
     listen: (fn) => (worker.port.onmessage = (e: MessageEvent<HubToTab>) => fn(e.data)),
+    close: () => worker.port.close(),
   }
 }
 
@@ -19,11 +20,13 @@ function dedicatedPort(): TabPort {
     mode: 'dedicated',
     post: (m: TabToHub) => worker.postMessage(m),
     listen: (fn) => (worker.onmessage = (e: MessageEvent<HubToTab>) => fn(e.data)),
+    close: () => worker.terminate(),
   }
 }
 
 const browserLifecycle: Lifecycle = {
   newTabId: () => crypto.randomUUID() as TabId,
+  isVisible: () => document.visibilityState === 'visible',
   holdLiveness(tab, ready) {
     if (!('locks' in navigator)) return ready()
     void navigator.locks.request(`tape-tab:${tab}`, () => {

@@ -47,8 +47,8 @@ export function marketsFor(topic: Topic): readonly MarketKey[] {
   return topic.kind === 'compare' ? VENUE_IDS.map((v) => marketKey(v, topic.base)) : [topic.market]
 }
 
-/** live: in sync. syncing: resync running, last levels on screen. stale: socket down. error: no spec. */
-export type FrameStatus = 'live' | 'syncing' | 'stale' | 'error'
+/** live: in sync. syncing: waiting for rules or a resync, last levels on screen. stale: socket down. */
+export type FrameStatus = 'live' | 'syncing' | 'stale'
 
 interface FrameBase {
   readonly key: TopicKey

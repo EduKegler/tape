@@ -64,6 +64,7 @@ export interface HubInspection {
 }
 
 /** Hub to tab traffic stays at or under 10 Hz per tab, whatever the venues send. */
+const SNAPSHOT_TIMEOUT_MS = 8_000
 export const FLUSH_MS = 100
 const TICK_MS = 1000
 const SPEC_RETRY_MS = 5000
@@ -125,7 +126,6 @@ export function createHub(deps: HubDeps): Hub {
 
   function statusOf(m: MarketState): FrameStatus {
     const v = venues[m.venue]
-    if (v.specFetch === 'error' && !v.specs) return 'error'
     if (v.conn.s !== 'open') return 'stale'
     return m.sync.phase === 'live' ? 'live' : 'syncing'
   }
@@ -209,10 +209,14 @@ export function createHub(deps: HubDeps): Hub {
     const v = venues[m.venue]
     const spec = specOf(m.key)
     if (!spec || v.adapter.book.protocol !== 'rest-snapshot-sequenced') return
+    // A failed fetch retries only if this epoch is still the one waiting. A newer epoch may be live by then.
+    const waiting = () => m.sync.phase === 'awaiting-snapshot' && m.sync.epoch === epoch
     v.adapter.book
-      .fetchSnapshot(spec, deps.fetch)
+      .fetchSnapshot(spec, deps.fetch, AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS))
       .then((snap) => feedBook(m, { kind: 'rest-snapshot', epoch, lastUpdateId: snap.lastUpdateId, bids: toLevels(snap.bids, spec), asks: toLevels(snap.asks, spec) }))
-      .catch(() => setTimeout(() => feedBook(m, { kind: 'reset', reason: 'corrupt' }), 2000))
+      .catch(() => {
+        if (waiting()) setTimeout(() => waiting() && feedBook(m, { kind: 'reset', reason: 'corrupt' }), 2000)
+      })
   }
 
   // Venue messages
@@ -356,6 +360,7 @@ export function createHub(deps: HubDeps): Hub {
     const derived = deriveStreams([...tabs.values()].map((t) => t.wants), lastWanted, deps.now())
     streams = derived.streams
     lastWanted = derived.lastWanted
+    for (const key of topics.keys()) if (![...tabs.values()].some((t) => t.wants.has(key))) topics.delete(key)
     for (const venue of VENUE_IDS) {
       if ([...streams].some((k) => k.startsWith(`${venue}:`))) ensureSpecs(venue)
       stepVenue(venue, { e: 'tick' })
@@ -409,7 +414,7 @@ export function createHub(deps: HubDeps): Hub {
           if (id) return
           id = msg.tab
           const tab = id
-          tabs.set(tab, { port, wants: new Map(), visible: true, sent: new Map() })
+          tabs.set(tab, { port, wants: new Map(), visible: msg.visible, sent: new Map() })
           void deps.watchTabGone(tab).then(() => dropTab(tab))
           return
         }

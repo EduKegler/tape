@@ -39,7 +39,7 @@ function setup() {
 }
 
 /** A tab on the far side of a structured-clone boundary, like a MessagePort. */
-function tab(hub: Hub, id: string) {
+function tab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
   let deliver: (data: unknown) => void = () => {}
   hub.connect({
@@ -50,7 +50,7 @@ function tab(hub: Hub, id: string) {
     close: () => {},
   })
   const send = (m: TabToHub) => deliver(structuredClone(m))
-  send({ t: 'hello', tab: id as TabId })
+  send({ t: 'hello', tab: id as TabId, visible })
   return { frames, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
 }
 
@@ -143,6 +143,17 @@ describe('hub', () => {
     a.send({ t: 'visible', visible: true })
     await vi.advanceTimersByTimeAsync(200)
     expect(a.frames.size).toBe(1)
+    hub.dispose()
+  })
+
+  it('sends nothing to a tab that opens in the background', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a', false)
+    a.want([{ kind: 'book', market: btc('hyperliquid'), group: '1' }])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(a.frames.size).toBe(0)
     hub.dispose()
   })
 })
