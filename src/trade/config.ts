@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Address } from 'viem'
 import type { TradeConfig } from '@tape/trade/types'
+import { NETWORK } from '#/site'
 
 const address = z
   .string()
@@ -36,3 +37,6 @@ function toConfig(e: z.infer<typeof env>): TradeConfig {
 }
 
 export const TRADE_CONFIG: TradeConfig = toConfig(env.parse(import.meta.env))
+
+/** Mainnet only reads unless the build opts in with VITE_TRADE_MAINNET. */
+export const SITE_READ_ONLY = NETWORK === 'mainnet' && !TRADE_CONFIG.mainnet

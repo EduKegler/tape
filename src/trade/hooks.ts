@@ -7,7 +7,7 @@ import type { VenueId } from '@tape/core/ids'
 import { NETWORK } from '#/site'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
-import { TRADE_CONFIG } from './config'
+import { SITE_READ_ONLY, TRADE_CONFIG } from './config'
 import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
 import type {
   AccountRef,
@@ -82,8 +82,6 @@ async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> 
     throw new TradeFailure(venue, { kind: 'unexpected', detail: e instanceof Error ? e.message : String(e) })
   }
 }
-
-const SITE_READ_ONLY = NETWORK === 'mainnet' && !TRADE_CONFIG.mainnet
 
 function useRef(venue: VenueId): AccountRef | null {
   const { address } = useAccount()

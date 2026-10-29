@@ -1,4 +1,5 @@
 import { useHubStats } from '#/client/hooks'
+import { SITE_READ_ONLY } from '#/trade/config'
 
 /** The hub's own numbers, so the sharing claim can be checked by opening a second tab. */
 export function StatusBar() {
@@ -30,7 +31,9 @@ export function StatusBar() {
         <span>Starting hub…</span>
       )}
       <span className="ml-auto font-sans">
-        Orders are signed in your browser and sent straight to the venue. Tape has no server in between.
+        {SITE_READ_ONLY
+          ? 'Market data comes straight from the venues. Tape has no server in between.'
+          : 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'}
       </span>
       <a className="font-sans hover:text-level1" href="https://github.com/EduKegler/tape">
         Source
