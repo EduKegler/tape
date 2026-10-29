@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { StreamKey } from '#/core/ids'
+import type { StreamKey } from '@tape/core/ids'
 import { stepConnection } from './connection'
 import type { ConnEffect, ConnState } from './connection'
 

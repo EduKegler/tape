@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Address } from 'viem'
+import type { TradeConfig } from '@tape/trade/types'
 
 /**
  * Operator revenue settings from public VITE_ env, parsed once. A malformed value throws at
@@ -18,15 +19,13 @@ const env = z.object({
   VITE_ORDERLY_BROKER_ID_TESTNET: z.string().min(1).default('demo'),
 })
 
-export type TradeConfig = ReturnType<typeof toConfig>
-
-function toConfig(e: z.infer<typeof env>) {
+function toConfig(e: z.infer<typeof env>): TradeConfig {
   return {
     mainnet: e.VITE_TRADE_MAINNET === '1',
     hyperliquid: { builder: e.VITE_HL_BUILDER_ADDRESS ? { b: e.VITE_HL_BUILDER_ADDRESS, f: e.VITE_HL_BUILDER_FEE } : null },
     dydx: { builder: e.VITE_DYDX_BUILDER_ADDRESS ? { builderAddress: e.VITE_DYDX_BUILDER_ADDRESS, feePpm: e.VITE_DYDX_BUILDER_FEE_PPM } : null },
     orderly: { brokerId: { mainnet: e.VITE_ORDERLY_BROKER_ID ?? null, testnet: e.VITE_ORDERLY_BROKER_ID_TESTNET } },
-  } as const
+  }
 }
 
-export const TRADE_CONFIG = toConfig(env.parse(import.meta.env))
+export const TRADE_CONFIG: TradeConfig = toConfig(env.parse(import.meta.env))

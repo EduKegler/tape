@@ -1,6 +1,6 @@
 import { batch, createStore } from '@tanstack/store'
 import type { Store } from '@tanstack/store'
-import type { TabId, TopicKey } from '#/core/ids'
+import type { TabId, TopicKey } from '@tape/core/ids'
 import type { HubMode, HubStats, HubToTab, TabToHub } from '#/core/protocol'
 import { topicKey } from '#/core/topics'
 import type { Frame, FrameOf, Topic } from '#/core/topics'

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 
 const seconds = Number(process.argv[2] ?? 8)
-const out = new URL('../src/venues/__fixtures__/', import.meta.url)
+const out = new URL('../packages/venues/src/__fixtures__/', import.meta.url)
 const dydxLines = 600
 
 const venues = {

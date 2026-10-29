@@ -1,4 +1,4 @@
-import type { Px, Qty, Scale } from '#/core/fixed'
+import type { Px, Qty, Scale } from '@tape/core/fixed'
 
 /**
  * dYdX orders carry integers, not decimals: quantums of base and subticks of price, scaled by

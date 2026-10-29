@@ -1,7 +1,7 @@
 import type { Address, Hex } from 'viem'
-import type { Brand, VenueId } from '#/core/ids'
-import type { Px, Qty } from '#/core/fixed'
-import type { MarketSpec } from '#/core/market'
+import type { Brand, VenueId } from '@tape/core/ids'
+import type { Px, Qty } from '@tape/core/fixed'
+import type { MarketSpec } from '@tape/core/market'
 
 export const READ_ONLY_VENUES = ['binance'] as const
 export type TradeVenueId = Exclude<VenueId, (typeof READ_ONLY_VENUES)[number]>
@@ -176,8 +176,17 @@ export interface KeySlot {
   clear: () => void
 }
 
+/** Operator settings the app reads from its own env. Null builder means no fee, null broker means the network is off. */
+export interface TradeConfig {
+  readonly mainnet: boolean
+  readonly hyperliquid: { readonly builder: { readonly b: Address; readonly f: number } | null }
+  readonly dydx: { readonly builder: { readonly builderAddress: string; readonly feePpm: number } | null }
+  readonly orderly: { readonly brokerId: { readonly mainnet: string | null; readonly testnet: string } }
+}
+
 export interface VenueContext {
   readonly ref: AccountRef
+  readonly config: TradeConfig
   readonly keys: KeySlot
   readonly fetch: typeof globalThis.fetch
 }
@@ -192,7 +201,7 @@ export interface TradingVenue {
   readonly secrets: SecretLifetime
   readonly capabilities: Capabilities
   /** Null when trading works on this network, otherwise why not. */
-  unavailable: (network: Network) => string | null
+  unavailable: (network: Network, config: TradeConfig) => string | null
   /** Read from the venue and the slot. Funding is not a step: an unfunded account gets no-account from the venue. */
   steps: (ctx: VenueContext) => Promise<readonly SetupStep[]>
   /** Runs the undone steps. A new key is written as draft before the wallet signs for it. */

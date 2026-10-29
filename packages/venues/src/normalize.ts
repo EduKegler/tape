@@ -1,6 +1,6 @@
-import { parsePx, parseQty } from '#/core/fixed'
-import type { Level } from '#/core/book'
-import type { Candle, MarketSpec, Trade } from '#/core/market'
+import { parsePx, parseQty } from '@tape/core/fixed'
+import type { Level } from '@tape/core/book'
+import type { Candle, MarketSpec, Trade } from '@tape/core/market'
 import type { RawCandle, RawLevel, RawTrade } from './types'
 
 /** The boundary from venue strings to fixed-point values. Throws DecimalError on anything the spec does not allow. */

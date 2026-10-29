@@ -12,3 +12,7 @@ dist-ssr
 __unconfig*
 todos.json
 .vercel
+
+# Private notes live in a separate repo, never here
+docs/research/
+docs/decisions/

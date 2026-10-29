@@ -1,8 +1,8 @@
+/// <reference path="./long.d.ts" />
 import { bytesToHex } from 'viem'
-import { decimalsOf, parsePx, parseQty, wireDecimal } from '#/core/fixed'
-import type { Px, Scale } from '#/core/fixed'
-import type { MarketSpec } from '#/core/market'
-import { TRADE_CONFIG } from '../config'
+import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
+import type { Px, Scale } from '@tape/core/fixed'
+import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { send } from '../send'
 import { TradeFailure } from '../types'
@@ -117,7 +117,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const client = await validatorOf(ctx.ref.network)
   const q = Long.fromString(quantums(parseQty(size, m.spec.scale), m.spec.scale, m).toString(), true)
   const s = Long.fromString(subticks(px, m.spec.scale, m).toString(), true)
-  const builder = TRADE_CONFIG.dydx.builder ?? undefined
+  const builder = ctx.config.dydx.builder ?? undefined
   const clientId = clientIdOf(intent.clientId)
   const short = tif === TIF.ioc
   const hash = short
@@ -224,7 +224,7 @@ export const dydx = {
   label: 'dYdX',
   secrets: 'tab',
   capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
-  unavailable: (network) => (network === 'mainnet' && !TRADE_CONFIG.mainnet ? 'Mainnet trading is off in this build' : null),
+  unavailable: (network, config) => (network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null),
   steps,
   enable,
   account,

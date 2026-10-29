@@ -1,6 +1,7 @@
-import type { BookProtocol, Seq } from '#/core/book'
-import type { Base, Interval, MarketKey, StreamChannel, VenueId } from '#/core/ids'
-import type { MarketSpec } from '#/core/market'
+import type { BookProtocol, Seq } from '@tape/core/book'
+import type { Base, Interval, MarketKey, StreamChannel, VenueId } from '@tape/core/ids'
+import type { MarketSpec } from '@tape/core/market'
+import { parseExactJson } from '@tape/core/json'
 
 /**
  * Everything venue-specific lives behind this contract. Adapters own wire shapes
@@ -110,14 +111,6 @@ export async function getJson<T>(fetch: typeof globalThis.fetch, url: string, in
   const response = await fetch(url, init)
   if (!response.ok) throw new Error(`${response.status} ${url}`)
   return (await response.json()) as T
-}
-
-/**
- * JSON.parse that keeps every number as its source text. Orderly sends prices as JSON numbers,
- * and the text is exact where a double is not. Browsers without reviver source fall back to String.
- */
-export function parseExactJson<T>(raw: string): T {
-  return JSON.parse(raw, (_key, value: unknown, context?: { source?: string }) => (typeof value === 'number' ? (context?.source ?? String(value)) : value)) as T
 }
 
 export async function getExactJson<T>(fetch: typeof globalThis.fetch, url: string, init?: RequestInit): Promise<T> {

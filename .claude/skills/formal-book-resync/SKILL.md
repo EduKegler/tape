@@ -1,6 +1,6 @@
 ---
 name: formal-book-resync
-description: "Model-check how the hub keeps a Binance order book in sync: sequenced diffs, the REST snapshot, its retry, resets on subscribe and reconnect. Use when a change touches stepBook's rest-snapshot-sequenced branch in src/core/book.ts, feedBook, fetchSnapshot, apply, ingest or the socket handlers in src/hub/hub.ts, stepConnection in src/hub/connection.ts, or the Binance adapter's book feed. Also use to ask whether a resync order can show wrong prices or leave a book stuck on syncing."
+description: "Model-check how the hub keeps a Binance order book in sync: sequenced diffs, the REST snapshot, its retry, resets on subscribe and reconnect. Use when a change touches stepBook's rest-snapshot-sequenced branch in packages/core/src/book.ts, feedBook, fetchSnapshot, apply, ingest or the socket handlers in src/hub/hub.ts, stepConnection in src/hub/connection.ts, or the Binance adapter's book feed. Also use to ask whether a resync order can show wrong prices or leave a book stuck on syncing."
 ---
 
 # Binance book resync, model-checked
@@ -34,16 +34,16 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 
 | Model (`BookResync.tla`) | Code |
 | --- | --- |
-| `sync`, `Reset`, `Delta`, `LiveDelta`, `RestSnapshot`, `Replay`, `Merge` | `stepBook` branch `rest-snapshot-sequenced`, `awaiting`, `merge`, `initialSync` in `src/core/book.ts:164-245` |
+| `sync`, `Reset`, `Delta`, `LiveDelta`, `RestSnapshot`, `Replay`, `Merge` | `stepBook` branch `rest-snapshot-sequenced`, `awaiting`, `merge`, `initialSync` in `packages/core/src/book.ts:164-245` |
 | `ReceiveDiff` | `socket.onmessage` to `ingest`, `apply` case `book-delta`, `feedBook` in `src/hub/hub.ts:286, 251-266, 231-233, 197-206` |
 | `ReceiveBadDiff` | `DecimalError` catch in `apply` and `VenueParseError` in `ingest`, `src/hub/hub.ts:245-248, 259` |
-| `fetches`, `SnapshotArrives` | `fetchSnapshot` and its `.then`, `src/hub/hub.ts:208-216`; `binance.book.fetchSnapshot` in `src/venues/binance.ts:45-48` |
+| `fetches`, `SnapshotArrives` | `fetchSnapshot` and its `.then`, `src/hub/hub.ts:208-216`; `binance.book.fetchSnapshot` in `packages/venues/src/binance.ts:45-48` |
 | `SnapshotFails`, `timers`, `RetryTimerFires`, `Waiting` | `fetchSnapshot` `.catch`, `waiting()`, the 2 s `setTimeout`, `AbortSignal.timeout`, `src/hub/hub.ts:213-219` |
 | `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:424-428, 371-378, 359-369, 392-393, 321-338`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:149-160, 82-102`; `deriveStreams` in `src/core/topics.ts:162-178` |
 | `Reconcile` add branch, `SocketOpened` | the `streams-reset` effect that resets each subscribed book, `src/hub/hub.ts:309-314` |
 | `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:285`, `src/hub/connection.ts:106-113` |
 | `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:285-298`; `closed` and the silence check in `src/hub/connection.ts:114-124, 84-87` |
-| `chan`, `VenueSends` | `depthUpdate` with `seq: { from: U, to: u }` in `binance.parse`, `src/venues/binance.ts:82` |
+| `chan`, `VenueSends` | `depthUpdate` with `seq: { from: U, to: u }` in `binance.parse`, `packages/venues/src/binance.ts:82` |
 
 Each action is one JS task in the worker: a socket message, a fetch settling, a timer, or a tab message with the reconcile it queues as a microtask. Nothing else in the hub runs inside one of them, so each is one TLA+ step.
 

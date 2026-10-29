@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import type { VenueId } from '#/core/ids'
+import type { VenueId } from '@tape/core/ids'
 
 const dir = new URL('./__fixtures__/', import.meta.url)
 const json = (name: string): unknown => JSON.parse(readFileSync(new URL(name, dir), 'utf8'))

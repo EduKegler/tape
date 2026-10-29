@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { shallow } from '@tanstack/store'
 import { useFrame } from '#/client/hooks'
-import type { MarketKey } from '#/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
 import { Panel } from './Panel'

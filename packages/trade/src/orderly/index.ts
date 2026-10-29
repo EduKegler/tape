@@ -1,14 +1,13 @@
 import { bytesToHex, hexToBytes } from 'viem'
 import type { Hex } from 'viem'
-import { decimalsOf, parsePx, parseQty, plainDecimal, wireDecimal } from '#/core/fixed'
-import type { Scale } from '#/core/fixed'
-import type { MarketSpec } from '#/core/market'
-import { TRADE_CONFIG } from '../config'
+import { decimalsOf, parsePx, parseQty, plainDecimal, wireDecimal } from '@tape/core/fixed'
+import type { Scale } from '@tape/core/fixed'
+import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize } from '../intent'
 import { send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure } from '../types'
-import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderRef, SetupStep, StepId, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
+import type { AccountView, Command, CommandOutcome, Decimal, Network, OrderRef, SetupStep, StepId, TradeConfig, TradeError, TradingVenue, VenueContext, WalletSigner } from '../types'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
 import { cancelPath, orderBody } from './wire'
@@ -22,7 +21,7 @@ const SCOPE = 'read,trading'
 const KEY_DAYS = 365
 const TYPE: Record<'gtc' | 'ioc' | 'post-only', OrderType> = { gtc: 'LIMIT', ioc: 'IOC', 'post-only': 'POST_ONLY' }
 
-const brokerOf = (network: Network) => TRADE_CONFIG.orderly.brokerId[network]
+const brokerOf = (config: TradeConfig, network: Network) => config.orderly.brokerId[network]
 
 function fail(error: TradeError): never {
   throw new TradeFailure('orderly', error)
@@ -54,7 +53,7 @@ function keyOf(ctx: VenueContext): OrderlyKey | null {
 }
 
 function brokerFor(ctx: VenueContext): string {
-  return brokerOf(ctx.ref.network) ?? fail({ kind: 'unsupported', detail: 'No Orderly broker id configured' })
+  return brokerOf(ctx.config, ctx.ref.network) ?? fail({ kind: 'unsupported', detail: 'No Orderly broker id configured' })
 }
 
 /** A private request. The signed text and the sent body are the same string. */
@@ -220,9 +219,9 @@ export const orderly = {
   label: 'Orderly',
   secrets: 'device',
   capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true },
-  unavailable: (network) => {
-    if (network === 'mainnet' && !TRADE_CONFIG.mainnet) return 'Mainnet trading is off in this build'
-    return brokerOf(network) ? null : 'No Orderly broker id is configured'
+  unavailable: (network, config) => {
+    if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'
+    return brokerOf(config, network) ? null : 'No Orderly broker id is configured'
   },
   steps,
   enable,

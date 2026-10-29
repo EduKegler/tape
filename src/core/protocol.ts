@@ -1,5 +1,5 @@
-import { isBase, isInterval, parseMarketKey } from './ids'
-import type { TabId } from './ids'
+import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
+import type { TabId } from '@tape/core/ids'
 import type { Frame, Topic } from './topics'
 
 /**

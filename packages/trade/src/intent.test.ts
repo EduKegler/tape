@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Px, Qty } from '#/core/fixed'
-import { marketKey } from '#/core/ids'
-import type { MarketSpec } from '#/core/market'
+import type { Px, Qty } from '@tape/core/fixed'
+import { marketKey } from '@tape/core/ids'
+import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from './intent'
 
 const hl: MarketSpec = {

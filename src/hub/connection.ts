@@ -1,4 +1,4 @@
-import type { StreamKey } from '#/core/ids'
+import type { StreamKey } from '@tape/core/ids'
 
 /**
  * One venue socket as a pure state machine. The hub feeds it events and runs the effects.

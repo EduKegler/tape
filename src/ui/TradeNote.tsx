@@ -1,4 +1,4 @@
-import type { CommandOutcome, TradeError } from '#/trade/types'
+import type { CommandOutcome, TradeError } from '@tape/trade/types'
 import { describeError } from './trade-errors'
 
 /** The venue's own words always show, so a rejection can be read and quoted. */

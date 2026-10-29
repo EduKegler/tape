@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { accountKey } from './types'
-import type { AccountRef, KeySlot, SecretLifetime, StoredKey } from './types'
+import { accountKey } from '@tape/trade/types'
+import type { AccountRef, KeySlot, SecretLifetime, StoredKey } from '@tape/trade/types'
 
 /**
  * localStorage `tape:trade:v1:<AccountKey>` holds the status and the public half. The secret sits

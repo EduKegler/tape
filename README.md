@@ -37,7 +37,7 @@ In a busy book most rows change every flush, because a new level shifts every cu
 
 ### 3. Decimals, not floats
 
-Prices and sizes parse into safe integers at each market's scale, branded as `Px` and `Qty` in `src/core/fixed.ts`. The parser rejects digits beyond the scale and values past `Number.MAX_SAFE_INTEGER` instead of rounding. Notional and spread run in `bigint`. Tick and step checks in the ticket are integer modulo.
+Prices and sizes parse into safe integers at each market's scale, branded as `Px` and `Qty` in `packages/core/src/fixed.ts`. The parser rejects digits beyond the scale and values past `Number.MAX_SAFE_INTEGER` instead of rounding. Notional and spread run in `bigint`. Tick and step checks in the ticket are integer modulo.
 
 Floats exist only in display data: chart coordinates, depth bar ratios, the basis column, candle history and the 24h stats line in the header. Prices in the book, the trade feed, the ticket and the venues table are exact, and best bid and ask across venues compare rescaled integers. Inside the data path, `toDisplayFloat` is the one exit.
 
@@ -51,9 +51,9 @@ Integers instead of `bigint` everywhere keep book levels fast as `Map` keys and 
 | Hyperliquid | perps | Full 20-level snapshot every message | Tick is 5 significant figures, so it depends on the price |
 | dYdX v4 | perps | Snapshot on subscribe, then deltas | The indexer book can cross, so a fresher write evicts the stale side, and a corrupt book resubscribes |
 
-Each venue is one adapter behind `VenueAdapter` in `src/venues/types.ts`: market rules, subscribe frames, a parser from raw messages to one event type, 24h stats and candle history. Everything after the parser is venue-agnostic. One pure function, `stepBook` in `src/core/book.ts`, runs all three book protocols. A fourth venue is one adapter file plus recorded fixtures.
+Each venue is one adapter behind `VenueAdapter` in `packages/venues/src/types.ts`: market rules, subscribe frames, a parser from raw messages to one event type, 24h stats and candle history. Everything after the parser is venue-agnostic. One pure function, `stepBook` in `packages/core/src/book.ts`, runs all three book protocols. A fourth venue is one adapter file plus recorded fixtures.
 
-The tests replay frames recorded from each venue in `src/venues/__fixtures__` until each book is live and uncrossed. `pnpm fixtures` records fresh ones.
+The tests replay frames recorded from each venue in `packages/venues/src/__fixtures__` until each book is live and uncrossed. `pnpm fixtures` records fresh ones.
 
 ## Stack
 
@@ -79,7 +79,7 @@ pnpm dev
 ```
 
 ```bash
-pnpm verify   # typecheck and tests
+pnpm verify   # package boundaries, typecheck of each package and the app, tests
 pnpm build
 pnpm fixtures # re-record venue fixtures
 node scripts/capture.mjs # screenshot and social preview from a running preview server
@@ -87,11 +87,20 @@ node scripts/capture.mjs # screenshot and social preview from a running preview 
 
 ## Layout
 
+A pnpm workspace. The app sits at the root and imports three packages through `workspace:*`. The packages ship TypeScript source with no build step, so Vite and Vitest read them like app code and HMR reaches them.
+
 ```
-src/core     domain: ids, fixed point, market rules, book sync, frames
-src/venues   one adapter per venue, plus recorded fixtures
-src/hub      the worker: sockets, connection state machine, projections
-src/client   the tab side: hub connection, store registry, hooks
-src/ui       screen components
-src/wallet   wagmi config and the read-only wallet
+packages/core     @tape/core: ids, fixed point, market rules, book sync
+packages/venues   @tape/venues: one market data adapter per venue, plus recorded fixtures
+packages/trade    @tape/trade: one trading module per venue behind TradingVenue
+src/core          the hub protocol: topics, frames, projections
+src/hub           the worker: sockets, connection state machine, projections
+src/client        the tab side: hub connection, store registry, hooks
+src/trade         React hooks, key storage and env config for @tape/trade
+src/ui            screen components
+src/wallet        wagmi config and the wallet button
 ```
+
+Packages never import React or the app. `scripts/check-packages.mjs` runs first in `pnpm verify` and fails on an import a package does not declare, an import of `#/`, or a cycle between packages. A package reads no env: the app passes `TradeConfig` in the venue context.
+
+To add a package, create `packages/<name>` with a `package.json` named `@tape/<name>` (`private: true`, `exports` pointing at `src`), a `tsconfig.json` that extends `../../tsconfig.base.json`, and add its `tsc -p` to the `typecheck` script.

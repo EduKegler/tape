@@ -62,7 +62,7 @@ Exit 0 means drive it. Exit 1 means the instance is broken: run `down`, then `up
 
 ## Network and fixtures
 
-Verification needs the network. There is no offline mode the browser can use. `src/venues/fixtures.ts` reads recorded frames with `node:fs` and only feeds the Vitest suites. The hub in the browser always opens the real sockets:
+Verification needs the network. There is no offline mode the browser can use. `packages/venues/src/fixtures.ts` reads recorded frames with `node:fs` and only feeds the Vitest suites. The hub in the browser always opens the real sockets:
 
 - `wss://data-stream.binance.vision/ws` and `https://data-api.binance.vision/api/v3`
 - `wss://api.hyperliquid.xyz/ws` and `https://api.hyperliquid.xyz/info`

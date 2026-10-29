@@ -1,7 +1,7 @@
-import { BASES, marketKey } from '#/core/ids'
-import type { Base, Interval } from '#/core/ids'
-import { decimalsOf, parsePx, parseQty } from '#/core/fixed'
-import type { MarketSpec } from '#/core/market'
+import { BASES, marketKey } from '@tape/core/ids'
+import type { Base, Interval } from '@tape/core/ids'
+import { decimalsOf, parsePx, parseQty } from '@tape/core/fixed'
+import type { MarketSpec } from '@tape/core/market'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
 

@@ -1,5 +1,5 @@
-import { VENUE_IDS, marketKey, streamKey } from './ids'
-import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from './ids'
+import { VENUE_IDS, marketKey, streamKey } from '@tape/core/ids'
+import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from '@tape/core/ids'
 
 /**
  * A Topic is a view a component wants, not a venue channel. Two tabs on the same view

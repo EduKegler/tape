@@ -15,7 +15,7 @@ TLA_SHA256="936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
 TLA_URL="https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar"
 JAR="${TAPE_TLA_JAR:-$HOME/.cache/tape-formal/tla2tools-${TLA_VERSION}/tla2tools.jar}"
 
-COVERED=(src/core/book.ts src/hub/hub.ts src/hub/connection.ts src/core/topics.ts src/venues/binance.ts)
+COVERED=(packages/core/src/book.ts src/hub/hub.ts src/hub/connection.ts src/core/topics.ts packages/venues/src/binance.ts)
 
 ensure_tools() {
   command -v java >/dev/null || { echo "java not found. TLC needs Java 11 or newer." >&2; exit 2; }

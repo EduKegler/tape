@@ -1,4 +1,4 @@
-import type { TradeError } from '#/trade/types'
+import type { TradeError } from '@tape/trade/types'
 
 /** One sentence per kind. A new kind breaks the build here until it has words. */
 export function describeError(error: TradeError): { readonly title: string; readonly detail: string | null } {

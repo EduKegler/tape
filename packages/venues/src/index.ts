@@ -1,4 +1,4 @@
-import type { VenueId } from '#/core/ids'
+import type { VenueId } from '@tape/core/ids'
 import { binance } from './binance'
 import { dydx } from './dydx'
 import { hyperliquid } from './hyperliquid'

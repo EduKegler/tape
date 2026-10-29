@@ -1,4 +1,4 @@
-import type { TabId } from '#/core/ids'
+import type { TabId } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
 import { createRegistry } from './registry'
 import type { HubClient, Lifecycle, TabPort } from './registry'

@@ -1,7 +1,7 @@
-import { DecimalError, formatPx, formatQty, parsePx, parseQty } from '#/core/fixed'
-import type { Px } from '#/core/fixed'
-import type { MarketSpec } from '#/core/market'
-import { priceTick } from '#/core/market'
+import { DecimalError, formatPx, formatQty, parsePx, parseQty } from '@tape/core/fixed'
+import type { Px } from '@tape/core/fixed'
+import type { MarketSpec } from '@tape/core/market'
+import { priceTick } from '@tape/core/market'
 import { bytesToHex } from 'viem'
 import type { Bps, Capabilities, ClientOrderId, OrderIntent, Position, Side, Tif } from './types'
 

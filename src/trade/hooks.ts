@@ -2,13 +2,14 @@ import { useState, useSyncExternalStore } from 'react'
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 import type { Address } from 'viem'
-import type { VenueId } from '#/core/ids'
-import { claim, release } from './in-flight'
-import { TRADING } from './index'
-import { TradeFailure, accountKey, isTradeVenue } from './types'
-import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, SetupStep, StepId, TradeError, TradeVenueId, VenueContext } from './types'
+import type { VenueId } from '@tape/core/ids'
+import { claim, release } from '@tape/trade/in-flight'
+import { TRADING } from '@tape/trade'
+import { TRADE_CONFIG } from './config'
+import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
+import type { AccountRef, AccountView, Capabilities, Command, CommandOutcome, Network, SetupStep, StepId, TradeError, TradeVenueId, VenueContext } from '@tape/trade/types'
 import { keySlot, subscribeVault } from './vault'
-import { walletSigner } from './wallet'
+import { walletSigner } from '@tape/trade/wallet'
 
 export type TradeSession =
   | { readonly status: 'read-only' }
@@ -33,7 +34,7 @@ export function tradeKeys(ref: AccountRef) {
 }
 
 function contextFor(ref: AccountRef): VenueContext {
-  return { ref, keys: keySlot(ref, TRADING[ref.venue].secrets), fetch: (input, init) => fetch(input, init) }
+  return { ref, config: TRADE_CONFIG, keys: keySlot(ref, TRADING[ref.venue].secrets), fetch: (input, init) => fetch(input, init) }
 }
 
 /** The one place a foreign throw becomes typed. EIP-1193 code 4001 is the user saying no. */
@@ -72,7 +73,7 @@ export function useTradeSession(venue: VenueId, network: Network): TradeSession 
   const { connector } = useAccount()
   const [progress, setProgress] = useState<StepId | null>(null)
   const module = isTradeVenue(venue) ? TRADING[venue] : null
-  const unavailable = module?.unavailable(network) ?? null
+  const unavailable = module?.unavailable(network, TRADE_CONFIG) ?? null
   const linked = slot === 'linked:true'
   const steps = useQuery<readonly SetupStep[], TradeFailure>({
     queryKey: ref ? tradeKeys(ref).steps : ['trade', 'none'],

@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useFrame } from '#/client/hooks'
-import type { MarketKey } from '#/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import type { TradeRow } from '#/core/topics'
 import { formatClock } from './format'
 import { Panel } from './Panel'

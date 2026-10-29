@@ -1,4 +1,4 @@
-import { parseExactJson } from '#/venues/types'
+import { parseExactJson } from '@tape/core/json'
 import { TradeFailure } from './types'
 import type { TradeError, TradeVenueId } from './types'
 

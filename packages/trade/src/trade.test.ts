@@ -3,10 +3,10 @@ import { bech32 } from '@scure/base'
 import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address, Hex } from 'viem'
-import { plainDecimal } from '#/core/fixed'
-import type { Qty } from '#/core/fixed'
-import { marketKey } from '#/core/ids'
-import type { MarketSpec } from '#/core/market'
+import { plainDecimal } from '@tape/core/fixed'
+import type { Qty } from '@tape/core/fixed'
+import { marketKey } from '@tape/core/ids'
+import type { MarketSpec } from '@tape/core/market'
 import { ONBOARDING, deriveKey } from './dydx/client'
 import { classifyMessage as dydxMessage } from './dydx'
 import { send } from './send'
@@ -15,7 +15,7 @@ import { typedDataDigest } from './typed-data'
 import { TRADING } from './index'
 import { claim, release } from './in-flight'
 import { buildIntent, closeIntent } from './intent'
-import type { Bps, KeySlot, StoredKey, VenueContext } from './types'
+import type { Bps, KeySlot, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
 import { domainTypes } from './wallet'
 
@@ -25,6 +25,9 @@ const btc: MarketSpec = {
 }
 const caps = TRADING.hyperliquid.capabilities
 const draft = { side: 'buy', kind: 'limit', price: '80000', size: '0.001', tif: 'gtc', reduceOnly: false, takeProfit: '', stopLoss: '', slippage: 100 as Bps } as const
+
+/** No builder fee, no mainnet, Orderly's public testnet broker. */
+const config: TradeConfig = { mainnet: false, hyperliquid: { builder: null }, dydx: { builder: null }, orderly: { brokerId: { mainnet: null, testnet: 'demo' } } }
 
 function memorySlot(initial: StoredKey | null = null): KeySlot {
   let key = initial
@@ -147,7 +150,7 @@ describe('hyperliquid module', () => {
     const { fetch, sent } = venue((url, body) =>
       url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : { status: 'ok', response: { type: 'order', data: { statuses: [{ resting: { oid: 7 } }] } } },
     )
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
     const built = buildIntent(btc, draft, caps)
     if (!built.ok) throw new Error('intent')
     const outcome = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })
@@ -162,7 +165,7 @@ describe('hyperliquid module', () => {
 
   it('turns an unknown API wallet into needs-setup with the venue words', async () => {
     const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : { status: 'err', response: `User or API Wallet ${agent} does not exist.` }))
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
     const built = buildIntent(btc, { ...draft, price: '80001' }, caps)
     if (!built.ok) throw new Error('intent')
     const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
@@ -172,7 +175,7 @@ describe('hyperliquid module', () => {
   it('calls a 200 it cannot read an unknown outcome, since the signed order may be placed', async () => {
     for (const reply of [{ status: 'ok' }, { status: 'ok', response: { type: 'order', data: { statuses: [] } } }]) {
       const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : reply))
-      const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+      const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
       const built = buildIntent(btc, draft, caps)
       if (!built.ok) throw new Error('intent')
       const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
@@ -182,7 +185,7 @@ describe('hyperliquid module', () => {
 
   it('refuses a price the testnet rules reject instead of rounding it', async () => {
     const { fetch } = venue((url, body) => (url.endsWith('/info') && body.type === 'meta' ? { universe: [{ name: 'BTC', szDecimals: 5 }] } : null))
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
+    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }), fetch }
     const built = buildIntent({ ...btc, scale: { px: 2, qty: 5 }, tick: { kind: 'fixed', tick: 1 } as MarketSpec['tick'] }, { ...draft, price: '80000.25' }, caps)
     if (!built.ok) throw new Error('intent')
     const error = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
@@ -197,7 +200,7 @@ describe('hyperliquid module', () => {
       if (body.type === 'userFills') return [{ coin: 'BTC', px: '80100.0', sz: '0.01', side: 'A', time: 1793248071468, fee: '0.36', tid: 151386843995060 }]
       return null
     })
-    const view = await TRADING.hyperliquid.account({ ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys: memorySlot(), fetch })
+    const view = await TRADING.hyperliquid.account({ ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch })
     if (view.kind !== 'live') throw new Error(view.kind)
     expect(view.snapshot.positions[0]).toMatchObject({ symbol: 'BTC', side: 'short', size: '0.01', leverage: '5x cross' })
     expect(view.snapshot.orders[0]).toMatchObject({ ref: '3:589008353129', side: 'buy', px: '70000.0' })
@@ -207,7 +210,7 @@ describe('hyperliquid module', () => {
   it('writes the agent as draft before the wallet signs, and keeps it when the venue says deposit first', async () => {
     const { fetch } = venue((url, body) => (url.endsWith('/info') ? (body.type === 'extraAgents' ? [] : null) : { status: 'err', response: `Must deposit before performing actions. User: ${owner}` }))
     const keys = memorySlot()
-    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, keys, fetch }
+    const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys, fetch }
     const wallet = { address: owner, chainId: async () => 421614, switchChain: async () => {}, signTypedData: async () => `0x${'11'.repeat(32)}${'22'.repeat(32)}1b` as Hex }
     const error = await TRADING.hyperliquid.enable(ctx, wallet, () => {}).catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('no-account')

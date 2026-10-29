@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Px, Qty } from '#/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import { clientIdOf, quantums, subticks } from './wire'
 
 // Params from indexer.dydx.trade/v4/perpetualMarkets. Scales are the ones the data adapter derives from tickSize and stepSize.

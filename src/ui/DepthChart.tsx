@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useFrameEffect } from '#/client/hooks'
-import type { MarketKey } from '#/core/ids'
+import type { MarketKey } from '@tape/core/ids'
 import type { DepthFrame } from '#/core/topics'
 import { Panel } from './Panel'
 

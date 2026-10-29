@@ -1,10 +1,9 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { z } from 'zod'
 import type { Address, Hex } from 'viem'
-import { parsePx, wireDecimal } from '#/core/fixed'
-import type { Decimals, Px } from '#/core/fixed'
-import type { MarketSpec } from '#/core/market'
-import { TRADE_CONFIG } from '../config'
+import { parsePx, wireDecimal } from '@tape/core/fixed'
+import type { Decimals, Px } from '@tape/core/fixed'
+import type { MarketSpec } from '@tape/core/market'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { post, send } from '../send'
 import type { Classify } from '../send'
@@ -142,7 +141,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   switch (command.kind) {
     case 'place': {
       const { wires, grouping } = await placeWires(ctx, command.intent)
-      const reply = await exchange(ctx, orderAction(wires, grouping, TRADE_CONFIG.hyperliquid.builder))
+      const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
       const [first, ...legs] = reply.response.data?.statuses ?? []
       if (first === undefined) fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
       if (typeof first === 'object' && first.error) fail(classifyText(first.error))
@@ -216,7 +215,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
 async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
   const key = ctx.keys.read()
   const agent = key?.public.agent?.toLowerCase()
-  const builder = TRADE_CONFIG.hyperliquid.builder
+  const builder = ctx.config.hyperliquid.builder
   const [agents, fee] = await Promise.all([
     info<{ address: string; validUntil: string }[]>(ctx, { type: 'extraAgents', user: ctx.ref.owner }),
     builder ? info<string>(ctx, { type: 'maxBuilderFee', user: ctx.ref.owner, builder: builder.b }) : Promise.resolve(null),
@@ -245,7 +244,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
       await user('HyperliquidTransaction:ApproveAgent', { hyperliquidChain: chain, agentAddress: agent, agentName: AGENT_NAME, nonce: Date.now() }, { type: 'approveAgent' })
     }
     if (step.id === 'approve-builder') {
-      const builder = TRADE_CONFIG.hyperliquid.builder as { b: Address; f: number }
+      const builder = ctx.config.hyperliquid.builder as { b: Address; f: number }
       await user('HyperliquidTransaction:ApproveBuilderFee', { hyperliquidChain: chain, maxFeeRate: `${wireDecimal(BigInt(builder.f), 3)}%`, builder: builder.b, nonce: Date.now() }, { type: 'approveBuilderFee' })
     }
   }
@@ -258,7 +257,7 @@ export const hyperliquid = {
   label: 'Hyperliquid',
   secrets: 'device',
   capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true },
-  unavailable: (network) => (network === 'mainnet' && !TRADE_CONFIG.mainnet ? 'Mainnet trading is off in this build' : null),
+  unavailable: (network, config) => (network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null),
   steps,
   enable,
   account,

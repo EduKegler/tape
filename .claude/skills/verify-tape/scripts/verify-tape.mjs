@@ -116,11 +116,11 @@ async function up(flags) {
   const buildLog = join(ARTIFACTS, runId, 'build.log')
   const serverLog = join(STATE_DIR, 'server.log')
   const sha = git(['rev-parse', '--short', 'HEAD'])
-  const dirty = git(['status', '--porcelain', '--', 'src']).split('\n').filter(Boolean).length
+  const dirty = git(['status', '--porcelain', '--', 'src', 'packages']).split('\n').filter(Boolean).length
   if (flags['reuse-build'] && existsSync(join(OUTPUT, 'server/index.mjs'))) {
     console.log(`up: reusing the build in ${OUTPUT}. It may not match the working tree.`)
   } else {
-    console.log(`up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/` : ''} into ${OUTPUT}`)
+    console.log(`up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/ and packages/` : ''} into ${OUTPUT}`)
     try {
       execFileSync(process.execPath, [join(REPO, 'node_modules/vite/bin/vite.js'), 'build', '--config', join(SKILL, 'scripts/vite.verify.config.ts')], { cwd: REPO, stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')] })
     } catch {
@@ -245,8 +245,8 @@ async function doctor() {
       check('chrome cdp', false, String(e))
     }
     const head = git(['rev-parse', '--short', 'HEAD'])
-    const dirty = git(['status', '--porcelain', '--', 'src']).split('\n').filter(Boolean).length
-    check('build', true, `HEAD ${head}${head !== s.sha ? ` but the build is from ${s.sha}. Run down and up to rebuild` : ''}, ${dirty} uncommitted file(s) under src/ now, ${s.dirtySrcFiles} at build time`)
+    const dirty = git(['status', '--porcelain', '--', 'src', 'packages']).split('\n').filter(Boolean).length
+    check('build', true, `HEAD ${head}${head !== s.sha ? ` but the build is from ${s.sha}. Run down and up to rebuild` : ''}, ${dirty} uncommitted file(s) under src/ and packages/ now, ${s.dirtySrcFiles} at build time`)
   }
   const venues = [
     ['binance', () => fetch('https://data-api.binance.vision/api/v3/ping', { signal: AbortSignal.timeout(5000) })],
