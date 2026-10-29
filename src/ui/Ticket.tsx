@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
@@ -61,8 +61,8 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
   const [preview, setPreview] = useState<string | null>(null)
-  // The touch prices, not the mid: a mid can fall between ticks, and a market order fills on the far side.
-  const touch = useFrame({ kind: 'book', market: spec.key, group }, (f) => ({ bid: plain(f?.bids[0]?.px), ask: plain(f?.asks.at(-1)?.px) }), shallow)
+  // The exact touch, not the mid or a grouped row: a mid can fall between ticks, and a market order fills on the far side.
+  const touch = useFrame({ kind: 'book', market: spec.key, group }, (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }), shallow)
   const near = side === 'buy' ? touch.bid : touch.ask
   const far = side === 'buy' ? touch.ask : touch.bid
   const [mountedAt] = useState(() => Date.now())
@@ -155,13 +155,16 @@ function TicketForm({ spec, group }: { spec: MarketSpec; group: string }) {
 }
 
 function Input(props: { label: string; name: string; value: string; error: string | undefined; hint: React.ReactNode; onChange: (v: string) => void; onBlur: () => void }) {
+  const id = useId()
+  // The hint can be a button, so it sits beside the label and not inside it.
   return (
-    <label className="flex flex-col gap-1 text-[12px]">
-      <span className="flex justify-between text-level3">
-        {props.label}
+    <div className="flex flex-col gap-1 text-[12px]">
+      <div className="flex justify-between text-level3">
+        <label htmlFor={id}>{props.label}</label>
         {props.hint}
-      </span>
+      </div>
       <input
+        id={id}
         name={props.name}
         inputMode="decimal"
         autoComplete="off"
@@ -169,10 +172,10 @@ function Input(props: { label: string; name: string; value: string; error: strin
         onChange={(e) => props.onChange(e.target.value.trim())}
         onBlur={props.onBlur}
         aria-invalid={Boolean(props.error)}
+        aria-describedby={props.error ? `${id}-error` : undefined}
         className="num rounded border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
       />
-      {props.error && <span className="text-ask">{props.error}</span>}
-    </label>
+      {props.error && <span id={`${id}-error`} className="text-ask">{props.error}</span>}
+    </div>
   )
 }
-

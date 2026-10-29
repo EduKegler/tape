@@ -75,6 +75,9 @@ export interface BookFrame extends FrameBase {
   /** Exactly BOOK_ROWS each. Asks best LAST so the ladder reads down toward the spread. */
   readonly asks: readonly BookRow[]
   readonly bids: readonly BookRow[]
+  /** Exact best bid and ask, never grouped, so the ticket proposes a price that is on the book. */
+  readonly bid: string
+  readonly ask: string
   readonly mid: string
   readonly spread: string
   readonly spreadBps: string

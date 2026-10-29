@@ -1,13 +1,16 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CandlestickSeries, HistogramSeries, createChart } from 'lightweight-charts'
+import { CandlestickSeries, HistogramSeries, TickMarkType, createChart } from 'lightweight-charts'
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts'
 import { useFrameEffect } from '#/client/hooks'
 import { INTERVALS, marketKey } from '#/core/ids'
 import type { Base, Interval, VenueId } from '#/core/ids'
 import type { ChartBarFrame } from '#/core/topics'
+import { formatChartTick, formatChartTime } from './format'
 import { Panel, Segmented } from './Panel'
 import { candlesQuery, specsQuery } from './queries'
+
+const MARKS = { [TickMarkType.Year]: 'year', [TickMarkType.Month]: 'month', [TickMarkType.DayOfMonth]: 'day', [TickMarkType.Time]: 'time', [TickMarkType.TimeWithSeconds]: 'seconds' } as const
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
@@ -33,7 +36,8 @@ export function CandleChart({ venue, base, interval, onInterval }: { venue: Venu
       layout: { background: { color: 'transparent' }, textColor: css('--level3'), fontFamily: css('--font-mono'), fontSize: 11, attributionLogo: false },
       grid: { vertLines: { color: css('--rule') }, horzLines: { color: css('--rule') } },
       rightPriceScale: { borderColor: css('--rule') },
-      timeScale: { borderColor: css('--rule'), timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: css('--rule'), timeVisible: true, secondsVisible: false, tickMarkFormatter: (time: UTCTimestamp, mark: TickMarkType) => formatChartTick(time, MARKS[mark]) },
+      localization: { timeFormatter: (t: UTCTimestamp) => formatChartTime(t) },
       crosshair: { vertLine: { color: css('--level3') }, horzLine: { color: css('--level3') } },
     })
     const candles = chart.addSeries(CandlestickSeries, {
@@ -60,7 +64,7 @@ export function CandleChart({ venue, base, interval, onInterval }: { venue: Venu
   useEffect(() => {
     if (decimals === undefined) return
     const format = new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-    series.current?.chart.applyOptions({ localization: { priceFormatter: (p: number) => format.format(p) } })
+    series.current?.chart.applyOptions({ localization: { priceFormatter: (p: number) => format.format(p), timeFormatter: (t: UTCTimestamp) => formatChartTime(t) } })
     series.current?.candles.applyOptions({ priceFormat: { type: 'price', precision: decimals, minMove: 10 ** -decimals } })
   }, [decimals])
 

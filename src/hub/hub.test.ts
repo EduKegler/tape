@@ -71,7 +71,7 @@ describe('hub', () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')
     const b = tab(hub, 'b')
-    a.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'trades', market: btc('dydx') }])
+    a.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'book', market: btc('binance'), group: '100' }, { kind: 'trades', market: btc('dydx') }])
     b.want([{ kind: 'book', market: btc('binance'), group: '1' }, { kind: 'compare', base: 'BTC' }])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
@@ -86,6 +86,11 @@ describe('hub', () => {
     expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
     const compare = b.frames.get('compare|BTC')
     expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(3)
+    // A wide group still carries the exact touch, which the ticket proposes as a price.
+    const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
+    const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
+    expect(wide.bid).toBe(venue?.bid)
+    expect(wide.ask).toBe(venue?.ask)
     hub.dispose()
   })
 
