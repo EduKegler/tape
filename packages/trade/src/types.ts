@@ -176,7 +176,7 @@ export interface KeySlot {
   clear: () => void
 }
 
-/** Operator settings the app reads from its own env. Null builder means no fee, null broker means the network is off. */
+/** Null builder means no fee, null broker means the network is off. */
 export interface TradeConfig {
   readonly mainnet: boolean
   readonly hyperliquid: { readonly builder: { readonly b: Address; readonly f: number } | null }

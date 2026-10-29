@@ -266,7 +266,7 @@ async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOr
   )
 }
 
-/** The indexer has no clientId filter, so the latest orders on the market are searched. It can lag the chain by a few blocks. */
+/** The indexer has no clientId filter, so the latest orders on the market are searched. */
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
   const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
   const clientId = String(clientIdOf(intent.clientId))

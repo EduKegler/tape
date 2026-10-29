@@ -61,7 +61,6 @@ export function estimateLiquidation(state: MarginState, entry: Entry | null): Li
   const added = entry ? (entry.side === 'buy' ? entry.size : -entry.size) : 0
   const size = held + added
   if (Math.abs(size) < 1e-12) return { kind: 'none' }
-  // Equity at mark p is fixed + size * p.
   const fixed = state.accountValue - held * (state.position?.mark ?? 0) - added * (entry?.px ?? 0)
   const at = entry?.px ?? state.position?.mark ?? 0
   if (fixed + size * at <= state.othersMaintenance + maintenanceMargin(state.tiers, Math.abs(size) * at)) {
