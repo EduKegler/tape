@@ -1,0 +1,26 @@
+import { useHubStats } from '#/client/hooks'
+
+/** The hub's own numbers, so the sharing claim can be checked by opening a second tab. */
+export function StatusBar() {
+  const stats = useHubStats()
+  return (
+    <footer className="num flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-rule px-4 py-1.5 text-[11px] text-level3">
+      {stats ? (
+        <>
+          <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">
+            Hub <span className="text-level2">{stats.mode}</span>
+          </span>
+          <span>Tabs <span className="text-level2">{stats.tabs}</span></span>
+          <span>Sockets <span className="text-level2">{stats.sockets}</span></span>
+          <span>Streams <span className="text-level2">{stats.streams}</span></span>
+          <span>In <span className="text-level2">{stats.messagesPerSecond}</span> msg/s</span>
+          <span>Out <span className="text-level2">{stats.framesPerSecond}</span> frames/s</span>
+        </>
+      ) : (
+        <span>Starting hub…</span>
+      )}
+      <span className="ml-auto font-sans">Read-only. Public market data. Nothing is ever signed or sent.</span>
+      <a className="font-sans hover:text-level1" href="https://github.com/EduKegler/tape">Source</a>
+    </footer>
+  )
+}

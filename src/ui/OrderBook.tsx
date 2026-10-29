@@ -1,0 +1,86 @@
+import { memo } from 'react'
+import { shallow } from '@tanstack/store'
+import { useFrame } from '#/client/hooks'
+import type { MarketKey } from '#/core/ids'
+import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
+import type { BookFrame } from '#/core/topics'
+import { Panel } from './Panel'
+import { proposePrice } from './ticket-store'
+
+type BookTopic = { kind: 'book'; market: MarketKey; group: string }
+
+const INDICES = Array.from({ length: BOOK_ROWS }, (_, i) => i)
+
+/**
+ * Fixed rows keyed by index, so DOM nodes never move. Each row subscribes to its own slice of the
+ * frame with a shallow compare, so a frame where 3 of 28 levels changed renders 3 rows. The depth
+ * bar is a scaleX transform, which skips layout.
+ */
+export function OrderBook({ market, group, onGroup }: { market: MarketKey; group: string; onGroup: (g: string) => void }) {
+  const topic: BookTopic = { kind: 'book', market, group }
+  const head = useFrame(topic, (f) => ({ group: f?.group ?? group, options: f?.groupOptions.join('|') ?? '', status: f?.status ?? 'syncing' }), shallow)
+  return (
+    <Panel
+      title="Order book"
+      aside={
+        <label className="flex items-center gap-1.5 text-[12px] text-level3">
+          Group
+          <select value={head.group} onChange={(e) => onGroup(e.target.value)} className="num rounded border border-rule bg-panel px-1 py-0.5 text-level2">
+            {(head.options ? head.options.split('|') : [head.group]).map((o) => (
+              <option key={o} value={o.replaceAll(',', '')}>{o}</option>
+            ))}
+          </select>
+        </label>
+      }
+    >
+      <div className="num flex h-full flex-col text-[12px] [contain:strict]" data-status={head.status}>
+        <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-[11px] text-level3">
+          <span>Price</span>
+          <span className="text-right">Size</span>
+          <span className="text-right">Total</span>
+        </div>
+        <div className="flex flex-1 flex-col justify-end">
+          {INDICES.map((i) => <Row key={`a${i}`} topic={topic} side="asks" index={i} />)}
+        </div>
+        <Spread topic={topic} />
+        <div className="flex-1">
+          {INDICES.map((i) => <Row key={`b${i}`} topic={topic} side="bids" index={i} />)}
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+const Row = memo(function Row({ topic, side, index }: { topic: BookTopic; side: 'asks' | 'bids'; index: number }) {
+  const row = useFrame(topic, (f: BookFrame | null) => f?.[side][index] ?? EMPTY_ROW, shallow)
+  const ask = side === 'asks'
+  return (
+    <button
+      type="button"
+      tabIndex={row.px ? 0 : -1}
+      onClick={() => row.px && proposePrice(row.px)}
+      className="relative grid h-5 w-full grid-cols-3 items-center px-3 text-left hover:bg-level1/5"
+    >
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 right-0 w-full origin-right ${ask ? 'bg-ask-wash' : 'bg-bid-wash'}`}
+        style={{ transform: `scaleX(${row.fill})` }}
+      />
+      <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>{row.px}</span>
+      <span className="relative text-right text-level1">{row.qty}</span>
+      <span className="relative text-right text-level3">{row.cum}</span>
+    </button>
+  )
+})
+
+function Spread({ topic }: { topic: BookTopic }) {
+  const s = useFrame(topic, (f) => ({ mid: f?.mid ?? '', spread: f?.spread ?? '', bps: f?.spreadBps ?? '', status: f?.status ?? 'syncing' }), shallow)
+  return (
+    <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
+      <span className="text-[14px] text-level1">{s.mid || '—'}</span>
+      <span className="whitespace-nowrap text-[11px] text-level3">
+        {s.status === 'live' ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps` : s.status === 'stale' ? 'Reconnecting…' : 'Syncing…'}
+      </span>
+    </div>
+  )
+}

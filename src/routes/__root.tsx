@@ -9,7 +9,9 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import appCss from '../styles.css?url'
+import { WagmiProvider } from 'wagmi'
 import { HubProvider } from '#/client/hooks'
+import { wagmiConfig } from '#/wallet/config'
 
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -30,6 +32,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       {
         title: 'Tape',
       },
+      {
+        name: 'description',
+        content: 'Read-only order book, trades and depth for BTC, ETH and SOL on Binance, Hyperliquid and dYdX.',
+      },
     ],
     links: [
       {
@@ -48,7 +54,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <HubProvider>{children}</HubProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <HubProvider>{children}</HubProvider>
+        </WagmiProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
