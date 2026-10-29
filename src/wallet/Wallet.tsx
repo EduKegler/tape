@@ -3,7 +3,7 @@ import { erc20Abi, formatUnits } from 'viem'
 import { USDC, chains } from './config'
 import { shortAddress } from '#/ui/format'
 
-/** Read-only wallet: connect, pick a chain, read USDC. Tape never asks for a signature. */
+/** Connect, pick a chain, read USDC. Trading signatures go through src/trade/wallet.ts. */
 export function WalletButton() {
   const { address, chainId, isConnected } = useAccount()
   const connectors = useConnectors()

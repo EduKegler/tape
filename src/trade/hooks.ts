@@ -16,6 +16,7 @@ export type TradeSession =
   | {
       readonly status: 'setup'
       readonly ref: AccountRef
+      readonly capabilities: Capabilities
       readonly steps: readonly SetupStep[] | undefined
       /** A key exists on this device, approved or not. Orders go out and the venue judges them. */
       readonly keyed: boolean
@@ -107,6 +108,7 @@ export function useTradeSession(venue: VenueId, network: Network): TradeSession 
   return {
     status: 'setup',
     ref,
+    capabilities: module.capabilities,
     steps: steps.data,
     keyed: slot?.endsWith(':true') ?? false,
     enable: () => enable.mutate(),

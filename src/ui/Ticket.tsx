@@ -44,6 +44,7 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
   const [built, setBuilt] = useState<TradeError | null>(null)
+  const [protect, setProtect] = useState(false)
   // The exact touch, not the mid or a grouped row: a mid can fall between ticks, and a market order fills on the far side.
   const touch = useFrame({ kind: 'book', market: spec.key, group }, (f) => ({ bid: plain(f?.bid), ask: plain(f?.ask) }), shallow)
   const near = side === 'buy' ? touch.bid : touch.ask
@@ -53,14 +54,15 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
   const slippage = useSelector(slippageBps, (s) => s)
   const balance = useUsdcBalance()
   const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
-  const caps = session.status === 'ready' ? session.capabilities : null
+  const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
   const { run, last } = useTradeCommands(ref)
   const form = useForm({
     defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
     onSubmit: ({ value }) => {
       if (!ref || !canSend) return
-      const result = buildIntent(spec, { ...value, side, kind, slippage: slippage as Bps }, caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true })
+      const triggers = protect ? {} : { takeProfit: '', stopLoss: '' }
+      const result = buildIntent(spec, { ...value, ...triggers, side, kind, slippage: slippage as Bps }, caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false })
       if (!result.ok) {
         setBuilt({ kind: 'invalid-order', detail: Object.entries(result.errors).map(([k, v]) => `${k}: ${v}`).join('; ') })
         return
@@ -134,7 +136,13 @@ function TicketForm({ spec, group, session, network }: { spec: MarketSpec; group
           </label>
         )}
       </form.Field>
-      {caps?.triggers !== false && kind === 'limit' && (
+      {caps?.triggers && kind === 'limit' && (
+        <label className="flex items-center gap-2 text-[12px] text-level2">
+          <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
+          Take profit and stop loss
+        </label>
+      )}
+      {caps?.triggers && kind === 'limit' && protect && (
         <div className="grid grid-cols-2 gap-2">
           {(['takeProfit', 'stopLoss'] as const).map((name) => (
             <form.Field key={name} name={name} validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}>

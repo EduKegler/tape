@@ -140,6 +140,8 @@ const GUARDED = [
   { urlPattern: '*dydx*rpc*' },
 ]
 function verdict(url, method, body) {
+  // A CORS preflight sends nothing. Blocking it would hide the real request behind "Failed to fetch".
+  if (method === 'OPTIONS') return null
   if (url.startsWith('https://api.hyperliquid.xyz/exchange')) return 'Hyperliquid mainnet orders are blocked in verification'
   if (/orderly\.org\/v1\/(register_account|orderly_key)/.test(url)) return 'Orderly account and key registration is blocked in verification'
   if (/\/\/api\.orderly\.org\/v1\/(order|batch-order|client)/.test(url) && method !== 'GET') return 'Orderly mainnet orders are blocked in verification'
