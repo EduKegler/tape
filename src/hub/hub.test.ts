@@ -51,17 +51,22 @@ function setup() {
 
 function tab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
+  const posted: Frame[] = []
   let deliver: (data: unknown) => void = () => {}
   hub.connect({
     post: (m: HubToTab) => {
-      if (m.t === 'frames') for (const f of structuredClone(m.frames)) frames.set(f.key, f)
+      if (m.t !== 'frames') return
+      for (const f of structuredClone(m.frames)) {
+        frames.set(f.key, f)
+        posted.push(f)
+      }
     },
     listen: (fn) => (deliver = fn),
     close: () => {},
   })
   const send = (m: TabToHub) => deliver(structuredClone(m))
   send({ t: 'hello', tab: id as TabId, visible })
-  return { frames, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
+  return { frames, posted, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
 }
 
 function replay(sockets: FakeSocket[]) {
@@ -72,6 +77,14 @@ function replay(sockets: FakeSocket[]) {
 }
 
 const btc = (venue: 'binance' | 'hyperliquid' | 'dydx') => marketKey(venue, 'BTC')
+
+const dydxBook = wsFrames('dydx').find((r) => r.includes('"subscribed"') && r.includes('v4_orderbook'))!
+const dydxCorrupt = wsFrames('dydx')
+  .find((r) => r.includes('channel_data') && r.includes('v4_orderbook'))!
+  .replace(/\["\d+"/, '["8x"')
+const bookTopic = (market: ReturnType<typeof btc>) => ({ kind: 'book', market, group: '1' }) as const
+const liveSince = (posted: readonly Frame[], from: number) =>
+  posted.slice(from).filter((f) => f.kind === 'book' && f.status === 'live')
 
 describe('hub', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -221,6 +234,24 @@ describe('hub', () => {
     replay(sockets)
     await vi.advanceTimersByTimeAsync(500)
     expect(a.frames.size).toBe(0)
+    hub.dispose()
+  })
+
+  it('keeps a dYdX book off live when its snapshot lands after a held resubscribe', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([bookTopic(btc('dydx'))])
+    await vi.advanceTimersByTimeAsync(1100)
+    const socket = sockets.find((s) => s.url.includes('dydx'))!
+    socket.onmessage!(dydxBook)
+    await vi.advanceTimersByTimeAsync(200)
+    socket.onmessage!(dydxCorrupt)
+    socket.onmessage!(dydxCorrupt)
+    expect(socket.sent.at(-1)).toContain('unsubscribe')
+    const from = a.posted.length
+    socket.onmessage!(dydxBook)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(liveSince(a.posted, from)).toEqual([])
     hub.dispose()
   })
 })

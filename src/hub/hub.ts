@@ -211,6 +211,11 @@ export function createHub(deps: HubDeps): Hub {
     flush()
   }
 
+  function followsBook(m: MarketState): boolean {
+    const conn = venues[m.venue].conn
+    return conn.s === 'open' && conn.subscribed.has(streamKey(m.key, 'book'))
+  }
+
   function feedBook(m: MarketState, input: BookInput): void {
     const v = venues[m.venue]
     const before = m.sync.phase
@@ -249,9 +254,11 @@ export function createHub(deps: HubDeps): Hub {
     try {
       switch (e.kind) {
         case 'book-snapshot':
+          if (!followsBook(m)) return
           feedBook(m, { kind: 'snapshot', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), time: e.time })
           return
         case 'book-delta':
+          if (!followsBook(m)) return
           feedBook(m, {
             kind: 'delta',
             bids: toLevels(e.bids, spec),
