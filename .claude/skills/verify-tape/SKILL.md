@@ -35,6 +35,8 @@ node .claude/skills/verify-tape/scripts/verify-tape.mjs up
 4. Waits until `GET /hyperliquid/BTC?interval=1m` returns 200 with the title `BTC on Hyperliquid`, and the CDP port answers.
 5. Starts the test wallet on `127.0.0.1:4392`. It attaches to Chrome over CDP, injects an EIP-1193 provider into every page, signs with a fresh throwaway key, and blocks mainnet order writes and Orderly registration with a 451. Every request it signs or blocks lands in `artifacts/<run-id>/wallet.jsonl`. The provider calls `/__tape-test-wallet` on the app's own origin and the wallet answers over CDP, so the app's Content Security Policy applies as it does in production.
 
+`VERIFY_TAPE_WATCH=<address>` makes the test wallet watch-only: it connects as that address, so the app reads its real balances, and it refuses every signature and transaction. A refused `eth_sendTransaction` still lands in `wallet.jsonl` with the transaction the app asked for. Use it for journeys that need funds, such as deposits.
+
 Ready prints the run id, both pids and the evidence folder. Server ready is not data ready. Live data arrives in the browser a few seconds later. Each feature file says what to wait for.
 
 `up --network testnet` builds with `VITE_NETWORK=testnet`. Trading journeys need it. `up --reuse-build` skips the build and serves the last one when it was built for the same network. Only use it when `src/` has not changed since that build.
@@ -136,6 +138,7 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 - Leaving a market for 10 s closes its streams. A tab on `Not Found` holds no wants, so `Sockets` can drop to 0 and recover when another tab subscribes.
 - Every tab of this Chrome shares one SharedWorker hub. Open extra tabs only when the journey needs them, and `close` them after, or the `Tabs` count is off for the next journey.
 - The wallet is the harness test wallet, never an extension. Branded Chrome ignores `--load-extension`. It has no funds, so trading proof is the venue's rejection naming the recovered address. See `features/trading.md`.
-- Each `up` makes a new wallet key. Compare addresses within one run only.
+- Each `up` makes a new wallet key. Compare addresses within one run only. A watch-only run keeps the watched address.
+- Another run, from another worktree, can hold ports 4391, 9391 and 4392. Set `VERIFY_TAPE_PORT`, `VERIFY_TAPE_CDP_PORT` and `VERIFY_TAPE_WALLET_PORT` to free ones, and export them for every later command.
 - The build sends a Content Security Policy. A blocked script or host shows in the console as `violates the following Content Security Policy directive`, and the feature stalls without an error on screen. Read the console before blaming the venue.
 - `steps.jsonl` records commands that failed too, with the error. Read it when a journey stops halfway.
