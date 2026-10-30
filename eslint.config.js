@@ -15,6 +15,15 @@ import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
+const KEY_IMPORTS = {
+  group: ['viem/accounts', '@noble/curves', '@noble/curves/*', '@dydxprotocol/v4-client-js'],
+  message: 'Keys are made and used only in packages/trade.',
+}
+const KEY_IMPORT_EXPRESSIONS = {
+  selector: 'ImportExpression[source.value=/^(viem\\/accounts|@noble\\/curves|@dydxprotocol\\/v4-client-js)/]',
+  message: 'Keys are made and used only in packages/trade.',
+}
+
 export default [
   ...tanstackConfig,
   {
@@ -94,6 +103,23 @@ export default [
       'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
       // Plain classes from src/styles.css: num for tabular figures.
       'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['num'] }],
+      'better-tailwindcss/no-restricted-classes': [
+        'error',
+        {
+          restrict: [
+            {
+              pattern:
+                '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|z|duration)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
+              message: 'Use a token from src/styles.css, not an arbitrary or bare value.',
+            },
+            {
+              pattern:
+                '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition-duration)',
+              message: 'Use a token from src/styles.css, not an arbitrary property.',
+            },
+          ],
+        },
+      ],
     },
   },
   {
@@ -170,23 +196,33 @@ export default [
     // Private keys are made and used only inside the trading package.
     files: ['src/**', 'packages/core/**', 'packages/venues/**'],
     rules: {
+      'no-restricted-imports': ['error', { patterns: [KEY_IMPORTS] }],
+      'no-restricted-syntax': ['error', KEY_IMPORT_EXPRESSIONS],
+    },
+  },
+  {
+    // ESLint's flat config replaces a rule's options in a later block, so the key restrictions repeat here.
+    files: ['src/**'],
+    ignores: ['src/ui/primitives/**'],
+    rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
-            {
-              group: ['viem/accounts', '@noble/curves', '@noble/curves/*', '@dydxprotocol/v4-client-js'],
-              message: 'Keys are made and used only in packages/trade.',
-            },
+            KEY_IMPORTS,
+            { group: ['@base-ui/react', '@base-ui/react/*'], message: 'Use the primitives in src/ui/primitives.' },
           ],
         },
       ],
       'no-restricted-syntax': [
         'error',
+        KEY_IMPORT_EXPRESSIONS,
         {
-          selector: 'ImportExpression[source.value=/^(viem\\/accounts|@noble\\/curves|@dydxprotocol\\/v4-client-js)/]',
-          message: 'Keys are made and used only in packages/trade.',
+          selector: 'ImportExpression[source.value=/^@base-ui\\/react/]',
+          message: 'Use the primitives in src/ui/primitives.',
         },
+        { selector: "JSXOpeningElement[name.name='button']", message: 'Use Button from src/ui/primitives.' },
+        { selector: "JSXOpeningElement[name.name='table']", message: 'Use Table from src/ui/primitives.' },
       ],
     },
   },
