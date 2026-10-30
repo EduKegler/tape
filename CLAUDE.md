@@ -33,6 +33,7 @@ A test goes in the one layer that can catch its kind of mistake. A test that rep
 | Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
 | History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
 | UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production build over the recorded replay, with no network | What the user reads on screen |
+| Each venue still serves the book the testnet build reads | Playwright in `e2e/live.smoke.ts`, run only by the nightly, against the live venues | A live book on screen |
 | Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
 
 The `verify-tape` skill explores and reproduces bugs against live data. Regressions belong to `pnpm e2e`. A spec finds elements by role and accessible name, and a `data-testid` goes in only where neither is reliable.
@@ -65,6 +66,7 @@ Before a venue ships, its tests prove these:
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
+| The testnet build shows each venue's live book | the `smoke` job in `.github/workflows/nightly.yml` |
 | One logical change per commit | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |

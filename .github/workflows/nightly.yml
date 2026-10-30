@@ -8,6 +8,8 @@ on:
     paths:
       - .github/workflows/nightly.yml
       - scripts/record-fixtures.mjs
+      - e2e/smoke.config.ts
+      - e2e/live.smoke.ts
 
 permissions:
   contents: read
@@ -45,3 +47,28 @@ jobs:
         with:
           name: recording-${{ matrix.network }}-${{ matrix.venue }}
           path: packages/venues/src/__fixtures__/${{ matrix.venue }}.*
+
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: build the testnet site
+        run: pnpm build
+        env:
+          VITE_NETWORK: testnet
+      - name: wait for each venue's live testnet book
+        run: pnpm exec playwright test -c e2e/smoke.config.ts
+      - name: traces and screenshots of the venues that never went live
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-results
+          path: e2e/results/smoke
