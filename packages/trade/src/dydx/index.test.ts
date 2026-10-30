@@ -436,3 +436,12 @@ describe('dydx cancel all', () => {
     })
   })
 })
+
+describe('dydx builder fee', () => {
+  it('passes the configured builder fee to dYdX', async () => {
+    const builder = { builderAddress: 'dydx1builder', feePpm: 10 }
+    chain.reply = { code: 0, hash: 'A1' }
+    await dydx.execute({ ...ctx, config: { ...ctx.config, dydx: { builder } } }, place)
+    expect(chain.placeOrder.mock.calls[0]?.[15]).toEqual(builder)
+  })
+})
