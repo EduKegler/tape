@@ -2,6 +2,7 @@
   "name": "tape",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.7.0",
   "imports": {
     "#/*": "./src/*"
   },
@@ -16,7 +17,8 @@
     "test": "vitest run",
     "typecheck": "node scripts/check-packages.mjs && tsc -p packages/core && tsc -p packages/venues && tsc -p packages/trade && tsc --noEmit",
     "fixtures": "node scripts/record-fixtures.mjs 8",
-    "verify": "pnpm typecheck && node scripts/check-cycles.mjs && eslint --max-warnings 0 && prettier --check . && knip && vitest run",
+    "verify": "pnpm typecheck && node scripts/check-public.mjs && node scripts/check-cycles.mjs && eslint --max-warnings 0 && prettier --check . && knip && vitest run",
+    "verify:commits": "node scripts/verify-commits.mjs",
     "prepare": "lefthook install"
   },
   "commitlint": {
