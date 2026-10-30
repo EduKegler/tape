@@ -4,7 +4,7 @@ import type { Address } from 'viem'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
-import { buildIntent } from '../intent'
+import { buildIntent, closeIntent } from '../intent'
 import { TradeFailure } from '../types'
 import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext } from '../types'
 import { hyperliquid } from '.'
@@ -92,7 +92,7 @@ function venue(exchange: () => Response | Promise<Response>, openOrders: unknown
     fetch,
   }
   const posts = () => sent.filter((s) => s.url.endsWith('/exchange'))
-  return { ctx, posts }
+  return { ctx, sent, posts }
 }
 
 const wiresOf = (post: Sent | undefined) => {
@@ -267,5 +267,30 @@ describe('hyperliquid exits', () => {
       status: 'resting',
       detail: 'Resting as order 7. TP not placed: Invalid TP/SL price.',
     })
+  })
+})
+
+describe('hyperliquid market orders without exits', () => {
+  // A market buy is bounded 1% over the ask, 80010 x 1.01 = 80810.1, which snaps down to 80810 in 5 figures.
+  it('sends a market order with no take profit or stop loss at the slippage bound off the far touch', async () => {
+    const short = {
+      symbol: 'BTC',
+      side: 'short',
+      size: '0.001',
+      entry: '80100',
+      unrealizedPnl: '0',
+      liquidation: null,
+      leverage: null,
+    } as const
+    const intent = closeIntent(btc, short as Parameters<typeof closeIntent>[1], 100 as Bps)
+    if (!intent) throw new Error('close')
+    const { ctx, sent, posts } = venue(() => statuses([{ filled: { totalSz: '0.001', avgPx: '80010' } }]))
+    expect(await hyperliquid.execute(ctx, { kind: 'place', intent })).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: 'Filled 0.001 at 80010',
+    })
+    expect(sent.find((s) => s.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
+    expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80810', true, { limit: { tif: 'Ioc' } }]] })
   })
 })
