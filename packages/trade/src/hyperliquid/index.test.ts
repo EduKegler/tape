@@ -68,14 +68,18 @@ interface Sent {
   body: Record<string, unknown>
 }
 
-function venue(exchange: () => Response | Promise<Response>, openOrders: unknown[] = []) {
+function venue(
+  exchange: () => Response | Promise<Response>,
+  openOrders: unknown[] = [],
+  levels: unknown[][] = [[{ px: '79990' }], [{ px: '80010' }]],
+) {
   const sent: Sent[] = []
   const fetch = (async (url: string, init?: RequestInit) => {
     const body = JSON.parse(init?.body as string) as Record<string, unknown>
     sent.push({ url, body })
     if (url.endsWith('/exchange')) return exchange()
     if (body.type === 'meta') return json(testnetMeta)
-    if (body.type === 'l2Book') return json({ levels: [[{ px: '79990' }], [{ px: '80010' }]] })
+    if (body.type === 'l2Book') return json({ levels })
     if (body.type === 'frontendOpenOrders') return json(openOrders)
     if (body.type === 'extraAgents') return json([])
     return json(null)
@@ -271,7 +275,6 @@ describe('hyperliquid exits', () => {
 })
 
 describe('hyperliquid market orders without exits', () => {
-  // A market buy is bounded 1% over the ask, 80010 x 1.01 = 80810.1, which snaps down to 80810 in 5 figures.
   it('sends a market order with no take profit or stop loss at the slippage bound off the far touch', async () => {
     const short = {
       symbol: 'BTC',
@@ -292,5 +295,14 @@ describe('hyperliquid market orders without exits', () => {
     })
     expect(sent.find((s) => s.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80810', true, { limit: { tif: 'Ioc' } }]] })
+  })
+
+  it('refuses a market order into an empty side of the book', async () => {
+    const { ctx, posts } = venue(() => statuses([]), [], [[{ px: '79990' }], []])
+    expect(await failureOf(hyperliquid.execute(ctx, place({ kind: 'market', price: '' })))).toEqual({
+      kind: 'invalid-order',
+      detail: 'The book on this network is empty',
+    })
+    expect(posts()).toEqual([])
   })
 })
