@@ -270,7 +270,9 @@ export function useTradeCommands(ref: AccountRef | null) {
       error: mutation.error?.error ?? null,
       pending: mutation.isPending,
       command: mutation.variables ?? null,
-      lookup: unknown ? { result: lookup.data ?? null, error: lookup.error?.error ?? null } : null,
+      lookup: unknown
+        ? { result: lookup.data ?? null, error: lookup.error?.error ?? null, pending: lookup.isPending }
+        : null,
     },
     inFlight,
   }

@@ -87,6 +87,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
   const { run, last } = useTradeCommands(ref)
+  const sending = last.pending || last.lookup?.pending === true
   const margin = useMarginReading(ref, spec.venueSymbol)
   const form = useForm({
     defaultValues: {
@@ -102,7 +103,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       skew: '1',
     },
     onSubmit: ({ value }) => {
-      if (!ref || !canSend || last.pending) return
+      if (!ref || !canSend || sending) return
       const triggers = protect && kind !== 'scale' ? {} : { takeProfit: '', stopLoss: '' }
       const result = buildIntent(
         spec,
@@ -347,7 +348,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 venue={VENUES[spec.venue].label}
                 side={side}
                 base={spec.base}
-                canSubmit={canSubmit && canSend && !last.pending}
+                canSubmit={canSubmit && canSend && !sending}
               />
             </>
           )
