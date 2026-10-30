@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
+  TRADE_LIMIT,
   effectiveTick,
   emptyTape,
   priceTick,
@@ -96,6 +97,16 @@ describe('trades and candles', () => {
     expect(pushTrades(tape, [t('b', 2)])).toBe(false)
     pushTrades(tape, [t('c', 3)])
     expect(tape.items.map((x) => x.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('keeps only the newest TRADE_LIMIT trades', () => {
+    const tape = emptyTape()
+    pushTrades(
+      tape,
+      Array.from({ length: TRADE_LIMIT + 1 }, (_, i) => t(`t${i + 1}`, i + 1)),
+    )
+    expect(tape.items).toHaveLength(TRADE_LIMIT)
+    expect(tape.items.some((x) => x.time === 1)).toBe(false)
   })
 
   it('replaces the forming bar and ignores older ones', () => {
