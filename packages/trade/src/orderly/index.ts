@@ -185,17 +185,18 @@ async function placeScale(
       reduceOnly: intent.reduceOnly,
     }
   })
-  const data = await signed<{ rows: { order_id?: number | string | null; error_message?: string | null }[] }>(
+  const data = await signed<{ rows?: { order_id?: number | string | null; error_message?: string | null }[] }>(
     ctx,
     'POST',
     '/v1/batch-order',
     batchBody(legs),
   )
-  if (data.rows.length === 0)
+  const rows = data.rows ?? []
+  if (rows.length === 0)
     fail({ kind: 'unknown-outcome', detail: `No order rows in the reply: ${JSON.stringify(data)}` })
   // Orderly writes "none" in error_message on a placed row, so a row stands by its order_id.
   return scaleOutcome(
-    data.rows.map((r) => (r.order_id == null ? (r.error_message ?? 'Refused without a reason') : undefined)),
+    rows.map((r) => (r.order_id == null ? (r.error_message ?? 'Refused without a reason') : undefined)),
     'resting',
     (error) => fail(classifyMessage(error)),
   )

@@ -127,6 +127,12 @@ describe('orderly orders', () => {
     expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent }))).toMatchObject({ kind: 'unknown-outcome' })
   })
 
+  it('calls a batch reply without rows an unknown outcome, since the legs may be on the book', async () => {
+    const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
+    const { ctx } = orderlyAt(() => ({ body: '{"success":true,"data":{}}' }))
+    expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent }))).toMatchObject({ kind: 'unknown-outcome' })
+  })
+
   it('calls a scale order whose every leg was refused a refusal, and names a leg refused without a reason', async () => {
     const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
     // -1103's description on Orderly's error codes page.
