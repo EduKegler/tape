@@ -21,6 +21,7 @@ async function enable(page: Page) {
   await expect(ticket.getByText('Register an Orderly account')).toBeVisible()
   await expectAccessible(page)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
   return { orderly, ticket }
 }

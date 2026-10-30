@@ -10,6 +10,7 @@ test('enabling dYdX asks the wallet for the onboarding signature on Sepolia', as
   await ticket.getByRole('button', { name: 'Connect wallet' }).click()
   await expect(ticket.getByText('Unlock your dYdX key in this tab')).toBeVisible()
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
   await expect(panel(page, 'Account').getByText('No account on this venue yet. Deposit to start.')).toBeVisible()
   await expectAccessible(page)

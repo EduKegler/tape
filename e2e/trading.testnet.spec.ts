@@ -27,6 +27,7 @@ async function connect(page: Page) {
 async function enable(page: Page) {
   const connected = await connect(page)
   await connected.ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(connected.ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
   await expect(connected.ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
   return connected
 }
@@ -52,6 +53,7 @@ test('enabling Hyperliquid has the wallet approve an agent and sends that approv
   const { hyperliquid, ticket } = await connect(page)
   await expectAccessible(page)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
   await expectAccessible(page)
 
@@ -100,6 +102,7 @@ test('a network switch with the ticket open signs the approval for the new netwo
   const { hyperliquid, ticket } = await connect(page)
   await wallet.switchChain(ARBITRUM_SEPOLIA)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
 
   const [approval] = wallet.askedFor('sign')
@@ -355,6 +358,7 @@ test('an account switch with the ticket open sends nothing for the old account',
 
   hyperliquid.exchange = () => ACCEPTED
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
   expect(wallet.askedFor('sign').map((sign) => [sign.from, sign.selected])).toEqual([
     ['alice', 'alice'],
