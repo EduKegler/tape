@@ -113,19 +113,21 @@ function sequenced<T>(address: string, run: () => Promise<T>): Promise<T> {
 
 /** The client throws plain errors for chain refusals; a reply with a non-zero code is a refusal too. */
 async function broadcast(run: () => Promise<unknown>): Promise<string> {
-  let reply: { code?: number; log?: string; hash?: Uint8Array | string }
+  let reply: { code?: number; log?: string; hash?: Uint8Array | string } | undefined
   try {
     reply = (await run()) as typeof reply
   } catch (e) {
     if (e instanceof TradeFailure) throw e
     fail(classifyMessage(e instanceof Error ? e.message : String(e)))
   }
-  if (reply.code) {
+  if (reply?.code) {
     const log = reply.log ?? `code ${reply.code}`
     const error = classifyMessage(log)
     fail(error.kind === 'unknown-outcome' ? { kind: 'rejected', detail: log } : error)
   }
-  return typeof reply.hash === 'string' ? reply.hash : reply.hash ? bytesToHex(reply.hash).slice(2).toUpperCase() : ''
+  const hash = reply?.hash instanceof Uint8Array ? bytesToHex(reply.hash).slice(2).toUpperCase() : reply?.hash
+  if (!hash) fail({ kind: 'unknown-outcome', detail: `No transaction hash in the reply: ${JSON.stringify(reply)}` })
+  return hash
 }
 
 function recheckPx(m: Market, intent: OrderIntent, px: Px): Px {
@@ -211,7 +213,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
           ),
         ),
       )
-  return { kind: 'placed', status: short ? 'accepted' : 'resting', detail: `Broadcast ${hash}`.trim() }
+  return { kind: 'placed', status: short ? 'accepted' : 'resting', detail: `Broadcast ${hash}` }
 }
 
 interface IndexerOrder {
