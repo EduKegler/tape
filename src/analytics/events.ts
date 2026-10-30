@@ -40,6 +40,7 @@ const venue = z.enum(VENUE_IDS)
 const error = z.enum(keys(ERRORS))
 const command = z.enum(keys(COMMANDS))
 const connector = z.enum(['injected', 'walletConnect', 'other'])
+const chain = z.number().int().positive()
 
 const frame = z.strictObject({
   file: z
@@ -88,6 +89,20 @@ export const AppEvent = z.discriminatedUnion('event', [
     error: error.optional(),
   }),
   z.strictObject({ event: z.literal('order_lookup'), venue, found: z.boolean() }),
+  z.strictObject({ event: z.literal('deposit_started'), venue, chain }),
+  z.strictObject({ event: z.literal('deposit_sent'), venue, chain }),
+  z.strictObject({
+    event: z.literal('deposit_failed'),
+    venue,
+    chain,
+    reason: z.enum(['wallet-rejected', 'send', 'reverted', 'replaced']),
+  }),
+  z.strictObject({
+    event: z.literal('deposit_credited'),
+    venue,
+    chain,
+    seconds: z.number().int().nonnegative(),
+  }),
   /** PostHog error tracking reads frames oldest call first. */
   z.strictObject({
     event: z.literal('$exception'),

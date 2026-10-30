@@ -43,6 +43,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Order book](./order-book.md) covers the live book, price grouping, the spread line and clicking a level into the ticket.
 - [Order ticket](./order-ticket.md) covers side, limit and market, tick and step validation, touch price hints, TIF, TP/SL and the network switch.
 - [Trading](./trading.md) covers connecting the test wallet, enabling trading and sending orders on Hyperliquid, dYdX and Orderly testnets, and the Account panel.
+- [Deposit](./deposit.md) covers the Hyperliquid deposit dialog, its routes, the warnings that stop a deposit, the wallet send and the receipt.
 - [Market navigation](./market-navigation.md) covers the root redirect, the market and venue navs, the Venues table, chart intervals and unknown routes.
 - [Hub and status bar](./hub-status.md) covers the shared hub counters, a second tab, tab close and the dedicated worker fallback.
 - [Live panels](./live-panels.md) covers the header ticker, the trade feed, the depth chart and the candle chart.

@@ -3,6 +3,7 @@ import { NETWORKS } from '@tape/core/ids'
 import type { Network } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { venues } from '@tape/venues/index'
+import { DEPOSITS } from '@tape/trade'
 import { CONNECT, contentSecurityPolicy } from './csp'
 
 async function originsReached(network: Network) {
@@ -30,6 +31,22 @@ describe('content security policy', () => {
     const reached = await originsReached(network)
     expect(reached.size).toBeGreaterThanOrEqual(8)
     expect([...reached].filter((o) => !CONNECT[network].includes(o))).toEqual([])
+  })
+
+  it.each(NETWORKS)('lets the %s page quote and follow every deposit route', async (network) => {
+    const origins = new Set<string>()
+    const offline: typeof fetch = (input) => {
+      origins.add(new URL(input instanceof Request ? input.url : input).origin)
+      return Promise.reject(new Error('offline'))
+    }
+    const sent = { ref: { venue: 'hyperliquid', network, owner: '0x01' }, amount: 1n, hash: '0x01', sentAt: 0 } as const
+    for (const route of Object.values(DEPOSITS).flatMap((v) => v.routes(network)))
+      await Promise.allSettled([
+        route.fee(offline, 10_000_000n),
+        route.progress(offline, { ...sent, chainId: route.chainId, claimed: new Set() }),
+      ])
+    expect(origins.size).toBeGreaterThan(0)
+    expect([...origins].filter((o) => !CONNECT[network].includes(o))).toEqual([])
   })
 
   it('keeps every testnet origin off mainnet', () => {

@@ -18,7 +18,14 @@ if (!cdpPort || !walletPort || !keyFile || !logFile) {
 
 const key = existsSync(keyFile) ? JSON.parse(readFileSync(keyFile, 'utf8')).privateKey : generatePrivateKey()
 const account = privateKeyToAccount(key)
-writeFileSync(keyFile, JSON.stringify({ privateKey: key, address: account.address }, null, 2))
+// A funded address to read from, for journeys that need real balances. It never signs or sends.
+const watch = process.env.VERIFY_TAPE_WATCH ?? null
+if (watch && !/^0x[0-9a-fA-F]{40}$/.test(watch)) {
+  console.error(`VERIFY_TAPE_WATCH is not an address: ${watch}`)
+  process.exit(1)
+}
+const address = watch ?? account.address
+writeFileSync(keyFile, JSON.stringify({ privateKey: key, address, watchOnly: Boolean(watch) }, null, 2))
 let chainId = 1
 let connected = false
 
@@ -44,9 +51,9 @@ async function handle(method, params) {
     case 'eth_requestAccounts':
       connected = true
       log({ method })
-      return [account.address]
+      return [address]
     case 'eth_accounts':
-      return connected ? [account.address] : []
+      return connected ? [address] : []
     case 'eth_chainId':
       return numberToHex(chainId)
     case 'net_version':
@@ -60,6 +67,7 @@ async function handle(method, params) {
     case 'wallet_getPermissions':
       return [{ parentCapability: 'eth_accounts' }]
     case 'eth_signTypedData_v4': {
+      if (watch) throw new RpcError(4100, 'The watch-only test wallet does not sign')
       const [from, json] = params
       if (from.toLowerCase() !== account.address.toLowerCase()) throw new RpcError(4100, `unknown account ${from}`)
       const data = typeof json === 'string' ? JSON.parse(json) : json
@@ -67,12 +75,13 @@ async function handle(method, params) {
       return account.sign({ hash: typedDataDigest(data) })
     }
     case 'personal_sign': {
+      if (watch) throw new RpcError(4100, 'The watch-only test wallet does not sign')
       const [message] = params
       log({ method, message })
       return account.signMessage({ message: { raw: message } })
     }
     case 'eth_sendTransaction':
-      log({ method, refused: true })
+      log({ method, refused: true, tx: params[0], walletChainId: chainId })
       throw new RpcError(4001, 'The test wallet does not send transactions')
     default:
       throw new RpcError(4200, `The test wallet does not support ${method}`)
@@ -205,5 +214,5 @@ ws.onmessage = (event) => {
 }
 ws.onclose = () => process.exit(0)
 send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true })
-log({ started: true, address: account.address, walletPort: Number(walletPort) })
-console.log(`test wallet ${account.address} on 127.0.0.1:${walletPort}`)
+log({ started: true, address, watchOnly: Boolean(watch), walletPort: Number(walletPort) })
+console.log(`test wallet ${address}${watch ? ' (watch-only)' : ''} on 127.0.0.1:${walletPort}`)

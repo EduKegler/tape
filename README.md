@@ -6,7 +6,7 @@ Demo: [tape.kegler.dev](https://tape.kegler.dev) reads mainnet. [tape.testnet.ke
 
 ![Tape showing the BTC book on Hyperliquid](docs/screenshot.png)
 
-The screen has an order book with price grouping, a trade feed, a depth chart, candles, a venues table with best bid, best ask and basis, and an order ticket that validates price and size against each venue's tick and step. A wallet connects and shows USDC on Ethereum, Arbitrum, Base and Optimism. On Hyperliquid, dYdX and Orderly the ticket sends orders, and an Account panel shows positions, orders and fills. Binance stays read only. A History page reads every fill and funding payment those three venues still serve, totals realized PnL, fees and funding, and exports a CSV.
+The screen has an order book with price grouping, a trade feed, a depth chart, candles, a venues table with best bid, best ask and basis, and an order ticket that validates price and size against each venue's tick and step. A wallet connects and shows USDC on Ethereum, Arbitrum, Base and Optimism. On Hyperliquid, dYdX and Orderly the ticket sends orders, and an Account panel shows positions, orders and fills. On Hyperliquid it also deposits USDC from Arbitrum, Base, OP Mainnet or Ethereum. Binance stays read only. A History page reads every fill and funding payment those three venues still serve, totals realized PnL, fees and funding, and exports a CSV.
 
 ## Six decisions
 
@@ -68,9 +68,11 @@ Tape has no server between the user and the venue. Each trading venue is one mod
 
 Every send gets a new client id and nothing resends on its own. A send with no answer is an unknown outcome: the ticket says so, asks the venue for that client id, and tells whether the order is there. A rejection always shows the venue's own words.
 
+Deposits leave from the wallet itself. `Deposit` in the Account panel moves USDC to Hyperliquid perps: from Arbitrum through Hyperliquid's bridge, free and credited in about a minute, or on mainnet from Base, OP Mainnet and Ethereum over Circle's CCTP, which burns the USDC and has Circle forward it to the same address on Hyperliquid for a fee Circle quotes. Before the wallet signs, the dialog shows the route, fee, gas, time and each transaction the wallet will ask for. It blocks an amount under the bridge's 5 USDC minimum, which Hyperliquid keeps without crediting, a USDC or gas shortfall, a contract wallet, and a transaction the chain would revert. After the send it follows the deposit to the credit in Hyperliquid's ledger and keeps the receipt on the device. Each venue's routes sit behind `DepositVenue` in `packages/trade/src/deposit.ts`.
+
 Each build is one network, set by `VITE_NETWORK`. A `testnet` build reads books, trades and candles from the testnets and trades there too, so the price on screen is the price the order meets. The default `mainnet` build only reads: the ticket validates and sends nothing unless the build also sets `VITE_TRADE_MAINNET=1`. `VITE_TESTNET_SITE` links the mainnet site to the testnet one. `VITE_WALLETCONNECT_PROJECT_ID`, a [Reown](https://cloud.reown.com) project id, adds a WalletConnect button that shows a QR for a phone wallet. Without it the build offers only the browser's own wallet.
 
-The production server sends a Content Security Policy with a nonce per request. Only scripts the server rendered run, and the page connects only to its own network's hosts, listed in `src/csp.ts`. A new venue host goes there, and `src/csp.test.ts` fails until it does. `pnpm dev` sends no policy, because Vite's dev client injects inline scripts.
+The production server sends a Content Security Policy with a nonce per request. Only scripts the server rendered run, and the page connects only to its own network's hosts, listed in `src/csp.ts`, plus Circle's API for CCTP fees and status on mainnet. A new venue host goes there, and `src/csp.test.ts` fails until it does. `pnpm dev` sends no policy, because Vite's dev client injects inline scripts.
 
 Analytics run no third-party script. The page queues events from a fixed list in `src/analytics/events.ts` and sends them with `sendBeacon` to `/r1` on its own origin. The server validates the batch and forwards it to PostHog's batch API with `POSTHOG_KEY`, and `POSTHOG_HOST` (default EU cloud). Events make no person profile and carry no wallet address. Each is keyed by a page load id that lives in memory and tagged with the build's network. The visitor's IP goes along for GeoIP, unless the PostHog project discards it. Without `POSTHOG_KEY` the route drops everything.
 
@@ -101,6 +103,8 @@ The tests replay recorded history of public mainnet accounts in `packages/trade/
 - Market data comes from public endpoints. Binance comes from the `data-api.binance.vision` mirrors.
 - Trading was verified on testnets with an unfunded wallet, so the proof is each venue naming the signer it recovered. Orderly orders past registration and mainnet are not verified.
 - No take profit or stop loss on dYdX and Orderly, and no leverage change on dYdX.
+- Deposits go to Hyperliquid only. Tape never sent one in verification: the proof is the transaction the wallet was asked for, and real deposits by other wallets replayed through the receipt.
+- Deposit gas shows in the chain's native token, without USD.
 - History has no deposits, withdrawals, transfers or vaults. Hyperliquid serves only its 10,000 most recent fills, dYdX's indexer pages through 25,000 fills, and only dYdX subaccount 0 is read.
 
 ## History CSV
