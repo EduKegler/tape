@@ -75,11 +75,12 @@ test('a crashed tab leaves the other one counted alone and still fed', async ({ 
   await expectBookRecovers(page)
 })
 
-test('a dedicated hub counts only its own tab', async ({ page, context }) => {
-  await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  const dedicated = await openTab(context, '/binance/BTC?hub=dedicated')
-  await expect(footer(dedicated).getByText('Hub dedicated')).toBeVisible()
-  await expect(footer(dedicated).getByText('Tabs 1', { exact: true })).toBeVisible()
+test('a dedicated hub counts only its own tab and stays out of the shared one', async ({ page, context }) => {
+  await openMarket(page, '/binance/BTC?hub=dedicated')
+  const shared = await openTab(context, '/hyperliquid/BTC?interval=1m')
+  await expect(footer(page).getByText('Hub dedicated')).toBeVisible()
   await expect(footer(page).getByText('Tabs 1', { exact: true })).toBeVisible()
-  await expectAccessible(dedicated)
+  await expect(footer(shared).getByText('Hub shared')).toBeVisible()
+  await expect(footer(shared).getByText('Tabs 1', { exact: true })).toBeVisible()
+  await expectAccessible(page)
 })
