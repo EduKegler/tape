@@ -4,3 +4,7 @@ commit-msg:
       run: pnpm exec commitlint --edit {1}
     - name: no AI attribution
       run: "! grep -qiE 'co-authored-by:.*(claude|anthropic|openai|copilot|cursor|gemini)|generated with|claude-session:' {1}"
+pre-push:
+  jobs:
+    - name: pnpm verify on every commit
+      run: pnpm verify:commits
