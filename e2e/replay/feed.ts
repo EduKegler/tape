@@ -36,11 +36,12 @@ const START_DELAY_MS = 250
 const FRAME_EVERY_MS = 5
 const IDLE_EVERY_MS = 2000
 
-export function createFeed(frames: readonly string[], sink: FeedSink): Feed {
+export function createFeed(frames: readonly string[], sink: FeedSink, loops: () => boolean): Feed {
   let started = false
   let timer: ReturnType<typeof setTimeout> | null = null
   let next = 0
   const pump = () => {
+    if (next === frames.length && loops()) next = 0
     if (next < frames.length) {
       sink.send(frames[next++]!)
       timer = setTimeout(pump, FRAME_EVERY_MS)

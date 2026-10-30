@@ -16,6 +16,7 @@ const recording = (name: string) => recordings[`../../packages/venues/src/__fixt
 
 const urls = venues(NETWORK)
 const open = new Set<Feed>()
+let looping = false
 const realFetch = globalThis.fetch.bind(globalThis)
 const RealWebSocket = globalThis.WebSocket
 
@@ -31,10 +32,14 @@ class ReplayWebSocket {
     const venue = VENUE_IDS.find((id) => urls[id].url === url)
     if (!venue) throw new Error(`no recording for ${url}`)
     const frames = (recording(`${venue}.ws.jsonl`) ?? '').trim().split('\n')
-    this.feed = createFeed(frames, {
-      send: (data) => this.onmessage?.({ data }),
-      close: () => this.closed(),
-    })
+    this.feed = createFeed(
+      frames,
+      {
+        send: (data) => this.onmessage?.({ data }),
+        close: () => this.closed(),
+      },
+      () => looping,
+    )
     open.add(this.feed)
     setTimeout(() => {
       this.readyState = 1
@@ -88,7 +93,8 @@ Date.now = () => Math.round(RECORDED_AT + performance.now() - startedAt)
 Object.assign(globalThis, { WebSocket: ReplayWebSocket, fetch: replayFetch })
 
 const control = new BroadcastChannel(CONTROL)
-control.onmessage = async (e: MessageEvent<{ probe?: Probe; playback?: true }>) => {
+control.onmessage = async (e: MessageEvent<{ probe?: Probe; playback?: true; loop?: boolean }>) => {
+  if (e.data.loop !== undefined) looping = e.data.loop
   if (e.data.probe) control.postMessage({ reached: await reaches(e.data.probe) })
   if (e.data.playback) {
     const playback: Playback = { sockets: open.size, playing: [...open].filter((feed) => !feed.played()).length }
