@@ -27,6 +27,7 @@ interface FeedSink {
 
 export interface Feed {
   receive: (data: string) => void
+  played: () => boolean
   drop: () => void
   stop: () => void
 }
@@ -58,6 +59,7 @@ export function createFeed(frames: readonly string[], sink: FeedSink): Feed {
       started = true
       timer = setTimeout(pump, START_DELAY_MS)
     },
+    played: () => next >= frames.length,
     drop() {
       stop()
       sink.close()

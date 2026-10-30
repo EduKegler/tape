@@ -9,3 +9,8 @@ export interface ProbeResult {
   fetched: boolean
   opened: boolean
 }
+
+export interface Playback {
+  sockets: number
+  playing: number
+}
