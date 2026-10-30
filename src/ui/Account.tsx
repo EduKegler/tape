@@ -8,6 +8,7 @@ import { closeIntent } from '@tape/trade/intent'
 import type { AccountRef, Bps, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
+import { DepositButton } from './Deposit'
 import { Panel, Segmented } from './Panel'
 import { specsQuery } from './queries'
 import { slippageBps } from './ticket-store'
@@ -21,7 +22,17 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
   const session = useTradeSession(venue)
   const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
   return (
-    <Panel title="Account" aside={ref ? <span className="num text-[11px] text-level3">{ref.network}</span> : null}>
+    <Panel
+      title="Account"
+      aside={
+        ref ? (
+          <span className="flex items-center gap-2">
+            <DepositButton account={ref} />
+            <span className="num text-[11px] text-level3">{ref.network}</span>
+          </span>
+        ) : null
+      }
+    >
       {ref ? (
         <AccountBody
           key={`${ref.venue}:${ref.network}:${ref.owner}`}

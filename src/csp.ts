@@ -25,6 +25,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
     'https://test-dydx-rpc.kingnodes.com',
     'https://testnet-api.orderly.org',
     'wss://testnet-ws-evm.orderly.org',
+    ...CHAINS.testnet.flatMap((c) => c.rpcUrls.default.http.map((url) => new URL(url).origin)),
   ],
 }
 
