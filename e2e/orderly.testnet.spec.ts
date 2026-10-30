@@ -2,7 +2,6 @@ import type { Page } from '@playwright/test'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { fakeOrderly } from './orderly'
 import { ACCOUNTS } from './wallet'
-import type { Wallet } from './wallet'
 
 const ARBITRUM_SEPOLIA = 421614
 /** Orderly's EIP-712 domain on testnet and its public testnet broker, from Orderly's account docs. */
@@ -14,7 +13,7 @@ const DOMAIN = {
 }
 const BROKER = 'demo'
 
-async function enable(page: Page, _wallet: Wallet) {
+async function enable(page: Page) {
   const orderly = await fakeOrderly(page, 'testnet')
   await openMarket(page, '/orderly/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
@@ -27,7 +26,7 @@ async function enable(page: Page, _wallet: Wallet) {
 }
 
 test('enabling Orderly registers the account and adds a key that cannot withdraw', async ({ page, wallet }) => {
-  const { orderly } = await enable(page, wallet)
+  const { orderly } = await enable(page)
   await expect(panel(page, 'Account').getByText('No account on this venue yet. Deposit to start.')).toBeVisible()
   await expectAccessible(page)
 
@@ -85,8 +84,11 @@ test('enabling Orderly registers the account and adds a key that cannot withdraw
   ])
 })
 
-test('an Orderly limit order goes out with the side, price and size the ticket shows', async ({ page, wallet }) => {
-  const { orderly, ticket } = await enable(page, wallet)
+test('an Orderly limit order goes out with the side, price and size the ticket shows', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { orderly, ticket } = await enable(page)
   await ticket.getByRole('button', { name: 'sell', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('90000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')

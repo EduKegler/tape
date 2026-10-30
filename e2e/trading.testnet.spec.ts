@@ -4,7 +4,6 @@ import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { ACCEPTED, fakeHyperliquid, resting } from './hyperliquid'
 import type { Answer, ExchangeBody } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
-import type { Wallet } from './wallet'
 
 const ARBITRUM_SEPOLIA = 421614
 const BTC = (
@@ -16,7 +15,7 @@ const BTC = (
 /** Hyperliquid's names for the ticket's time in force. */
 const TIF: Record<string, string> = { 'Good til canceled': 'Gtc', 'Immediate or cancel': 'Ioc', 'Post only': 'Alo' }
 
-async function connect(page: Page, _wallet: Wallet) {
+async function connect(page: Page) {
   const hyperliquid = await fakeHyperliquid(page, 'testnet')
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
@@ -25,8 +24,8 @@ async function connect(page: Page, _wallet: Wallet) {
   return { hyperliquid, ticket }
 }
 
-async function enable(page: Page, wallet: Wallet) {
-  const connected = await connect(page, wallet)
+async function enable(page: Page) {
+  const connected = await connect(page)
   await connected.ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(connected.ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
   return connected
@@ -50,7 +49,7 @@ function deferred<T>() {
 }
 
 test('enabling Hyperliquid has the wallet approve an agent and sends that approval', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await connect(page, wallet)
+  const { hyperliquid, ticket } = await connect(page)
   await expectAccessible(page)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
@@ -98,7 +97,7 @@ test('enabling Hyperliquid has the wallet approve an agent and sends that approv
 })
 
 test('a network switch with the ticket open signs the approval for the new network', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await connect(page, wallet)
+  const { hyperliquid, ticket } = await connect(page)
   await wallet.switchChain(ARBITRUM_SEPOLIA)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
@@ -114,7 +113,7 @@ for (const side of ['Buy', 'Sell'] as const)
     page,
     wallet,
   }) => {
-    const { hyperliquid, ticket } = await enable(page, wallet)
+    const { hyperliquid, ticket } = await enable(page)
     hyperliquid.exchange = () => resting(7)
     await ticket.getByRole('button', { name: side.toLowerCase(), exact: true }).click()
     await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill(side === 'Buy' ? '70000' : '90000')
@@ -151,8 +150,8 @@ for (const side of ['Buy', 'Sell'] as const)
     expect(wallet.askedFor('sign')).toHaveLength(1)
   })
 
-test('a scale order sends one leg per row of the list the ticket shows', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+test('a scale order sends one leg per row of the list the ticket shows', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({
     json: {
       status: 'ok',
@@ -179,9 +178,9 @@ test('a scale order sends one leg per row of the list the ticket shows', async (
 
 test('a market buy goes out as an IOC limit at the ask plus the slippage the ticket shows', async ({
   page,
-  wallet,
+  wallet: _wallet,
 }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+  const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({
     json: {
       status: 'ok',
@@ -201,8 +200,11 @@ test('a market buy goes out as an IOC limit at the ask plus the slippage the tic
   ])
 })
 
-test('take profit and stop loss ride with the order as reduce-only market triggers', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+test('take profit and stop loss ride with the order as reduce-only market triggers', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({
     json: {
       status: 'ok',
@@ -243,8 +245,8 @@ test('take profit and stop loss ride with the order as reduce-only market trigge
   ])
 })
 
-test('a take profit under the ask stops in the ticket and sends nothing', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+test('a take profit under the ask stops in the ticket and sends nothing', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, ticket } = await enable(page)
   await page.getByRole('radio', { name: 'Market', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
   await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
@@ -256,8 +258,11 @@ test('a take profit under the ask stops in the ticket and sends nothing', async 
   expect(orders(hyperliquid.sent)).toEqual([])
 })
 
-test('three clicks in one tick send one order, and the next goes after the answer', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+test('three clicks in one tick send one order, and the next goes after the answer', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
   const answer = deferred<Answer>()
   hyperliquid.exchange = () => answer.promise
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
@@ -279,8 +284,11 @@ test('three clicks in one tick send one order, and the next goes after the answe
   expect(orders(hyperliquid.sent)).toHaveLength(2)
 })
 
-test('a write that times out shows an unknown outcome and asks the venue by client id', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+test('a write that times out shows an unknown outcome and asks the venue by client id', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({ abort: 'timedout' })
   const asked: string[] = []
   hyperliquid.orderStatus = (cloid) => {
@@ -301,8 +309,11 @@ test('a write that times out shows an unknown outcome and asks the venue by clie
   expect(asked).toEqual([order?.orders?.[0]?.c])
 })
 
-test('while the venue is asked about a timed out order, the ticket sends nothing', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+test('while the venue is asked about a timed out order, the ticket sends nothing', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({ abort: 'timedout' })
   const status = deferred<unknown>()
   const asked: string[] = []
@@ -327,7 +338,7 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
 })
 
 test('an account switch with the ticket open sends nothing for the old account', async ({ page, wallet }) => {
-  const { hyperliquid, ticket } = await enable(page, wallet)
+  const { hyperliquid, ticket } = await enable(page)
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
 
