@@ -148,6 +148,16 @@ describe('snapshots (Hyperliquid)', () => {
     expect(topLevels(book.bids, 5)).toEqual([lv(99, 1)])
     expect(steps[1]!.changed).toBe(true)
   })
+
+  it('waits for the next full snapshot after a corrupt one, asking for nothing', () => {
+    const steps = run('snapshots', [
+      snapshot([lv(100, 1)], [lv(101, 1)]),
+      { kind: 'reset', reason: 'corrupt' },
+      snapshot([lv(99, 1)], [lv(100, 1)]),
+    ])
+    expect(steps[1]!.effect).toEqual({ kind: 'none' })
+    expect(steps[2]!.sync.phase).toBe('live')
+  })
 })
 
 describe('book properties', () => {
