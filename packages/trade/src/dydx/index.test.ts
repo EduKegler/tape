@@ -110,6 +110,15 @@ function indexer(answer: (url: string) => unknown) {
   return { urls, ctx: { ...ctx, fetch } }
 }
 const locked: VenueContext = { ...ctx, keys: { ...ctx.keys, read: () => null } }
+const wire = (call: unknown[] | undefined) => ({
+  side: call?.[3],
+  quantums: String(call?.[4]),
+  subticks: String(call?.[5]),
+  tif: call?.[6],
+  flags: call?.[7],
+  goodTilBlock: call?.[9],
+  goodTilBlockTime: call?.[10],
+})
 // The TimeoutError v4-client-js's tendermintClient throws when the transaction is not seen on chain in time.
 const TIMEOUT =
   'Transaction with hash [AB] was submitted but was not yet found on the chain. You might want to check later. Query timed out after 60 seconds.'
@@ -286,5 +295,43 @@ describe('dydx markets', () => {
     expect(await failure(dydx.execute(flaky, order))).toMatchObject({ kind: 'unreachable' })
     down = false
     expect(await dydx.execute(flaky, order)).toMatchObject({ kind: 'placed' })
+  })
+})
+
+describe('dydx short-term orders', () => {
+  const { ctx: booked } = indexer((url) =>
+    url.includes('/orderbooks/')
+      ? { bids: [{ price: '80000', size: '1' }], asks: [{ price: '80200', size: '1' }] }
+      : markets,
+  )
+
+  it('places a market order as a short-term IOC at the far touch moved by the slippage', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const buy = intentOf(btc, { kind: 'market', slippage: 50 as Bps })
+    expect(await dydx.execute(booked, { kind: 'place', intent: buy })).toEqual({
+      kind: 'placed',
+      status: 'accepted',
+      detail: 'Broadcast A1',
+    })
+    const sell = intentOf(btc, { kind: 'market', side: 'sell', slippage: 50 as Bps })
+    await dydx.execute(booked, { kind: 'place', intent: sell })
+    const short = { quantums: '10000000', tif: 1, flags: 0, goodTilBlock: 16, goodTilBlockTime: undefined }
+    expect(chain.placeOrder.mock.calls.map(wire)).toEqual([
+      { ...short, side: 1, subticks: '8060100000' },
+      { ...short, side: 2, subticks: '7960000000' },
+    ])
+  })
+
+  it('refuses a market order into an empty book, and sends a limit IOC short-term too', async () => {
+    const { ctx: empty } = indexer((url) => (url.includes('/orderbooks/') ? { bids: [], asks: [] } : markets))
+    expect(await failure(dydx.execute(empty, { kind: 'place', intent: intentOf(btc, { kind: 'market' }) }))).toEqual({
+      kind: 'invalid-order',
+      detail: 'The book on this network is empty',
+    })
+    chain.reply = { code: 0, hash: 'A1' }
+    expect(await dydx.execute(ctx, { kind: 'place', intent: intentOf(btc, { tif: 'ioc' }) })).toMatchObject({
+      status: 'accepted',
+    })
+    expect(wire(chain.placeOrder.mock.calls[0])).toMatchObject({ tif: 1, flags: 0, goodTilBlock: 16 })
   })
 })
