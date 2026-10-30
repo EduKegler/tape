@@ -48,7 +48,7 @@ const Fees = z.array(
     finalityThreshold: z.number(),
     /** Basis points of the amount, sometimes fractional. */
     minimumFee: z.number().nonnegative(),
-    forwardFee: z.object({ med: z.number().int().nonnegative(), high: z.number().int().nonnegative() }),
+    forwardFee: z.object({ high: z.number().int().nonnegative() }),
   }),
 )
 
@@ -83,7 +83,7 @@ async function iris(venue: TradeVenueId, fetch: typeof globalThis.fetch, path: s
   return response.json()
 }
 
-/** Circle's fast fee for the amount plus its HyperCore forwarding fee. The max pads the bps part by a fifth, as Circle advises, and takes the high forwarding quote. */
+/** Circle's fast fee for the amount, padded by a fifth as Circle advises, plus its high HyperCore forwarding quote. Circle takes the whole maxFee when it forwards, so the quote is what the deposit pays. */
 export async function hyperCoreFee(
   venue: TradeVenueId,
   fetch: typeof globalThis.fetch,
@@ -99,10 +99,8 @@ export async function hyperCoreFee(
   if (!fast) throw new TradeFailure(venue, { kind: 'unreachable', detail: 'Circle sent no Fast Transfer fee' })
   const hundredthsBps = BigInt(Math.round(fast.minimumFee * 100))
   const protocol = ceilDiv(amount * hundredthsBps, 1_000_000n)
-  return {
-    expected: protocol + BigInt(fast.forwardFee.med),
-    max: ceilDiv(protocol * 6n, 5n) + BigInt(fast.forwardFee.high),
-  }
+  const fee = ceilDiv(protocol * 6n, 5n) + BigInt(fast.forwardFee.high)
+  return { expected: fee, max: fee }
 }
 
 /** Null until Circle has indexed the burn. */

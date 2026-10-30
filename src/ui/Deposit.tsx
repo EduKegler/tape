@@ -4,7 +4,7 @@ import { formatEther, formatUnits } from 'viem'
 import type { Hex } from 'viem'
 import { DEPOSITS } from '@tape/trade'
 import { USDC_DECIMALS, blocksDeposit, parseUsdc } from '@tape/trade/deposit'
-import type { DepositIssue, DepositRoute, DepositVenue } from '@tape/trade/deposit'
+import type { DepositFee, DepositIssue, DepositRoute, DepositVenue } from '@tape/trade/deposit'
 import type { AccountRef } from '@tape/trade/types'
 import {
   depositRoutes,
@@ -199,6 +199,9 @@ function DepositForm({
   )
 }
 
+const feeText = (fee: DepositFee) =>
+  fee.expected === fee.max ? `${usdc(fee.max)} USDC` : `≈${usdc(fee.expected)} USDC, at most ${usdc(fee.max)}`
+
 function Summary({
   account,
   venue,
@@ -217,23 +220,14 @@ function Summary({
   const rows: [string, string][] = [
     ['Route', [chainName(route.chainId), ...route.hops, venue.destination].join(' → ')],
     ['Credited to', `${shortAddress(account.owner)}, the same address`],
-    [
-      'Fee',
-      fee
-        ? free
-          ? 'None'
-          : `≈${usdc(fee.expected)} USDC, at most ${usdc(fee.max)}`
-        : quote.feeError
-          ? 'Unavailable'
-          : '…',
-    ],
+    ['Fee', fee ? (free ? 'None' : feeText(fee)) : quote.feeError ? 'Unavailable' : '…'],
     [
       'You receive',
       quote.issues.some((i) => i.kind === 'below-minimum' && i.lost)
         ? 'Nothing, under the minimum'
         : amount && fee
-          ? free
-            ? `${usdc(amount)} USDC`
+          ? fee.expected === fee.max
+            ? `${usdc(amount - fee.max)} USDC`
             : `≈${usdc(amount - fee.expected)} USDC, at least ${usdc(amount - fee.max)}`
           : '…',
     ],
@@ -353,11 +347,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
     ['Gas paid', record.gasPaid !== null ? gasText(record.gasPaid, record.chainId) : '…'],
     [
       'Fee',
-      credited
-        ? `${usdc(record.amount - credited.amount)} USDC`
-        : record.fee.max === 0n
-          ? 'None'
-          : `≈${usdc(record.fee.expected)} USDC, at most ${usdc(record.fee.max)}`,
+      credited ? `${usdc(record.amount - credited.amount)} USDC` : record.fee.max === 0n ? 'None' : feeText(record.fee),
     ],
     ['Credited', credited ? `${usdc(credited.amount)} USDC` : '…'],
     ...(credited ? [['Venue record', shortAddress(credited.receipt)] as [string, string]] : []),

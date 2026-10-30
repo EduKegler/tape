@@ -147,7 +147,7 @@ describe('Hyperliquid bridge deposit', () => {
 
 describe('Hyperliquid CCTP deposit', () => {
   const base = routeFrom(8453)
-  const fee = { expected: 263_890n, max: 280_927n }
+  const fee = { expected: 280_927n, max: 280_927n }
 
   it('leaves from Base, Optimism and Ethereum on mainnet only', () => {
     expect(DEPOSITS.hyperliquid!.routes('mainnet').map((r) => r.chainId)).toEqual([42161, 8453, 10, 1])
@@ -176,7 +176,7 @@ describe('Hyperliquid CCTP deposit', () => {
     expect(base.calls(owner, 100_000_000n, fee, 100_000_000n).map((c) => c.kind)).toEqual(['deposit'])
   })
 
-  it('quotes the Fast Transfer fee in bps of the amount plus the forwarding fee', async () => {
+  it('quotes the padded Fast Transfer fee plus the high forwarding fee, which Circle takes whole', async () => {
     const asked: string[] = []
     const fetch = (async (url: string) => {
       asked.push(url)
