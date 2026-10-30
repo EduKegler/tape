@@ -8,6 +8,7 @@ import eslintReact from '@eslint-react/eslint-plugin'
 import vitest from '@vitest/eslint-plugin'
 import betterTailwind from 'eslint-plugin-better-tailwindcss'
 import noUnsanitized from 'eslint-plugin-no-unsanitized'
+import playwright from 'eslint-plugin-playwright'
 import regexp from 'eslint-plugin-regexp'
 import jsxA11y from 'eslint-plugin-jsx-a11y-x'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -212,11 +213,21 @@ export default [
     },
   },
   {
+    ...playwright.configs['flat/recommended'],
+    files: ['e2e/**/*.ts'],
+    rules: {
+      ...playwright.configs['flat/recommended'].rules,
+      'playwright/no-focused-test': 'error',
+      'playwright/no-skipped-test': 'error',
+    },
+  },
+  {
     ignores: [
       'eslint.config.js',
       'prettier.config.js',
       '.output/**',
       '**/.cache/**',
+      'e2e/results/**',
       '.claude/worktrees/**',
       '.intent/**',
       'src/routeTree.gen.ts',
