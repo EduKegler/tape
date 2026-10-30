@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
@@ -347,5 +347,38 @@ describe('dydx contract', () => {
 
   it('keeps the dYdX mnemonic in the tab, out of storage', () => {
     expect(dydx.secrets).toBe('tab')
+  })
+})
+
+describe('dydx expiry', () => {
+  const now = Date.UTC(2026, 9, 30, 12) / 1000
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now * 1000 + 500)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('sends a long-term order good for 28 days', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    await dydx.execute(ctx, place)
+    expect(wire(chain.placeOrder.mock.calls[0])).toMatchObject({
+      flags: 64,
+      goodTilBlock: undefined,
+      goodTilBlockTime: now + 28 * 86_400,
+    })
+  })
+
+  it('sends a long-term cancel good for a while within the stateful window, and a short-term one by block', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    await dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef })
+    await dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:0:0' as OrderRef })
+    const [long, short] = chain.cancelOrder.mock.calls.map((call) => call.slice(1))
+    expect(long?.slice(0, 4)).toEqual([7, 64, 0, undefined])
+    // StatefulOrderTimeWindow, 95 days, in x/clob/types/constants.go of dydxprotocol/v4-chain.
+    expect(long?.[4]).toBeGreaterThan(now)
+    expect(long?.[4]).toBeLessThanOrEqual(now + 95 * 86_400)
+    expect(short).toEqual([7, 0, 0, 16, undefined])
   })
 })
