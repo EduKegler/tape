@@ -353,12 +353,6 @@ export function createHub(deps: HubDeps): Hub {
       case 'keepalive':
         if (v.adapter.keepalive) v.socket?.send(v.adapter.keepalive.frame)
         return
-      case 'streams-reset':
-        for (const k of effect.streams) {
-          const { market: m, channel } = parseStreamKey(k)
-          if (channel === 'book') feedBook(market(m), { kind: 'reset', reason: 'subscribed' })
-        }
-        return
       case 'streams-stale':
         stopBooks(effect.streams)
         for (const k of effect.streams) touch(market(parseStreamKey(k).market))

@@ -72,7 +72,7 @@ describe('rest-snapshot-sequenced (Binance)', () => {
   it('ignores a snapshot from an older epoch', () => {
     const steps = run('rest-snapshot-sequenced', [
       delta([lv(100, 5)], [], [11, 11]),
-      { kind: 'reset', reason: 'subscribed' },
+      { kind: 'reset', reason: 'stopped' },
       { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
     ])
     expect(steps[2]!.sync.phase).toBe('awaiting-snapshot')

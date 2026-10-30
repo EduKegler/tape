@@ -31,7 +31,6 @@ export type ConnEffect =
   | { readonly fx: 'subscribe'; readonly streams: readonly StreamKey[] }
   | { readonly fx: 'unsubscribe'; readonly streams: readonly StreamKey[] }
   | { readonly fx: 'keepalive' }
-  | { readonly fx: 'streams-reset'; readonly streams: readonly StreamKey[] }
   | { readonly fx: 'streams-stale'; readonly streams: readonly StreamKey[] }
 
 export interface ConnPolicy {
@@ -101,7 +100,7 @@ function reconcile(state: OpenState, input: ConnInput, policy: ConnPolicy, effec
   const drop = [...state.subscribed].filter((s) => !input.desired.has(s))
   const out = [...effects]
   if (drop.length) out.push({ fx: 'unsubscribe', streams: drop })
-  if (add.length) out.push({ fx: 'subscribe', streams: add }, { fx: 'streams-reset', streams: add })
+  if (add.length) out.push({ fx: 'subscribe', streams: add })
   let lastKeepaliveAt = state.lastKeepaliveAt
   if (policy.keepaliveMs !== null && input.now - lastKeepaliveAt >= policy.keepaliveMs) {
     out.push({ fx: 'keepalive' })
@@ -152,7 +151,7 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
       const { holds, now, later } = deferRepeatResubscribes(state.holds, streams, input.now)
       const subscribed = new Set([...state.subscribed].filter((s) => !later.includes(s)))
       const effects: ConnEffect[] = [{ fx: 'unsubscribe', streams }]
-      if (now.length) effects.push({ fx: 'subscribe', streams: now }, { fx: 'streams-reset', streams: now })
+      if (now.length) effects.push({ fx: 'subscribe', streams: now })
       return { state: { ...state, subscribed, holds }, effects }
     }
     case 'tick':

@@ -28,7 +28,7 @@ VARIABLES
   subscribed,  \* the book stream is in ConnState.subscribed
   ctrl,        \* SUBSCRIBE / UNSUBSCRIBE frames sent, not yet read by the venue
   chan,        \* depthUpdate messages in flight to the hub, each <<U, u>>
-  desired,     \* the book stream is in desiredFor('binance'), hub.ts:369-372
+  desired,     \* the book stream is in desiredFor('binance'), hub.ts:363-366
   others,      \* some other binance stream is desired, so the socket stays up
   sync,        \* MarketState.sync, plus `levels`: what the book's levels really equal
   fetches,     \* epochs with a REST snapshot in flight, hub.ts:246-256
@@ -69,48 +69,48 @@ Apply(levels, d) ==
 (* plus the epochs its effect asks feedBook to fetch (hub.ts:236).         *)
 NoEffect(s) == [sync |-> s, fetch |-> {}]
 
-\* input.kind 'reset', any reason, book.ts:212. awaiting() asks for nothing with an empty buffer,
-\* book.ts:194-201.
+\* input.kind 'reset', any reason, book.ts:209. awaiting() asks for nothing with an empty buffer,
+\* book.ts:191-198.
 Reset(s) == [s EXCEPT !.phase = "awaiting-snapshot", !.epoch = s.epoch + 1, !.buffer = <<>>]
 
-\* A live book takes one diff, book.ts:256-261.
+\* A live book takes one diff, book.ts:253-258.
 LiveDelta(s, d) ==
-  IF d[2] <= s.lastSeq                                            \* book.ts:257
+  IF d[2] <= s.lastSeq                                            \* book.ts:254
   THEN NoEffect(s)
-  ELSE IF d[1] > s.lastSeq + 1 /\ Mutant # "no-gap-check"        \* book.ts:258
+  ELSE IF d[1] > s.lastSeq + 1 /\ Mutant # "no-gap-check"        \* book.ts:255
   THEN [sync |-> [s EXCEPT !.phase = "awaiting-snapshot", !.epoch = s.epoch + 1, !.buffer = <<d>>],
-        fetch |-> {s.epoch + 1}]                                  \* book.ts:187-198, buffer non-empty
+        fetch |-> {s.epoch + 1}]                                  \* book.ts:184-195, buffer non-empty
   ELSE [sync |-> [s EXCEPT !.levels = Apply(s.levels, d), !.lastSeq = d[2]],
-        fetch |-> {}]                                             \* book.ts:259-260
+        fetch |-> {}]                                             \* book.ts:256-257
 
-\* input.kind 'delta' with a seq, book.ts:249-261.
+\* input.kind 'delta' with a seq, book.ts:246-258.
 Delta(s, d) ==
-  IF s.phase = "awaiting-snapshot"                                \* book.ts:251
+  IF s.phase = "awaiting-snapshot"                                \* book.ts:248
   THEN [sync |-> [s EXCEPT !.buffer = Append(s.buffer, d)],
-        fetch |-> IF s.buffer = <<>> THEN {s.epoch} ELSE {}]      \* book.ts:252-254
+        fetch |-> IF s.buffer = <<>> THEN {s.epoch} ELSE {}]      \* book.ts:249-251
   ELSE LiveDelta(s, d)
 
-\* merge(), book.ts:266-273: the later effect wins unless it is 'none'.
+\* merge(), book.ts:263-270: the later effect wins unless it is 'none'.
 Merge(a, b) ==
   IF Mutant = "merge-keeps-first" THEN a
   ELSE IF b = {} THEN a ELSE b
 
-\* The replay loop over the buffer, book.ts:237-246.
+\* The replay loop over the buffer, book.ts:234-243.
 RECURSIVE Replay(_, _, _)
 Replay(r, buf, i) ==
-  IF i > Len(buf) THEN r                                          \* book.ts:247
+  IF i > Len(buf) THEN r                                          \* book.ts:244
   ELSE LET n == LiveDelta(r.sync, buf[i])
-           m == [sync |-> n.sync, fetch |-> Merge(r.fetch, n.fetch)]   \* book.ts:238
-       IN IF m.sync.phase # "live"                                \* book.ts:239
-          THEN [m EXCEPT !.sync.buffer = SubSeq(buf, i, Len(buf))]  \* book.ts:240-244
+           m == [sync |-> n.sync, fetch |-> Merge(r.fetch, n.fetch)]   \* book.ts:235
+       IN IF m.sync.phase # "live"                                \* book.ts:236
+          THEN [m EXCEPT !.sync.buffer = SubSeq(buf, i, Len(buf))]  \* book.ts:237-241
           ELSE Replay(m, buf, i + 1)
 
-\* input.kind 'rest-snapshot', book.ts:227-248. The snapshot equals the venue at L.
+\* input.kind 'rest-snapshot', book.ts:224-245. The snapshot equals the venue at L.
 RestSnapshot(s, e, L) ==
-  IF s.phase # "awaiting-snapshot" \/ e # s.epoch                 \* book.ts:228
+  IF s.phase # "awaiting-snapshot" \/ e # s.epoch                 \* book.ts:225
   THEN NoEffect(s)
   ELSE Replay([sync |-> [s EXCEPT !.phase = "live", !.levels = L, !.lastSeq = L, !.buffer = <<>>],
-               fetch |-> {}],                                     \* book.ts:229-236
+               fetch |-> {}],                                     \* book.ts:226-233
               s.buffer, 1)
 
 \* fetchSnapshot's `waiting()`, hub.ts:245.
@@ -126,7 +126,7 @@ Init ==
   /\ conn = "idle" /\ subscribed = FALSE /\ ctrl = <<>> /\ chan = <<>>
   /\ desired = FALSE /\ others = FALSE
   /\ sync = [phase |-> "awaiting-snapshot", epoch |-> 1, buffer |-> <<>>,
-             lastSeq |-> 0, levels |-> Bad]                       \* initialSync, book.ts:174-181
+             lastSeq |-> 0, levels |-> Bad]                       \* initialSync, book.ts:171-178
   /\ fetches = {} /\ timers = {} /\ faults = 0
 
 (* The venue *)
@@ -202,41 +202,40 @@ RetryTimerFires ==
     /\ sync' = IF Waiting(e) THEN Reset(sync) ELSE sync
     /\ UNCHANGED <<vid, venueSub, venueSent, conn, subscribed, ctrl, chan, desired, others, fetches, faults>>
 
-\* A tab's 'want' plus its queued reconcile (hub.ts:486-491, 428-435), or the 1 s tick
-\* (hub.ts:453-454) when a stream's linger runs out. Either way reconcile() derives the
-\* streams (topics.ts:152-168) and steps the connection with { e: 'tick' } (hub.ts:423).
+\* A tab's 'want' plus its queued reconcile (hub.ts:480-485, 422-429), or the 1 s tick
+\* (hub.ts:447-448) when a stream's linger runs out. Either way reconcile() derives the
+\* streams (topics.ts:152-168) and steps the connection with { e: 'tick' } (hub.ts:417).
 Reconcile ==
   \E d, o \in BOOLEAN :
     /\ desired' = d /\ others' = o
     /\ UNCHANGED <<vid, venueSent, fetches, timers, faults>>
-    /\ CASE conn = "idle" ->                                      \* connection.ts:160-163
+    /\ CASE conn = "idle" ->                                      \* connection.ts:159-162
               /\ conn' = IF d \/ o THEN "connecting" ELSE "idle"
               /\ UNCHANGED <<venueSub, subscribed, ctrl, chan, sync>>
-         [] conn = "connecting" ->                                \* connection.ts:164-165
+         [] conn = "connecting" ->                                \* connection.ts:163-164
               UNCHANGED <<conn, venueSub, subscribed, ctrl, chan, sync>>
-         [] conn = "backoff" ->                                   \* connection.ts:166-170, retryAt passed or not
+         [] conn = "backoff" ->                                   \* connection.ts:165-169, retryAt passed or not
               /\ conn' \in IF d \/ o THEN {"backoff", "connecting"} ELSE {"idle"}
               /\ UNCHANGED <<venueSub, subscribed, ctrl, chan, sync>>
-         [] conn = "open" /\ ~(d \/ o) ->                         \* connection.ts:85
+         [] conn = "open" /\ ~(d \/ o) ->                         \* connection.ts:84
               /\ conn' = "idle"
               /\ DropSocket
               /\ sync' = Reset(sync)                              \* run 'close' stops the book, hub.ts:343
-         [] conn = "open" /\ o /\ subscribed /\ ~d ->              \* connection.ts:101-103
+         [] conn = "open" /\ o /\ subscribed /\ ~d ->              \* connection.ts:100-102
               /\ ctrl' = Append(ctrl, "unsub")
               /\ subscribed' = FALSE
               /\ sync' = Reset(sync)                              \* stopBooks, hub.ts:222-227, 351
               /\ UNCHANGED <<conn, venueSub, chan>>
-         [] conn = "open" /\ ~subscribed /\ d ->                  \* connection.ts:99-100, 104
+         [] conn = "open" /\ ~subscribed /\ d ->                  \* connection.ts:98-99, 103
               /\ ctrl' = Append(ctrl, "sub")
               /\ subscribed' = TRUE
-              /\ sync' = Reset(sync)                              \* streams-reset, hub.ts:356-361
-              /\ UNCHANGED <<conn, venueSub, chan>>
+              /\ UNCHANGED <<conn, venueSub, chan, sync>>
          [] OTHER ->
               UNCHANGED <<conn, venueSub, subscribed, ctrl, chan, sync>>
 
-\* The silence watchdog inside a tick, connection.ts:86-96. The hub closes the socket, which
+\* The silence watchdog inside a tick, connection.ts:85-95. The hub closes the socket, which
 \* stops the book (hub.ts:343), then streams-stale stops it again if it was subscribed
-\* (hub.ts:362-365).
+\* (hub.ts:356-359).
 Silence ==
   /\ conn = "open" /\ (desired \/ others) /\ faults < MaxFaults
   /\ conn' = "backoff"
@@ -245,21 +244,20 @@ Silence ==
   /\ faults' = faults + 1
   /\ UNCHANGED <<vid, venueSent, desired, others, fetches, timers>>
 
-\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:118-133.
+\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:117-132.
 SocketOpened ==
   /\ conn = "connecting"
   /\ UNCHANGED <<vid, venueSent, desired, others, fetches, timers, faults>>
-  /\ IF ~(desired \/ others)                                      \* connection.ts:85
+  /\ IF ~(desired \/ others)                                      \* connection.ts:84
      THEN conn' = "idle" /\ DropSocket /\ sync' = Reset(sync)   \* run 'close', hub.ts:343
      ELSE /\ conn' = "open"
           /\ subscribed' = desired
           /\ ctrl' = IF desired THEN <<"sub">> ELSE <<>>
-          /\ sync' = IF desired THEN Reset(sync) ELSE sync        \* streams-reset, hub.ts:356-361
-          /\ UNCHANGED <<venueSub, chan>>
+          /\ UNCHANGED <<venueSub, chan, sync>>
 
-\* socket.onclose from the network or the venue, hub.ts:332-336, connection.ts:134-147.
+\* socket.onclose from the network or the venue, hub.ts:332-336, connection.ts:133-146.
 \* Messages of a dead socket never reach the hub: the `v.socket === socket` guards, hub.ts:330-333.
-\* Losing an open socket runs streams-stale, which stops a subscribed book, hub.ts:362-365.
+\* Losing an open socket runs streams-stale, which stops a subscribed book, hub.ts:356-359.
 SocketCloses ==
   /\ conn \in {"connecting", "open"} /\ faults < MaxFaults
   /\ conn' = "backoff"
@@ -287,11 +285,18 @@ LiveBookMatchesVenue ==
   sync.phase = "live" => sync.levels = sync.lastSeq
 
 \* A book waiting for its snapshot with diffs buffered always has a fetch or a retry
-\* timer working for its epoch. Further diffs never fetch (book.ts:253), so without
+\* timer working for its epoch. Further diffs never fetch (book.ts:250), so without
 \* one the book would read 'syncing' for as long as the socket stays up.
 ResyncHasOwner ==
   (sync.phase = "awaiting-snapshot" /\ sync.buffer # <<>>)
     => (sync.epoch \in fetches \/ sync.epoch \in timers)
+
+\* A book the hub does not follow waits for a snapshot, with nothing buffered and nothing
+\* fetching or retrying for its epoch. So a subscribe needs no reset of its own.
+UnfollowedWaits ==
+  ~(conn = "open" /\ subscribed)
+    => /\ sync.phase = "awaiting-snapshot" /\ sync.buffer = <<>>
+       /\ sync.epoch \notin fetches \cup timers
 ---------------------------------------------------------------------------
 (* Reachability. run.sh self-test expects TLC to break each of these, which *)
 (* shows the bounds reach the paths the two properties are about.           *)

@@ -78,11 +78,11 @@ expect_break() {
 
 check() {
   local work; work="$(mktemp -d)"
-  variant "$work" none TypeOK LiveMeansFollowing
+  variant "$work" none TypeOK LiveMeansFollowing LiveOnlyWhileSubscribed
   tlc "$work"
   if grep -q "Model checking completed. No error has been found." "$work/tlc.out"; then
     grep -E "distinct states found|depth of the complete" "$work/tlc.out" | tail -2
-    echo "PASS: LiveMeansFollowing holds within the bounds in LiveStatus.cfg."
+    echo "PASS: LiveMeansFollowing and LiveOnlyWhileSubscribed hold within the bounds in LiveStatus.cfg."
     rm -rf "$work"
   elif grep -qE "Invariant .* is violated" "$work/tlc.out"; then
     grep -E "Invariant .* is violated" "$work/tlc.out"
@@ -99,7 +99,7 @@ self_test() {
   local bad=0
   expect_break "apply without the followsBook guard (hub.ts:267)" no-follows-guard LiveMeansFollowing || bad=1
   expect_break "unsubscribe without stopBooks (hub.ts:351)" no-stop-on-unsubscribe LiveMeansFollowing || bad=1
-  expect_break "streams-stale without stopBooks (hub.ts:363)" no-stop-on-stale LiveMeansFollowing || bad=1
+  expect_break "streams-stale without stopBooks (hub.ts:357)" no-stop-on-stale LiveMeansFollowing || bad=1
   expect_break "close without the stopped resets (hub.ts:343)" no-stop-on-close LiveMeansFollowing || bad=1
   expect_break "witness: a book frame goes out live" none NeverLivePost || bad=1
   expect_break "witness: a book follows again after a drop" none NeverLiveAgain || bad=1

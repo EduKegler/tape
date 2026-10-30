@@ -10,11 +10,11 @@ const fx = (effects: readonly ConnEffect[]) =>
   effects.map((e) => ('streams' in e ? `${e.fx}:${e.streams.join(',')}` : e.fx))
 
 describe('stepConnection', () => {
-  it('opens, then subscribes and resets everything desired', () => {
+  it('opens, then subscribes everything desired', () => {
     const a = stepConnection({ s: 'idle' }, { e: 'tick' }, input(keys('a', 'b')), policy)
     expect(fx(a.effects)).toEqual(['open'])
     const b = stepConnection(a.state, { e: 'opened' }, input(keys('a', 'b')), policy)
-    expect(fx(b.effects)).toEqual(['subscribe:a,b', 'streams-reset:a,b'])
+    expect(fx(b.effects)).toEqual(['subscribe:a,b'])
   })
 
   it('moves subscriptions toward the desired set and does nothing when they match', () => {
@@ -28,7 +28,7 @@ describe('stepConnection', () => {
       holds: new Map(),
     }
     const step = stepConnection(open, { e: 'tick' }, input(keys('b', 'c')), policy)
-    expect(fx(step.effects)).toEqual(['unsubscribe:a', 'subscribe:c', 'streams-reset:c'])
+    expect(fx(step.effects)).toEqual(['unsubscribe:a', 'subscribe:c'])
     expect(fx(stepConnection(step.state, { e: 'tick' }, input(keys('b', 'c')), policy).effects)).toEqual([])
   })
 
@@ -62,7 +62,7 @@ describe('stepConnection', () => {
     const later = stepConnection(closed.state, { e: 'tick' }, input(keys('a'), 60_000), policy)
     expect(fx(later.effects)).toEqual(['open'])
     const opened = stepConnection(later.state, { e: 'opened' }, input(keys('a'), 60_000), policy)
-    expect(fx(opened.effects)).toEqual(['subscribe:a', 'streams-reset:a'])
+    expect(fx(opened.effects)).toEqual(['subscribe:a'])
   })
 
   it('resubscribes a corrupt stream in place', () => {
@@ -77,7 +77,7 @@ describe('stepConnection', () => {
     }
     expect(
       fx(stepConnection(open, { e: 'resubscribe', streams: ['a' as StreamKey] }, input(keys('a')), policy).effects),
-    ).toEqual(['unsubscribe:a', 'subscribe:a', 'streams-reset:a'])
+    ).toEqual(['unsubscribe:a', 'subscribe:a'])
   })
 
   it('closes when nothing is wanted', () => {
@@ -134,15 +134,12 @@ describe('stepConnection', () => {
     }
     const bad = { e: 'resubscribe', streams: ['a' as StreamKey] } as const
     const first = stepConnection(state, bad, input(keys('a'), 0), policy)
-    expect(fx(first.effects)).toEqual(['unsubscribe:a', 'subscribe:a', 'streams-reset:a'])
+    expect(fx(first.effects)).toEqual(['unsubscribe:a', 'subscribe:a'])
     expect(fx(stepConnection(first.state, { e: 'tick' }, input(keys('a'), 500), policy).effects)).toEqual([])
     const second = stepConnection(first.state, bad, input(keys('a'), 600), policy)
     expect(fx(second.effects)).toEqual(['unsubscribe:a'])
     state = second.state
     expect(fx(stepConnection(state, { e: 'tick' }, input(keys('a'), 4_000), policy).effects)).toEqual([])
-    expect(fx(stepConnection(state, { e: 'tick' }, input(keys('a'), 4_700), policy).effects)).toEqual([
-      'subscribe:a',
-      'streams-reset:a',
-    ])
+    expect(fx(stepConnection(state, { e: 'tick' }, input(keys('a'), 4_700), policy).effects)).toEqual(['subscribe:a'])
   })
 })

@@ -7,10 +7,11 @@ description: "Model-check how the hub keeps a Binance order book in sync: sequen
 
 A TLA+ model of one Binance book in the hub, checked with TLC. It explores every order of venue updates, depthUpdate messages, REST snapshots, failed fetches, retry timers, tab wants, socket drops and silence, within small bounds. Tests replay one recorded order. This checks all of them.
 
-## The two properties
+## The properties
 
 - `LiveBookMatchesVenue`: a Binance book the hub calls live has the venue's levels at its `lastSeq`. If broken, the ladder shows wrong prices or sizes under a live status.
-- `ResyncHasOwner`: a book waiting for its snapshot with diffs buffered always has a snapshot fetch or a retry timer working for its epoch. If broken, the book reads syncing until the socket drops, because later diffs never ask for a snapshot (`book.ts:253`).
+- `ResyncHasOwner`: a book waiting for its snapshot with diffs buffered always has a snapshot fetch or a retry timer working for its epoch. If broken, the book reads syncing until the socket drops, because later diffs never ask for a snapshot (`book.ts:250`).
+- `UnfollowedWaits`: a book the hub does not follow, with the socket down or the stream unsubscribed, waits for a snapshot with nothing buffered and no fetch or retry timer for its epoch. If broken, a subscribe would need its own reset, which the hub no longer has.
 
 ## Run it
 
@@ -20,7 +21,7 @@ A TLA+ model of one Binance book in the hub, checked with TLC. It explores every
 .claude/skills/formal-book-resync/run.sh drift       # only the drift list
 ```
 
-Run from the repo root. `check` takes about 4 s on 12 cores and explores about 510 thousand distinct states. `self-test` takes a few seconds. The resets on unsubscribe, socket loss and close spend epochs, so `MaxEpoch` cuts runs sooner than it did before `777261f`, when the same bounds reached 2.3 million.
+Run from the repo root. `check` takes about 15 s on 12 cores and explores about 2.5 million distinct states. `self-test` takes a few seconds.
 
 Tool: TLC from `tla2tools.jar` v1.7.4, the latest stable release of github.com/tlaplus/tlaplus. The script downloads it on first use to `~/.cache/tape-formal/tla2tools-1.7.4/tla2tools.jar` and checks its sha256. Set `TAPE_TLA_JAR` to use another copy of the same file. It needs `java` 11 or newer on `PATH`. Nothing goes in `package.json` and nothing lands in the repo. TLC runs on a copy of the spec in a temp dir.
 
@@ -34,21 +35,20 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 
 | Model (`BookResync.tla`) | Code |
 | --- | --- |
-| `sync`, `Reset`, `Delta`, `LiveDelta`, `RestSnapshot`, `Replay`, `Merge` | `stepBook` branch `rest-snapshot-sequenced`, `awaiting`, `merge`, `initialSync` in `packages/core/src/book.ts:174-273` |
+| `sync`, `Reset`, `Delta`, `LiveDelta`, `RestSnapshot`, `Replay`, `Merge` | `stepBook` branch `rest-snapshot-sequenced`, `awaiting`, `merge`, `initialSync` in `packages/core/src/book.ts:171-270` |
 | `ReceiveDiff` | `socket.onmessage` to `ingest`, `apply` case `book-delta` with its `followsBook` guard, `feedBook` in `src/hub/hub.ts:331, 297-313, 270-279, 217-220, 229-239` |
 | `ReceiveBadDiff` | `DecimalError` catch in `apply` and `VenueParseError` in `ingest`, `src/hub/hub.ts:291-294, 305-306` |
 | `fetches`, `SnapshotArrives` | `fetchSnapshot` and its `.then`, `src/hub/hub.ts:241-256`; `binance.book.fetchSnapshot` in `packages/venues/src/binance.ts:51-56` |
 | `SnapshotFails`, `timers`, `RetryTimerFires`, `Waiting` | `fetchSnapshot` `.catch`, `waiting()`, the 2 s `setTimeout`, `AbortSignal.timeout`, `src/hub/hub.ts:245-259` |
-| `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:486-491, 428-435, 412-426, 453-454, 369-391`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:158-173, 84-114`; `deriveStreams` in `src/core/topics.ts:152-168` |
-| `Reconcile` add branch, `SocketOpened` | the `streams-reset` effect that resets each subscribed book, `src/hub/hub.ts:356-361` |
-| `Reset` in `Reconcile`'s unsubscribe and close branches, `Silence`, `SocketCloses`, `SocketOpened` | the `stopped` resets: `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the loop in case `close`, `src/hub/hub.ts:222-227, 351, 363, 343` |
-| `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:330`, `src/hub/connection.ts:118-133` |
-| `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check in `src/hub/connection.ts:134-147, 86-96` |
+| `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:480-485, 422-429, 406-420, 447-448, 363-385`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:157-172, 83-113`; `deriveStreams` in `src/core/topics.ts:152-168` |
+| `Reset` in `Reconcile`'s unsubscribe and close branches, `Silence`, `SocketCloses`, `SocketOpened` | the `stopped` resets: `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the loop in case `close`, `src/hub/hub.ts:222-227, 351, 357, 343` |
+| `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:330`, `src/hub/connection.ts:117-132` |
+| `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check in `src/hub/connection.ts:133-146, 85-95` |
 | `chan`, `VenueSends` | `depthUpdate` with `seq: { from: U, to: u }` in `binance.parse`, `packages/venues/src/binance.ts:99` |
 
 Each action is one JS task in the worker: a socket message, a fetch settling, a timer, or a tab message with the reconcile it queues as a microtask. Nothing else in the hub runs inside one of them, so each is one TLA+ step.
 
-Sync commit: `430c215b41d9ca9f4217660702ac9cbabff77233` (2026-10-29). The model describes the covered code at this commit.
+Sync commit: `d2be15557d67bab7a44baab0b5401055214b5d54` (2026-10-29). The model describes the covered code at this commit.
 
 ## Bounds and assumptions
 
@@ -61,12 +61,12 @@ Assumptions:
 - A new subscription streams updates after the current id. TCP keeps one socket's messages in order. Messages from a closed socket never reach `ingest`.
 - Every fetch settles, because of `AbortSignal.timeout(8_000)`, and every timer fires. The model checks that someone owns the resync, not how long it takes.
 - Binance specs are loaded. Before that, `desiredFor` leaves the stream out, so nothing is subscribed.
-- Holds never apply to Binance. `resubscribe` only comes from the `snapshot-then-deltas` protocol (`book.ts:199`), so `holds` stays empty.
+- Holds never apply to Binance. `resubscribe` only comes from the `snapshot-then-deltas` protocol (`book.ts:196`), so `holds` stays empty.
 - Uncrossing in `snapshotDroppingCrossed` and `applyDeltaEvictingCrossed` is out of the model. A Binance spot book does not cross.
 
 ## Not covered
 
-- dYdX and Hyperliquid books, crossed-book eviction, the resubscribe hold and its doubling in `connection.ts:61-73, 148-157`.
+- dYdX and Hyperliquid books, crossed-book eviction, the resubscribe hold and its doubling in `connection.ts:60-72, 147-156`.
 - Backoff timing, jitter, keepalive and `STABLE_MS`. The model only knows that backoff ends some time.
 - More than one market or one book stream. Other Binance streams appear only as `others`, which keeps the socket open.
 - Tabs, ports, Web Locks, linger timing and frames. A want change is one nondeterministic flip of `desired`.
@@ -99,8 +99,8 @@ For changes that skipped this skill, such as merges, use the pstack `/maintain-f
 
 `Mutant` in the config switches the model to a known broken variant of the code. `"none"` is the code as it is.
 
-- `no-gap-check`: drop the gap rule in `book.ts:258`. Breaks `LiveBookMatchesVenue`.
-- `merge-keeps-first`: `merge` keeps the earlier effect, so a gap during replay asks for no snapshot (`book.ts:269`). Breaks `ResyncHasOwner`.
+- `no-gap-check`: drop the gap rule in `book.ts:255`. Breaks `LiveBookMatchesVenue`.
+- `merge-keeps-first`: `merge` keeps the earlier effect, so a gap during replay asks for no snapshot (`book.ts:266`). Breaks `ResyncHasOwner`.
 - `no-retry`: a failed fetch sets no timer (`hub.ts:257-259`). Breaks `ResyncHasOwner`.
 
 The witnesses `NeverLive`, `NeverResyncAfterLive` and `NeverLateSnapshot` must also fail. They show the bounds reach a live book, a resync after live, and a stale snapshot still in flight.

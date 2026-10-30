@@ -68,7 +68,7 @@ check() {
   tlc "$work" "$HERE/BookResync.cfg"
   if grep -q "Model checking completed. No error has been found." "$work/tlc.out"; then
     grep -E "^[0-9]+ states generated|depth of the complete" "$work/tlc.out"
-    echo "PASS: LiveBookMatchesVenue and ResyncHasOwner hold within the bounds in BookResync.cfg."
+    echo "PASS: LiveBookMatchesVenue, ResyncHasOwner and UnfollowedWaits hold within the bounds in BookResync.cfg."
     rm -rf "$work"
     return 0
   fi
@@ -97,8 +97,8 @@ expect_break() {
 
 self_test() {
   local bad=0
-  expect_break "gap check removed (book.ts:258)" no-gap-check LiveBookMatchesVenue || bad=1
-  expect_break "merge keeps the first effect (book.ts:269)" merge-keeps-first ResyncHasOwner || bad=1
+  expect_break "gap check removed (book.ts:255)" no-gap-check LiveBookMatchesVenue || bad=1
+  expect_break "merge keeps the first effect (book.ts:266)" merge-keeps-first ResyncHasOwner || bad=1
   expect_break "no retry after a failed fetch (hub.ts:257-259)" no-retry ResyncHasOwner || bad=1
   expect_break "witness: a book goes live" none NeverLive || bad=1
   expect_break "witness: a live book resyncs" none NeverResyncAfterLive || bad=1

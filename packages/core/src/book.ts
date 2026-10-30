@@ -50,7 +50,7 @@ export type BookSync =
     }
   | { readonly phase: 'live'; readonly epoch: number; readonly book: Book }
 
-type ResetReason = 'subscribed' | 'corrupt' | 'stopped'
+type ResetReason = 'corrupt' | 'stopped'
 
 export type BookInput =
   | {
@@ -74,10 +74,7 @@ export type BookInput =
       readonly bids: readonly Level[]
       readonly asks: readonly Level[]
     }
-  /**
-   * `subscribed`: the venue just (re)sent the stream. `corrupt`: the hub could not trust a message.
-   * `stopped`: the hub no longer receives the stream.
-   */
+  /** `corrupt`: the hub could not trust a message. `stopped`: the hub no longer receives the stream. */
   | { readonly kind: 'reset'; readonly reason: ResetReason }
 
 export type BookEffect =
