@@ -196,7 +196,7 @@ describe('failure classification', () => {
   it('treats a dYdX timeout as unknown and a missing chain account as no account', () => {
     expect(
       dydxMessage(
-        'Transaction with hash 0xAB was submitted but was not yet found on the chain. You might want to check later. There was a wait of 60 seconds. timed out',
+        'Transaction with hash [AB] was submitted but was not yet found on the chain. You might want to check later. Query timed out after 60 seconds.',
       ).kind,
     ).toBe('unknown-outcome')
     expect(

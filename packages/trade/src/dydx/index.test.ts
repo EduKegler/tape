@@ -1,23 +1,36 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
+import type { IntentDraft } from '../intent'
 import { TradeFailure } from '../types'
 import type { Bps, OrderRef, VenueContext } from '../types'
 import { dydx } from '.'
 
-const chain = vi.hoisted((): { reply: unknown } => ({ reply: undefined }))
+const chain = vi.hoisted(() => {
+  const state: { reply: unknown } = { reply: undefined }
+  const answer = async () => {
+    if (state.reply instanceof Error) throw state.reply
+    return state.reply
+  }
+  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer) })
+})
 
 vi.mock('./client', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  sdk: async () => ({ SubaccountInfo: { forLocalWallet: () => ({}) }, SHORT_BLOCK_FORWARD: 20 }),
+  // SHORT_BLOCK_FORWARD in build/esm/src/clients/constants.js of v4-client-js 3.6.0.
+  sdk: async () => ({ SubaccountInfo: { forLocalWallet: () => ({}) }, SHORT_BLOCK_FORWARD: 15 }),
   walletOf: async () => ({ address: 'dydx1test' }),
   validatorOf: async () => ({
     get: { latestBlockHeight: async () => 1 },
-    post: { placeOrder: async () => chain.reply, cancelOrder: async () => chain.reply },
+    post: { placeOrder: chain.placeOrder, cancelOrder: chain.cancelOrder },
   }),
 }))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 // BTC-USD params from the recorded indexer.dydx.trade/v4/perpetualMarkets frame.
 const markets = {
@@ -59,29 +72,37 @@ const ctx: VenueContext = {
   },
   fetch: async () => new Response(JSON.stringify(markets)),
 }
-const built = buildIntent(
-  btc,
-  {
-    side: 'buy',
-    kind: 'limit',
-    price: '80000',
-    size: '0.001',
-    tif: 'gtc',
-    reduceOnly: false,
-    takeProfit: '',
-    stopLoss: '',
-    slippage: 100 as Bps,
-    bid: '',
-    ask: '',
-    start: '',
-    end: '',
-    count: '',
-    skew: '1',
-  },
-  dydx.capabilities,
-)
-if (!built.ok) throw new Error('intent')
-const place = { kind: 'place', intent: built.intent } as const
+const draft: IntentDraft = {
+  side: 'buy',
+  kind: 'limit',
+  price: '80000',
+  size: '0.001',
+  tif: 'gtc',
+  reduceOnly: false,
+  takeProfit: '',
+  stopLoss: '',
+  slippage: 100 as Bps,
+  bid: '',
+  ask: '',
+  start: '',
+  end: '',
+  count: '',
+  skew: '1',
+}
+function intentOf(spec: MarketSpec, changes: Partial<IntentDraft> = {}) {
+  const built = buildIntent(spec, { ...draft, ...changes }, dydx.capabilities)
+  if (!built.ok) throw new Error('intent')
+  return built.intent
+}
+const place = { kind: 'place', intent: intentOf(btc) } as const
+const failure = (p: Promise<unknown>) =>
+  p.then(
+    () => null,
+    (e: unknown) => (e instanceof TradeFailure ? e.error : e),
+  )
+// The TimeoutError v4-client-js's tendermintClient throws when the transaction is not seen on chain in time.
+const TIMEOUT =
+  'Transaction with hash [AB] was submitted but was not yet found on the chain. You might want to check later. Query timed out after 60 seconds.'
 
 describe('dydx broadcast', () => {
   it('reports the hash of a long-term order the chain committed', async () => {
@@ -117,5 +138,27 @@ describe('dydx broadcast', () => {
       kind: 'done',
       detail: 'Cancel broadcast',
     })
+  })
+
+  it('calls a thrown broadcast timeout an unknown outcome and a refused transaction not placed', async () => {
+    // Messages and codes registered in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    const margin = 'Stateful order collateralization check failed'
+    const cases: [unknown, unknown][] = [
+      [new Error(TIMEOUT), { kind: 'unknown-outcome', detail: TIMEOUT }],
+      [new Error(margin), { kind: 'insufficient-margin', detail: margin }],
+      [new Error('Invalid order quantums'), { kind: 'invalid-order', detail: 'Invalid order quantums' }],
+      [
+        { code: 3007, log: margin, hash: 'A1' },
+        { kind: 'insufficient-margin', detail: margin },
+      ],
+      [
+        { code: 3001, log: 'Invalid order goodTilBlockTime', hash: 'A1' },
+        { kind: 'rejected', detail: 'Invalid order goodTilBlockTime' },
+      ],
+    ]
+    for (const [reply, error] of cases) {
+      chain.reply = reply
+      expect(await failure(dydx.execute(ctx, place))).toEqual(error)
+    }
   })
 })
