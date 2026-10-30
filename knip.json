@@ -3,9 +3,17 @@
   "ignore": [".claude/skills/verify-tape/.cache/**", ".intent/**"],
   "workspaces": {
     ".": {
-      "entry": ["scripts/*", ".claude/skills/verify-tape/scripts/*"],
+      "entry": [
+        "scripts/*",
+        ".claude/skills/verify-tape/scripts/*",
+        "e2e/build.mjs",
+        "e2e/vite.config.ts",
+        "e2e/replay/worker.ts"
+      ],
       "ignoreDependencies": ["@walletconnect/ethereum-provider", "@tanstack/cli", "@tanstack/intent"]
     },
-    "packages/trade": { "ignoreDependencies": ["buffer"] }
+    "packages/trade": {
+      "ignoreDependencies": ["buffer"]
+    }
   }
 }
