@@ -43,7 +43,7 @@ describe('content security policy', () => {
     for (const route of Object.values(DEPOSITS).flatMap((v) => v.routes(network)))
       await Promise.allSettled([
         route.fee(offline, 10_000_000n),
-        route.progress(offline, { ...sent, chainId: route.chainId }),
+        route.progress(offline, { ...sent, chainId: route.chainId, claimed: new Set() }),
       ])
     expect(origins.size).toBeGreaterThan(0)
     expect([...origins].filter((o) => !CONNECT[network].includes(o))).toEqual([])

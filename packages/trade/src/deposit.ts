@@ -47,6 +47,8 @@ export interface SentDeposit {
   readonly amount: bigint
   readonly hash: Hex
   readonly sentAt: number
+  /** Venue records that other deposits of this account were already credited with. */
+  readonly claimed: ReadonlySet<string>
 }
 
 export type DepositProgress =

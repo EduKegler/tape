@@ -105,6 +105,11 @@ async function bridgeProgress(fetch: typeof globalThis.fetch, sent: SentDeposit)
     : { stage: 'relaying', detail: 'Waiting for Hyperliquid to credit the bridge deposit' }
 }
 
+function firstFrom<T extends { time: number }>(entries: readonly T[], at: number): T | undefined {
+  const byTime = entries.toSorted((a, b) => a.time - b.time)
+  return byTime.find((e) => e.time >= at) ?? byTime.at(-1)
+}
+
 /** CCTP credits arrive as a send from Circle's CoreDepositWallet to the perps dex, which Hyperliquid names "". */
 async function cctpProgress(
   fetch: typeof globalThis.fetch,
@@ -121,7 +126,7 @@ async function cctpProgress(
     }
   if (message.forward === 'pending') return { stage: 'relaying', detail: 'Circle is forwarding it to Hyperliquid' }
   const expected = message.feeExecuted === null ? null : sent.amount - message.feeExecuted
-  const entry = (await ledger(fetch, sent)).find(
+  const credits = (await ledger(fetch, sent)).filter(
     (e) =>
       e.delta.type === 'send'
       && e.delta.user?.toLowerCase() === CORE_DEPOSIT_WALLET.toLowerCase()
@@ -129,8 +134,10 @@ async function cctpProgress(
       && e.delta.destinationDex === ''
       && e.delta.token === 'USDC'
       && e.time >= sent.sentAt - LEDGER_SLACK_MS
+      && !sent.claimed.has(e.hash)
       && (expected === null || parseUsdc(e.delta.amount ?? '') === expected),
   )
+  const entry = firstFrom(credits, sent.sentAt)
   const amount = entry?.delta.amount ? parseUsdc(entry.delta.amount) : null
   return entry && amount
     ? { stage: 'credited', amount, at: entry.time, receipt: entry.hash }

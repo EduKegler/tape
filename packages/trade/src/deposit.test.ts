@@ -124,6 +124,7 @@ describe('Hyperliquid bridge deposit', () => {
       amount: 10_000_000n,
       hash,
       sentAt: 1_793_325_600_000,
+      claimed: new Set(),
     }
     const waiting = ledgerFetch([
       { time: 1, hash: '0x01', delta: { type: 'deposit', usdc: '10.0' } },
@@ -199,6 +200,7 @@ describe('Hyperliquid CCTP deposit', () => {
       amount: 10_000_000_000n,
       hash: '0x984cf110c222b69d4d4f6b9b281957afb58327de519ffc457365f6be24ef46d7',
       sentAt: 1_793_320_800_000,
+      claimed: new Set(),
     }
     const credit = {
       time: 1_793_320_818_376,
@@ -242,5 +244,52 @@ describe('Hyperliquid CCTP deposit', () => {
       at: credit.time,
       receipt: credit.hash,
     })
+  })
+
+  it('takes the first matching CCTP credit after the send that no other deposit claimed', async () => {
+    const wallet: Address = '0xefc1aaf1ced837a170c2cad8d0551a49b31a2458'
+    const sentAt = 1_793_320_800_000
+    const credit = (hash: string, time: number) => ({
+      time,
+      hash,
+      delta: {
+        type: 'send',
+        user: '0x6b9e773128f453f5c2c60935ee2de2cbc5390a24',
+        destination: wallet,
+        destinationDex: '',
+        token: 'USDC',
+        amount: '99.8',
+      },
+    })
+    const earlier = credit('0x01', sentAt - 180_000)
+    const own = credit('0x02', sentAt + 20_000)
+    const later = credit('0x03', sentAt + 200_000)
+    const fetch = (async (url: string) =>
+      new Response(
+        JSON.stringify(
+          url.includes('circle')
+            ? {
+                messages: [
+                  {
+                    status: 'complete',
+                    forwardState: 'COMPLETE',
+                    forwardTxHash: '0xe7517ef6e8d20dcc5baa413981d377935d544f1379c907e2139477fc3e85ac84',
+                    decodedMessage: { decodedMessageBody: { feeExecuted: '200000' } },
+                  },
+                ],
+              }
+            : [earlier, later, own],
+        ),
+      )) as typeof globalThis.fetch
+    const sent = (claimed: string[]): SentDeposit => ({
+      ref: { venue: 'hyperliquid', network: 'mainnet', owner: wallet },
+      chainId: 8453,
+      amount: 100_000_000n,
+      hash: '0x984cf110c222b69d4d4f6b9b281957afb58327de519ffc457365f6be24ef46d7',
+      sentAt,
+      claimed: new Set(claimed),
+    })
+    expect(await base.progress(fetch, sent([]))).toMatchObject({ receipt: own.hash })
+    expect(await base.progress(fetch, sent([own.hash]))).toMatchObject({ receipt: later.hash })
   })
 })

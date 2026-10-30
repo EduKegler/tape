@@ -217,6 +217,10 @@ export type DepositStatus = { readonly stage: 'confirming' } | { readonly stage:
 export function useDepositStatus(ref: AccountRef, record: DepositRecord): { status: DepositStatus; late: boolean } {
   const route = depositRoutes(ref).find((r) => r.chainId === record.chainId)
   const chainId = wagmiChain(record.chainId)
+  const others = useDeposits(ref)
+  const claimed = new Set(
+    others.flatMap((d) => (d.hash !== record.hash && d.outcome?.stage === 'credited' ? [d.outcome.receipt] : [])),
+  )
   const confirmed = useQuery(
     // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the hash names the deposit
     queryOptions({
@@ -244,7 +248,7 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
       queryFn:
         route && record.gasPaid !== null && !record.outcome
           ? async () => {
-              const p = await route.progress(browserFetch, { ...record, ref })
+              const p = await route.progress(browserFetch, { ...record, ref, claimed })
               if (p.stage === 'credited') {
                 updateDeposit(ref, record.hash, { outcome: p })
                 track({
