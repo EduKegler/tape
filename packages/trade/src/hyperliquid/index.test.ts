@@ -6,7 +6,7 @@ import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import { TradeFailure } from '../types'
-import type { Bps, Command, KeySlot, StoredKey, VenueContext } from '../types'
+import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext } from '../types'
 import { hyperliquid } from '.'
 
 const owner: Address = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b'
@@ -195,5 +195,47 @@ describe('hyperliquid refusals', () => {
       kind: 'insufficient-margin',
       detail: 'Insufficient margin to place order.',
     })
+  })
+})
+
+describe('hyperliquid cancels', () => {
+  const cancel: Command = { kind: 'cancel', order: '3:42' as OrderRef }
+  // The cancel action shape, `success` and the text for an order that is gone are from the exchange endpoint docs.
+  const gone = 'Order was never placed, already canceled, or filled.'
+
+  it('cancels an order Hyperliquid already filled without an error, but not one it refuses', async () => {
+    for (const reply of [['success'], [{ error: gone }]]) {
+      const { ctx, posts } = venue(() => statuses(reply))
+      expect(await hyperliquid.execute(ctx, cancel)).toEqual({ kind: 'done', detail: 'Canceled 1' })
+      expect(posts()[0]?.body.action).toEqual({ type: 'cancel', cancels: [{ a: 3, o: 42 }] })
+    }
+    const { ctx } = venue(() => statuses([{ error: 'Cancel refused for a reason Tape does not know' }]))
+    expect(await failureOf(hyperliquid.execute(ctx, cancel))).toEqual({
+      kind: 'rejected',
+      detail: 'Cancel refused for a reason Tape does not know',
+    })
+  })
+
+  it('cancels every open order of the market and nothing when none is open', async () => {
+    const order = (coin: string, oid: number) => ({ coin, side: 'B', limitPx: '70000.0', sz: '0.001', oid })
+    const open = venue(() => statuses(['success', 'success']), [order('BTC', 11), order('SOL', 12), order('BTC', 13)])
+    expect(await hyperliquid.execute(open.ctx, { kind: 'cancel-all', symbol: 'BTC' })).toEqual({
+      kind: 'done',
+      detail: 'Canceled 2',
+    })
+    expect(open.posts()[0]?.body.action).toEqual({
+      type: 'cancel',
+      cancels: [
+        { a: 3, o: 11 },
+        { a: 3, o: 13 },
+      ],
+    })
+
+    const none = venue(() => statuses([]), [order('SOL', 12)])
+    expect(await hyperliquid.execute(none.ctx, { kind: 'cancel-all', symbol: 'BTC' })).toEqual({
+      kind: 'done',
+      detail: 'Nothing to cancel',
+    })
+    expect(none.posts()).toEqual([])
   })
 })
