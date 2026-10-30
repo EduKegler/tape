@@ -99,7 +99,7 @@ self_test() {
   local bad=0
   expect_break "gap check removed (book.ts:258)" no-gap-check LiveBookMatchesVenue || bad=1
   expect_break "merge keeps the first effect (book.ts:269)" merge-keeps-first ResyncHasOwner || bad=1
-  expect_break "no retry after a failed fetch (hub.ts:254-256)" no-retry ResyncHasOwner || bad=1
+  expect_break "no retry after a failed fetch (hub.ts:257-259)" no-retry ResyncHasOwner || bad=1
   expect_break "witness: a book goes live" none NeverLive || bad=1
   expect_break "witness: a live book resyncs" none NeverResyncAfterLive || bad=1
   expect_break "witness: a late snapshot is in flight" none NeverLateSnapshot || bad=1

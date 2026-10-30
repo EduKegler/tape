@@ -28,11 +28,11 @@ VARIABLES
   subscribed,  \* the book stream is in ConnState.subscribed
   ctrl,        \* SUBSCRIBE / UNSUBSCRIBE frames sent, not yet read by the venue
   chan,        \* depthUpdate messages in flight to the hub, each <<U, u>>
-  desired,     \* the book stream is in desiredFor('binance'), hub.ts:366-369
+  desired,     \* the book stream is in desiredFor('binance'), hub.ts:369-372
   others,      \* some other binance stream is desired, so the socket stays up
   sync,        \* MarketState.sync, plus `levels`: what the book's levels really equal
-  fetches,     \* epochs with a REST snapshot in flight, hub.ts:243-253
-  timers,      \* epochs with the 2 s retry timer pending, hub.ts:255
+  fetches,     \* epochs with a REST snapshot in flight, hub.ts:246-256
+  timers,      \* epochs with the 2 s retry timer pending, hub.ts:258
   faults
 
 vars == <<vid, venueSub, venueSent, conn, subscribed, ctrl, chan, desired, others,
@@ -66,7 +66,7 @@ Apply(levels, d) ==
   IF levels = Bad \/ d[1] > levels + 1 \/ d[2] < levels THEN Bad ELSE d[2]
 
 (* stepBook, protocol 'rest-snapshot-sequenced'. A step is the next sync   *)
-(* plus the epochs its effect asks feedBook to fetch (hub.ts:233).         *)
+(* plus the epochs its effect asks feedBook to fetch (hub.ts:236).         *)
 NoEffect(s) == [sync |-> s, fetch |-> {}]
 
 \* input.kind 'reset', any reason, book.ts:212. awaiting() asks for nothing with an empty buffer,
@@ -113,10 +113,10 @@ RestSnapshot(s, e, L) ==
                fetch |-> {}],                                     \* book.ts:229-236
               s.buffer, 1)
 
-\* fetchSnapshot's `waiting()`, hub.ts:242.
+\* fetchSnapshot's `waiting()`, hub.ts:245.
 Waiting(e) == sync.phase = "awaiting-snapshot" /\ sync.epoch = e
 
-\* run({fx:'close'}) or onclose: the socket and everything on it are gone. hub.ts:327-342.
+\* run({fx:'close'}) or onclose: the socket and everything on it are gone. hub.ts:330-345.
 DropSocket ==
   /\ chan' = <<>> /\ ctrl' = <<>> /\ venueSub' = FALSE /\ subscribed' = FALSE
 
@@ -154,21 +154,21 @@ VenueReadsControl ==
 
 (* The hub *)
 
-\* socket.onmessage -> ingest -> apply -> feedBook. hub.ts:328, 294-310, 267-276, 226-236.
+\* socket.onmessage -> ingest -> apply -> feedBook. hub.ts:331, 297-313, 270-279, 229-239.
 \* apply drops the diff unless followsBook, the stream subscribed on an open socket,
-\* hub.ts:214-217, 268.
+\* hub.ts:217-220, 271.
 ReceiveDiff ==
   /\ conn = "open" /\ chan # <<>>
   /\ IF subscribed
      THEN LET r == Delta(sync, Head(chan)) IN
             /\ sync' = r.sync
-            /\ fetches' = fetches \cup r.fetch                   \* hub.ts:233
+            /\ fetches' = fetches \cup r.fetch                   \* hub.ts:236
      ELSE UNCHANGED <<sync, fetches>>
   /\ chan' = Tail(chan)
   /\ UNCHANGED <<vid, venueSub, venueSent, conn, subscribed, ctrl, desired, others, timers, faults>>
 
-\* A depthUpdate that throws DecimalError in toLevels (hub.ts:288-291), only on a followed
-\* stream, or VenueParseError in parse (hub.ts:302-303), on any. The diff is dropped and the
+\* A depthUpdate that throws DecimalError in toLevels (hub.ts:291-294), only on a followed
+\* stream, or VenueParseError in parse (hub.ts:305-306), on any. The diff is dropped and the
 \* book resets as corrupt.
 ReceiveBadDiff ==
   /\ conn = "open" /\ chan # <<>> /\ faults < MaxFaults
@@ -177,7 +177,7 @@ ReceiveBadDiff ==
   /\ faults' = faults + 1
   /\ UNCHANGED <<vid, venueSub, venueSent, conn, subscribed, ctrl, desired, others, fetches, timers>>
 
-\* fetchSnapshot's .then, hub.ts:245-253. The REST book may lag the stream, so L is any id up to now.
+\* fetchSnapshot's .then, hub.ts:248-256. The REST book may lag the stream, so L is any id up to now.
 SnapshotArrives ==
   \E e \in fetches, L \in 0..vid :
     LET r == RestSnapshot(sync, e, L) IN
@@ -185,26 +185,26 @@ SnapshotArrives ==
       /\ fetches' = (fetches \ {e}) \cup r.fetch
       /\ UNCHANGED <<vid, venueSub, venueSent, conn, subscribed, ctrl, chan, desired, others, timers, faults>>
 
-\* fetchSnapshot's .catch, hub.ts:254-256: an HTTP error, the 8 s AbortSignal.timeout (hub.ts:244),
+\* fetchSnapshot's .catch, hub.ts:257-259: an HTTP error, the 8 s AbortSignal.timeout (hub.ts:247),
 \* or a DecimalError from toLevels inside .then.
 SnapshotFails ==
   \E e \in fetches :
     /\ faults < MaxFaults
     /\ fetches' = fetches \ {e}
-    /\ timers' = IF Waiting(e) /\ Mutant # "no-retry" THEN timers \cup {e} ELSE timers   \* hub.ts:255
+    /\ timers' = IF Waiting(e) /\ Mutant # "no-retry" THEN timers \cup {e} ELSE timers   \* hub.ts:258
     /\ faults' = faults + 1
     /\ UNCHANGED <<vid, venueSub, venueSent, conn, subscribed, ctrl, chan, desired, others, sync>>
 
-\* The setTimeout callback 2 s later, hub.ts:255.
+\* The setTimeout callback 2 s later, hub.ts:258.
 RetryTimerFires ==
   \E e \in timers :
     /\ timers' = timers \ {e}
     /\ sync' = IF Waiting(e) THEN Reset(sync) ELSE sync
     /\ UNCHANGED <<vid, venueSub, venueSent, conn, subscribed, ctrl, chan, desired, others, fetches, faults>>
 
-\* A tab's 'want' plus its queued reconcile (hub.ts:476-481, 425-432), or the 1 s tick
-\* (hub.ts:444-445) when a stream's linger runs out. Either way reconcile() derives the
-\* streams (topics.ts:152-168) and steps the connection with { e: 'tick' } (hub.ts:420).
+\* A tab's 'want' plus its queued reconcile (hub.ts:486-491, 428-435), or the 1 s tick
+\* (hub.ts:453-454) when a stream's linger runs out. Either way reconcile() derives the
+\* streams (topics.ts:152-168) and steps the connection with { e: 'tick' } (hub.ts:423).
 Reconcile ==
   \E d, o \in BOOLEAN :
     /\ desired' = d /\ others' = o
@@ -220,23 +220,23 @@ Reconcile ==
          [] conn = "open" /\ ~(d \/ o) ->                         \* connection.ts:85
               /\ conn' = "idle"
               /\ DropSocket
-              /\ sync' = Reset(sync)                              \* run 'close' stops the book, hub.ts:340
+              /\ sync' = Reset(sync)                              \* run 'close' stops the book, hub.ts:343
          [] conn = "open" /\ o /\ subscribed /\ ~d ->              \* connection.ts:101-103
               /\ ctrl' = Append(ctrl, "unsub")
               /\ subscribed' = FALSE
-              /\ sync' = Reset(sync)                              \* stopBooks, hub.ts:219-224, 348
+              /\ sync' = Reset(sync)                              \* stopBooks, hub.ts:222-227, 351
               /\ UNCHANGED <<conn, venueSub, chan>>
          [] conn = "open" /\ ~subscribed /\ d ->                  \* connection.ts:99-100, 104
               /\ ctrl' = Append(ctrl, "sub")
               /\ subscribed' = TRUE
-              /\ sync' = Reset(sync)                              \* streams-reset, hub.ts:353-358
+              /\ sync' = Reset(sync)                              \* streams-reset, hub.ts:356-361
               /\ UNCHANGED <<conn, venueSub, chan>>
          [] OTHER ->
               UNCHANGED <<conn, venueSub, subscribed, ctrl, chan, sync>>
 
 \* The silence watchdog inside a tick, connection.ts:86-96. The hub closes the socket, which
-\* stops the book (hub.ts:340), then streams-stale stops it again if it was subscribed
-\* (hub.ts:359-362).
+\* stops the book (hub.ts:343), then streams-stale stops it again if it was subscribed
+\* (hub.ts:362-365).
 Silence ==
   /\ conn = "open" /\ (desired \/ others) /\ faults < MaxFaults
   /\ conn' = "backoff"
@@ -245,21 +245,21 @@ Silence ==
   /\ faults' = faults + 1
   /\ UNCHANGED <<vid, venueSent, desired, others, fetches, timers>>
 
-\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:327, connection.ts:118-133.
+\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:118-133.
 SocketOpened ==
   /\ conn = "connecting"
   /\ UNCHANGED <<vid, venueSent, desired, others, fetches, timers, faults>>
   /\ IF ~(desired \/ others)                                      \* connection.ts:85
-     THEN conn' = "idle" /\ DropSocket /\ sync' = Reset(sync)   \* run 'close', hub.ts:340
+     THEN conn' = "idle" /\ DropSocket /\ sync' = Reset(sync)   \* run 'close', hub.ts:343
      ELSE /\ conn' = "open"
           /\ subscribed' = desired
           /\ ctrl' = IF desired THEN <<"sub">> ELSE <<>>
-          /\ sync' = IF desired THEN Reset(sync) ELSE sync        \* streams-reset, hub.ts:353-358
+          /\ sync' = IF desired THEN Reset(sync) ELSE sync        \* streams-reset, hub.ts:356-361
           /\ UNCHANGED <<venueSub, chan>>
 
-\* socket.onclose from the network or the venue, hub.ts:329-333, connection.ts:134-147.
-\* Messages of a dead socket never reach the hub: the `v.socket === socket` guards, hub.ts:327-330.
-\* Losing an open socket runs streams-stale, which stops a subscribed book, hub.ts:359-362.
+\* socket.onclose from the network or the venue, hub.ts:332-336, connection.ts:134-147.
+\* Messages of a dead socket never reach the hub: the `v.socket === socket` guards, hub.ts:330-333.
+\* Losing an open socket runs streams-stale, which stops a subscribed book, hub.ts:362-365.
 SocketCloses ==
   /\ conn \in {"connecting", "open"} /\ faults < MaxFaults
   /\ conn' = "backoff"

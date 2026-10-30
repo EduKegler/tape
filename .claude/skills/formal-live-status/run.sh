@@ -97,10 +97,10 @@ check() {
 
 self_test() {
   local bad=0
-  expect_break "apply without the followsBook guard (hub.ts:264)" no-follows-guard LiveMeansFollowing || bad=1
-  expect_break "unsubscribe without stopBooks (hub.ts:348)" no-stop-on-unsubscribe LiveMeansFollowing || bad=1
-  expect_break "streams-stale without stopBooks (hub.ts:360)" no-stop-on-stale LiveMeansFollowing || bad=1
-  expect_break "close without the stopped resets (hub.ts:340)" no-stop-on-close LiveMeansFollowing || bad=1
+  expect_break "apply without the followsBook guard (hub.ts:267)" no-follows-guard LiveMeansFollowing || bad=1
+  expect_break "unsubscribe without stopBooks (hub.ts:351)" no-stop-on-unsubscribe LiveMeansFollowing || bad=1
+  expect_break "streams-stale without stopBooks (hub.ts:363)" no-stop-on-stale LiveMeansFollowing || bad=1
+  expect_break "close without the stopped resets (hub.ts:343)" no-stop-on-close LiveMeansFollowing || bad=1
   expect_break "witness: a book frame goes out live" none NeverLivePost || bad=1
   expect_break "witness: a book follows again after a drop" none NeverLiveAgain || bad=1
   expect_break "witness: a wanted stream sits out its hold" none NeverHeldOut || bad=1

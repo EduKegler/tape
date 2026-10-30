@@ -35,20 +35,20 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 | Model (`BookResync.tla`) | Code |
 | --- | --- |
 | `sync`, `Reset`, `Delta`, `LiveDelta`, `RestSnapshot`, `Replay`, `Merge` | `stepBook` branch `rest-snapshot-sequenced`, `awaiting`, `merge`, `initialSync` in `packages/core/src/book.ts:174-273` |
-| `ReceiveDiff` | `socket.onmessage` to `ingest`, `apply` case `book-delta` with its `followsBook` guard, `feedBook` in `src/hub/hub.ts:328, 294-310, 267-276, 214-217, 226-236` |
-| `ReceiveBadDiff` | `DecimalError` catch in `apply` and `VenueParseError` in `ingest`, `src/hub/hub.ts:288-291, 302-303` |
-| `fetches`, `SnapshotArrives` | `fetchSnapshot` and its `.then`, `src/hub/hub.ts:238-253`; `binance.book.fetchSnapshot` in `packages/venues/src/binance.ts:51-56` |
-| `SnapshotFails`, `timers`, `RetryTimerFires`, `Waiting` | `fetchSnapshot` `.catch`, `waiting()`, the 2 s `setTimeout`, `AbortSignal.timeout`, `src/hub/hub.ts:242-256` |
-| `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:476-481, 425-432, 409-423, 444-445, 366-388`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:158-173, 84-114`; `deriveStreams` in `src/core/topics.ts:152-168` |
-| `Reconcile` add branch, `SocketOpened` | the `streams-reset` effect that resets each subscribed book, `src/hub/hub.ts:353-358` |
-| `Reset` in `Reconcile`'s unsubscribe and close branches, `Silence`, `SocketCloses`, `SocketOpened` | the `stopped` resets: `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the loop in case `close`, `src/hub/hub.ts:219-224, 348, 360, 340` |
-| `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:327`, `src/hub/connection.ts:118-133` |
-| `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:327-342`; `closed` and the silence check in `src/hub/connection.ts:134-147, 86-96` |
+| `ReceiveDiff` | `socket.onmessage` to `ingest`, `apply` case `book-delta` with its `followsBook` guard, `feedBook` in `src/hub/hub.ts:331, 297-313, 270-279, 217-220, 229-239` |
+| `ReceiveBadDiff` | `DecimalError` catch in `apply` and `VenueParseError` in `ingest`, `src/hub/hub.ts:291-294, 305-306` |
+| `fetches`, `SnapshotArrives` | `fetchSnapshot` and its `.then`, `src/hub/hub.ts:241-256`; `binance.book.fetchSnapshot` in `packages/venues/src/binance.ts:51-56` |
+| `SnapshotFails`, `timers`, `RetryTimerFires`, `Waiting` | `fetchSnapshot` `.catch`, `waiting()`, the 2 s `setTimeout`, `AbortSignal.timeout`, `src/hub/hub.ts:245-259` |
+| `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:486-491, 428-435, 412-426, 453-454, 369-391`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:158-173, 84-114`; `deriveStreams` in `src/core/topics.ts:152-168` |
+| `Reconcile` add branch, `SocketOpened` | the `streams-reset` effect that resets each subscribed book, `src/hub/hub.ts:356-361` |
+| `Reset` in `Reconcile`'s unsubscribe and close branches, `Silence`, `SocketCloses`, `SocketOpened` | the `stopped` resets: `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the loop in case `close`, `src/hub/hub.ts:222-227, 351, 363, 343` |
+| `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:330`, `src/hub/connection.ts:118-133` |
+| `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check in `src/hub/connection.ts:134-147, 86-96` |
 | `chan`, `VenueSends` | `depthUpdate` with `seq: { from: U, to: u }` in `binance.parse`, `packages/venues/src/binance.ts:99` |
 
 Each action is one JS task in the worker: a socket message, a fetch settling, a timer, or a tab message with the reconcile it queues as a microtask. Nothing else in the hub runs inside one of them, so each is one TLA+ step.
 
-Sync commit: `777261fd859fc547e6fda7b0a1fc14212e2565e0` (2026-10-29). The model describes the covered code at this commit.
+Sync commit: `430c215b41d9ca9f4217660702ac9cbabff77233` (2026-10-29). The model describes the covered code at this commit.
 
 ## Bounds and assumptions
 
@@ -101,7 +101,7 @@ For changes that skipped this skill, such as merges, use the pstack `/maintain-f
 
 - `no-gap-check`: drop the gap rule in `book.ts:258`. Breaks `LiveBookMatchesVenue`.
 - `merge-keeps-first`: `merge` keeps the earlier effect, so a gap during replay asks for no snapshot (`book.ts:269`). Breaks `ResyncHasOwner`.
-- `no-retry`: a failed fetch sets no timer (`hub.ts:254-256`). Breaks `ResyncHasOwner`.
+- `no-retry`: a failed fetch sets no timer (`hub.ts:257-259`). Breaks `ResyncHasOwner`.
 
 The witnesses `NeverLive`, `NeverResyncAfterLive` and `NeverLateSnapshot` must also fail. They show the bounds reach a live book, a resync after live, and a stale snapshot still in flight.
 
