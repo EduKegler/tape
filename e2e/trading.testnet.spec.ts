@@ -177,6 +177,30 @@ test('a scale order sends one leg per row of the list the ticket shows', async (
   expect(new Set(action?.orders?.map((leg) => leg.c)).size).toBe(3)
 })
 
+test('a market buy goes out as an IOC limit at the ask plus the slippage the ticket shows', async ({
+  page,
+  wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page, wallet)
+  hyperliquid.exchange = () => ({
+    json: {
+      status: 'ok',
+      response: { type: 'order', data: { statuses: [{ filled: { totalSz: '0.002', avgPx: '80000.0', oid: 9 } }] } },
+    },
+  })
+  await page.getByRole('radio', { name: 'Market', exact: true }).click()
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await expect(ticket.getByRole('radio', { name: '1%', exact: true })).toBeChecked()
+
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await expect(ticket.getByRole('status')).toHaveText('Order filled. Filled 0.002 at 80000.0')
+  await expectAccessible(page)
+  // Hyperliquid has no market order type: its own UI sends an IOC limit. The ask 80000 plus 1% is 80800.
+  expect(orders(hyperliquid.sent).map((body) => body.action.orders)).toEqual([
+    [{ a: BTC, b: true, p: '80800', s: '0.002', r: false, t: { limit: { tif: 'Ioc' } }, c: expect.any(String) }],
+  ])
+})
+
 test('three clicks in one tick send one order, and the next goes after the answer', async ({ page, wallet }) => {
   const { hyperliquid, ticket } = await enable(page, wallet)
   const answer = deferred<Answer>()
