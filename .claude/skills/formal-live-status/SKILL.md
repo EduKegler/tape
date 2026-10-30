@@ -1,6 +1,6 @@
 ---
 name: formal-live-status
-description: "Model-check the status the hub puts on dYdX book frames: a frame posted as live must show a book that still follows the venue. Covers socket drops and reconnects, subscribe and unsubscribe, the resubscribe hold, the in-band snapshot, corrupt messages, the tab's wants with their linger, and the 100 ms flush throttle. Use when a change touches statusOf, project, flushNow, flush, touch, feedBook, ingest, apply, run, stepVenue or reconcile in src/hub/hub.ts, stepConnection, reconcile or the holds in src/hub/connection.ts, deriveStreams in src/core/topics.ts, the snapshot-then-deltas branch of stepBook in packages/core/src/book.ts, or the dYdX book feed. Also use to ask whether the ladder can show a frozen book as live."
+description: "Model-check the status the hub puts on dYdX book frames: a frame posted as live must show a book that still follows the venue. Covers socket drops and reconnects, subscribe and unsubscribe, the resubscribe hold, the in-band snapshot, corrupt messages, the tab's wants with their linger, and the 100 ms flush throttle. Use when a change touches statusOf, project, flushNow, flush, touch, followsBook, stopBooks, feedBook, ingest, apply, run, stepVenue or reconcile in src/hub/hub.ts, stepConnection, reconcile or the holds in src/hub/connection.ts, deriveStreams in src/core/topics.ts, the snapshot-then-deltas branch of stepBook in packages/core/src/book.ts, or the dYdX book feed. Also use to ask whether the ladder can show a frozen book as live."
 ---
 
 # Live status on dYdX book frames, model-checked
@@ -13,29 +13,29 @@ The Binance resync has its own model in `formal-book-resync`. This one is about 
 
 `LiveMeansFollowing`: a book frame the hub posts as `live` shows a book that still follows the venue. Its socket is the current one, and the stream is subscribed on it or a fresh snapshot is on its way. If broken, the ladder shows frozen or pre-outage prices under a live status, and a click on a level fills the ticket from them.
 
-## Known findings
+## Findings, fixed
 
-The code at the sync commit breaks the property three ways. Each was replayed through the real `createHub` with fake sockets and the recorded dYdX and Hyperliquid frames, as described under each one.
+The model found three ways the code at `ae87c3f` broke the property. Each was replayed through the real `createHub` with fake sockets and the recorded dYdX and Hyperliquid frames, then fixed. `src/hub/hub.test.ts` keeps each replay as a test.
 
-1. **Reconnect** (fix switch `reset-first`). The socket drops with two books live. When a new socket opens, `stepVenue` sets the state to `open` (`hub.ts:367`) and then runs `streams-reset` one book at a time (`hub.ts:337-342`). The first reset touches its market, and the throttle's leading edge runs `flushNow` right there (`hub.ts:207`). That flush sees the second book still in phase `live` on an open socket, so it posts the book from before the drop as `live`. The next flush, up to 100 ms later, says `syncing`. The same happens when a tab wants two streams again after their linger ran out. Replayed with Hyperliquid BTC and ETH: after the reopen, BTC went out as `live` at its pre-drop bid.
-2. **Snapshot during a hold** (fix switch `ignore-unsubscribed`). A corrupt message resets the book and resubscribes, which sets a 2 s hold (`connection.ts:61-73`). A second corrupt message, still from the old subscription, arrives inside the hold, so the hub only unsubscribes and drops the stream from `subscribed` (`connection.ts:153-155`). Then the snapshot of the earlier subscribe arrives, and `ingest` applies it with no check on the subscription (`hub.ts:280-296`, `book.ts:211-215`). The book is `live` with no stream behind it until a tick after the hold. The hold doubles with each repeat, up to 60 s. Replayed with dYdX BTC: `live` for 4.6 s with `unsubscribe` as the last frame sent.
-3. **Back during a hold** (fix switch `reset-on-unsubscribe`). A stream whose linger ran out is unsubscribed, and its book stays in phase `live` (`connection.ts:101-103`, nothing resets it). If the tab wants it again while the stream's hold is still on, `reconcile` leaves it out (`connection.ts:99`), so there is no subscribe and no reset. The next flush posts the frozen book as `live` until the hold ends. Replayed with dYdX BTC: `live` for 1.5 s with the stream unsubscribed.
+1. **Reconnect.** The socket dropped with two books live. On the new socket, `streams-reset` reset one book at a time, and the first reset's flush posted the second book from before the drop as `live`. The same happened when a tab wanted two streams again after their linger ran out. Fixed in `777261f`: losing or closing the socket stops every book (`hub.ts:340, 360`), so no book is `live` while its socket is down.
+2. **Snapshot during a hold.** A second corrupt message inside a resubscribe hold dropped the stream from `subscribed`, then the snapshot of the earlier subscribe arrived and made the book `live` with no stream behind it, for up to 60 s. Fixed in `5ad75c2`: `apply` drops book messages unless `followsBook` (`hub.ts:214-217, 264, 268`).
+3. **Back during a hold.** An unsubscribed book stayed `live`. When the tab wanted it again during the stream's hold, nothing subscribed or reset it, so the frozen book went out as `live`. Fixed in `777261f`: `unsubscribe` stops the book (`hub.ts:348`).
 
-The fix switches in the model are hypothetical fixes that set each finding aside, so the check can look for anything else. They are not product changes. One change in the code, a book that leaves `live` as soon as the hub stops following its stream, would likely cover 1 and 3. The model has not checked that change.
+`stopBooks` and the close loop feed `{ kind: 'reset', reason: 'stopped' }`, which moves the book to `awaiting-snapshot` and asks for nothing (`book.ts:199-200`).
 
 ## Run it
 
 ```bash
-.claude/skills/formal-live-status/run.sh             # each finding must reproduce, then the rest must pass, then the drift list
+.claude/skills/formal-live-status/run.sh             # the property must pass, then the drift list
 .claude/skills/formal-live-status/run.sh self-test   # each known break and each reachability witness must fail
 .claude/skills/formal-live-status/run.sh drift       # only the drift list
 ```
 
-Run from the repo root. `check` takes about 20 s on 12 cores. The pass with all three findings set aside explores about 3.7 million distinct states. `self-test` takes about 10 s.
+Run from the repo root. `check` takes about 15 s on 12 cores and explores about 3.6 million distinct states. `self-test` takes about 15 s.
 
 Tool: TLC from `tla2tools.jar` v1.7.4, the same copy `formal-book-resync` uses. The script downloads it on first use to `~/.cache/tape-formal/tla2tools-1.7.4/tla2tools.jar` and checks its sha256. Set `TAPE_TLA_JAR` to use another copy of the same file. It needs `java` 11 or newer on `PATH`. Nothing goes in `package.json` and nothing lands in the repo. TLC runs on a copy of the spec in a temp dir.
 
-`check` prints one line per known finding, then `PASS` or `FAIL`. Exit 0 means every finding still reproduces and nothing else breaks.
+`check` prints `PASS` or `FAIL`. Exit 0 means the property holds within the bounds.
 
 ## When to use it
 
@@ -50,13 +50,14 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 | `StatusOf` | `statusOf`, `src/hub/hub.ts:135-139` |
 | `PostFrames`, `posted`, `dirty` | `flushNow`, `tab.sent`, the signature in `project`, `src/hub/hub.ts:189-204, 160-164` |
 | `quiet`, `trailing`, the `flush` item of `Continue`, `TrailingFires`, `WaitPasses` | `throttle(flushNow, { wait: FLUSH_MS, leading: true, trailing: true })`, `src/hub/hub.ts:207`; Pacer 0.23.1 `Throttler.maybeExecute` |
-| the `reset` item of `Continue`, `ResetItems` | `streams-reset` in `run`, `feedBook`, `touch`, `src/hub/hub.ts:337-342, 214-224, 209-212`; `stepBook` reset, `book.ts:207` |
-| the `touch-all` item of `Continue` | `stepVenue` touching every market when the state changed, `src/hub/hub.ts:370` |
-| `Reconcile`, `Tick`, `Want`, `linger` | `reconcile`, the 1 s `setInterval`, the `want` handler and `queueReconcile`, `src/hub/hub.ts:392-406, 427-428, 459-463, 408-415`; `deriveStreams`, `src/core/topics.ts:150-168`; `stepConnection` tick and `reconcile`, `src/hub/connection.ts:158-173, 84-114` |
-| `SocketOpened` | `socket.onopen`, `stepVenue`, `src/hub/hub.ts:313, 354-371`; `stepConnection` case `opened`, `src/hub/connection.ts:118-133` |
-| `ConnectFails`, `SocketLost`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:313-327`; `closed` and the silence check, `src/hub/connection.ts:134-146, 86-96` |
-| `ReceiveSnapshot` | `socket.onmessage`, `ingest`, `apply` case `book-snapshot`, `src/hub/hub.ts:314, 280-296, 247-278`; `stepBook` `snapshot-then-deltas`, `packages/core/src/book.ts:211-215`; the `subscribed` message in `events`, `packages/venues/src/dydx.ts:68-73` |
-| `ReceiveBad`, `VenueSendsBad` | the `VenueParseError` and `DecimalError` resets, `src/hub/hub.ts:288-289, 274-276`; `awaiting` asking to resubscribe, `book.ts:194-195`; `feedBook` stepping `resubscribe`, `hub.ts:222-223`; `stepConnection` case `resubscribe` and `deferRepeatResubscribes`, `src/hub/connection.ts:148-157, 61-73` |
+| the `reset` item of `Continue`, `Resets`, `StreamsReset` | `streams-reset` in `run`, `feedBook`, `touch`, `src/hub/hub.ts:353-358, 226-236, 209-212`; `stepBook` reset, `book.ts:212` |
+| `UnsubResets`, `StaleResets`, `CloseResets` | `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the `stopped` loop in case `close`, `src/hub/hub.ts:219-224, 348, 360, 340` |
+| the `touch-all` item of `Continue` | `stepVenue` touching every market when the state changed, `src/hub/hub.ts:387` |
+| `Reconcile`, `Tick`, `Want`, `linger` | `reconcile`, the 1 s `setInterval`, the `want` handler and `queueReconcile`, `src/hub/hub.ts:409-423, 444-445, 476-481, 425-432`; `deriveStreams`, `src/core/topics.ts:150-168`; `stepConnection` tick and `reconcile`, `src/hub/connection.ts:158-173, 84-114` |
+| `SocketOpened` | `socket.onopen`, `stepVenue`, `src/hub/hub.ts:327, 371-388`; `stepConnection` case `opened`, `src/hub/connection.ts:118-133` |
+| `ConnectFails`, `SocketLost`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:327-342`; `closed` and the silence check, `src/hub/connection.ts:134-146, 86-96` |
+| `ReceiveSnapshot` | `socket.onmessage`, `ingest`, `apply` case `book-snapshot` with its `followsBook` guard, `src/hub/hub.ts:328, 294-310, 259-292, 214-217`; `stepBook` `snapshot-then-deltas`, `packages/core/src/book.ts:217-219`; the `subscribed` message in `events`, `packages/venues/src/dydx.ts:68-73` |
+| `ReceiveBad`, `VenueSendsBad` | the `VenueParseError` and `DecimalError` resets, `src/hub/hub.ts:302-303, 288-290`; `awaiting` asking to resubscribe, `book.ts:199-200`; `feedBook` stepping `resubscribe`, `hub.ts:234-235`; `stepConnection` case `resubscribe` and `deferRepeatResubscribes`, `src/hub/connection.ts:148-157, 61-73` |
 | `held`, `HoldEnds` | `ConnState.holds`, the `held` filter, `src/hub/connection.ts:66, 97-99` |
 | `ctrl`, `venueSub`, `chan`, `VenueReadsControl` | dYdX's socket: it reads frames in order and sends the book after each subscribe |
 
@@ -64,7 +65,7 @@ Each action is the first part of one JS task in the worker: a socket event, a ti
 
 The ghost variables `hubSub`, `follows`, `postedFollows` and `dropped` are not in the code. They carry the truth the property compares against.
 
-Sync commit: `ae87c3f45be62ead4c18b5dad9e6e0f4c8158928` (2026-10-29). The model describes the covered code at this commit.
+Sync commit: `777261fd859fc547e6fda7b0a1fc14212e2565e0` (2026-10-29). The model describes the covered code at this commit.
 
 ## Bounds and assumptions
 
@@ -72,7 +73,7 @@ Bounds in `LiveStatus.cfg`: two markets, 3 faults in total (socket drops, silenc
 
 Assumptions:
 
-- A book follows the venue when it came from a snapshot on the current socket while the hub had the stream subscribed, and the hub has not unsubscribed it or lost the socket since. Deltas that parse change levels, not phase or status, so the model has none.
+- A book follows the venue when it came from a snapshot on the current socket while the hub had the stream subscribed, and the hub has not unsubscribed it or lost the socket since. Deltas that parse change levels, not phase or status, so the model has none. The `followsBook` guard on deltas is not checked.
 - dYdX reads frames in order and sends the book in its `subscribed` message after each subscribe. TCP keeps one socket's messages in order. Messages of a closed socket never reach `ingest`.
 - Specs are loaded. Before that, `desiredFor` leaves the streams out.
 - The tab is visible. A lingering stream can expire in any reconcile after the one in which the tab let it go, never in that one, because `lastWanted` is at most one tick old then.
@@ -80,8 +81,8 @@ Assumptions:
 
 ## Not covered
 
-- Binance and its REST resync, which `formal-book-resync` covers, and Hyperliquid's `snapshots` protocol. Finding 1 also hits them, since `statusOf` and the reset loop are shared. Replay 1 used Hyperliquid.
-- More than one venue. `reconcile` steps venues in order, and a flush during one venue's resets can post another venue's books. Same root cause as finding 1, not checked.
+- Binance and its REST resync, which `formal-book-resync` covers, and Hyperliquid's `snapshots` protocol. The fixes are in shared hub code, so they apply there too. Replay 1 used Hyperliquid.
+- More than one venue. `reconcile` steps venues in order, and a flush during one venue's resets can post another venue's books. Not checked.
 - More than one tab, hidden tabs, `visible` messages, ports and Web Locks.
 - Trades, candles, depth and compare frames. The compare frame's status comes from the same `statusOf` and is not checked.
 - Levels and uncrossing. `formal-book-resync` checks Binance levels. dYdX levels are not checked.
@@ -90,11 +91,11 @@ Assumptions:
 
 ## Read a result
 
-Read every TLC result with the pstack `/statechart` skill, run from `LiveStatus.tla` and `LiveStatus.cfg` with the `Fixes` line set to the variant you are reading. On a failure it tells the violation as its shortest path in plain words. On a pass it draws how the books move between states. The state space is far over its chart budget, so expect only the bug paths in the chart.
+Read every TLC result with the pstack `/statechart` skill, run from `LiveStatus.tla` and `LiveStatus.cfg` with the `Mutant` line set to the variant you are reading. On a failure it tells the violation as its shortest path in plain words. On a pass it draws how the books move between states. The state space is far over its chart budget, so expect only the bug paths in the chart.
 
 On `FAIL`, decide whether the trace is a real bug or a modeling error. Walk the trace one action at a time against the coverage table. For each step, open the code and confirm it can happen in that order. Then replay it through the real hub: `src/hub/hub.test.ts` builds `createHub` with fake sockets, and the recorded frames in `packages/venues/src/__fixtures__` give real snapshots. A corrupt dYdX delta is a recorded `channel_data` line with a price that does not parse.
 
-- If every step happens in the code, it is a bug. Report it as steps in the code's words, like the known findings above. Do not weaken the property or the model to make it pass.
+- If every step happens in the code, it is a bug. Report it as steps in the code's words, like the findings above. Do not weaken the property or the model to make it pass.
 - If a step cannot happen, the model is wrong. Fix the model to match the code, cite the line, and rerun.
 
 On `PASS`, still read the drift list. A pass on a model that no longer describes the code proves nothing.
@@ -110,17 +111,17 @@ On `PASS`, still read the drift list. A pass on a model that no longer describes
 
 For changes that skipped this skill, such as merges, use the pstack `/maintain-formal-verification-skill` skill.
 
-## When a finding goes away
-
-`check` says `CHANGED` when a known finding no longer reproduces. If the code fixed it, model the fix in place of its switch: delete the switch from the actions, from `FINDINGS` and `ALL_FIXES` in `run.sh`, and from the list above, then rerun. If the code did not change there, the model drifted. Find the step that no longer happens and fix the model.
-
 ## Known breaks the self-test checks
 
-Each runs with all three findings set aside. `Mutant` in the config switches the model to a known broken variant. `"none"` is the code as it is.
+`Mutant` in the config switches the model to a known broken variant. `"none"` is the code as it is. Each one undoes one of the fixes above.
 
-- `no-streams-reset`: subscribe with no `streams-reset` (`connection.ts:104, 155`). A reconnected book keeps its pre-drop levels as live.
-- `status-ignores-conn`: `statusOf` without the socket check (`hub.ts:137`). A book from a dropped socket shows live.
+- `no-follows-guard`: `apply` without `if (!followsBook(m)) return` (`hub.ts:264`). Finding 2 comes back.
+- `no-stop-on-unsubscribe`: `unsubscribe` without `stopBooks` (`hub.ts:348`). Finding 3 comes back.
+- `no-stop-on-stale`: `streams-stale` without `stopBooks` (`hub.ts:360`). Finding 1 comes back after `onclose`.
+- `no-stop-on-close`: `close` without the `stopped` loop (`hub.ts:340`). Finding 1 comes back after the tab lets every stream go and wants them back.
+
+With the fixes, two checks that used to guard the property no longer do: removing `streams-reset` (`connection.ts:104, 155`) or the socket check in `statusOf` (`hub.ts:137`) leaves `LiveMeansFollowing` passing, because no book is `live` while its socket is down or its stream unsubscribed. They still matter for levels and for `stale`, which this model does not check.
 
 The witnesses `NeverLivePost`, `NeverLiveAgain` and `NeverHeldOut` must also fail. They show the bounds reach a live frame, a book that follows again after a reconnect, and a wanted stream held out of its subscription.
 
-Proven at the sync commit: as a scratch change, `statusOf` returned `live` whenever `visibleBook(m.sync)` held, so a resync over the previous book would still read live. Following this skill, `drift` listed `hub.ts`, the model got a `hasBook` variable for `visibleBook`, and `check` failed beyond the known findings: a BTC snapshot, a corrupt message that resets and resubscribes, then a flush that posts the old book as live. The same steps through the real hub posted `live` after the corrupt delta, where the code at the sync commit posts `syncing`. With the scratch change dropped, `check` passed again.
+Proven at `ae87c3f`, before the fixes: as a scratch change, `statusOf` returned `live` whenever `visibleBook(m.sync)` held, so a resync over the previous book would still read live. Following this skill, `drift` listed `hub.ts`, the model got a `hasBook` variable for `visibleBook`, and `check` failed beyond the known findings: a BTC snapshot, a corrupt message that resets and resubscribes, then a flush that posts the old book as live. The same steps through the real hub posted `live` after the corrupt delta, where the code at that commit posts `syncing`. With the scratch change dropped, `check` was back to the three findings. Resynced at `777261f`: the findings' switches became the fixes, and each fix undone in the model brings its finding back.

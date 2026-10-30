@@ -23,7 +23,6 @@ CONSTANTS
   MaxFaults,  \* socket drops, silences and corrupt messages, in total
   MaxCtrl,    \* subscribe / unsubscribe frames waiting at the venue
   MaxChan,    \* messages in flight to the hub
-  Fixes,      \* hypothetical fixes for the known findings, see SKILL.md. {} is the code.
   Mutant      \* "none" is the code. The others are known breaks, see SKILL.md.
 
 VARIABLES
@@ -75,11 +74,9 @@ Idle == todo = <<>>
 \* Every order of a set, for the order of a Set the code iterates.
 Orders(S) == {f \in [1..Cardinality(S) -> S] : \A i, j \in DOMAIN f : i # j => f[i] # f[j]}
 
-Range(f) == {f[i] : i \in DOMAIN f}
-
 \* statusOf, hub.ts:135-139.
 StatusOf(m) ==
-  IF conn # "open" /\ Mutant # "status-ignores-conn" THEN "stale"
+  IF conn # "open" THEN "stale"
   ELSE IF phase[m] = "live" THEN "live" ELSE "syncing"
 
 \* flushNow, hub.ts:189-204, for the one visible tab. A frame goes out when its version
@@ -90,34 +87,26 @@ PostFrames ==
     /\ postedFollows' = [m \in Markets |-> IF out(m) THEN follows[m] ELSE postedFollows[m]]
     /\ dirty' = [m \in Markets |-> IF m \in wanted THEN FALSE ELSE dirty[m]]
 
-\* run({fx:'close'}) or onclose: the socket and all it carried are gone, hub.ts:315-327.
-\* Messages of a dead socket never reach ingest: the `v.socket === socket` guards, hub.ts:313-314.
+\* run({fx:'close'}) or onclose: the socket and all it carried are gone, hub.ts:329-342.
+\* Messages of a dead socket never reach ingest: the `v.socket === socket` guards, hub.ts:327-328.
 DropSocket ==
   /\ ctrl' = <<>> /\ chan' = <<>>
   /\ venueSub' = [m \in Markets |-> FALSE]
   /\ hubSub' = [m \in Markets |-> FALSE]
   /\ follows' = [m \in Markets |-> FALSE]
 
-\* The order of Continue items a streams-reset over `order` leaves, hub.ts:337-342.
-\* With the reset-first fix every book resets before anything can flush.
-ResetItems(order) ==
-  IF "reset-first" \in Fixes \/ Mutant = "no-streams-reset" THEN <<>>
-  ELSE [i \in DOMAIN order |-> Op("reset", order[i])]
+\* The Continue items of a loop that feeds a reset to each book of `order`, one at a time.
+Resets(order) == [i \in DOMAIN order |-> Op("reset", order[i])]
 
-ResetAtOnce(order, ph) ==
-  IF "reset-first" \in Fixes /\ Mutant # "no-streams-reset"
-  THEN [m \in Markets |-> IF m \in Range(order) THEN "awaiting-snapshot" ELSE ph[m]]
-  ELSE ph
+\* streams-reset after a subscribe, reason 'subscribed', hub.ts:353-358.
+StreamsReset(order) == Resets(order)
 
-\* A reset that moves the phase touches the market (hub.ts:219), which marks it dirty.
-ResetDirty(order, ph) ==
-  IF "reset-first" \in Fixes /\ Mutant # "no-streams-reset"
-  THEN [m \in Markets |-> dirty[m] \/ (m \in Range(order) /\ ph[m] = "live")]
-  ELSE dirty
+\* run({fx:'close'}) resets every book of the venue, reason 'stopped', hub.ts:340.
+CloseResets(order) == IF Mutant = "no-stop-on-close" THEN <<>> ELSE Resets(order)
 
-ResetFlushes(order, ph) ==
-  IF "reset-first" \in Fixes /\ Mutant # "no-streams-reset" /\ \E i \in DOMAIN order : ph[order[i]] = "live"
-  THEN <<FlushCall>> ELSE <<>>
+\* stopBooks in run({fx:'unsubscribe'}) and run({fx:'streams-stale'}), hub.ts:219-224, 348, 360.
+UnsubResets(order) == IF Mutant = "no-stop-on-unsubscribe" THEN <<>> ELSE Resets(order)
+StaleResets(order) == IF Mutant = "no-stop-on-stale" THEN <<>> ELSE Resets(order)
 
 Subscribes(order) == [i \in DOMAIN order |-> <<"sub", order[i]>>]
 Unsubscribes(order) == [i \in DOMAIN order |-> <<"unsub", order[i]>>]
@@ -128,7 +117,7 @@ Init ==
   /\ hubSub = [m \in Markets |-> FALSE] /\ venueSub = [m \in Markets |-> FALSE]
   /\ ctrl = <<>> /\ chan = <<>>
   /\ wanted = {} /\ linger = {}
-  /\ phase = [m \in Markets |-> "awaiting-snapshot"]             \* initialSync, book.ts:169-176
+  /\ phase = [m \in Markets |-> "awaiting-snapshot"]             \* initialSync, book.ts:174-181
   /\ follows = [m \in Markets |-> FALSE] /\ dirty = [m \in Markets |-> FALSE]
   /\ quiet = TRUE /\ trailing = FALSE
   /\ posted = [m \in Markets |-> "none"] /\ postedFollows = [m \in Markets |-> FALSE]
@@ -147,14 +136,14 @@ Continue ==
             ELSE /\ trailing' = TRUE /\ todo' = Tail(todo)
                  /\ UNCHANGED <<quiet, phase, posted, postedFollows, dirty>>
        [] it.op = "reset" ->
-            \* feedBook(m, { kind: 'reset', reason: 'subscribed' }), hub.ts:214-224, book.ts:207.
-            \* A phase change touches the market, and touch calls flush, hub.ts:209-212.
+            \* feedBook(m, { kind: 'reset', reason }), hub.ts:226-236, book.ts:212. A phase change
+            \* touches the market, and touch calls flush, hub.ts:209-212, 232.
             /\ phase' = [phase EXCEPT ![it.m] = "awaiting-snapshot"]
             /\ dirty' = IF phase[it.m] = "live" THEN [dirty EXCEPT ![it.m] = TRUE] ELSE dirty
             /\ todo' = IF phase[it.m] = "live" THEN <<FlushCall>> \o Tail(todo) ELSE Tail(todo)
             /\ UNCHANGED <<quiet, trailing, posted, postedFollows>>
        [] it.op = "touch-all" ->
-            \* stepVenue touches every market of the venue when ConnState.s changed, hub.ts:370.
+            \* stepVenue touches every market of the venue when ConnState.s changed, hub.ts:387.
             /\ dirty' = [m \in Markets |-> TRUE]
             /\ todo' = [i \in 1..Cardinality(Markets) |-> FlushCall] \o Tail(todo)
             /\ UNCHANGED <<quiet, trailing, phase, posted, postedFollows>>
@@ -190,7 +179,7 @@ VenueReadsControl ==
                  quiet, trailing, posted, postedFollows, todo, dropped, faults>>
 
 \* A message on a streamed book that the hub cannot read: a VenueParseError naming the market
-\* (hub.ts:288-289) or a DecimalError in toLevels (hub.ts:274-276). Deltas that parse leave
+\* (hub.ts:302-303) or a DecimalError in toLevels (hub.ts:288-290). Deltas that parse leave
 \* the phase and the status alone, so the model has no others.
 VenueSendsBad ==
   /\ Idle /\ faults < MaxFaults
@@ -203,10 +192,10 @@ VenueSendsBad ==
 
 (* The hub *)
 
-\* reconcile(), hub.ts:392-406: deriveStreams with linger (topics.ts:152-168), then stepVenue
+\* reconcile(), hub.ts:409-423: deriveStreams with linger (topics.ts:152-168), then stepVenue
 \* with { e: 'tick' } (connection.ts:158-173, 84-114), then flush(). `gone` are lingering
 \* streams whose LINGER_MS ran out, from `expirable`: a stream wanted at the last reconcile has
-\* lastWanted under 1 s old. A tab's 'want' (hub.ts:459-463) runs it as a microtask right after
+\* lastWanted under 1 s old. A tab's 'want' (hub.ts:476-481) runs it as a microtask right after
 \* the message, so the two are one task.
 Reconcile(w, l, expirable) ==
   \E gone \in SUBSET expirable :
@@ -214,7 +203,7 @@ Reconcile(w, l, expirable) ==
     /\ linger' = l \ gone
     /\ CASE conn = "idle" ->
               IF desired # {}
-              THEN /\ conn' = "connecting"                         \* run 'open', hub.ts:309-321
+              THEN /\ conn' = "connecting"                         \* run 'open', hub.ts:323-335
                    /\ DropSocket
                    /\ todo' = <<TouchAll, FlushCall>>
                    /\ UNCHANGED <<subscribed, held, phase, dirty>>
@@ -242,11 +231,12 @@ Reconcile(w, l, expirable) ==
                      /\ UNCHANGED <<conn, subscribed, held, hubSub, ctrl, venueSub, chan, phase,
                                     follows, dirty>>
          [] conn = "open" /\ desired = {} ->
-              \* connection.ts:85, then run 'close', hub.ts:322-327.
-              /\ conn' = "idle" /\ subscribed' = {} /\ held' = {}
-              /\ DropSocket
-              /\ todo' = <<TouchAll, FlushCall>>
-              /\ UNCHANGED <<phase, dirty>>
+              \* connection.ts:85, then run 'close', hub.ts:336-342.
+              \E morder \in Orders(Markets) :
+                /\ conn' = "idle" /\ subscribed' = {} /\ held' = {}
+                /\ DropSocket
+                /\ todo' = CloseResets(morder) \o <<TouchAll, FlushCall>>
+                /\ UNCHANGED <<phase, dirty>>
          [] conn = "open" ->
               LET keep == {s \in desired : s \in subscribed \/ s \notin held}   \* connection.ts:99
                   add == keep \ subscribed                                    \* connection.ts:100
@@ -257,14 +247,10 @@ Reconcile(w, l, expirable) ==
                    /\ hubSub' = [m \in Markets |-> IF m \in add THEN TRUE
                                                    ELSE IF m \in drop THEN FALSE ELSE hubSub[m]]
                    /\ follows' = [m \in Markets |-> IF m \in drop THEN FALSE ELSE follows[m]]
-                   /\ phase' = [m \in Markets |->
-                                 IF "reset-on-unsubscribe" \in Fixes /\ m \in drop THEN "awaiting-snapshot"
-                                 ELSE ResetAtOnce(order, phase)[m]]
-                   /\ dirty' = ResetDirty(order, phase)
-                   /\ todo' = ResetItems(order) \o ResetFlushes(order, phase) \o <<FlushCall>>
-                   /\ UNCHANGED <<conn, held, venueSub, chan>>
+                   /\ todo' = UnsubResets(dorder) \o StreamsReset(order) \o <<FlushCall>>
+                   /\ UNCHANGED <<conn, held, venueSub, chan, phase, dirty>>
 
-\* The tab sends its full want set, hub.ts:459-463. Dropped topics leave tab.sent (hub.ts:461),
+\* The tab sends its full want set, hub.ts:476-481. Dropped topics leave tab.sent (hub.ts:478),
 \* so the tab holds no frame for them and one wanted again gets a frame on the next flush.
 Want ==
   /\ Idle
@@ -275,32 +261,31 @@ Want ==
        /\ Reconcile(w, (linger \cup (wanted \ w)) \ w, linger \ w)
   /\ UNCHANGED <<quiet, trailing, postedFollows, dropped, faults>>
 
-\* The 1 s setInterval, hub.ts:427-428.
+\* The 1 s setInterval, hub.ts:444-445.
 Tick ==
   /\ Idle
   /\ Reconcile(wanted, linger, linger)
   /\ UNCHANGED <<wanted, quiet, trailing, posted, postedFollows, dropped, faults>>
 
-\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:313, connection.ts:118-133. The new
+\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:327, connection.ts:118-133. The new
 \* ConnState starts with no subscriptions and no holds, then reconciles.
 SocketOpened ==
   /\ Idle /\ conn = "connecting"
   /\ LET desired == wanted \cup linger IN
        IF desired = {}
-       THEN /\ conn' = "idle" /\ subscribed' = {} /\ held' = {}
+       THEN \E morder \in Orders(Markets) :
+            /\ conn' = "idle" /\ subscribed' = {} /\ held' = {}
             /\ DropSocket
-            /\ todo' = <<TouchAll>>
-            /\ UNCHANGED <<phase, dirty>>
+            /\ todo' = CloseResets(morder) \o <<TouchAll>>
        ELSE \E order \in Orders(desired) :
-            /\ conn' = "open"                                     \* v.conn = state, hub.ts:367
+            /\ conn' = "open"                                     \* v.conn = state, hub.ts:384
             /\ subscribed' = desired /\ held' = {}
-            /\ ctrl' = ctrl \o Subscribes(order)                  \* run 'subscribe', hub.ts:328-330
+            /\ ctrl' = ctrl \o Subscribes(order)                  \* run 'subscribe', hub.ts:343-345
             /\ hubSub' = [m \in Markets |-> m \in desired]
-            /\ phase' = ResetAtOnce(order, phase)
-            /\ dirty' = ResetDirty(order, phase)
-            /\ todo' = ResetItems(order) \o ResetFlushes(order, phase) \o <<TouchAll>>
+            /\ todo' = StreamsReset(order) \o <<TouchAll>>
             /\ UNCHANGED <<venueSub, chan, follows>>
-  /\ UNCHANGED <<wanted, linger, quiet, trailing, posted, postedFollows, dropped, faults>>
+  /\ UNCHANGED <<wanted, linger, phase, dirty, quiet, trailing, posted, postedFollows, dropped,
+                 faults>>
 
 \* The connect fails: onclose while connecting, connection.ts:141-144.
 ConnectFails ==
@@ -311,25 +296,30 @@ ConnectFails ==
   /\ UNCHANGED <<subscribed, held, wanted, linger, phase, dirty, quiet, trailing, posted,
                  postedFollows, dropped, faults>>
 
-\* An open socket is lost: onclose (hub.ts:315-320, connection.ts:134-140) or the silence
-\* check in a tick (connection.ts:86-96, which also closes it). Backoff keeps no subscriptions
-\* or holds. streams-stale touches each subscribed market, then stepVenue touches them all.
+\* An open socket is lost: onclose (hub.ts:329-333, connection.ts:134-140) or the silence
+\* check in a tick (connection.ts:86-96), which runs 'close' first and flushes at the end of
+\* reconcile. Backoff keeps no subscriptions or holds. streams-stale stops each subscribed book
+\* and touches its market (hub.ts:359-362), then stepVenue touches them all. The touches of
+\* streams-stale fold into the touch-all: the socket is gone, so every wanted frame's status
+\* changes and the first flush posts them all.
 SocketLost ==
   /\ Idle /\ conn = "open" /\ faults < MaxFaults
+  /\ \E silence \in BOOLEAN, morder \in Orders(Markets), sorder \in Orders(subscribed) :
+       todo' = (IF silence THEN CloseResets(morder) ELSE <<>>) \o StaleResets(sorder) \o <<TouchAll>>
+               \o (IF silence THEN <<FlushCall>> ELSE <<>>)
   /\ conn' = "backoff" /\ subscribed' = {} /\ held' = {}
   /\ DropSocket
-  /\ todo' = <<TouchAll>>
   /\ dropped' = TRUE
   /\ faults' = faults + 1
   /\ UNCHANGED <<wanted, linger, phase, dirty, quiet, trailing, posted, postedFollows>>
 
-\* socket.onmessage -> ingest -> apply -> feedBook, hub.ts:314, 280-296, 247-278, 214-224.
-\* A snapshot makes the book live from any phase, book.ts:211-215. It keeps following the venue
-\* only if the hub still has the stream subscribed on this socket.
+\* socket.onmessage -> ingest -> apply -> feedBook, hub.ts:328, 294-310, 259-292, 226-236.
+\* apply drops a book message unless followsBook, the stream subscribed on an open socket
+\* (hub.ts:214-217, 264). A snapshot makes the book live from any phase, book.ts:217-219.
 ReceiveSnapshot ==
   /\ Idle /\ conn = "open" /\ chan # <<>> /\ Head(chan)[2] = "snapshot"
   /\ LET m == Head(chan)[1] IN
-     IF "ignore-unsubscribed" \in Fixes /\ ~hubSub[m]
+     IF m \notin subscribed /\ Mutant # "no-follows-guard"
      THEN /\ chan' = Tail(chan)
           /\ UNCHANGED <<phase, follows, dirty, todo>>
      ELSE /\ chan' = Tail(chan)
@@ -340,11 +330,12 @@ ReceiveSnapshot ==
   /\ UNCHANGED <<conn, subscribed, held, hubSub, ctrl, venueSub, wanted, linger, quiet, trailing,
                  posted, postedFollows, dropped, faults>>
 
-\* A corrupt message resets the book (book.ts:207, awaiting() asks to resubscribe,
-\* book.ts:194-195) and feedBook steps the venue with { e: 'resubscribe' } (hub.ts:222-223,
+\* A corrupt message resets the book (book.ts:212, awaiting() asks to resubscribe,
+\* book.ts:199-200) and feedBook steps the venue with { e: 'resubscribe' } (hub.ts:234-235,
 \* connection.ts:148-157). A stream resubscribed within its hold is unsubscribed and left out
 \* until a tick after the hold. The touch's flush runs before the resubscribe, but the
-\* resubscribe changes nothing a frame shows, so the flush is the last item.
+\* resubscribe changes nothing a frame shows, so the flush is the last item. Its unsubscribe
+\* stops a book already awaiting a snapshot, which changes nothing.
 ReceiveBad ==
   /\ Idle /\ conn = "open" /\ chan # <<>> /\ Head(chan)[2] = "bad"
   /\ LET m == Head(chan)[1]
