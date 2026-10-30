@@ -43,7 +43,10 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
         ))}
       </nav>
       <Ticker venue={venue} base={base} />
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-4">
+        <Link to="/history" className="text-[13px] text-level3 hover:text-level1">
+          History
+        </Link>
         <WalletButton />
       </div>
     </header>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import type { ColumnDef, RowData } from '@tanstack/react-table'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, VenueId } from '@tape/core/ids'
 import { closeIntent } from '@tape/trade/intent'
@@ -74,6 +75,11 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
             { value: 'fills', label: 'Fills' },
           ]}
         />
+        {tab === 'fills' && (
+          <Link to="/history" className="text-level3 hover:text-level1">
+            Full history
+          </Link>
+        )}
         {snapshot && (
           <span className="num text-level3">
             Equity <span className="text-level1">{snapshot.equity}</span> · Available{' '}
