@@ -32,6 +32,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: record two minutes of every venue
         run: node scripts/record-fixtures.mjs 120
+      - name: probe, rename a field the Hyperliquid parser reads
+        run: sed -i "s/\"levels\":/\"levelz\":/g" packages/venues/src/__fixtures__/hyperliquid.ws.jsonl
       - name: replay the recording through the venue parsers and the book
         run: pnpm exec vitest run packages/venues
       - name: the recording the parsers failed on
