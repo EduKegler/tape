@@ -27,13 +27,14 @@ export const Route = createFileRoute('/$venue/$base')({
     stringify: (p) => p,
   },
   validateSearch: searchSchema,
-  head: ({ params }) => ({
-    meta: [
-      { title: `${params.base} on ${VENUES[params.venue].label} · Tape${NETWORK === 'testnet' ? ' testnet' : ''}` },
-    ],
-  }),
+  head: ({ params }) => marketHead(params),
   component: Market,
 })
+
+function marketHead({ venue, base }: Record<'venue' | 'base', string>) {
+  if (!isVenueId(venue) || !isBase(base)) return {}
+  return { meta: [{ title: `${base} on ${VENUES[venue].label} · Tape${NETWORK === 'testnet' ? ' testnet' : ''}` }] }
+}
 
 function Market() {
   const { venue, base } = Route.useParams()
