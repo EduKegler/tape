@@ -9,13 +9,11 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { RECORDED_AT } from '../../../../e2e/replay/clock.ts'
 import { CONTROL } from '../../../../e2e/replay/control.ts'
-import { restRecording } from '../../../../e2e/replay/feed.ts'
+import { replayRoutes } from './replay-routes.mjs'
 
 const SKILL = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const REPO = resolve(SKILL, '../../..')
 const STATE = join(SKILL, '.state/run.json')
 const ARTIFACTS = join(SKILL, 'artifacts')
-const FIXTURES = join(REPO, 'packages/venues/src/__fixtures__')
 
 const MARKET_READY = { panel: 'Order book', text: /^Spread .* bps$/ }
 const VIEWS = [
@@ -74,25 +72,6 @@ const panel = (page, title) =>
   page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
 
 // ---------- capture ----------
-
-async function replayRoutes(context) {
-  const escaped = []
-  await context.route('**/*', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    if (url.hostname === '127.0.0.1') return route.continue()
-    const name = restRecording(request.url(), request.postData())
-    if (name && existsSync(join(FIXTURES, name)))
-      return route.fulfill({
-        contentType: 'application/json',
-        headers: { 'access-control-allow-origin': '*' },
-        body: readFileSync(join(FIXTURES, name), 'utf8'),
-      })
-    escaped.push(`${request.method()} ${url.origin}${url.pathname}`)
-    return route.abort('blockedbyclient')
-  })
-  return escaped
-}
 
 function readTree(snapshot, ax) {
   const doc = snapshot.documents[0]

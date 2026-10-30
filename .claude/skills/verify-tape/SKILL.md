@@ -160,6 +160,7 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 
 - `scripts/verify-tape.mjs` is the harness. Commands: `up`, `doctor`, `down`, `open`, `click`, `fill`, `select`, `press`, `wait`, `text`, `attr`, `eval`, `aria`, `shot`, `pages`, `close`.
 - `scripts/parity.mjs` captures and diffs computed styles on a replay run. Commands: `capture`, `diff`.
+- `scripts/replay-routes.mjs` serves a replay page's REST calls from the recordings, for `parity.mjs`.
 - `scripts/vite.verify.config.ts` is verification scaffolding. It only moves build output, and with `--replay` swaps in the E2E hub worker. It is never used by the product.
 
 ## Gotchas
