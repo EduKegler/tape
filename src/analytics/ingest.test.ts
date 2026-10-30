@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import type { Command, OrderIntent } from '@tape/trade/types'
 import { MAX_BODY, pack } from './beacon'
 import { ingest, readEnv } from './ingest'
 import { commandResult, commandSent, pageview, uuidv7 } from './track'
 import type { AppEvent, Batch } from './events'
-import type { Command, OrderIntent } from '@tape/trade/types'
 
 const SITE = 'https://tape.kegler.dev'
 const ENV = { POSTHOG_KEY: 'phc_test', POSTHOG_HOST: 'https://eu.i.posthog.com' }

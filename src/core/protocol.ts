@@ -1,6 +1,6 @@
 import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
-import type { ExceptionEvent } from '#/analytics/exception'
 import type { TabId } from '@tape/core/ids'
+import type { ExceptionEvent } from '#/analytics/exception'
 import type { Frame, Topic } from './topics'
 
 export type TabToHub =
