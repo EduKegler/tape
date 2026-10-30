@@ -258,7 +258,9 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
     if (!(
       e instanceof TradeFailure
       && 'detail' in e.error
-      && /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)/i.test(e.error.detail)
+      && /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)|cancel already exists/i.test(
+        e.error.detail,
+      )
     ))
       throw e
   }

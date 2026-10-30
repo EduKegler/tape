@@ -105,4 +105,17 @@ describe('dydx broadcast', () => {
       .catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
   })
+
+  it('calls a short-term cancel done when the chain already holds a cancel for the order', async () => {
+    // ErrMemClobCancelAlreadyExists, code 9 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = {
+      code: 9,
+      log: 'A cancel already exists in the memclob for this order with a greater than or equal GoodTilBlock',
+      hash: 'A1B2C3',
+    }
+    expect(await dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:0:0' as OrderRef })).toEqual({
+      kind: 'done',
+      detail: 'Cancel broadcast',
+    })
+  })
 })
