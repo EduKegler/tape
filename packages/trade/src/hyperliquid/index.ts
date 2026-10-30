@@ -17,6 +17,7 @@ import type {
   Command,
   CommandOutcome,
   Decimal,
+  HistoryRequest,
   OrderIntent,
   OrderLookup,
   OrderRef,
@@ -27,6 +28,8 @@ import type {
   VenueContext,
   WalletSigner,
 } from '../types'
+import { walkByTime } from '../history'
+import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
 import { cancelAction, leverageAction, orderAction, orderWire } from './wire'
 import type { OrderWire, Tif } from './wire'
@@ -76,8 +79,9 @@ const classify: Classify = (_status, body) => {
   return b?.status === 'err' ? classifyText(String(b.response)) : null
 }
 
-const info = <T>(ctx: VenueContext, body: unknown) =>
-  send<T>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/info`, { ...post(body), mutates: false }, () => null)
+const infoAt = <T>(network: Network, fetch: typeof globalThis.fetch, body: unknown) =>
+  send<T>('hyperliquid', fetch, `${API[network]}/info`, { ...post(body), mutates: false }, () => null)
+const info = <T>(ctx: VenueContext, body: unknown) => infoAt<T>(ctx.ref.network, ctx.fetch, body)
 
 /** Asset ids and szDecimals differ between mainnet and testnet, so each network gets its own rules. */
 function meta(ctx: VenueContext): Promise<Meta> {
@@ -491,6 +495,95 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   if (key) ctx.keys.write({ ...key, status: 'linked' })
 }
 
+/** Page sizes from the info endpoint docs. */
+const FILL_PAGE = 2000
+const FUNDING_PAGE = 500
+const RECENT_FILLS = 10000
+
+interface HlHistoryFill {
+  coin: string
+  px: string
+  sz: string
+  side: 'A' | 'B'
+  time: string
+  startPosition: string
+  closedPnl: string
+  hash: string
+  oid: string
+  fee: string
+  feeToken: string
+  tid: string
+  liquidation?: { liquidatedUser: string }
+}
+
+interface HlFunding {
+  time: string
+  delta: { coin: string; usdc: string; szi: string; fundingRate: string }
+}
+
+/** Spot coins are `@index` or `BASE/QUOTE`. Perps on HIP-3 dexes are `dex:COIN`. */
+const isSpot = (coin: string) => coin.startsWith('@') || coin.includes('/')
+
+async function history({ network, address, fetch }: HistoryRequest): Promise<VenueHistory> {
+  const user = address.toLowerCase()
+  const [fills, funding] = await Promise.all([
+    walkByTime(
+      (startTime) =>
+        infoAt<HlHistoryFill[]>(network, fetch, { type: 'userFillsByTime', user, startTime, aggregateByTime: false }),
+      // Dust conversions come with tid 0 and a zero hash, so the tid alone repeats.
+      { size: FILL_PAGE, timeOf: (f) => Number(f.time), keyOf: (f) => `${f.tid}:${f.oid}:${f.coin}:${f.hash}` },
+    ),
+    walkByTime((startTime) => infoAt<HlFunding[]>(network, fetch, { type: 'userFunding', user, startTime }), {
+      size: FUNDING_PAGE,
+      timeOf: (f) => Number(f.time),
+      keyOf: (f) => `${f.time}:${f.delta.coin}`,
+    }),
+  ])
+  const perps = fills.rows.filter((f) => !isSpot(f.coin))
+  const firsts = new Map<string, HlHistoryFill>()
+  for (const f of perps) if (!firsts.has(f.coin)) firsts.set(f.coin, f)
+  const startsOpen = [...firsts.values()].some((f) => Number(f.startPosition) !== 0)
+  const d = (s: string) => s as Decimal
+  const gaps: string[] = []
+  if (fills.rows.length >= RECENT_FILLS)
+    gaps.push(`Hyperliquid serves only its ${RECENT_FILLS} most recent fills, so earlier fills are missing.`)
+  else if (startsOpen)
+    gaps.push(
+      'Hyperliquid serves only its most recent fills, and this history starts with a position already open. Earlier fills are missing.',
+    )
+  if (fills.stalled || funding.stalled)
+    gaps.push('Hyperliquid sent more rows for one moment than a page holds, so later rows are missing.')
+  if (perps.length < fills.rows.length) gaps.push('Spot fills are left out.')
+  const collateral = new Map(perps.map((f) => [f.coin, f.feeToken]))
+  return {
+    fills: perps.map((f): HistoryFill => ({
+      venue: 'hyperliquid',
+      account: user,
+      id: f.tid,
+      symbol: f.coin,
+      side: f.side === 'B' ? 'buy' : 'sell',
+      px: d(f.px),
+      size: d(f.sz),
+      fee: d(f.fee),
+      asset: f.feeToken,
+      time: Number(f.time),
+      liquidation: f.liquidation?.liquidatedUser.toLowerCase() === user,
+      venuePnl: d(f.closedPnl),
+    })),
+    funding: funding.rows.map((f): FundingPayment => ({
+      venue: 'hyperliquid',
+      account: user,
+      symbol: f.delta.coin,
+      time: Number(f.time),
+      amount: d(f.delta.usdc),
+      asset: collateral.get(f.delta.coin) ?? 'USDC',
+      rate: d(f.delta.fundingRate),
+      position: d(f.delta.szi),
+    })),
+    gaps,
+  }
+}
+
 export const hyperliquid = {
   id: 'hyperliquid',
   label: 'Hyperliquid',
@@ -504,4 +597,5 @@ export const hyperliquid = {
   margin,
   execute,
   lookup,
+  history,
 } satisfies TradingVenue & { id: 'hyperliquid' }

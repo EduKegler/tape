@@ -28,6 +28,13 @@ export interface FundingPayment {
   readonly position: Decimal | null
 }
 
+export interface VenueHistory {
+  readonly fills: readonly HistoryFill[]
+  readonly funding: readonly FundingPayment[]
+  /** What the venue does not serve or cut short, in words for the user. */
+  readonly gaps: readonly string[]
+}
+
 export interface RealizedFill extends HistoryFill {
   readonly pnl: Decimal
   readonly pnlSource: 'venue' | 'computed'
@@ -219,4 +226,29 @@ export function toCsv(fills: readonly RealizedFill[], funding: readonly FundingP
     })),
   ].sort((a, b) => a.time - b.time)
   return [CSV_COLUMNS.join(','), ...rows.map(({ row }) => CSV_COLUMNS.map((c) => field(row[c])).join(','))].join('\r\n')
+}
+
+/**
+ * Reads a history the venue pages by start time. Each page restarts at the last time it returned, so
+ * rows sharing that moment come back and are dropped by key. A full page with nothing new cannot move
+ * past its moment, and the walk stops there with `stalled`.
+ */
+export async function walkByTime<T>(
+  page: (start: number) => Promise<readonly T[]>,
+  walk: { readonly size: number; readonly timeOf: (row: T) => number; readonly keyOf: (row: T) => string },
+): Promise<{ rows: T[]; stalled: boolean }> {
+  const seen = new Set<string>()
+  const rows: T[] = []
+  let start = 0
+  for (;;) {
+    const got = await page(start)
+    const fresh = got.filter((r) => !seen.has(walk.keyOf(r)))
+    for (const r of fresh) {
+      seen.add(walk.keyOf(r))
+      rows.push(r)
+    }
+    if (got.length < walk.size) return { rows, stalled: false }
+    if (fresh.length === 0) return { rows, stalled: true }
+    start = walk.timeOf(got[got.length - 1] as T)
+  }
 }

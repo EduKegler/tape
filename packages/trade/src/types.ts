@@ -2,6 +2,7 @@ import type { Address, Hex } from 'viem'
 import type { Brand, Network, VenueId } from '@tape/core/ids'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
+import type { VenueHistory } from './history'
 import type { MarginState } from './liquidation'
 
 export const READ_ONLY_VENUES = ['binance'] as const
@@ -191,6 +192,13 @@ export interface VenueContext {
   readonly fetch: typeof globalThis.fetch
 }
 
+/** Whose history to read. dYdX takes the account's dydx1 address, the others the wallet address. */
+export interface HistoryRequest {
+  readonly network: Network
+  readonly address: string
+  readonly fetch: typeof globalThis.fetch
+}
+
 export interface TradingVenue {
   readonly id: TradeVenueId
   readonly label: string
@@ -211,6 +219,8 @@ export interface TradingVenue {
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
   /** Asks the venue for the order by its clientId, after a send that ended in unknown-outcome. */
   lookup: (ctx: VenueContext, intent: OrderIntent) => Promise<OrderLookup>
+  /** Every fill and funding payment the venue still serves, read without a key. */
+  history: (request: HistoryRequest) => Promise<VenueHistory>
 }
 
 export type TradingRegistry = { readonly [V in TradeVenueId]: TradingVenue & { readonly id: V } }

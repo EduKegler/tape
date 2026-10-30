@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CSV_COLUMNS, realize, summarize, toCsv } from './history'
+import { CSV_COLUMNS, realize, summarize, toCsv, walkByTime } from './history'
 import type { FundingPayment, HistoryFill } from './history'
 import type { Decimal, Side } from './types'
 
@@ -204,5 +204,33 @@ describe('history csv', () => {
     expect(toCsv(odd, [], 'testnet').split('\r\n')[1]).toContain('"A,""B"""')
     const broken = realize([fill('buy', '1', '1', { symbol: 'A\r\nB' })])
     expect(toCsv(broken, [], 'testnet')).toContain('"A\r\nB"')
+  })
+})
+
+describe('walk by time', () => {
+  type Row = { id: string; time: number }
+  const venue = (times: number[], size: number) => {
+    const rows: Row[] = times.map((time, i) => ({ id: String.fromCharCode(97 + i), time }))
+    const starts: number[] = []
+    const page = async (start: number) => {
+      starts.push(start)
+      return rows.filter((r) => r.time >= start).slice(0, size)
+    }
+    return { page, starts, walk: { size, timeOf: (r: Row) => r.time, keyOf: (r: Row) => r.id } }
+  }
+
+  it('restarts at the last time it saw and drops the repeats', async () => {
+    const { page, starts, walk } = venue([1, 2, 2, 3, 3, 4, 5], 3)
+    const { rows, stalled } = await walkByTime(page, walk)
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g'])
+    expect(starts).toEqual([0, 2, 3, 4])
+    expect(stalled).toBe(false)
+  })
+
+  it('says so when a full page is all one moment it already read', async () => {
+    const { page, walk } = venue([1, 2, 2, 2, 3], 2)
+    const { rows, stalled } = await walkByTime(page, walk)
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
+    expect(stalled).toBe(true)
   })
 })
