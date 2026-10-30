@@ -1,6 +1,5 @@
 import type { Network } from '@tape/core/ids'
-import { NETWORK } from '#/site'
-import { CHAINS, WALLETCONNECT_PROJECT_ID } from '#/wallet/config'
+import { CHAINS } from '#/wallet/chains'
 
 export const CONNECT: Record<Network, readonly string[]> = {
   mainnet: [
@@ -32,11 +31,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
 
 const WALLETCONNECT = ['wss://relay.walletconnect.org']
 
-export function contentSecurityPolicy(
-  nonce: string,
-  network: Network = NETWORK,
-  walletConnect = Boolean(WALLETCONNECT_PROJECT_ID),
-): string {
+export function contentSecurityPolicy(nonce: string, network: Network, walletConnect: boolean): string {
   const connect = [...CONNECT[network], ...(walletConnect ? WALLETCONNECT : [])]
   return [
     "default-src 'self'",

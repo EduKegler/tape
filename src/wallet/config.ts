@@ -1,14 +1,11 @@
 import { createConfig, http } from 'wagmi'
 import type { Transport } from 'wagmi'
-import { arbitrum, arbitrumSepolia, base, mainnet, optimism, sepolia } from 'wagmi/chains'
+import { arbitrum, base, mainnet, optimism } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 import { z } from 'zod'
 import { NETWORK } from '#/site'
+import { CHAINS } from './chains'
 
-export const CHAINS = {
-  mainnet: [mainnet, arbitrum, base, optimism],
-  testnet: [arbitrumSepolia, sepolia],
-} as const
 export const chains = CHAINS[NETWORK]
 
 export const USDC: Record<(typeof CHAINS.mainnet)[number]['id'], `0x${string}`> = {
