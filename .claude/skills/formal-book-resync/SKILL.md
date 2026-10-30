@@ -40,15 +40,15 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 | `ReceiveBadDiff` | `DecimalError` catch in `apply` and `VenueParseError` in `ingest`, `src/hub/hub.ts:291-294, 305-306` |
 | `fetches`, `SnapshotArrives` | `fetchSnapshot` and its `.then`, `src/hub/hub.ts:241-256`; `binance.book.fetchSnapshot` in `packages/venues/src/binance.ts:51-56` |
 | `SnapshotFails`, `timers`, `RetryTimerFires`, `Waiting` | `fetchSnapshot` `.catch`, `waiting()`, the 2 s `setTimeout`, `AbortSignal.timeout`, `src/hub/hub.ts:245-259` |
-| `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:480-485, 422-429, 406-420, 447-448, 363-385`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:157-172, 83-113`; `deriveStreams` in `src/core/topics.ts:152-168` |
+| `Reconcile` | `want` handler, `queueReconcile`, `reconcile`, the 1 s timer, `desiredFor`, `stepVenue`, `src/hub/hub.ts:480-485, 422-429, 406-420, 447-448, 363-385`; `stepConnection` tick and `reconcile` in `src/hub/connection.ts:155-170, 82-112`; `deriveStreams` in `src/core/topics.ts:152-168` |
 | `Reset` in `Reconcile`'s unsubscribe and close branches, `Silence`, `SocketCloses`, `SocketOpened` | the `stopped` resets: `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the loop in case `close`, `src/hub/hub.ts:222-227, 351, 357, 343` |
-| `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:330`, `src/hub/connection.ts:117-132` |
-| `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check in `src/hub/connection.ts:133-146, 85-95` |
+| `SocketOpened` | `socket.onopen`, `stepConnection` case `opened`, `src/hub/hub.ts:330`, `src/hub/connection.ts:116-130` |
+| `SocketCloses`, `Silence`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check in `src/hub/connection.ts:131-144, 84-94` |
 | `chan`, `VenueSends` | `depthUpdate` with `seq: { from: U, to: u }` in `binance.parse`, `packages/venues/src/binance.ts:99` |
 
 Each action is one JS task in the worker: a socket message, a fetch settling, a timer, or a tab message with the reconcile it queues as a microtask. Nothing else in the hub runs inside one of them, so each is one TLA+ step.
 
-Sync commit: `d2be15557d67bab7a44baab0b5401055214b5d54` (2026-10-29). The model describes the covered code at this commit.
+Sync commit: `2b49d57047141a5003f6647aebcf4121e4e1b602` (2026-10-29). The model describes the covered code at this commit.
 
 ## Bounds and assumptions
 
@@ -66,7 +66,7 @@ Assumptions:
 
 ## Not covered
 
-- dYdX and Hyperliquid books, crossed-book eviction, the resubscribe hold and its doubling in `connection.ts:60-72, 147-156`.
+- dYdX and Hyperliquid books, crossed-book eviction, the resubscribe hold and its doubling in `connection.ts:59-71, 145-154`.
 - Backoff timing, jitter, keepalive and `STABLE_MS`. The model only knows that backoff ends some time.
 - More than one market or one book stream. Other Binance streams appear only as `others`, which keeps the socket open.
 - Tabs, ports, Web Locks, linger timing and frames. A want change is one nondeterministic flip of `desired`.

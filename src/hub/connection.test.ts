@@ -21,7 +21,6 @@ describe('stepConnection', () => {
     const open: ConnState = {
       s: 'open',
       subscribed: keys('a', 'b'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 0,
       openedAt: 0,
@@ -36,7 +35,6 @@ describe('stepConnection', () => {
     const open: ConnState = {
       s: 'open',
       subscribed: keys('a'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 0,
       openedAt: 0,
@@ -51,7 +49,6 @@ describe('stepConnection', () => {
     const open: ConnState = {
       s: 'open',
       subscribed: keys('a'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 0,
       openedAt: 0,
@@ -69,7 +66,6 @@ describe('stepConnection', () => {
     const open: ConnState = {
       s: 'open',
       subscribed: keys('a'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 0,
       openedAt: 0,
@@ -84,7 +80,6 @@ describe('stepConnection', () => {
     const open: ConnState = {
       s: 'open',
       subscribed: keys('a'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 0,
       openedAt: 0,
@@ -112,7 +107,6 @@ describe('stepConnection', () => {
     const open: ConnState = {
       s: 'open',
       subscribed: keys('a'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 5,
       openedAt: 0,
@@ -126,7 +120,6 @@ describe('stepConnection', () => {
     let state: ConnState = {
       s: 'open',
       subscribed: keys('a'),
-      lastMessageAt: 0,
       lastKeepaliveAt: 0,
       attempt: 0,
       openedAt: 0,
