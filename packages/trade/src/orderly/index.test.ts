@@ -4,7 +4,7 @@ import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import { TradeFailure } from '../types'
-import type { Bps, VenueContext } from '../types'
+import type { Bps, OrderRef, VenueContext } from '../types'
 import { orderly } from '.'
 
 const perp: MarketSpec = {
@@ -174,5 +174,34 @@ describe('orderly lookup', () => {
     expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual(
       intent.order.legs.map((l) => `GET https://testnet-api.orderly.org/v1/client/order/${l.clientId}`),
     )
+  })
+})
+
+describe('orderly cancels', () => {
+  it('cancels one order and all orders with the requests Orderly documents', async () => {
+    const one = orderlyAt(() => ({
+      body: '{"success":true,"timestamp":1702989203989,"data":{"status":"CANCEL_SENT"}}',
+    }))
+    expect(await orderly.execute(one.ctx, { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef })).toEqual({
+      kind: 'done',
+      detail: 'Canceled',
+    })
+    expect(one.sent).toEqual([
+      {
+        method: 'DELETE',
+        url: 'https://testnet-api.orderly.org/v1/order?order_id=13&symbol=PERP_BTC_USDC',
+        body: undefined,
+      },
+    ])
+    const all = orderlyAt(() => ({
+      body: '{"success":true,"timestamp":1702989203989,"data":{"status":"CANCEL_ALL_SENT"}}',
+    }))
+    expect(await orderly.execute(all.ctx, { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' })).toEqual({
+      kind: 'done',
+      detail: 'Canceled open PERP_BTC_USDC orders',
+    })
+    expect(all.sent).toEqual([
+      { method: 'DELETE', url: 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC', body: undefined },
+    ])
   })
 })
