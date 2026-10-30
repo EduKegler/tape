@@ -3,7 +3,6 @@ import { bech32 } from '@scure/base'
 import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address, Hex } from 'viem'
-import { plainDecimal } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
@@ -256,14 +255,6 @@ describe('dydx key', () => {
     )
     expect(key.address).toBe(address)
   }, 30_000)
-})
-
-describe('exact numbers', () => {
-  it('expands JSON exponents without a float', () => {
-    expect(plainDecimal('1e-7')).toBe('0.0000001')
-    expect(plainDecimal('-2.5E+3')).toBe('-2500')
-    expect(plainDecimal('100.50')).toBe('100.5')
-  })
 })
 
 describe('wallet typed data', () => {

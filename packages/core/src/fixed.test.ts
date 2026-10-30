@@ -10,6 +10,7 @@ import {
   notional,
   parsePx,
   parseQty,
+  plainDecimal,
   rescalePx,
   spreadBps,
   toDisplayFloat,
@@ -173,5 +174,13 @@ describe('decimalsOf', () => {
   it('reads the decimals a venue increment implies, trailing zeros or not', () => {
     // Binance BTCUSDT tickSize and stepSize, and dYdX ETH-USD and BTC-USD tickSize, from the recorded frames.
     expect(['0.01000000', '0.00001000', '0.1', '1'].map(decimalsOf)).toEqual([2, 5, 1, 0])
+  })
+})
+
+describe('plainDecimal', () => {
+  it('expands JSON exponents without a float', () => {
+    expect(plainDecimal('1e-7')).toBe('0.0000001')
+    expect(plainDecimal('-2.5E+3')).toBe('-2500')
+    expect(plainDecimal('100.50')).toBe('100.5')
   })
 })
