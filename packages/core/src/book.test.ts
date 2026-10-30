@@ -82,6 +82,14 @@ describe('rest-snapshot-sequenced (Binance)', () => {
     expect(steps[3]!.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
   })
 
+  it("drops a buffered diff that ends at the snapshot's lastUpdateId", () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [9, 10]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    expect(topLevels(visibleBook(steps[1]!.sync)!.bids, 5)).toEqual([lv(100, 1)])
+  })
+
   it('ignores a snapshot from an older epoch', () => {
     const steps = run('rest-snapshot-sequenced', [
       delta([lv(100, 5)], [], [11, 11]),
