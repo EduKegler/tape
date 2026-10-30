@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import type { Plugin } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -7,6 +7,8 @@ import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import { redact } from '@tanstack/redact/vite'
 import posthog from '@posthog/rollup-plugin'
+import { workerSecurityPolicy } from './src/csp'
+import { env } from './src/env'
 
 const personalApiKey = process.env.POSTHOG_PERSONAL_API_KEY
 const projectId = process.env.POSTHOG_PROJECT_ID
@@ -51,8 +53,9 @@ function sourceMaps(): Plugin {
   }
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const uploadMaps = command === 'build' && Boolean(personalApiKey && projectId)
+  const { VITE_NETWORK } = env.parse(loadEnv(mode, process.cwd(), 'VITE_'))
   return {
     resolve: {
       tsconfigPaths: true,
@@ -68,6 +71,25 @@ export default defineConfig(({ command }) => {
       environments: { client: { build: { sourcemap: 'hidden' } } },
       worker: { plugins: () => [sourceMaps()] },
     }),
-    plugins: [devtools(), nitro(), tailwindcss(), tanstackStart(), viteReact(), redact(), uploadMaps && sourceMaps()],
+    plugins: [
+      devtools(),
+      nitro({
+        routeRules: {
+          // Nitro's Vercel preset uses this key as the route's regex and rewrites only `/**`, so it must read the same to rou3 and to Vercel.
+          // Vercel stops at the first route that matches, so the worker would lose the immutable caching Nitro sets on `/assets/**`.
+          '/assets/worker-([A-Za-z0-9_-]+).js': {
+            headers: {
+              'content-security-policy': workerSecurityPolicy(VITE_NETWORK),
+              'cache-control': 'public, max-age=31536000, immutable',
+            },
+          },
+        },
+      }),
+      tailwindcss(),
+      tanstackStart(),
+      viteReact(),
+      redact(),
+      uploadMaps && sourceMaps(),
+    ],
   }
 })

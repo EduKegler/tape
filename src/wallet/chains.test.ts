@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NETWORKS } from '@tape/core/ids'
 import { DEPOSITS, TRADING } from '@tape/trade'
-import { CHAINS } from './config'
+import { CHAINS } from './chains'
 
 describe('wallet chains', () => {
   it.each(NETWORKS)('offers every chain a venue switches to on %s', (network) => {
