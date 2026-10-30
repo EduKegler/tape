@@ -8,6 +8,7 @@ import type { Px } from '@tape/core/fixed'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent, checkPrice, checkSize } from '@tape/trade/intent'
+import type { DraftField } from '@tape/trade/intent'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
 import type { Bps, Side, Tif, TradeError } from '@tape/trade/types'
@@ -24,6 +25,13 @@ import { proposedPrice, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market'
+const FIELD_LABEL: Record<DraftField, string> = {
+  price: 'Price',
+  size: 'Size',
+  tif: 'Time in force',
+  takeProfit: 'Take profit',
+  stopLoss: 'Stop loss',
+}
 const TIF_LABEL: Record<Tif, string> = {
   gtc: 'Good til canceled',
   ioc: 'Immediate or cancel',
@@ -89,7 +97,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         setBuilt({
           kind: 'invalid-order',
           detail: Object.entries(result.errors)
-            .map(([k, v]) => `${k}: ${v}`)
+            .map(([k, v]) => `${FIELD_LABEL[k as DraftField]}: ${v}`)
             .join('; '),
         })
         return
