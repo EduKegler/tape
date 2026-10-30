@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { marketKey, parseMarketKey, parseStreamKey, streamKey } from './ids'
+import { isInterval, marketKey, parseMarketKey, parseStreamKey, streamKey } from './ids'
 
 describe('stream keys', () => {
   it('reads back the market, channel and interval a stream key names', () => {
@@ -23,5 +23,11 @@ describe('market keys', () => {
       null,
       'dydx:ETH',
     ])
+  })
+})
+
+describe('intervals', () => {
+  it('accepts only the candle intervals every venue serves', () => {
+    expect([isInterval('5m'), isInterval('2m')]).toEqual([true, false])
   })
 })
