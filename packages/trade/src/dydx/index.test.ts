@@ -161,4 +161,22 @@ describe('dydx broadcast', () => {
       expect(await failure(dydx.execute(ctx, place))).toEqual(error)
     }
   })
+
+  it('calls a cancel the client throws for an order already removed done, and a thrown timeout unknown', async () => {
+    // ErrStatefulOrderCancellationFailedForAlreadyRemovedOrder, code 3010 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = new Error('Stateful order cancellation failed because the order was already removed from state')
+    const cancel = { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef } as const
+    expect(await dydx.execute(ctx, cancel)).toEqual({ kind: 'done', detail: 'Cancel broadcast' })
+    chain.reply = new Error(TIMEOUT)
+    expect(await failure(dydx.execute(ctx, cancel))).toEqual({ kind: 'unknown-outcome', detail: TIMEOUT })
+  })
+
+  it('calls cancelling a stateful order the chain no longer holds done', async () => {
+    // ErrStatefulOrderDoesNotExist, code 3006 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = { code: 3006, log: 'Stateful order does not exist', hash: 'A1' }
+    expect(await dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef })).toEqual({
+      kind: 'done',
+      detail: 'Cancel broadcast',
+    })
+  })
 })
