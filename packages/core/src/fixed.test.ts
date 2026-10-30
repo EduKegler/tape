@@ -2,6 +2,7 @@ import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
   DecimalError,
+  decimalsOf,
   formatMid,
   formatNotional,
   formatPx,
@@ -165,5 +166,12 @@ describe('wireDecimal', () => {
     expect(wireDecimal(parseQty('0.00120', btc), btc.qty)).toBe('0.0012')
     expect(wireDecimal(0n, 6)).toBe('0')
     expect(wireDecimal(-1500n, 3)).toBe('-1.5')
+  })
+})
+
+describe('decimalsOf', () => {
+  it('reads the decimals a venue increment implies, trailing zeros or not', () => {
+    // Binance BTCUSDT tickSize and stepSize, and dYdX ETH-USD and BTC-USD tickSize, from the recorded frames.
+    expect(['0.01000000', '0.00001000', '0.1', '1'].map(decimalsOf)).toEqual([2, 5, 1, 0])
   })
 })
