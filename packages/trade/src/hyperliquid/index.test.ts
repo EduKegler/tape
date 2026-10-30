@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import type { Address } from 'viem'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
-
+import { TradeFailure } from '../types'
 import type { Bps, Command, KeySlot, StoredKey, VenueContext } from '../types'
 import { hyperliquid } from '.'
 
-const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b'
+const owner: Address = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b'
 const agentKey = generatePrivateKey()
 const agent = privateKeyToAccount(agentKey).address
 const testnetMeta = {
@@ -99,6 +100,12 @@ const wiresOf = (post: Sent | undefined) => {
   return { grouping: action.grouping, orders: action.orders.map((o) => [o.b, o.p, o.r, o.t]) }
 }
 
+const failureOf = (p: Promise<unknown>) =>
+  p.then(
+    () => null,
+    (e: unknown) => (e instanceof TradeFailure ? e.error : e),
+  )
+
 describe('hyperliquid sells', () => {
   // Exchange endpoint docs: b is isBuy.
   it('sends a sell as b false, with its take profit and stop loss as buys bounded above the trigger', async () => {
@@ -127,6 +134,35 @@ describe('hyperliquid sells', () => {
     expect(wiresOf(limit.posts()[0])).toEqual({
       grouping: 'na',
       orders: [[false, '80100', false, { limit: { tif: 'Gtc' } }]],
+    })
+  })
+})
+
+describe('hyperliquid writes without a readable reply', () => {
+  it('calls a 5xx, a dropped connection or a reply it cannot parse on a write an unknown outcome', async () => {
+    const replies: (() => Response | Promise<Response>)[] = [
+      () => new Response('<html>502 Bad Gateway</html>', { status: 502 }),
+      () => Promise.reject(new TypeError('fetch failed')),
+      () => new Response('<html>502 Bad Gateway</html>', { status: 200 }),
+      () => json({ status: 'ok', response: { type: 'order' } }),
+    ]
+    for (const reply of replies) {
+      const { ctx } = venue(reply)
+      expect(await failureOf(hyperliquid.execute(ctx, place({})))).toMatchObject({ kind: 'unknown-outcome' })
+    }
+  })
+
+  it('calls a 5xx on the agent approval an unknown outcome, since the wallet signed it', async () => {
+    const { ctx } = venue(() => new Response('<html>502 Bad Gateway</html>', { status: 502 }))
+    const wallet = {
+      address: owner,
+      chainId: async () => 421614,
+      switchChain: async () => {},
+      signTypedData: async () => `0x${'11'.repeat(32)}${'22'.repeat(32)}1b` as const,
+    }
+    const keys = memorySlot(null)
+    expect(await failureOf(hyperliquid.enable({ ...ctx, keys }, wallet, () => {}))).toMatchObject({
+      kind: 'unknown-outcome',
     })
   })
 })
