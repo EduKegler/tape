@@ -249,9 +249,9 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
     await (isShort ? broadcast(run) : sequenced(wallet.address ?? '', () => broadcast(run)))
   } catch (e) {
     if (!(
-      e instanceof TradeFailure &&
-      'detail' in e.error &&
-      /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)/i.test(e.error.detail)
+      e instanceof TradeFailure
+      && 'detail' in e.error
+      && /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)/i.test(e.error.detail)
     ))
       throw e
   }

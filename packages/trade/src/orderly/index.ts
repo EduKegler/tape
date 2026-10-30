@@ -120,9 +120,9 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
   } catch (e) {
     if (
-      e instanceof TradeFailure &&
-      e.error.kind === 'rejected' &&
-      /order.*(?:not exist|not found)/i.test(e.error.detail)
+      e instanceof TradeFailure
+      && e.error.kind === 'rejected'
+      && /order.*(?:not exist|not found)/i.test(e.error.detail)
     )
       return { kind: 'absent', detail: e.error.detail }
     throw e
@@ -167,9 +167,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
         await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)))
       } catch (e) {
         if (!(
-          e instanceof TradeFailure &&
-          'detail' in e.error &&
-          /order.*(?:not exist|not found)|already (?:filled|cancel)/i.test(e.error.detail)
+          e instanceof TradeFailure
+          && 'detail' in e.error
+          && /order.*(?:not exist|not found)|already (?:filled|cancel)/i.test(e.error.detail)
         ))
           throw e
       }
@@ -229,10 +229,10 @@ async function account(ctx: VenueContext): Promise<AccountView> {
   ])
   const live = positions.rows.filter((p) => Number(p.position_qty) !== 0)
   if (
-    Number(positions.total_collateral_value) === 0 &&
-    live.length === 0 &&
-    orders.rows.length === 0 &&
-    trades.rows.length === 0
+    Number(positions.total_collateral_value) === 0
+    && live.length === 0
+    && orders.rows.length === 0
+    && trades.rows.length === 0
   )
     return { kind: 'empty' }
   return {
