@@ -259,7 +259,6 @@ export interface HistoryFilter {
   readonly market: string | null
   readonly from: string | null
   readonly to: string | null
-  readonly kind: 'all' | 'fills' | 'funding'
 }
 
 const DAY_MS = 86_400_000
@@ -277,8 +276,8 @@ export function selectHistory(histories: readonly VenueHistory[], filter: Histor
   const fills = realize(histories.flatMap((h) => h.fills))
   const funding = histories.flatMap((h) => h.funding)
   return {
-    fills: filter.kind === 'funding' ? [] : fills.filter(keep),
-    funding: filter.kind === 'fills' ? [] : funding.filter(keep),
+    fills: fills.filter(keep),
+    funding: funding.filter(keep),
     markets: [...new Set([...fills, ...funding].filter(onVenue).map((e) => e.symbol))].sort(),
   }
 }

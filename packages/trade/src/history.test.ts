@@ -236,7 +236,7 @@ describe('walk by time', () => {
 })
 
 describe('history selection', () => {
-  const all = { venue: null, market: null, from: null, to: null, kind: 'all' } as const
+  const all = { venue: null, market: null, from: null, to: null } as const
   const history = {
     fills: [
       fill('buy', '1', '100', { time: Date.parse('2025-11-30T12:00:00Z'), id: 'open' }),
@@ -259,10 +259,10 @@ describe('history selection', () => {
     expect(december.fills[0]?.pnl).toBe('10')
   })
 
-  it('filters by venue, market and kind, and lists the markets of the venue', () => {
-    const dydx = selectHistory([history], { ...all, venue: 'dydx', market: 'BTC-USD', kind: 'fills' })
+  it('filters by venue and market, and lists the markets of the venue', () => {
+    const dydx = selectHistory([history], { ...all, venue: 'dydx', market: 'BTC-USD' })
     expect(dydx.fills.map((f) => f.id)).toEqual(['open', 'close'])
-    expect(dydx.funding).toEqual([])
+    expect(dydx.funding).toHaveLength(1)
     expect(dydx.markets).toEqual(['BTC-USD', 'ETH-USD'])
   })
 })

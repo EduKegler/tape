@@ -64,24 +64,21 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   const dydx = search.dydx ?? derived
   const addressOf = (venue: TradeVenueId) => (venue === 'dydx' ? dydx : wallet)
   const results = useQueries({ queries: HISTORY_VENUES.map((v) => historyQuery(v, addressOf(v))) })
-  const {
-    fills,
-    funding: payments,
-    markets,
-  } = selectHistory(
+  const selected = selectHistory(
     results.flatMap((r) => (r.data ? [r.data] : [])),
     {
       venue: search.venue === 'all' ? null : search.venue,
       market: search.market ?? null,
       from: search.from ?? null,
       to: search.to ?? null,
-      kind: search.kind,
     },
   )
-  const totals = summarize(fills, payments, (e) =>
+  const totals = summarize(selected.fills, selected.funding, (e) =>
     search.totals === 'venue' ? VENUES[e.venue].label : new Date(e.time).toISOString().slice(0, 7),
   )
-  const all = search.totals === 'venue' ? summarize(fills, payments, () => 'All venues') : []
+  const all = search.totals === 'venue' ? summarize(selected.fills, selected.funding, () => 'All venues') : []
+  const fills = search.kind === 'funding' ? [] : selected.fills
+  const payments = search.kind === 'fills' ? [] : selected.funding
   const set = (patch: Partial<HistorySearch>) => onSearch({ ...search, ...patch })
   const exportCsv = () => {
     const blob = new Blob([toCsv(fills, payments, NETWORK)], { type: 'text/csv' })
@@ -149,7 +146,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
           }
         >
           <div className="flex h-full min-h-80 flex-col">
-            <Filters search={search} markets={markets} now={now} set={set} />
+            <Filters search={search} markets={selected.markets} now={now} set={set} />
             <Rows fills={fills} payments={payments} />
           </div>
         </Panel>
