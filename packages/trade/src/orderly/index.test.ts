@@ -3,6 +3,7 @@ import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
+import { TradeFailure } from '../types'
 import type { Bps, VenueContext } from '../types'
 import { orderly } from '.'
 
@@ -79,6 +80,12 @@ function intentOf(fields: Partial<typeof draft> | Record<string, string>) {
   return built.intent
 }
 
+const failureOf = (run: Promise<unknown>) =>
+  run.then(
+    () => undefined,
+    (e: unknown) => (e instanceof TradeFailure ? e.error : e),
+  )
+
 describe('orderly orders', () => {
   it('sends a single order with the side, type, price and size the user chose', async () => {
     const cases = [
@@ -112,5 +119,40 @@ describe('orderly orders', () => {
     const intent = intentOf({ side: 'sell', kind: 'scale', size: '0.002', start: '80000', end: '81000', count: '2' })
     expect(await orderly.execute(ctx, { kind: 'place', intent })).toMatchObject({ kind: 'placed' })
     expect(sent[0]?.body?.match(/"side":"\w+"/g)).toEqual(['"side":"SELL"', '"side":"SELL"'])
+  })
+
+  it('calls an empty batch reply an unknown outcome', async () => {
+    const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
+    const { ctx } = orderlyAt(() => ({ body: '{"success":true,"data":{"rows":[]}}' }))
+    expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent }))).toMatchObject({ kind: 'unknown-outcome' })
+  })
+
+  it('calls a scale order whose every leg was refused a refusal, and names a leg refused without a reason', async () => {
+    const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
+    // -1103's description on Orderly's error codes page.
+    const tick = 'Order price does not match the tick size.'
+    const refused = orderlyAt(() => ({
+      body: JSON.stringify({
+        success: true,
+        data: {
+          rows: [
+            { order_id: null, error_message: tick },
+            { order_id: null, error_message: tick },
+          ],
+        },
+      }),
+    }))
+    expect(await failureOf(orderly.execute(refused.ctx, { kind: 'place', intent }))).toEqual({
+      kind: 'invalid-order',
+      detail: tick,
+    })
+    const silent = orderlyAt(() => ({
+      body: '{"success":true,"data":{"rows":[{"order_id":1,"error_message":"none"},{"order_id":null,"error_message":null}]}}',
+    }))
+    expect(await orderly.execute(silent.ctx, { kind: 'place', intent })).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: '1 of 2 orders placed. Order 2 not placed: Refused without a reason',
+    })
   })
 })
