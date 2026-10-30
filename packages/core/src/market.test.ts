@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
+  CANDLE_LIMIT,
   TRADE_LIMIT,
   effectiveTick,
   emptyTape,
@@ -124,18 +125,26 @@ describe('trades and candles', () => {
     expect(tape.seen.size).toBeLessThan(330)
   })
 
+  const bar = (open: number, c: number): Candle => ({
+    open,
+    o: 1 as Px,
+    h: 1 as Px,
+    l: 1 as Px,
+    c: c as Px,
+    v: 1 as Qty,
+  })
+
   it('replaces the forming bar and ignores older ones', () => {
-    const bar = (open: number, c: number): Candle => ({
-      open,
-      o: 1 as Px,
-      h: 1 as Px,
-      l: 1 as Px,
-      c: c as Px,
-      v: 1 as Qty,
-    })
     let bars = upsertCandle([], bar(60, 1))
     bars = upsertCandle(bars, bar(60, 2))
     bars = upsertCandle(bars, bar(0, 9))
     expect(bars).toEqual([bar(60, 2)])
+  })
+
+  it('appends each new bar and keeps only the last CANDLE_LIMIT', () => {
+    const opens = Array.from({ length: CANDLE_LIMIT + 1 }, (_, i) => i * 60)
+    let bars: readonly Candle[] = []
+    for (const open of opens) bars = upsertCandle(bars, bar(open, 1))
+    expect(bars.map((b) => b.open)).toEqual(opens.slice(1))
   })
 })
