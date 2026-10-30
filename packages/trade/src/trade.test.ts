@@ -4,7 +4,7 @@ import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address, Hex } from 'viem'
 import { plainDecimal } from '@tape/core/fixed'
-import type { Qty } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { deriveKey, onboarding } from './dydx/client'
@@ -95,6 +95,17 @@ describe('order intent', () => {
     const built = buildIntent(btc, { ...crossing, stopLoss: '80000' }, caps)
     expect(!built.ok && built.errors.stopLoss).toBe('Must be below the bid')
     expect(buildIntent(btc, { ...crossing, stopLoss: '79900' }, caps).ok).toBe(true)
+  })
+
+  it('refuses an order worth less than the venue minimum, unless it only reduces', () => {
+    const ten = { ...btc, minNotional: 100 as Px }
+    const small = { ...draft, size: '0.0001' } as const
+    expect(buildIntent(ten, small, caps)).toEqual({ ok: false, errors: { size: 'Must be worth at least 10.0 USDC' } })
+    expect(buildIntent(ten, { ...small, size: '0.00013' }, caps).ok).toBe(true)
+    expect(buildIntent(ten, { ...small, reduceOnly: true }, caps).ok).toBe(true)
+    const market = { ...small, kind: 'market', price: '', bid: '79990', ask: '125000' } as const
+    expect(buildIntent(ten, market, caps).ok).toBe(true)
+    expect(buildIntent(ten, { ...market, side: 'sell' }, caps).ok).toBe(false)
   })
 
   it('gives every build a fresh client id', () => {

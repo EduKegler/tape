@@ -1,5 +1,5 @@
-import { DecimalError, formatPx, formatQty, parsePx, parseQty } from '@tape/core/fixed'
-import type { Px } from '@tape/core/fixed'
+import { DecimalError, formatPx, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import { bytesToHex } from 'viem'
@@ -34,6 +34,13 @@ export function checkSize(spec: MarketSpec, value: string): string | undefined {
     throw e
   }
   return undefined
+}
+
+export function checkNotional(spec: MarketSpec, px: Px, size: Qty): string | undefined {
+  if (spec.minNotional === undefined) return undefined
+  return notional(px, size) < BigInt(spec.minNotional) * 10n ** BigInt(spec.scale.qty)
+    ? `Must be worth at least ${formatPx(spec.minNotional, spec.scale)} ${spec.quote}`
+    : undefined
 }
 
 export interface IntentDraft {
@@ -130,6 +137,11 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
       errors,
       checkExits(draft.side, { px: entry, bid: touchPx(draft.bid), ask: touchPx(draft.ask) }, { takeProfit, stopLoss }),
     )
+  const reference = draft.kind === 'limit' ? entry : touchPx(draft.side === 'buy' ? draft.ask : draft.bid)
+  if (!errors.size && !draft.reduceOnly && reference) {
+    const small = checkNotional(spec, reference, parseQty(draft.size, spec.scale))
+    if (small) errors.size = small
+  }
   if (Object.keys(errors).length > 0) return { ok: false, errors }
   const order =
     draft.kind === 'limit'
