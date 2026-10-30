@@ -1,8 +1,8 @@
 import type { Locator } from '@playwright/test'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
-const priceOf = async (row: Locator) => (await row.innerText()).split('\n')[0] ?? ''
-const filledRows = (book: Locator) => book.getByRole('button', { name: /\d/ })
+const rowPrices = async (book: Locator) =>
+  [...(await book.ariaSnapshot()).matchAll(/button "([\d,.]+) /g)].map((m) => Number(m[1]?.replaceAll(',', '')))
 
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false })
@@ -25,8 +25,9 @@ test('grouping the book rounds every price to the group and writes it into the U
   await expect(group.getByRole('option')).toHaveText(['1', '2', '5', '10', '25', '50'])
   await group.selectOption('10')
   await expect(page).toHaveURL(/[?&]group=10(&|$)/)
-  await expect(book.getByText(/^Spread .* bps$/)).toBeVisible()
-  const prices = (await filledRows(book).allInnerTexts()).map((row) => Number(row.split('\n')[0]?.replaceAll(',', '')))
+  await expect(book.getByRole('button', { name: /^80,590 / })).toBeVisible()
+  await expect(book.getByRole('button', { name: /^80,600 / })).toBeVisible()
+  const prices = await rowPrices(book)
   expect(prices.length).toBeGreaterThan(0)
   expect(prices.filter((px) => px % 10 !== 0)).toEqual([])
 })
@@ -36,12 +37,10 @@ test('clicking the best bid puts its price into the ticket', async ({ page }) =>
   const ticket = panel(page, 'Order ticket')
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
   await expect(price).toHaveValue('')
-  const rows = panel(page, 'Order book').getByRole('button')
-  const bestBid = rows.nth((await rows.count()) / 2)
-  const clicked = await priceOf(bestBid)
-  const plain = clicked.replaceAll(',', '')
-  await expect(ticket.getByRole('button', { name: `Bid ${plain}`, exact: true })).toBeVisible()
-  await bestBid.click()
-  await expect(price).toHaveValue(plain)
+  await expect(ticket.getByRole('button', { name: 'Bid 80595', exact: true })).toBeVisible()
+  await panel(page, 'Order book')
+    .getByRole('button', { name: /^80,595 / })
+    .click()
+  await expect(price).toHaveValue('80595')
   await expectAccessible(page)
 })
