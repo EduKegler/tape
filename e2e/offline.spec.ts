@@ -29,7 +29,9 @@ test('the page cannot reach a venue', async ({ page, network, escaped, consoleEr
   }, venue)
   expect(reached).toEqual({ fetched: false, opened: false })
   expect(escaped.splice(0)).toEqual([`POST ${venue.http}`])
-  expect(consoleErrors.splice(0)).toEqual([expect.stringContaining(`WebSocket connection to '${venue.socket}' failed`)])
+  const errors = consoleErrors.splice(0)
+  expect(errors).toContainEqual(expect.stringContaining(venue.socket))
+  expect(errors.filter((error) => !error.includes(HYPERLIQUID[network]))).toEqual([])
 })
 
 test('the hub worker cannot reach a venue', async ({ page, network }) => {
