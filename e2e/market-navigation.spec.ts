@@ -39,3 +39,11 @@ test('the interval, venues table, market and venue move around and keep the sear
   expect(search.get('interval')).toBe('5m')
   expect(search.get('group')).toBe('1')
 })
+
+for (const path of ['/kraken/BTC', '/hyperliquid/btc'])
+  test(`${path} is not found`, async ({ page }) => {
+    await page.goto(path)
+    await expect(page.getByText('Not Found')).toBeVisible()
+    await expect(page).toHaveTitle('Tape')
+    await expectAccessible(page)
+  })
