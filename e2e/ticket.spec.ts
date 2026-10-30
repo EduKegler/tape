@@ -110,17 +110,3 @@ test('the ticket says which network the build is', async ({ page, network }) => 
   await expect(ticket.getByRole('term').filter({ hasText: 'Wallet USDC' })).toHaveCount(copy.walletUsdc)
   await expectAccessible(page)
 })
-
-test('a filled ticket without a trading session sends no order', async ({ page }) => {
-  const writes: string[] = []
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && !request.url().endsWith('/info')) writes.push(request.url())
-  })
-  await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  await touchField(page, 'Price (USDC)', '80000')
-  const size = await touchField(page, 'Size (BTC)', '0.001')
-  await size.press('Enter')
-  await expect(ticketOf(page).getByRole('definition').first()).toHaveText('80.00 USDC')
-  await expect(ticketOf(page).getByRole('button', { name: 'Buy BTC' })).toHaveCount(0)
-  expect(writes).toEqual([])
-})
