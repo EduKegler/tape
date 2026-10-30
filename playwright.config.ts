@@ -32,7 +32,11 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: NETWORKS.map((network) => ({ name: network, use: { baseURL: origin(network), network } })),
+  projects: NETWORKS.map((network) => ({
+    name: network,
+    use: { baseURL: origin(network), network },
+    testIgnore: NETWORKS.filter((other) => other !== network).map((other) => `**/*.${other}.spec.ts`),
+  })),
   webServer: NETWORKS.map((network) => ({
     command: `node e2e/.cache/${network}/output/server/index.mjs`,
     url: `${origin(network)}/`,
