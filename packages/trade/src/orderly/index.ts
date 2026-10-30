@@ -5,7 +5,7 @@ import type { Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize } from '../intent'
-import { send } from '../send'
+import { post, send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure } from '../types'
 import type {
@@ -13,6 +13,7 @@ import type {
   Command,
   CommandOutcome,
   Decimal,
+  HistoryRequest,
   OrderIntent,
   OrderLookup,
   OrderRef,
@@ -24,6 +25,8 @@ import type {
   VenueContext,
   WalletSigner,
 } from '../types'
+import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
+import { amount, negate, plain } from '../money'
 import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
@@ -61,11 +64,13 @@ const classify: Classify = (status, body, text) => {
 }
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
+const unsuccessful: Classify = (_s, body, text) => {
+  const b = body as { success?: boolean; message?: string } | null
+  return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
+}
+
 const publicGet = <T>(ctx: VenueContext, path: string) =>
-  send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { mutates: false }, (_s, body, text) => {
-    const b = body as { success?: boolean; message?: string } | null
-    return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
-  })
+  send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { mutates: false }, unsuccessful)
 
 function keyOf(ctx: VenueContext): OrderlyKey | null {
   const secret = ctx.keys.read()?.secret
@@ -399,6 +404,110 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   if (key) ctx.keys.write({ ...key, status: 'linked' })
 }
 
+/** Largest pages the public query takes with a time range. */
+const TRADE_PAGE = 2000
+const FUNDING_PAGE = 500
+
+interface QueryTrade {
+  id: string
+  symbol: string
+  side: 'BUY' | 'SELL'
+  executed_price: string
+  executed_quantity: string
+  fee: string
+  fee_asset: string
+  /** Null on liquidation fills. */
+  order_id: string | null
+  realized_pnl: string | null
+  executed_timestamp: string
+}
+
+interface QueryFunding {
+  symbol: string
+  funding_rate: string
+  funding_fee: string
+  position_qty: string
+  funding_rate_timestamp: string
+  funding_status: string
+}
+
+/**
+ * Orderly's public query reads any address without a key. Without a time range it returns only the
+ * last 24 hours, so every read starts at 1 ms and follows the cursor into the archive.
+ */
+async function history({ network, address, fetch }: HistoryRequest): Promise<VenueHistory> {
+  const query = <T>(body: Record<string, unknown>) =>
+    send<{ data: T }>(
+      'orderly',
+      fetch,
+      `${API[network]}/v1/public/query`,
+      { ...post(body), mutates: false },
+      unsuccessful,
+    ).then((r) => r.data)
+  const follow = async <T>(body: Record<string, unknown>): Promise<T[]> => {
+    const rows: T[] = []
+    let cursor: string | null = null
+    do {
+      const page: { rows: T[]; next_cursor: string | null } = await query({ ...body, ...(cursor ? { cursor } : {}) })
+      rows.push(...page.rows)
+      cursor = page.next_cursor
+    } while (cursor)
+    return rows
+  }
+  let accounts: { account_id: string }[]
+  try {
+    accounts = (await query<{ accounts: { account_id: string }[] }>({ type: 'accountState', address })).accounts
+  } catch (e) {
+    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
+    throw e
+  }
+  const read = await Promise.all(
+    accounts.map(async ({ account_id }) => {
+      const scope = { address, account_id, start_time: 1 }
+      const [trades, payments] = await Promise.all([
+        follow<QueryTrade>({ type: 'trades', ...scope, limit: TRADE_PAGE }),
+        follow<QueryFunding>({ type: 'fundingPayments', ...scope, limit: FUNDING_PAGE }),
+      ])
+      // Orderly pages trades newest first, and fills in one millisecond must stay in the order they matched.
+      return { id: account_id, trades: trades.reverse(), payments }
+    }),
+  )
+  return {
+    fills: read.flatMap(({ id, trades }) =>
+      trades.map((t): HistoryFill => ({
+        venue: 'orderly',
+        account: id,
+        id: t.id,
+        symbol: t.symbol,
+        side: t.side === 'BUY' ? 'buy' : 'sell',
+        px: d(t.executed_price),
+        size: d(t.executed_quantity),
+        fee: d(t.fee),
+        asset: t.fee_asset,
+        time: Number(t.executed_timestamp),
+        liquidation: t.order_id === null,
+        venuePnl: t.realized_pnl === null ? null : d(t.realized_pnl),
+      })),
+    ),
+    // Accrued payments are not settled yet and can still change.
+    funding: read.flatMap(({ id, payments }) =>
+      payments
+        .filter((p) => p.funding_status === 'Settled')
+        .map((p): FundingPayment => ({
+          venue: 'orderly',
+          account: id,
+          symbol: p.symbol,
+          time: Number(p.funding_rate_timestamp),
+          amount: plain(negate(amount(p.funding_fee))) as Decimal,
+          asset: 'USDC',
+          rate: d(p.funding_rate),
+          position: d(p.position_qty),
+        })),
+    ),
+    gaps: [],
+  }
+}
+
 export const orderly = {
   id: 'orderly',
   label: 'Orderly',
@@ -414,4 +523,5 @@ export const orderly = {
   account,
   execute,
   lookup,
+  history,
 } satisfies TradingVenue & { id: 'orderly' }
