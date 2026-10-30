@@ -160,6 +160,26 @@ describe('snapshots (Hyperliquid)', () => {
   })
 })
 
+describe('repaint', () => {
+  it('reports a change whenever the visible book changes', () => {
+    expect(
+      run('snapshot-then-deltas', [snapshot([lv(100, 1)], [lv(101, 1)]), delta([lv(99, 2)], [])])[1]!.changed,
+    ).toBe(true)
+    const live = run('rest-snapshot-sequenced', [
+      delta([lv(100, 2)], [], [11, 11]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+      delta([lv(99, 3)], [], [12, 12]),
+    ])
+    expect(live[2]!.changed).toBe(true)
+    const gap = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [20, 21]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    expect(gap[1]!.changed).toBe(true)
+    expect(topLevels(visibleBook(gap[1]!.sync)!.bids, 5)).toEqual([lv(100, 1)])
+  })
+})
+
 describe('book properties', () => {
   const level = fc
     .tuple(fc.integer({ min: 1, max: 30 }), fc.oneof(fc.constant(0), fc.integer({ min: 1, max: 5 })))
