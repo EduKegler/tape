@@ -335,3 +335,13 @@ describe('dydx short-term orders', () => {
     expect(wire(chain.placeOrder.mock.calls[0])).toMatchObject({ tif: 1, flags: 0, goodTilBlock: 16 })
   })
 })
+
+describe('dydx contract', () => {
+  it('refuses a stop loss on a dYdX ticket, since place sends no trigger orders', () => {
+    expect(buildIntent(btc, { ...draft, stopLoss: '79000' }, dydx.capabilities)).toMatchObject({
+      ok: false,
+      errors: { stopLoss: 'Not offered on this venue' },
+    })
+    expect(buildIntent(btc, { ...draft, tif: 'ioc' }, dydx.capabilities).ok).toBe(true)
+  })
+})
