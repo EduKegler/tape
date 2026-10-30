@@ -191,8 +191,21 @@ export default [
     },
   },
   {
+    // @tanstack/eslint-config registers the import plugin for these files only.
+    files: ['**/*.{js,ts,tsx}'],
     rules: {
-      'import/order': 'off',
+      'import/order': [
+        'error',
+        {
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+          // import-x does not classify package.json subpath imports, so #/ needs a path group.
+          pathGroups: [{ pattern: '#/**', group: 'internal' }],
+        },
+      ],
+    },
+  },
+  {
+    rules: {
       'sort-imports': 'off',
       '@typescript-eslint/array-type': 'off',
       '@typescript-eslint/require-await': 'off',
