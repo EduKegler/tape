@@ -23,18 +23,18 @@ const allTypeOnly = (elements) => elements.length > 0 && elements.every((e) => e
 const isTypeOnly = (node) => {
   if (ts.isExportDeclaration(node)) {
     return (
-      node.isTypeOnly ||
-      (!!node.exportClause && ts.isNamedExports(node.exportClause) && allTypeOnly(node.exportClause.elements))
+      node.isTypeOnly
+      || (!!node.exportClause && ts.isNamedExports(node.exportClause) && allTypeOnly(node.exportClause.elements))
     )
   }
   const clause = node.importClause
   if (!clause) return false
   if (clause.isTypeOnly) return true
   return (
-    !clause.name &&
-    !!clause.namedBindings &&
-    ts.isNamedImports(clause.namedBindings) &&
-    allTypeOnly(clause.namedBindings.elements)
+    !clause.name
+    && !!clause.namedBindings
+    && ts.isNamedImports(clause.namedBindings)
+    && allTypeOnly(clause.namedBindings.elements)
   )
 }
 
