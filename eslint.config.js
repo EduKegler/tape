@@ -217,6 +217,8 @@ export default [
       'prettier.config.js',
       '.output/**',
       '**/.cache/**',
+      '.claude/skills/verify-tape/.state/**',
+      '.claude/skills/verify-tape/artifacts/**',
       '.claude/worktrees/**',
       '.intent/**',
       'src/routeTree.gen.ts',
