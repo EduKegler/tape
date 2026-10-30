@@ -63,6 +63,12 @@ const classify: Classify = (status, body, text) => {
   return b?.success === false ? classifyMessage(b.message ?? text) : null
 }
 
+/** Orderly's code for data not found on the server, as when cancelling an order that is already CANCELLED. */
+const NOT_FOUND = '-1006'
+const gone: TradeError = { kind: 'rejected', detail: 'The order is no longer open' }
+const classifyCancel: Classify = (status, body, text) =>
+  (body as { code?: unknown } | null)?.code === NOT_FOUND ? gone : classify(status, body, text)
+
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
 const unsuccessful: Classify = (_s, body, text) => {
   const b = body as { success?: boolean; message?: string } | null
@@ -83,7 +89,13 @@ function brokerFor(ctx: VenueContext): string {
   )
 }
 
-async function signed<T>(ctx: VenueContext, method: 'GET' | 'POST' | 'DELETE', path: string, body = ''): Promise<T> {
+async function signed<T>(
+  ctx: VenueContext,
+  method: 'GET' | 'POST' | 'DELETE',
+  path: string,
+  body = '',
+  classifier = classify,
+): Promise<T> {
   const key = keyOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
   const headers = {
     ...signRequest(key, accountId(ctx.ref.owner, brokerFor(ctx)), Date.now(), method, path, body),
@@ -95,7 +107,7 @@ async function signed<T>(ctx: VenueContext, method: 'GET' | 'POST' | 'DELETE', p
     ctx.fetch,
     `${API[ctx.ref.network]}${path}`,
     { method, headers, ...(body ? { body } : {}), mutates },
-    classify,
+    classifier,
   )
   if (reply?.data != null) return reply.data
   const detail = `Unreadable reply: ${JSON.stringify(reply)}`
@@ -219,14 +231,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
     case 'cancel': {
       const [symbol, id] = command.order.split(':') as [string, string]
       try {
-        await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)))
+        await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)), '', classifyCancel)
       } catch (e) {
-        if (!(
-          e instanceof TradeFailure
-          && 'detail' in e.error
-          && /order.*(?:not exist|not found)|already (?:filled|cancel)/i.test(e.error.detail)
-        ))
-          throw e
+        if (!(e instanceof TradeFailure && e.error === gone)) throw e
       }
       return { kind: 'done', detail: 'Canceled' }
     }

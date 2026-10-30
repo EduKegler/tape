@@ -692,6 +692,32 @@ describe('orderly module', () => {
       expect(await kindOf(TRADING.orderly.lookup(ctx(reply), built.intent))).toBe('unreachable')
     }
   })
+
+  it('cancels an order Orderly no longer has, by its code, but not past a key it refuses', async () => {
+    const cancel = (status: number, reply: unknown) =>
+      TRADING.orderly.execute(
+        {
+          ref: { venue: 'orderly', network: 'testnet', owner },
+          config,
+          keys: memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` }),
+          fetch: async () => new Response(JSON.stringify(reply), { status }),
+        },
+        { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef },
+      )
+    expect(await cancel(200, { success: true, data: { status: 'CANCEL_SENT' }, timestamp: 1702989203989 })).toEqual({
+      kind: 'done',
+      detail: 'Canceled',
+    })
+    // Orderly's error codes page documents -1006 for cancelling a CANCELLED order and -1002 for a bad key, not
+    // the messages that come with them.
+    expect(await cancel(400, { success: false, code: -1006, message: 'The data is not found on the server.' })).toEqual(
+      { kind: 'done', detail: 'Canceled' },
+    )
+    const error = await cancel(401, { success: false, code: -1002, message: 'Orderly key not found' }).catch(
+      (e: unknown) => e,
+    )
+    expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
+  })
 })
 
 describe('order lookup after an unknown outcome', () => {
