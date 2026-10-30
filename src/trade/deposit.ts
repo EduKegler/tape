@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { queryOptions, skipToken, useMutation, useQuery } from '@tanstack/react-query'
+import { queryOptions, skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBalance, useBytecode, useConnection, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
 import { estimateGas, waitForTransactionReceipt } from 'wagmi/actions'
 import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
@@ -135,7 +135,11 @@ export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bi
   }
 }
 
-export type SendFailure = { readonly kind: 'wallet-rejected' } | { readonly kind: 'failed'; readonly detail: string }
+export type SendFailure = (
+  { readonly kind: 'wallet-rejected' } | { readonly kind: 'failed'; readonly detail: string }
+) & { readonly approved: boolean }
+
+class FailedAfterApproval extends Error {}
 
 async function onChain(provider: Eip1193, chainId: number) {
   const current = () => provider.request({ method: 'eth_chainId' }).then(Number)
@@ -144,15 +148,19 @@ async function onChain(provider: Eip1193, chainId: number) {
   if ((await current()) !== chainId) throw new Error(`The wallet did not switch to chain ${chainId}`)
 }
 
-export function sendFailure(e: unknown): SendFailure {
-  if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code) return { kind: 'wallet-rejected' }
-  if (e instanceof TradeFailure) return { kind: 'failed', detail: e.message }
-  return { kind: 'failed', detail: e instanceof Error ? e.message.split('\n')[0]! : String(e) }
+export function sendFailure(error: unknown): SendFailure {
+  const approved = error instanceof FailedAfterApproval
+  const e = approved ? error.cause : error
+  if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code)
+    return { kind: 'wallet-rejected', approved }
+  if (e instanceof TradeFailure) return { kind: 'failed', detail: e.message, approved }
+  return { kind: 'failed', detail: e instanceof Error ? e.message.split('\n')[0]! : String(e), approved }
 }
 
 /** Sends the calls from the route's chain, waiting for an approval to land before the deposit. Resolves with the deposit's hash once the wallet sends it. */
 export function useSendDeposit(ref: AccountRef) {
   const { connector } = useConnection()
+  const queryClient = useQueryClient()
   return useMutation<
     Hex,
     Error,
@@ -161,35 +169,44 @@ export function useSendDeposit(ref: AccountRef) {
     mutationFn: async ({ route, amount, fee, calls }) => {
       if (!connector) throw new Error('No wallet connected')
       const provider = (await connector.getProvider()) as Eip1193
-      let deposit: Hex | null = null
-      for (const call of calls) {
+      const send = async (call: DepositCall) => {
         await onChain(provider, route.chainId)
-        const hash = (await provider.request({
+        return (await provider.request({
           method: 'eth_sendTransaction',
           params: [{ from: ref.owner, to: call.to, data: call.data, chainId: numberToHex(route.chainId) }],
         })) as Hex
-        if (call.kind === 'deposit') {
-          deposit = hash
-          addDeposit(ref, {
-            chainId: route.chainId,
-            amount,
-            fee,
-            hash,
-            replacement: null,
-            sentAt: Date.now(),
-            gasPaid: null,
-            outcome: null,
+      }
+      let approved = false
+      for (const call of calls) {
+        if (call.kind === 'approve') {
+          const receipt = await waitForTransactionReceipt(wagmiConfig, {
+            chainId: wagmiChain(route.chainId),
+            hash: await send(call),
           })
+          if (receipt.status !== 'success') throw new Error('The approval reverted. Nothing was deposited')
+          approved = true
+          await queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'readContract' })
           continue
         }
-        const receipt = await waitForTransactionReceipt(wagmiConfig, {
-          chainId: wagmiChain(route.chainId),
+        let hash: Hex
+        try {
+          hash = await send(call)
+        } catch (e) {
+          throw approved ? new FailedAfterApproval('The approval went through, the deposit did not', { cause: e }) : e
+        }
+        addDeposit(ref, {
+          chainId: route.chainId,
+          amount,
+          fee,
           hash,
+          replacement: null,
+          sentAt: Date.now(),
+          gasPaid: null,
+          outcome: null,
         })
-        if (receipt.status !== 'success') throw new Error('The approval reverted. Nothing was deposited')
+        return hash
       }
-      if (!deposit) throw new Error('No deposit call to send')
-      return deposit
+      throw new Error('No deposit call to send')
     },
     onMutate: ({ route }) => track({ event: 'deposit_started', venue: ref.venue, chain: route.chainId }),
     onSuccess: (_hash, { route }) => track({ event: 'deposit_sent', venue: ref.venue, chain: route.chainId }),

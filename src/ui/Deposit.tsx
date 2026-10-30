@@ -303,9 +303,11 @@ function SendError({ error }: { error: Error }) {
   return (
     <div role="alert" data-deposit-error={failure.kind} className="rounded-sm border border-ask/40 p-2 text-level2">
       <p className="text-ask">
-        {failure.kind === 'wallet-rejected'
-          ? 'You declined in the wallet. Nothing was sent.'
-          : 'The deposit was not sent.'}
+        {failure.approved
+          ? `${failure.kind === 'wallet-rejected' ? 'You declined the deposit in the wallet' : 'The deposit was not sent'}. The approval went through, so the next try asks for the deposit only.`
+          : failure.kind === 'wallet-rejected'
+            ? 'You declined in the wallet. Nothing was sent.'
+            : 'The deposit was not sent.'}
       </p>
       {failure.kind === 'failed' && <p className="num mt-1 text-[11px] break-all text-level3">{failure.detail}</p>}
     </div>
