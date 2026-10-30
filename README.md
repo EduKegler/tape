@@ -6,9 +6,9 @@ Demo: [tape.kegler.dev](https://tape.kegler.dev) reads mainnet. [tape.testnet.ke
 
 ![Tape showing the BTC book on Hyperliquid](docs/screenshot.png)
 
-The screen has an order book with price grouping, a trade feed, a depth chart, candles, a venues table with best bid, best ask and basis, and an order ticket that validates price and size against each venue's tick and step. A wallet connects and shows USDC on Ethereum, Arbitrum, Base and Optimism. On Hyperliquid, dYdX and Orderly the ticket sends orders, and an Account panel shows positions, orders and fills. Binance stays read only.
+The screen has an order book with price grouping, a trade feed, a depth chart, candles, a venues table with best bid, best ask and basis, and an order ticket that validates price and size against each venue's tick and step. A wallet connects and shows USDC on Ethereum, Arbitrum, Base and Optimism. On Hyperliquid, dYdX and Orderly the ticket sends orders, and an Account panel shows positions, orders and fills. Binance stays read only. A History page reads every fill and funding payment those three venues still serve, totals realized PnL, fees and funding, and exports a CSV.
 
-## Five decisions
+## Six decisions
 
 ### 1. One WebSocket per venue, shared across tabs
 
@@ -76,6 +76,14 @@ Analytics run no third-party script. The page queues events from a fixed list in
 
 Errors take the same route to PostHog error tracking. The page sends uncaught errors, unhandled rejections, route errors, unexpected trade failures and errors in the hub worker as `$exception`, each with its stack and a message cleared of addresses and keys. An uncaught error with no frame on the site's own origin, like one from a wallet extension, stays on the page. Each JS context sends an error once, and 10 at most. When the build has `POSTHOG_PERSONAL_API_KEY`, a personal key that can write error tracking, and `POSTHOG_PROJECT_ID`, it marks each browser chunk with an id, uploads the source maps to `POSTHOG_HOST` (default US cloud) as release `tape` at `VERCEL_GIT_COMMIT_SHA`, and deletes them. A failed upload fails the build. Without both variables the build has no source maps.
 
+### 6. History that adds up to the venue's number
+
+Each trading venue also reads its full history from a public endpoint, with no key: Hyperliquid's `userFillsByTime` and `userFunding`, dYdX's indexer `fills` and `fundingPayments`, and Orderly's public query. History is only reads, so it works on the read-only mainnet site and for any address pasted in.
+
+Realized PnL per fill is the venue's own figure where it reports one, Hyperliquid's `closedPnl` and Orderly's `realized_pnl`. dYdX reports none, so `realize` in `packages/trade/src/history.ts` computes it by average cost: increases average the entry, reductions realize against it, and a flip closes everything before it opens the rest. Amounts are `bigint` at 18 places, so sums of venue decimals are exact. Fees and funding stay apart from realized PnL, and net is realized minus fees plus funding.
+
+The tests replay recorded history of public mainnet accounts in `packages/trade/src/__fixtures__` and check the result against each venue's own numbers: average cost reproduces Hyperliquid's `closedPnl` on every fill of one account and Orderly's `realized_pnl` on every fill of another. The net lands within cents of Hyperliquid's perp PnL chart, which samples every 15 minutes and rounds to cents, and on dYdX's `totalPnl` to the micro dollar. `pnpm fixtures:history` records fresh ones. The CSV columns are under [History CSV](#history-csv).
+
 ## Stack
 
 - TanStack Start on TanStack Redact, the alternative React runtime
@@ -93,6 +101,45 @@ Errors take the same route to PostHog error tracking. The page sends uncaught er
 - Market data comes from public endpoints. Binance comes from the `data-api.binance.vision` mirrors.
 - Trading was verified on testnets with an unfunded wallet, so the proof is each venue naming the signer it recovered. Orderly orders past registration and mainnet are not verified.
 - No take profit or stop loss on dYdX and Orderly, and no leverage change on dYdX.
+- History has no deposits, withdrawals, transfers or vaults. Hyperliquid serves only its 10,000 most recent fills, dYdX's indexer pages through 25,000 fills, and only dYdX subaccount 0 is read.
+
+## History CSV
+
+`/history` exports what the filters show: one row per fill and one per funding payment, oldest first. The file is RFC 4180 with CRLF line ends, UTF-8, and a header row. Columns keep their names and order. A new column goes at the end.
+
+Amounts are exact decimals with a dot and no grouping, as the venue sent them, except `notional` and a computed `realized_pnl`. An empty cell means the column does not apply to that row.
+
+| Column | Fill | Funding |
+| --- | --- | --- |
+| `time_utc` | ISO 8601 in UTC, to the millisecond | same |
+| `timestamp_ms` | Unix time in milliseconds | same |
+| `venue` | `hyperliquid`, `dydx` or `orderly` | same |
+| `network` | `mainnet` or `testnet` | same |
+| `account` | The venue account: the wallet on Hyperliquid, the `dydx1` address on dYdX, the account id on Orderly | same |
+| `type` | `fill` | `funding` |
+| `market` | The venue's symbol, like `BTC`, `BTC-USD` or `PERP_BTC_USDC` | same |
+| `side` | `buy` or `sell` | empty |
+| `size` | Filled size, always positive | Position size when funding settled, negative for a short |
+| `price` | Fill price | empty |
+| `notional` | `price` × `size`, exact | empty |
+| `fee` | Positive is paid, negative is a rebate | empty |
+| `asset` | What the fee and the PnL settle in, usually `USDC` | What the payment settles in |
+| `realized_pnl` | PnL this fill realized, before fees and funding. `0` on a fill that opens or adds | empty |
+| `realized_pnl_source` | `venue` when the venue reports it, `computed` when Tape computed it by average cost | empty |
+| `funding` | empty | Positive is received, negative is paid |
+| `funding_rate` | empty | The rate the venue applied |
+| `liquidation` | `true` when the venue closed the position: a liquidation, or a deleverage on dYdX | empty |
+| `venue_id` | The venue's id for the fill | empty |
+
+Net PnL over a period is the sum of `realized_pnl`, minus the sum of `fee`, plus the sum of `funding`, per `asset`.
+
+### Per venue
+
+- Hyperliquid reports `realized_pnl` on each fill. It serves only its 10,000 most recent fills, so an account with a long history starts partway, and `/history` says so. Spot fills are left out.
+- dYdX reports no PnL per fill. Tape computes it by average cost from the first fill, rounded to 6 decimals. Subaccount 0 only. The indexer pages through 25,000 fills at most.
+- Orderly reports `realized_pnl` on each fill. One address can hold an account per broker, and each one is its own `account`. Funding still accruing is left out until it settles.
+
+Deposits, withdrawals, transfers and vault flows are not in the file.
 
 ## Run it
 
@@ -110,6 +157,7 @@ pnpm verify   # package boundaries, typecheck of each package and the app, no no
 pnpm verify:commits # pnpm verify on each commit since origin/main, as the pre-push hook and CI run it
 pnpm build
 pnpm fixtures # re-record venue fixtures
+pnpm fixtures:history # re-record trade history fixtures
 node scripts/capture.mjs # screenshot and social preview from a running preview server
 ```
 
