@@ -90,6 +90,20 @@ describe('rest-snapshot-sequenced (Binance)', () => {
     expect(topLevels(visibleBook(steps[1]!.sync)!.bids, 5)).toEqual([lv(100, 1)])
   })
 
+  it('keeps only the diffs from the gap on when a buffered diff skips ahead', () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 2)], [], [11, 11]),
+      delta([lv(100, 3)], [], [14, 15]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    const last = steps[2]!
+    expect(last.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
+    expect(last.sync.phase === 'awaiting-snapshot' && last.sync.buffer.map((d) => d.seq)).toEqual([
+      { from: 14, to: 15 },
+    ])
+    expect(topLevels(visibleBook(last.sync)!.bids, 5)).toEqual([lv(100, 2)])
+  })
+
   it('ignores a snapshot from an older epoch', () => {
     const steps = run('rest-snapshot-sequenced', [
       delta([lv(100, 5)], [], [11, 11]),
