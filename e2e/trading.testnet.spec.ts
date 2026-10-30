@@ -201,6 +201,61 @@ test('a market buy goes out as an IOC limit at the ask plus the slippage the tic
   ])
 })
 
+test('take profit and stop loss ride with the order as reduce-only market triggers', async ({ page, wallet }) => {
+  const { hyperliquid, ticket } = await enable(page, wallet)
+  hyperliquid.exchange = () => ({
+    json: {
+      status: 'ok',
+      response: {
+        type: 'order',
+        data: { statuses: [{ resting: { oid: 1 } }, 'waitingForTrigger', 'waitingForTrigger'] },
+      },
+    },
+  })
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
+  await ticket.getByRole('textbox', { name: 'Take profit' }).fill('75000')
+  await ticket.getByRole('textbox', { name: 'Stop loss' }).fill('65000')
+
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 1')
+  await expectAccessible(page)
+  // A trigger fills at market, bounded 10% past the trigger as Hyperliquid's UI does: 75000 and 65000 less 10%.
+  const trigger = (tpsl: 'tp' | 'sl', triggerPx: string, bound: string) => ({
+    a: BTC,
+    b: false,
+    p: bound,
+    s: '0.002',
+    r: true,
+    t: { trigger: { isMarket: true, triggerPx, tpsl } },
+  })
+  expect(orders(hyperliquid.sent).map((body) => body.action)).toEqual([
+    {
+      type: 'order',
+      orders: [
+        { a: BTC, b: true, p: '70000', s: '0.002', r: false, t: { limit: { tif: 'Gtc' } }, c: expect.any(String) },
+        trigger('tp', '75000', '67500'),
+        trigger('sl', '65000', '58500'),
+      ],
+      grouping: 'normalTpsl',
+    },
+  ])
+})
+
+test('a take profit under the ask stops in the ticket and sends nothing', async ({ page, wallet }) => {
+  const { hyperliquid, ticket } = await enable(page, wallet)
+  await page.getByRole('radio', { name: 'Market', exact: true }).click()
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
+  await ticket.getByRole('textbox', { name: 'Take profit' }).fill('70000')
+
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await expect(ticket.getByRole('alert')).toContainText('Take profit: Must be above the ask')
+  await expectAccessible(page)
+  expect(orders(hyperliquid.sent)).toEqual([])
+})
+
 test('three clicks in one tick send one order, and the next goes after the answer', async ({ page, wallet }) => {
   const { hyperliquid, ticket } = await enable(page, wallet)
   const answer = deferred<Answer>()
