@@ -209,4 +209,11 @@ describe('dydx key and lookup', () => {
     })
     expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), place.intent))).toMatchObject({ kind: 'unreachable' })
   })
+
+  it('asks the dYdX testnet indexer about a testnet order', async () => {
+    const { urls, ctx: testnet } = indexer(() => [])
+    await dydx.lookup(testnet, place.intent)
+    // IndexerApiHost.TESTNET in v4-client-js.
+    expect(urls[0]?.startsWith('https://indexer.v4testnet.dydx.exchange/v4/orders?')).toBe(true)
+  })
 })
