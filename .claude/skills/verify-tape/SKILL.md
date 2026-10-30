@@ -41,7 +41,7 @@ Ready prints the run id, both pids and the evidence folder. Server ready is not 
 
 `up --network testnet` builds with `VITE_NETWORK=testnet`. Trading journeys need it. `up --reuse-build` skips the build and serves the last one when it was built for the same network. Only use it when `src/` has not changed since that build.
 
-`up --replay` builds the hub worker of `pnpm e2e`, from `e2e/replay/`, which plays the frames recorded in `packages/venues/src/__fixtures__/` instead of opening the venues' sockets, and starts Chrome with no host but 127.0.0.1 resolvable. Book and trade rows end the same on every run. The page still fetches candles, 24h stats and market rules itself, so `open` and `shot` on a replay run show `Could not load history.` and `Market rules unavailable.`
+`up --replay` builds the hub worker of `pnpm e2e`, from `e2e/replay/`, which plays the frames recorded in `packages/venues/src/__fixtures__/` instead of opening the venues' sockets, and starts Chrome with no host but 127.0.0.1 resolvable. Book and trade rows end the same on every run. The page still fetches candles, 24h stats and market rules itself, and only `parity.mjs` serves those from the recordings, so `open` and `shot` on a replay run show `Could not load history.` and `Market rules unavailable.`
 
 Override ports with `VERIFY_TAPE_PORT` and `VERIFY_TAPE_CDP_PORT`, and the browser with `CHROME` (default `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`). No Playwright browser download is needed. The script uses `playwright-core` from the repo's devDependencies.
 
@@ -106,6 +106,34 @@ Locators, in order of preference:
 
 `eval <expression>` reads page state. Use it to read values, never to change them. Changing state through `eval` is not a user path and does not count as proof.
 
+## Parity
+
+`scripts/parity.mjs` proves that a change leaves every computed style as it was, which a PR that swaps classes for tokens or markup for primitives must show. It needs a replay run.
+
+```bash
+node .claude/skills/verify-tape/scripts/verify-tape.mjs up --replay
+node .claude/skills/verify-tape/scripts/parity.mjs capture --out /tmp/parity/before.json
+node .claude/skills/verify-tape/scripts/verify-tape.mjs down
+# switch to the change, then:
+node .claude/skills/verify-tape/scripts/verify-tape.mjs up --replay
+node .claude/skills/verify-tape/scripts/parity.mjs capture --out /tmp/parity/after.json
+node .claude/skills/verify-tape/scripts/verify-tape.mjs down
+node .claude/skills/verify-tape/scripts/parity.mjs diff /tmp/parity/before.json /tmp/parity/after.json
+```
+
+`capture` opens each view in a fresh browser context, in UTC and en-US, with the page clock at the recording time and REST served from the recordings, as `pnpm e2e` does. It waits until the replay has played the last frame of every socket and four reads 500 ms apart agree. Then it writes every rendered element and pseudo-element with all its computed longhands and its box. The views are the trading screen of each venue at 1440×900, Hyperliquid at 1280×800, the ticket in Market mode, and `/history`. Add a view to `VIEWS` when a change touches a state they do not show.
+
+An element's key is its panel, the nearest ancestor with an ARIA role and an accessible name as Chrome computes them, and the tag path below that ancestor, as in `Order book › button "80,609 2.31856 119.89322" › span[2]`. The panel is the `h2` or `aria-label` of the enclosing `section`, or the banner, navigation, contentinfo or dialog landmark.
+
+`diff` prints every element added or removed and every property and box that changed, and exits 1 on any change. An empty diff prints `diff: no change in <n> elements across <m> views`.
+
+A capture does not see:
+
+- hover, focus and active states, since nothing hovers or holds focus while it reads
+- the text of an element with no accessible name, only its style and box
+- views outside `VIEWS`, such as the Deposit dialog
+- a different Chrome, which `diff` warns about, so compare captures from the same machine
+
 ## Evidence
 
 Every command appends one line to `.claude/skills/verify-tape/artifacts/<run-id>/steps.jsonl`: the command, its flags and its result. Relative `--path` values for `aria` and `shot` land in the same folder. The build log is there too. The folder is gitignored by the skill's own `.gitignore` and survives `down`.
@@ -131,6 +159,7 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 ## Helpers
 
 - `scripts/verify-tape.mjs` is the harness. Commands: `up`, `doctor`, `down`, `open`, `click`, `fill`, `select`, `press`, `wait`, `text`, `attr`, `eval`, `aria`, `shot`, `pages`, `close`.
+- `scripts/parity.mjs` captures and diffs computed styles on a replay run. Commands: `capture`, `diff`.
 - `scripts/vite.verify.config.ts` is verification scaffolding. It only moves build output, and with `--replay` swaps in the E2E hub worker. It is never used by the product.
 
 ## Gotchas
