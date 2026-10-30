@@ -48,6 +48,7 @@ function fail(error: TradeError): never {
 export function classifyMessage(message: string): TradeError {
   if (/account .*(?:does not exist|not found)|no subaccount/i.test(message))
     return { kind: 'no-account', detail: message }
+  if (/rate (?:limit )?exceeded/i.test(message)) return { kind: 'rate-limited', detail: message }
   if (/insufficient|undercollateralized|collateral/i.test(message))
     return { kind: 'insufficient-margin', detail: message }
   if (/quantums|subticks|price|size|tick|step/i.test(message)) return { kind: 'invalid-order', detail: message }
@@ -257,7 +258,9 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
     if (!(
       e instanceof TradeFailure
       && 'detail' in e.error
-      && /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)/i.test(e.error.detail)
+      && /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)|cancel already exists/i.test(
+        e.error.detail,
+      )
     ))
       throw e
   }

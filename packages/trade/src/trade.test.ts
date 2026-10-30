@@ -215,6 +215,15 @@ describe('failure classification', () => {
         .kind,
     ).toBe('no-account')
   })
+
+  it('calls the dYdX order rate limits rate limited, though the short-term one mentions collateral', () => {
+    // x/clob/types/errors.go in dydxprotocol/v4-chain, codes 5001 and 5002.
+    for (const message of [
+      'Block rate limit exceeded',
+      "Short-term order rate exceeded: an address's 30-day volume and collateral set its order budget",
+    ])
+      expect(dydxMessage(message).kind).toBe('rate-limited')
+  })
 })
 
 describe('commands in flight', () => {
