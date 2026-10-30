@@ -166,3 +166,34 @@ describe('hyperliquid writes without a readable reply', () => {
     })
   })
 })
+
+describe('hyperliquid refusals', () => {
+  // Texts from the Hyperliquid error responses docs, and the deposit reply the enable test in trade.test.ts uses.
+  it('refuses an order Hyperliquid refuses in its own status, by the venue words', async () => {
+    for (const [text, kind] of [
+      ['Insufficient margin to place order.', 'insufficient-margin'],
+      ['Order must have minimum value of $10.', 'invalid-order'],
+      ['Price must be divisible by tick size.', 'invalid-order'],
+      [`Must deposit before performing actions. User: ${owner}`, 'no-account'],
+      ['Reduce only order would increase position.', 'rejected'],
+    ] as const) {
+      const { ctx } = venue(() => statuses([{ error: text }]))
+      expect(await failureOf(hyperliquid.execute(ctx, place({})))).toEqual({ kind, detail: text })
+    }
+  })
+
+  it('refuses a scale order when Hyperliquid refuses every leg', async () => {
+    const { ctx } = venue(() =>
+      statuses([
+        { error: 'Insufficient margin to place order.' },
+        { error: 'Insufficient margin to place order.' },
+        { error: 'Insufficient margin to place order.' },
+      ]),
+    )
+    const scale = place({ kind: 'scale', tif: 'post-only', size: '0.003', start: '80000', end: '79000', count: '3' })
+    expect(await failureOf(hyperliquid.execute(ctx, scale))).toEqual({
+      kind: 'insufficient-margin',
+      detail: 'Insufficient margin to place order.',
+    })
+  })
+})
