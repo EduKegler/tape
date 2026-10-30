@@ -55,19 +55,19 @@ Line numbers are at the sync commit. The model's comments carry the same numbers
 | the `reset` item of `Continue`, `Resets` | `feedBook`, `touch`, `src/hub/hub.ts:229-239, 212-215`; `stepBook` reset, `book.ts:209` |
 | `UnsubResets`, `StaleResets`, `CloseResets` | `stopBooks` in `run` cases `unsubscribe` and `streams-stale`, the `stopped` loop in case `close`, `src/hub/hub.ts:222-227, 351, 357, 343` |
 | the `touch-all` item of `Continue` | `stepVenue` touching every market when the state changed, `src/hub/hub.ts:384` |
-| `Reconcile`, `Tick`, `Want`, `linger` | `reconcile`, the 1 s `setInterval`, the `want` handler and `queueReconcile`, `src/hub/hub.ts:406-420, 447-448, 480-485, 422-429`; `deriveStreams`, `src/core/topics.ts:150-168`; `stepConnection` tick and `reconcile`, `src/hub/connection.ts:157-172, 83-113` |
-| `SocketOpened` | `socket.onopen`, `stepVenue`, `src/hub/hub.ts:330, 368-385`; `stepConnection` case `opened`, `src/hub/connection.ts:117-132` |
-| `ConnectFails`, `SocketLost`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check, `src/hub/connection.ts:133-145, 85-95` |
+| `Reconcile`, `Tick`, `Want`, `linger` | `reconcile`, the 1 s `setInterval`, the `want` handler and `queueReconcile`, `src/hub/hub.ts:406-420, 447-448, 480-485, 422-429`; `deriveStreams`, `src/core/topics.ts:150-168`; `stepConnection` tick and `reconcile`, `src/hub/connection.ts:155-170, 82-112` |
+| `SocketOpened` | `socket.onopen`, `stepVenue`, `src/hub/hub.ts:330, 368-385`; `stepConnection` case `opened`, `src/hub/connection.ts:116-130` |
+| `ConnectFails`, `SocketLost`, `DropSocket` | `socket.onclose` and the `v.socket === socket` guards, `run` case `close`, `src/hub/hub.ts:330-345`; `closed` and the silence check, `src/hub/connection.ts:131-143, 84-94` |
 | `ReceiveSnapshot` | `socket.onmessage`, `ingest`, `apply` case `book-snapshot` with its `followsBook` guard, `src/hub/hub.ts:331, 297-313, 262-295, 217-220`; `stepBook` `snapshot-then-deltas`, `packages/core/src/book.ts:214-216`; the `subscribed` message in `events`, `packages/venues/src/dydx.ts:68-73` |
-| `ReceiveBad`, `VenueSendsBad` | the `VenueParseError` and `DecimalError` resets, `src/hub/hub.ts:305-306, 291-293`; `awaiting` asking to resubscribe, `book.ts:196-197`; `feedBook` stepping `resubscribe`, `hub.ts:237-238`; `stepConnection` case `resubscribe` and `deferRepeatResubscribes`, `src/hub/connection.ts:147-156, 60-72` |
-| `held`, `HoldEnds` | `ConnState.holds`, the `held` filter, `src/hub/connection.ts:65, 96-98` |
+| `ReceiveBad`, `VenueSendsBad` | the `VenueParseError` and `DecimalError` resets, `src/hub/hub.ts:305-306, 291-293`; `awaiting` asking to resubscribe, `book.ts:196-197`; `feedBook` stepping `resubscribe`, `hub.ts:237-238`; `stepConnection` case `resubscribe` and `deferRepeatResubscribes`, `src/hub/connection.ts:145-154, 59-71` |
+| `held`, `HoldEnds` | `ConnState.holds`, the `held` filter, `src/hub/connection.ts:64, 95-97` |
 | `ctrl`, `venueSub`, `chan`, `VenueReadsControl` | dYdX's socket: it reads frames in order and sends the book after each subscribe |
 
 Each action is the first part of one JS task in the worker: a socket event, a timer, or a tab message with the reconcile it queues as a microtask. The throttle's leading edge runs `flushNow` inside the task that calls `flush`, so the rest of the task is a queue of sub-steps in `todo`, run by `Continue`, and nothing else runs until it is empty.
 
 The ghost variables `hubSub`, `follows`, `postedFollows` and `dropped` are not in the code. They carry the truth the property compares against.
 
-Sync commit: `d2be15557d67bab7a44baab0b5401055214b5d54` (2026-10-29). The model describes the covered code at this commit.
+Sync commit: `2b49d57047141a5003f6647aebcf4121e4e1b602` (2026-10-29). The model describes the covered code at this commit.
 
 ## Bounds and assumptions
 

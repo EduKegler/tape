@@ -26,9 +26,9 @@ CONSTANTS
   Mutant      \* "none" is the code. The others are known breaks, see SKILL.md.
 
 VARIABLES
-  conn,          \* ConnState.s, connection.ts:3-15
+  conn,          \* ConnState.s, connection.ts:3-14
   subscribed,    \* ConnState.subscribed
-  held,          \* streams whose ConnState.holds entry still holds them (until > now), connection.ts:97
+  held,          \* streams whose ConnState.holds entry still holds them (until > now), connection.ts:96
   hubSub,        \* ghost: the hub's last frame for the stream on this socket was a subscribe
   ctrl,          \* subscribe / unsubscribe frames sent, not yet read by the venue
   venueSub,      \* the venue streams the market's v4_orderbook on the current socket
@@ -190,7 +190,7 @@ VenueSendsBad ==
 (* The hub *)
 
 \* reconcile(), hub.ts:406-420: deriveStreams with linger (topics.ts:152-168), then stepVenue
-\* with { e: 'tick' } (connection.ts:157-172, 83-113), then flush(). `gone` are lingering
+\* with { e: 'tick' } (connection.ts:155-170, 82-112), then flush(). `gone` are lingering
 \* streams whose LINGER_MS ran out, from `expirable`: a stream wanted at the last reconcile has
 \* lastWanted under 1 s old. A tab's 'want' (hub.ts:480-485) runs it as a microtask right after
 \* the message, so the two are one task.
@@ -212,7 +212,7 @@ Reconcile(w, l, expirable) ==
               /\ UNCHANGED <<conn, subscribed, held, hubSub, ctrl, venueSub, chan, phase,
                              follows, dirty>>
          [] conn = "backoff" ->
-              \* retryAt passed or not, connection.ts:165-169.
+              \* retryAt passed or not, connection.ts:163-167.
               \E retry \in BOOLEAN :
                 IF desired = {}
                 THEN /\ conn' = "idle"
@@ -228,19 +228,19 @@ Reconcile(w, l, expirable) ==
                      /\ UNCHANGED <<conn, subscribed, held, hubSub, ctrl, venueSub, chan, phase,
                                     follows, dirty>>
          [] conn = "open" /\ desired = {} ->
-              \* connection.ts:84, then run 'close', hub.ts:339-345.
+              \* connection.ts:83, then run 'close', hub.ts:339-345.
               \E morder \in Orders(Markets) :
                 /\ conn' = "idle" /\ subscribed' = {} /\ held' = {}
                 /\ DropSocket
                 /\ todo' = CloseResets(morder) \o <<TouchAll, FlushCall>>
                 /\ UNCHANGED <<phase, dirty>>
          [] conn = "open" ->
-              LET keep == {s \in desired : s \in subscribed \/ s \notin held}   \* connection.ts:98
-                  add == keep \ subscribed                                    \* connection.ts:99
-                  drop == subscribed \ desired                                \* connection.ts:100
+              LET keep == {s \in desired : s \in subscribed \/ s \notin held}   \* connection.ts:97
+                  add == keep \ subscribed                                    \* connection.ts:98
+                  drop == subscribed \ desired                                \* connection.ts:99
               IN \E order \in Orders(add), dorder \in Orders(drop) :
                    /\ subscribed' = keep
-                   /\ ctrl' = ctrl \o Unsubscribes(dorder) \o Subscribes(order)   \* connection.ts:102-103
+                   /\ ctrl' = ctrl \o Unsubscribes(dorder) \o Subscribes(order)   \* connection.ts:101-102
                    /\ hubSub' = [m \in Markets |-> IF m \in add THEN TRUE
                                                    ELSE IF m \in drop THEN FALSE ELSE hubSub[m]]
                    /\ follows' = [m \in Markets |-> IF m \in drop THEN FALSE ELSE follows[m]]
@@ -264,7 +264,7 @@ Tick ==
   /\ Reconcile(wanted, linger, linger)
   /\ UNCHANGED <<wanted, quiet, trailing, posted, postedFollows, dropped, faults>>
 
-\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:117-132. The new
+\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:116-130. The new
 \* ConnState starts with no subscriptions and no holds, then reconciles.
 SocketOpened ==
   /\ Idle /\ conn = "connecting"
@@ -284,7 +284,7 @@ SocketOpened ==
   /\ UNCHANGED <<wanted, linger, phase, dirty, quiet, trailing, posted, postedFollows, dropped,
                  faults>>
 
-\* The connect fails: onclose while connecting, connection.ts:140-143.
+\* The connect fails: onclose while connecting, connection.ts:138-141.
 ConnectFails ==
   /\ Idle /\ conn = "connecting"
   /\ conn' = "backoff"
@@ -293,8 +293,8 @@ ConnectFails ==
   /\ UNCHANGED <<subscribed, held, wanted, linger, phase, dirty, quiet, trailing, posted,
                  postedFollows, dropped, faults>>
 
-\* An open socket is lost: onclose (hub.ts:332-336, connection.ts:133-139) or the silence
-\* check in a tick (connection.ts:85-95), which runs 'close' first and flushes at the end of
+\* An open socket is lost: onclose (hub.ts:332-336, connection.ts:131-137) or the silence
+\* check in a tick (connection.ts:84-94), which runs 'close' first and flushes at the end of
 \* reconcile. Backoff keeps no subscriptions or holds. streams-stale stops each subscribed book
 \* and touches its market (hub.ts:356-359), then stepVenue touches them all. The touches of
 \* streams-stale fold into the touch-all: the socket is gone, so every wanted frame's status
@@ -329,21 +329,21 @@ ReceiveSnapshot ==
 
 \* A corrupt message resets the book (book.ts:209, awaiting() asks to resubscribe,
 \* book.ts:196-197) and feedBook steps the venue with { e: 'resubscribe' } (hub.ts:237-238,
-\* connection.ts:147-156). A stream resubscribed within its hold is unsubscribed and left out
+\* connection.ts:145-154). A stream resubscribed within its hold is unsubscribed and left out
 \* until a tick after the hold. The touch's flush runs before the resubscribe, but the
 \* resubscribe changes nothing a frame shows, so the flush is the last item. Its unsubscribe
 \* stops a book already awaiting a snapshot, which changes nothing.
 ReceiveBad ==
   /\ Idle /\ conn = "open" /\ chan # <<>> /\ Head(chan)[2] = "bad"
   /\ LET m == Head(chan)[1]
-         resub == m \in subscribed                                \* connection.ts:149-150
-         later == resub /\ m \in held                             \* deferRepeatResubscribes, connection.ts:60-72
+         resub == m \in subscribed                                \* connection.ts:147-148
+         later == resub /\ m \in held                             \* deferRepeatResubscribes, connection.ts:59-71
      IN /\ chan' = Tail(chan)
         /\ phase' = [phase EXCEPT ![m] = "awaiting-snapshot"]
         /\ follows' = [follows EXCEPT ![m] = FALSE]
         /\ ctrl' = IF ~resub THEN ctrl
                    ELSE IF later THEN Append(ctrl, <<"unsub", m>>)
-                   ELSE ctrl \o <<<<"unsub", m>>, <<"sub", m>>>>      \* connection.ts:153-154
+                   ELSE ctrl \o <<<<"unsub", m>>, <<"sub", m>>>>      \* connection.ts:151-152
         /\ hubSub' = IF resub THEN [hubSub EXCEPT ![m] = ~later] ELSE hubSub
         /\ subscribed' = IF later THEN subscribed \ {m} ELSE subscribed
         /\ held' = IF resub THEN held \cup {m} ELSE held
@@ -352,7 +352,7 @@ ReceiveBad ==
   /\ UNCHANGED <<conn, venueSub, wanted, linger, quiet, trailing, posted, postedFollows,
                  dropped, faults>>
 
-\* A hold's `until` passes, so the stream is no longer held, connection.ts:65, 97.
+\* A hold's `until` passes, so the stream is no longer held, connection.ts:64, 96.
 HoldEnds ==
   /\ Idle
   /\ \E m \in held : held' = held \ {m}

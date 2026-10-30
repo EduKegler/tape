@@ -24,7 +24,7 @@ VARIABLES
   vid,         \* the venue's latest update id
   venueSub,    \* the venue streams <symbol>@depth@100ms on the current socket
   venueSent,   \* last update id the venue put on the current socket
-  conn,        \* ConnState.s for binance, connection.ts:3-15
+  conn,        \* ConnState.s for binance, connection.ts:3-14
   subscribed,  \* the book stream is in ConnState.subscribed
   ctrl,        \* SUBSCRIBE / UNSUBSCRIBE frames sent, not yet read by the venue
   chan,        \* depthUpdate messages in flight to the hub, each <<U, u>>
@@ -209,31 +209,31 @@ Reconcile ==
   \E d, o \in BOOLEAN :
     /\ desired' = d /\ others' = o
     /\ UNCHANGED <<vid, venueSent, fetches, timers, faults>>
-    /\ CASE conn = "idle" ->                                      \* connection.ts:159-162
+    /\ CASE conn = "idle" ->                                      \* connection.ts:157-160
               /\ conn' = IF d \/ o THEN "connecting" ELSE "idle"
               /\ UNCHANGED <<venueSub, subscribed, ctrl, chan, sync>>
-         [] conn = "connecting" ->                                \* connection.ts:163-164
+         [] conn = "connecting" ->                                \* connection.ts:161-162
               UNCHANGED <<conn, venueSub, subscribed, ctrl, chan, sync>>
-         [] conn = "backoff" ->                                   \* connection.ts:165-169, retryAt passed or not
+         [] conn = "backoff" ->                                   \* connection.ts:163-167, retryAt passed or not
               /\ conn' \in IF d \/ o THEN {"backoff", "connecting"} ELSE {"idle"}
               /\ UNCHANGED <<venueSub, subscribed, ctrl, chan, sync>>
-         [] conn = "open" /\ ~(d \/ o) ->                         \* connection.ts:84
+         [] conn = "open" /\ ~(d \/ o) ->                         \* connection.ts:83
               /\ conn' = "idle"
               /\ DropSocket
               /\ sync' = Reset(sync)                              \* run 'close' stops the book, hub.ts:343
-         [] conn = "open" /\ o /\ subscribed /\ ~d ->              \* connection.ts:100-102
+         [] conn = "open" /\ o /\ subscribed /\ ~d ->              \* connection.ts:99-101
               /\ ctrl' = Append(ctrl, "unsub")
               /\ subscribed' = FALSE
               /\ sync' = Reset(sync)                              \* stopBooks, hub.ts:222-227, 351
               /\ UNCHANGED <<conn, venueSub, chan>>
-         [] conn = "open" /\ ~subscribed /\ d ->                  \* connection.ts:98-99, 103
+         [] conn = "open" /\ ~subscribed /\ d ->                  \* connection.ts:97-98, 102
               /\ ctrl' = Append(ctrl, "sub")
               /\ subscribed' = TRUE
               /\ UNCHANGED <<conn, venueSub, chan, sync>>
          [] OTHER ->
               UNCHANGED <<conn, venueSub, subscribed, ctrl, chan, sync>>
 
-\* The silence watchdog inside a tick, connection.ts:85-95. The hub closes the socket, which
+\* The silence watchdog inside a tick, connection.ts:84-94. The hub closes the socket, which
 \* stops the book (hub.ts:343), then streams-stale stops it again if it was subscribed
 \* (hub.ts:356-359).
 Silence ==
@@ -244,18 +244,18 @@ Silence ==
   /\ faults' = faults + 1
   /\ UNCHANGED <<vid, venueSent, desired, others, fetches, timers>>
 
-\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:117-132.
+\* socket.onopen -> stepVenue({ e: 'opened' }), hub.ts:330, connection.ts:116-130.
 SocketOpened ==
   /\ conn = "connecting"
   /\ UNCHANGED <<vid, venueSent, desired, others, fetches, timers, faults>>
-  /\ IF ~(desired \/ others)                                      \* connection.ts:84
+  /\ IF ~(desired \/ others)                                      \* connection.ts:83
      THEN conn' = "idle" /\ DropSocket /\ sync' = Reset(sync)   \* run 'close', hub.ts:343
      ELSE /\ conn' = "open"
           /\ subscribed' = desired
           /\ ctrl' = IF desired THEN <<"sub">> ELSE <<>>
           /\ UNCHANGED <<venueSub, chan, sync>>
 
-\* socket.onclose from the network or the venue, hub.ts:332-336, connection.ts:133-146.
+\* socket.onclose from the network or the venue, hub.ts:332-336, connection.ts:131-144.
 \* Messages of a dead socket never reach the hub: the `v.socket === socket` guards, hub.ts:330-333.
 \* Losing an open socket runs streams-stale, which stops a subscribed book, hub.ts:356-359.
 SocketCloses ==
