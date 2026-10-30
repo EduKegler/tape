@@ -382,3 +382,33 @@ describe('dydx expiry', () => {
     expect(short).toEqual([7, 0, 0, 16, undefined])
   })
 })
+
+describe('dydx checks before signing', () => {
+  it("refuses a size or price off this network's step or tick before signing", async () => {
+    const frame = ethMarkets.markets['ETH-USD']
+    const coarse = {
+      markets: {
+        'ETH-USD': {
+          ...frame,
+          tickSize: '0.5',
+          subticksPerTick: 500_000,
+          stepSize: '0.01',
+          stepBaseQuantums: 10_000_000,
+        },
+      },
+    }
+    const { ctx: other } = indexer(() => coarse)
+    const on = { ...other, ref: { ...other.ref, network: 'mainnet' as const } }
+    const order = (changes: Partial<IntentDraft>) =>
+      failure(dydx.execute(on, { kind: 'place', intent: intentOf(eth, { price: '2330.5', size: '0.01', ...changes }) }))
+    expect(await order({ size: '0.005' })).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Size 0\.005: /),
+    })
+    expect(await order({ price: '2330.3' })).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Price 2330\.3: /),
+    })
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+  })
+})
