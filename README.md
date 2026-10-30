@@ -54,7 +54,7 @@ Integers instead of `bigint` everywhere keep book levels fast as `Map` keys and 
 
 Each venue is one adapter behind `VenueAdapter` in `packages/venues/src/types.ts`: market rules, subscribe frames, a parser from raw messages to one event type, 24h stats and candle history. Everything after the parser is venue-agnostic. One pure function, `stepBook` in `packages/core/src/book.ts`, runs all three book protocols. A new venue is one adapter file plus recorded fixtures.
 
-The tests replay frames recorded from each venue in `packages/venues/src/__fixtures__` until each book is live and uncrossed. `pnpm fixtures` records fresh ones.
+The tests replay frames recorded from each venue in `packages/venues/src/__fixtures__` until each book is live and uncrossed. `pnpm fixtures` records fresh ones from mainnet, and `NETWORK=testnet pnpm fixtures` from testnet.
 
 ### 5. Orders signed in the browser, judged by the venue
 

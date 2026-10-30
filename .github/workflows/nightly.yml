@@ -1,0 +1,42 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/nightly.yml
+      - scripts/record-fixtures.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  venues:
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [mainnet, testnet]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NETWORK: ${{ matrix.network }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: record two minutes of every venue
+        run: node scripts/record-fixtures.mjs 120
+      - name: replay the recording through the venue parsers and the book
+        run: pnpm exec vitest run packages/venues
+      - name: the recording the parsers failed on
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: recording-${{ matrix.network }}
+          path: packages/venues/src/__fixtures__

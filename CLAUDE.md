@@ -64,6 +64,7 @@ Before a venue ships, its tests prove these:
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
+| The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
 | One logical change per commit | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |

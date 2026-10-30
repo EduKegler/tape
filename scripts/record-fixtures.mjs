@@ -4,19 +4,37 @@ const seconds = Number(process.argv[2] ?? 8)
 const out = new URL('../packages/venues/src/__fixtures__/', import.meta.url)
 const dydxLines = 600
 
+const HOSTS = {
+  mainnet: {
+    binance: { rest: 'data-api.binance.vision', ws: 'data-stream.binance.vision' },
+    hyperliquid: 'api.hyperliquid.xyz',
+    dydx: 'indexer.dydx.trade',
+    orderly: { rest: 'api.orderly.org', ws: 'ws-evm.orderly.org' },
+  },
+  testnet: {
+    binance: { rest: 'testnet.binance.vision', ws: 'stream.testnet.binance.vision' },
+    hyperliquid: 'api.hyperliquid-testnet.xyz',
+    dydx: 'indexer.v4testnet.dydx.exchange',
+    orderly: { rest: 'testnet-api.orderly.org', ws: 'testnet-ws-evm.orderly.org' },
+  },
+}
+const network = process.env.NETWORK ?? 'mainnet'
+const host = HOSTS[network]
+if (!host) throw new Error(`NETWORK must be one of ${Object.keys(HOSTS).join(', ')}, not ${network}`)
+
 const venues = {
   binance: {
-    url: 'wss://data-stream.binance.vision/stream?streams=btcusdt@depth@100ms/btcusdt@trade/btcusdt@kline_1m',
+    url: `wss://${host.binance.ws}/stream?streams=btcusdt@depth@100ms/btcusdt@trade/btcusdt@kline_1m`,
     subscribe: [],
     rest: {
-      depth: 'https://data-api.binance.vision/api/v3/depth?symbol=BTCUSDT&limit=1000',
-      exchangeInfo: `https://data-api.binance.vision/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
-      klines: 'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5',
-      ticker: 'https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT',
+      depth: `https://${host.binance.rest}/api/v3/depth?symbol=BTCUSDT&limit=1000`,
+      exchangeInfo: `https://${host.binance.rest}/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
+      klines: `https://${host.binance.rest}/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5`,
+      ticker: `https://${host.binance.rest}/api/v3/ticker/24hr?symbol=BTCUSDT`,
     },
   },
   hyperliquid: {
-    url: 'wss://api.hyperliquid.xyz/ws',
+    url: `wss://${host.hyperliquid}/ws`,
     subscribe: ['l2Book', 'trades']
       .map((type) => ({ method: 'subscribe', subscription: { type, coin: 'BTC' } }))
       .concat({ method: 'subscribe', subscription: { type: 'candle', coin: 'BTC', interval: '1m' } }),
@@ -31,32 +49,32 @@ const venues = {
     },
   },
   dydx: {
-    url: 'wss://indexer.dydx.trade/v4/ws',
+    url: `wss://${host.dydx}/v4/ws`,
     subscribe: [
       { type: 'subscribe', channel: 'v4_orderbook', id: 'BTC-USD' },
       { type: 'subscribe', channel: 'v4_trades', id: 'BTC-USD' },
       { type: 'subscribe', channel: 'v4_candles', id: 'BTC-USD/1MIN' },
     ],
     rest: {
-      'markets-BTC': 'https://indexer.dydx.trade/v4/perpetualMarkets?ticker=BTC-USD',
-      'markets-ETH': 'https://indexer.dydx.trade/v4/perpetualMarkets?ticker=ETH-USD',
-      'markets-SOL': 'https://indexer.dydx.trade/v4/perpetualMarkets?ticker=SOL-USD',
-      candles: 'https://indexer.dydx.trade/v4/candles/perpetualMarkets/BTC-USD?resolution=1MIN&limit=5',
+      'markets-BTC': `https://${host.dydx}/v4/perpetualMarkets?ticker=BTC-USD`,
+      'markets-ETH': `https://${host.dydx}/v4/perpetualMarkets?ticker=ETH-USD`,
+      'markets-SOL': `https://${host.dydx}/v4/perpetualMarkets?ticker=SOL-USD`,
+      candles: `https://${host.dydx}/v4/candles/perpetualMarkets/BTC-USD?resolution=1MIN&limit=5`,
     },
   },
   orderly: {
-    url: 'wss://ws-evm.orderly.org/ws/stream/OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY',
+    url: `wss://${host.orderly.ws}/ws/stream/OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY`,
     subscribe: ['orderbook', 'trade', 'kline_1m'].map((s) => ({
       id: s,
       topic: `PERP_BTC_USDC@${s}`,
       event: 'subscribe',
     })),
     rest: {
-      'info-BTC': 'https://api.orderly.org/v1/public/info/PERP_BTC_USDC',
-      'info-ETH': 'https://api.orderly.org/v1/public/info/PERP_ETH_USDC',
-      'info-SOL': 'https://api.orderly.org/v1/public/info/PERP_SOL_USDC',
-      futures: 'https://api.orderly.org/v1/public/futures/PERP_BTC_USDC',
-      history: `https://api.orderly.org/v1/tv/history?symbol=PERP_BTC_USDC&resolution=1&from=${Math.floor(Date.now() / 1000) - 300}&to=${Math.floor(Date.now() / 1000)}`,
+      'info-BTC': `https://${host.orderly.rest}/v1/public/info/PERP_BTC_USDC`,
+      'info-ETH': `https://${host.orderly.rest}/v1/public/info/PERP_ETH_USDC`,
+      'info-SOL': `https://${host.orderly.rest}/v1/public/info/PERP_SOL_USDC`,
+      futures: `https://${host.orderly.rest}/v1/public/futures/PERP_BTC_USDC`,
+      history: `https://${host.orderly.rest}/v1/tv/history?symbol=PERP_BTC_USDC&resolution=1&from=${Math.floor(Date.now() / 1000) - 300}&to=${Math.floor(Date.now() / 1000)}`,
     },
   },
 }
@@ -97,7 +115,7 @@ await Promise.all(
         ...Object.entries(v.post ?? {}).map(async ([k, body]) => [
           k,
           await (
-            await fetch('https://api.hyperliquid.xyz/info', {
+            await fetch(`https://${host.hyperliquid}/info`, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify(body),
