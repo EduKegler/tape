@@ -78,6 +78,7 @@ describe('ticks', () => {
     expect(groupOptions(binance, 8_100_000 as Px)).toEqual([1, 2, 5, 10, 25, 50])
     expect(snapGroup(binance, 8_100_000 as Px, '0.1')).toBe(10)
     expect(snapGroup(binance, 8_100_000 as Px, 'nope')).toBe(1)
+    expect(snapGroup(binance, 8_100_000 as Px, '10')).toBe(50)
     expect(groupDecimals(binance, snapGroup(binance, 8_100_000 as Px, '0.5'))).toBe(1)
   })
 })
