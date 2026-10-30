@@ -12,12 +12,12 @@ import { classifyMessage as dydxMessage } from './dydx'
 import { send } from './send'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
-import { TRADING } from './index'
 import { claim, release } from './in-flight'
 import { buildIntent, closeIntent } from './intent'
 import type { Bps, KeySlot, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
 import { domainTypes, walletJson } from './wallet'
+import { TRADING } from './index'
 
 const btc: MarketSpec = {
   key: marketKey('hyperliquid', 'BTC'),

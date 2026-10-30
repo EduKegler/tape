@@ -10,10 +10,10 @@ import {
 } from 'wagmi'
 import type { Connector, CreateConnectorFn } from 'wagmi'
 import { UserRejectedRequestError, erc20Abi, formatUnits } from 'viem'
-import { USDC, chains } from './config'
 import { shortAddress } from '#/ui/format'
-import { PairingQr } from './PairingQr'
 import { track } from '#/analytics/track'
+import { USDC, chains } from './config'
+import { PairingQr } from './PairingQr'
 
 const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
 

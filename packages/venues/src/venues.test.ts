@@ -5,8 +5,8 @@ import { VENUE_IDS } from '@tape/core/ids'
 import type { MarketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedFetch, wsFrames } from './fixtures'
-import { venues } from './index'
 import { toCandle, toLevels, toTrades } from './normalize'
+import { venues } from './index'
 
 const VENUES = venues('mainnet')
 

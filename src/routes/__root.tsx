@@ -2,15 +2,14 @@ import { HeadContent, Scripts, createRootRouteWithContext } from '@tanstack/reac
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
-import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
-
-import appCss from '../styles.css?url'
 import { WagmiProvider } from 'wagmi'
+import type { QueryClient } from '@tanstack/react-query'
 import { HubProvider } from '#/client/hooks'
 import { wagmiConfig } from '#/wallet/config'
 import { useErrorReports, usePageViews } from '#/analytics/track'
+import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
-import type { QueryClient } from '@tanstack/react-query'
+import appCss from '../styles.css?url'
 
 interface MyRouterContext {
   queryClient: QueryClient

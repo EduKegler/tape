@@ -3,10 +3,10 @@ import type { Hex } from 'viem'
 import { decimalsOf, parsePx, parseQty, plainDecimal, wireDecimal } from '@tape/core/fixed'
 import type { Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
+import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize } from '../intent'
 import { send } from '../send'
 import type { Classify } from '../send'
-import type { Network } from '@tape/core/ids'
 import { TradeFailure } from '../types'
 import type {
   AccountView,

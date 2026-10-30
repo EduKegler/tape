@@ -4,10 +4,8 @@ import { useConnection } from 'wagmi'
 import { UserRejectedRequestError } from 'viem'
 import type { Address } from 'viem'
 import type { VenueId } from '@tape/core/ids'
-import { NETWORK } from '#/site'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
-import { SITE_READ_ONLY, TRADE_CONFIG } from './config'
 import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
 import type {
   AccountRef,
@@ -23,10 +21,12 @@ import type {
   TradeVenueId,
   VenueContext,
 } from '@tape/trade/types'
-import { keySlot, subscribeVault } from './vault'
-import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
+import { commandResult, commandSent, report, track } from '#/analytics/track'
+import { NETWORK } from '#/site'
+import { keySlot, subscribeVault } from './vault'
+import { SITE_READ_ONLY, TRADE_CONFIG } from './config'
 
 export type TradeSession =
   | { readonly status: 'read-only'; readonly cause: 'venue-not-traded' | 'site-reads-only' }
