@@ -29,7 +29,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
         ref ? (
           <span className="flex items-center gap-2">
             <DepositButton account={ref} />
-            <span className="num text-[11px] text-level3">{ref.network}</span>
+            <span className="num text-xs text-level3">{ref.network}</span>
           </span>
         ) : null
       }
@@ -42,7 +42,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           leverage={session.status === 'ready' && session.capabilities.leverage}
         />
       ) : (
-        <div className="p-3 text-[12px] text-level3">{message(session)}</div>
+        <div className="p-3 text-sm text-level3">{message(session)}</div>
       )}
     </Panel>
   )
@@ -75,7 +75,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-[12px]">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-sm">
         <Segmented
           label="Account view"
           value={tab}
@@ -110,12 +110,10 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
             <TradeNote error={error} />
           </div>
         )}
-        {!view && !error && <p className="p-3 text-[12px] text-level3">Loading account…</p>}
-        {view?.kind === 'unknown' && (
-          <p className="p-3 text-[12px] text-level3">Enable trading to read this account.</p>
-        )}
+        {!view && !error && <p className="p-3 text-sm text-level3">Loading account…</p>}
+        {view?.kind === 'unknown' && <p className="p-3 text-sm text-level3">Enable trading to read this account.</p>}
         {view?.kind === 'empty' && (
-          <p className="p-3 text-[12px] text-level3">No account on this venue yet. Deposit to start.</p>
+          <p className="p-3 text-sm text-level3">No account on this venue yet. Deposit to start.</p>
         )}
         {closeError && (
           <div className="p-2">
@@ -182,9 +180,9 @@ function Table<T extends RowData>({
   empty: string
 }) {
   const table = useTable({ features, columns, data: rows })
-  if (rows.length === 0) return <p className="p-3 text-[12px] text-level3">{empty}</p>
+  if (rows.length === 0) return <p className="p-3 text-sm text-level3">{empty}</p>
   return (
-    <table className="num w-full text-[11px]">
+    <table className="num w-full text-xs">
       <thead>
         {table.getHeaderGroups().map((g) => (
           <tr key={g.id} className="h-6 text-level3">

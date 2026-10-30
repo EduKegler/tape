@@ -22,8 +22,8 @@ export function Trades({ market }: { market: MarketKey }) {
   })
   return (
     <Panel title="Trades">
-      <div className="num flex h-full flex-col text-[12px]">
-        <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-[11px] text-level3">
+      <div className="num flex h-full flex-col text-sm">
+        <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-xs text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
           <span className="w-16 text-right">Time</span>

@@ -16,10 +16,10 @@ export function TradeNote({
       <div
         role="alert"
         data-trade-error={error.kind}
-        className="rounded-sm border border-ask/40 p-2 text-[12px] text-level2"
+        className="rounded-sm border border-ask/40 p-2 text-sm text-level2"
       >
         <p className="text-ask">{title}</p>
-        {detail && <p className="num mt-1 text-[11px] break-all text-level3">{detail}</p>}
+        {detail && <p className="num mt-1 text-xs break-all text-level3">{detail}</p>}
         {lookup && <LookupLine lookup={lookup} />}
       </div>
     )
@@ -29,7 +29,7 @@ export function TradeNote({
       <p
         role="status"
         data-trade-outcome={outcome.kind}
-        className="num rounded-sm border border-rule p-2 text-[12px] text-level2"
+        className="num rounded-sm border border-rule p-2 text-sm text-level2"
       >
         {outcome.kind === 'placed' ? `Order ${outcome.status}. ` : ''}
         {outcome.detail}
@@ -52,7 +52,7 @@ function LookupLine({ lookup }: { lookup: Lookup }) {
   return (
     <p
       data-order-lookup={lookup.error ? 'error' : (lookup.result?.kind ?? 'pending')}
-      className="num mt-2 border-t border-rule pt-2 text-[11px] text-level2"
+      className="num mt-2 border-t border-rule pt-2 text-xs text-level2"
     >
       {text}
     </p>

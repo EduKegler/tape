@@ -27,11 +27,11 @@ export function Compare({ base, current }: { base: Base; current: VenueId }) {
   const table = useTable({ features, columns, data: rows })
   const navigate = useNavigate()
   return (
-    <Panel title="Venues" aside={<span className="text-[11px] text-level3">{base} · basis in bps</span>}>
-      <table className="num w-full text-[11px]">
+    <Panel title="Venues" aside={<span className="text-xs text-level3">{base} · basis in bps</span>}>
+      <table className="num w-full text-xs">
         <thead>
           {table.getHeaderGroups().map((g) => (
-            <tr key={g.id} className="h-6 text-[11px] text-level3">
+            <tr key={g.id} className="h-6 text-xs text-level3">
               {g.headers.map((h, i) => (
                 <th key={h.id} className={`font-normal ${i === 0 ? 'pl-3 text-left' : 'pr-3 text-right'}`}>
                   <table.FlexRender header={h} />

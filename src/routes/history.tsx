@@ -17,7 +17,7 @@ function HistoryRoute() {
     <div className="flex min-h-dvh flex-col lg:h-dvh">
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule px-4 py-2">
         <Brand />
-        <h1 className="font-display text-[17px] text-level1">History</h1>
+        <h1 className="font-display text-2xl text-level1">History</h1>
         <div className="ml-auto">
           <WalletButton />
         </div>

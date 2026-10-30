@@ -48,7 +48,7 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   const spec = specs.data?.get(base)
   const session = useTradeSession(venue)
   const aside = (
-    <span className="text-[11px] text-level3">
+    <span className="text-xs text-level3">
       {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
     </span>
   )
@@ -142,7 +142,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             type="button"
             aria-pressed={side === s}
             onClick={() => setSide(s)}
-            className={`rounded-full py-1 text-[13px] capitalize ${side === s ? (s === 'buy' ? 'bg-bid-wash text-bid' : 'bg-ask-wash text-ask') : 'text-level3'}`}
+            className={`rounded-full py-1 text-base capitalize ${side === s ? (s === 'buy' ? 'bg-bid-wash text-bid' : 'bg-ask-wash text-ask') : 'text-level3'}`}
           >
             {s}
           </button>
@@ -257,13 +257,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       {kind !== 'market' ? (
         <form.Field name="tif">
           {(field) => (
-            <label className="flex items-center justify-between text-[12px] text-level3">
+            <label className="flex items-center justify-between text-sm text-level3">
               Time in force
               <select
                 name="tif"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value as Tif)}
-                className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-[12px] text-level1"
+                className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-sm text-level1"
               >
                 {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
                   .filter((t) => kind !== 'scale' || t !== 'ioc')
@@ -281,7 +281,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       )}
       <form.Field name="reduceOnly">
         {(field) => (
-          <label className="flex items-center gap-2 text-[12px] text-level2">
+          <label className="flex items-center gap-2 text-sm text-level2">
             <input
               type="checkbox"
               name="reduceOnly"
@@ -293,7 +293,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         )}
       </form.Field>
       {caps?.triggers && kind !== 'scale' && (
-        <label className="flex items-center gap-2 text-[12px] text-level2">
+        <label className="flex items-center gap-2 text-sm text-level2">
           <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
           Take profit and stop loss
         </label>
@@ -330,7 +330,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
           return (
             <>
-              <dl className="num grid grid-cols-2 gap-y-1 text-[12px]">
+              <dl className="num grid grid-cols-2 gap-y-1 text-sm">
                 <dt className="text-level3">Notional</dt>
                 <dd className="text-right text-level1">{total}</dd>
                 {margin.status !== 'no-estimate' && (
@@ -383,7 +383,7 @@ function averageEntry(spec: MarketSpec, side: Side, legs: readonly Slice[]): Pre
 
 function ScaleLegs({ spec, legs }: { spec: MarketSpec; legs: readonly Slice[] }) {
   return (
-    <ol aria-label="Scale orders" className="num flex max-h-40 flex-col gap-0.5 overflow-y-auto text-[12px]">
+    <ol aria-label="Scale orders" className="num flex max-h-40 flex-col gap-0.5 overflow-y-auto text-sm">
       {legs.map((l) => (
         <li key={l.px} className="flex justify-between">
           <span className="text-level3">{formatPx(l.px, spec.scale)}</span>
@@ -427,7 +427,7 @@ function SubmitArea({
     <button
       type="submit"
       disabled={!canSubmit}
-      className={`rounded-full py-2 text-[13px] disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}
+      className={`rounded-full py-2 text-base disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}
     >
       {label}
     </button>
@@ -435,14 +435,12 @@ function SubmitArea({
   switch (session.status) {
     case 'read-only':
       return session.cause === 'venue-not-traded' ? (
-        <p className="text-[11px] leading-snug text-level3">
-          {venue} is read only in Tape. It never signs or sends an order here.
-        </p>
+        <p className="text-xs/snug text-level3">{venue} is read only in Tape. It never signs or sends an order here.</p>
       ) : (
         <SiteReadOnly />
       )
     case 'unavailable':
-      return <p className="text-[12px] text-level3">{session.reason}.</p>
+      return <p className="text-sm text-level3">{session.reason}.</p>
     case 'disconnected':
       return <WalletButton />
     case 'setup':
@@ -456,7 +454,7 @@ function SubmitArea({
       return (
         <>
           {button}
-          <button type="button" onClick={session.forget} className="self-end text-[11px] text-level3 hover:text-level1">
+          <button type="button" onClick={session.forget} className="self-end text-xs text-level3 hover:text-level1">
             Forget trading key on this device
           </button>
         </>
@@ -476,7 +474,7 @@ function MainnetWalletUsdc() {
 
 export function SiteReadOnly() {
   return (
-    <p className="text-[11px] leading-snug text-level3">
+    <p className="text-xs/snug text-level3">
       Mainnet is read only in Tape.{' '}
       {TESTNET_SITE && (
         <>
@@ -495,7 +493,7 @@ function SlippageField() {
   const value = useSelector(slippageBps, (s) => s)
   const options = [10, 50, 100, 300] as const
   return (
-    <div className="flex items-center justify-between text-[12px] text-level3">
+    <div className="flex items-center justify-between text-sm text-level3">
       Max slippage
       <Segmented
         label="Max slippage"
@@ -519,7 +517,7 @@ function Input(props: {
   const id = useId()
   // The hint can be a button, so it sits beside the label and not inside it.
   return (
-    <div className="flex flex-col gap-1 text-[12px]">
+    <div className="flex flex-col gap-1 text-sm">
       <div className="flex justify-between text-level3">
         <label htmlFor={id}>{props.label}</label>
         {props.hint}
@@ -534,7 +532,7 @@ function Input(props: {
         onBlur={props.onBlur}
         aria-invalid={Boolean(props.error)}
         aria-describedby={props.error ? `${id}-error` : undefined}
-        className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
+        className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
       />
       {props.error && (
         <span id={`${id}-error`} className="text-ask">

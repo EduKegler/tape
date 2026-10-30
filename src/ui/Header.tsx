@@ -21,7 +21,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             to="/$venue/$base"
             params={{ venue, base: b }}
             search={(s) => s}
-            className="rounded-full px-2.5 py-1 text-[13px] text-level3 hover:text-level1"
+            className="rounded-full px-2.5 py-1 text-base text-level3 hover:text-level1"
             activeProps={{ className: 'bg-level1/12 text-level1', 'aria-current': 'page' }}
           >
             {b}
@@ -38,14 +38,14 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             className="flex flex-col rounded-sm px-2 py-0.5 leading-tight text-level3 hover:text-level1"
             activeProps={{ className: 'bg-level1/8 text-level1', 'aria-current': 'page' }}
           >
-            <span className="text-[13px]">{VENUES[v].label}</span>
-            <span className="text-[10px] text-level3">{VENUES[v].chain}</span>
+            <span className="text-base">{VENUES[v].label}</span>
+            <span className="text-2xs text-level3">{VENUES[v].chain}</span>
           </Link>
         ))}
       </nav>
       <Ticker venue={venue} base={base} />
       <div className="ml-auto flex items-center gap-4">
-        <HistoryLink className="text-[13px] text-level3 hover:text-level1">History</HistoryLink>
+        <HistoryLink className="text-base text-level3 hover:text-level1">History</HistoryLink>
         <WalletButton />
       </div>
     </header>
@@ -54,10 +54,10 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
 
 export function Brand() {
   return (
-    <Link to="/" className="flex items-baseline gap-2 font-display text-[22px] leading-none text-level1">
+    <Link to="/" className="flex items-baseline gap-2 font-display text-3xl leading-none text-level1">
       Tape
       {NETWORK === 'testnet' && (
-        <span className="rounded-full bg-level1/12 px-2 py-0.5 font-sans text-[11px] text-level1">Testnet</span>
+        <span className="rounded-full bg-level1/12 px-2 py-0.5 font-sans text-xs text-level1">Testnet</span>
       )}
     </Link>
   )
@@ -72,11 +72,11 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
   const stats = useQuery(statsQuery(venue, base))
   const s = stats.data
   return (
-    <dl className="num flex items-baseline gap-5 text-[12px]">
+    <dl className="num flex items-baseline gap-5 text-sm">
       <div>
         <dt className="sr-only">Last price</dt>
         <dd
-          className={`text-[16px] ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+          className={`text-xl ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
         >
           {last.px || '—'}
         </dd>
@@ -96,7 +96,7 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
 function Stat({ label, value, tone = '' }: { label: string; value: string; tone?: string }) {
   return (
     <div className="flex flex-col leading-tight">
-      <dt className="font-sans text-[10px] text-level3">{label}</dt>
+      <dt className="font-sans text-2xs text-level3">{label}</dt>
       <dd className={tone || 'text-level2'}>{value}</dd>
     </div>
   )

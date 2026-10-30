@@ -62,14 +62,14 @@ export function WalletButton() {
                 setChosen(connector)
                 connect({ connector })
               }}
-              className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-ink-contrast disabled:opacity-50"
+              className="rounded-full bg-ink px-4 py-1.5 text-base text-ink-contrast disabled:opacity-50"
             >
               {isPending && chosen === connector ? 'Connecting…' : (LABEL[connector.type] ?? connector.name)}
             </button>
           ))}
         </div>
         {error && (
-          <p role="alert" className="text-[11px] text-level3">
+          <p role="alert" className="text-xs text-level3">
             {error instanceof ProviderNotFoundError
               ? `No wallet in this browser.${connectors.length > 1 ? ' Try WalletConnect.' : ''}`
               : error.message.split('\n')[0]}
@@ -88,7 +88,7 @@ export function WalletButton() {
         id="chain"
         value={chainId}
         onChange={(e) => switchChain({ chainId: Number(e.target.value) as (typeof chains)[number]['id'] })}
-        className="rounded-full border border-rule bg-panel px-2 py-1 text-[12px] text-level2"
+        className="rounded-full border border-rule bg-panel px-2 py-1 text-sm text-level2"
       >
         {chains.map((c) => (
           <option key={c.id} value={c.id}>
@@ -99,7 +99,7 @@ export function WalletButton() {
       <button
         type="button"
         onClick={() => disconnect()}
-        className="num rounded-full border border-rule px-3 py-1 text-[12px] text-level1 hover:border-level3"
+        className="num rounded-full border border-rule px-3 py-1 text-sm text-level1 hover:border-level3"
         title="Disconnect"
       >
         {shortAddress(address)}

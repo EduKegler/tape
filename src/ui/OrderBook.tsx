@@ -31,7 +31,7 @@ export function OrderBook({
     <Panel
       title="Order book"
       aside={
-        <label className="flex items-center gap-1.5 text-[12px] text-level3">
+        <label className="flex items-center gap-1.5 text-sm text-level3">
           Group
           <select
             value={head.group}
@@ -47,8 +47,8 @@ export function OrderBook({
         </label>
       }
     >
-      <div className="num flex h-full flex-col text-[12px] contain-strict" data-status={head.status}>
-        <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-[11px] text-level3">
+      <div className="num flex h-full flex-col text-sm contain-strict" data-status={head.status}>
+        <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-xs text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
           <span className="text-right">Total</span>
@@ -100,8 +100,8 @@ function Spread({ topic }: { topic: BookTopic }) {
   )
   return (
     <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="text-[14px] text-level1">{s.mid || '—'}</span>
-      <span className="text-[11px] whitespace-nowrap text-level3">
+      <span className="text-md text-level1">{s.mid || '—'}</span>
+      <span className="text-xs whitespace-nowrap text-level3">
         {s.status === 'live'
           ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`
           : s.status === 'stale'

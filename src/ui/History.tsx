@@ -94,7 +94,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   return (
     <main className="grid flex-1 gap-px p-px lg:min-h-0 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <Panel title="Accounts">
-        <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-[12px]">
+        <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-sm">
           <Addresses
             typed={{ wallet: search.address ?? '', dydx: search.dydx ?? '' }}
             fallback={{ wallet: connected?.toLowerCase() ?? null, dydx: derived }}
@@ -111,7 +111,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
               />
             ))}
           </ul>
-          <p className="text-[11px] leading-snug text-level3">
+          <p className="text-xs/snug text-level3">
             History is read from each venue&apos;s public API with no key. Realized PnL is before fees and funding, and
             net is realized minus fees plus funding. Days are UTC.
           </p>
@@ -141,7 +141,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
               type="button"
               onClick={exportCsv}
               disabled={fills.length + payments.length === 0}
-              className="rounded-full border border-rule px-2.5 py-0.5 text-[12px] text-level2 hover:text-level1 disabled:opacity-40"
+              className="rounded-full border border-rule px-2.5 py-0.5 text-sm text-level2 hover:text-level1 disabled:opacity-40"
             >
               Export CSV
             </button>
@@ -185,7 +185,7 @@ function Addresses({
           placeholder={fallback.wallet ?? '0x…'}
           spellCheck={false}
           aria-invalid={!walletOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-[11px] text-level1"
+          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
       <label className="flex flex-col gap-1 text-level3">
@@ -196,7 +196,7 @@ function Addresses({
           placeholder={fallback.dydx ?? 'dydx1…'}
           spellCheck={false}
           aria-invalid={!dydxOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-[11px] text-level1"
+          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
       <button
@@ -245,7 +245,7 @@ function VenueStatus({
             : 'Connect a wallet or paste an address.'}
         </p>
       )}
-      {address && <p className="num text-[11px] break-all text-level3">{address}</p>}
+      {address && <p className="num text-xs break-all text-level3">{address}</p>}
       {result.error && <TradeNote error={result.error.error} />}
       {h && (
         <p className="num text-level2">
@@ -253,7 +253,7 @@ function VenueStatus({
         </p>
       )}
       {h?.gaps.map((gap) => (
-        <p key={gap} className="text-[11px] leading-snug text-level3">
+        <p key={gap} className="text-xs/snug text-level3">
           {gap}
         </p>
       ))}
@@ -273,7 +273,7 @@ function Filters({
   set: (patch: Partial<HistorySearch>) => void
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-[12px]">
+    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-sm">
       <Segmented
         label="Venue"
         value={search.venue}
@@ -339,11 +339,10 @@ function Filters({
 const TOTALS_HEIGHT = 'h-36'
 
 function TotalsTable({ rows, first }: { rows: Totals[]; first: string }) {
-  if (rows.length === 0)
-    return <p className={`${TOTALS_HEIGHT} p-3 text-[12px] text-level3`}>Nothing in this period.</p>
+  if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>Nothing in this period.</p>
   return (
     <div className={`${TOTALS_HEIGHT} overflow-y-auto`}>
-      <table className="num w-full text-[11px]">
+      <table className="num w-full text-xs">
         <thead>
           <tr className="h-6 text-level3">
             <th className="pl-3 text-left font-normal">{first}</th>
@@ -401,7 +400,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
     overscan: 12,
   })
   return (
-    <div className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-[11px]">
+    <div className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-xs">
       <div role="row" className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-level3`}>
         <span role="columnheader">Time (UTC)</span>
         <span role="columnheader">Venue</span>
@@ -430,7 +429,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
         aria-label="History rows"
         className="min-h-0 min-w-240 flex-1 overflow-y-auto"
       >
-        {rows.length === 0 && <p className="px-3 py-2 font-sans text-[12px] text-level3">No fills or funding here.</p>}
+        {rows.length === 0 && <p className="px-3 py-2 font-sans text-sm text-level3">No fills or funding here.</p>}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
             const r = rows[item.index]

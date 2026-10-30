@@ -38,7 +38,7 @@ export function DepositButton({ account }: { account: AccountRef }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-full bg-ink px-3 py-0.5 text-[12px] font-medium text-ink-contrast hover:opacity-90"
+        className="rounded-full bg-ink px-3 py-0.5 text-sm font-medium text-ink-contrast hover:opacity-90"
       >
         Deposit
       </button>
@@ -58,15 +58,15 @@ function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue
     return () => removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60">
       <div
         role="dialog"
         aria-modal
         aria-labelledby={titleId}
-        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-lg border border-rule bg-panel p-4 text-[12px]"
+        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-lg border border-rule bg-panel p-4 text-sm"
       >
         <div className="flex items-center justify-between">
-          <h2 id={titleId} className="font-display text-[15px] text-level1">
+          <h2 id={titleId} className="font-display text-lg text-level1">
             Deposit USDC to {venue.destination}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-level3 hover:text-level1">
@@ -178,7 +178,7 @@ function DepositForm({
             setText(e.target.value.trim())
           }}
           aria-invalid={text !== '' && amount === null}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
+          className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
         />
         {text !== '' && amount === null && <span className="text-ask">A positive amount, at most 6 decimals.</span>}
       </div>
@@ -187,7 +187,7 @@ function DepositForm({
       <button
         type="submit"
         disabled={!quote.ready || send.isPending}
-        className="rounded-full bg-ink py-1.5 text-[13px] text-ink-contrast disabled:opacity-40"
+        className="rounded-full bg-ink py-1.5 text-base text-ink-contrast disabled:opacity-40"
       >
         {send.isPending
           ? 'Confirm in your wallet…'
@@ -309,7 +309,7 @@ function SendError({ error }: { error: Error }) {
             ? 'You declined in the wallet. Nothing was sent.'
             : 'The deposit was not sent.'}
       </p>
-      {failure.kind === 'failed' && <p className="num mt-1 text-[11px] break-all text-level3">{failure.detail}</p>}
+      {failure.kind === 'failed' && <p className="num mt-1 text-xs break-all text-level3">{failure.detail}</p>}
     </div>
   )
 }
