@@ -61,7 +61,7 @@ interface Request {
 
 const BINDING = '__tapeTestWallet'
 const EVENT = 'tape-test-wallet'
-/** EIP-1193 codes for a refusal and for an account the wallet does not hold. */
+/** EIP-1193 codes for a refusal, an account the wallet does not hold and a method it does not support. */
 const USER_REJECTED = 4001
 const UNAUTHORIZED = 4100
 const UNSUPPORTED = 4200
