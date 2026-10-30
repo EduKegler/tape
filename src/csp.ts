@@ -31,15 +31,16 @@ export const CONNECT: Record<Network, readonly string[]> = {
 
 const WALLETCONNECT = ['wss://relay.walletconnect.org']
 
+const connectSrc = (origins: readonly string[]) => `connect-src 'self' ${origins.join(' ')}`
+
 export function contentSecurityPolicy(nonce: string, network: Network, walletConnect: boolean): string {
-  const connect = [...CONNECT[network], ...(walletConnect ? WALLETCONNECT : [])]
   return [
     "default-src 'self'",
     // The dYdX client compiles WebAssembly. This allows that and still no eval.
     `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
-    `connect-src 'self' ${connect.join(' ')}`,
+    connectSrc([...CONNECT[network], ...(walletConnect ? WALLETCONNECT : [])]),
     `frame-src ${walletConnect ? 'https://verify.walletconnect.org' : "'none'"}`,
     "worker-src 'self'",
     "object-src 'none'",
@@ -47,4 +48,8 @@ export function contentSecurityPolicy(nonce: string, network: Network, walletCon
     "form-action 'self'",
     "frame-ancestors 'none'",
   ].join('; ')
+}
+
+export function workerSecurityPolicy(network: Network): string {
+  return ["default-src 'self'", connectSrc(CONNECT[network])].join('; ')
 }

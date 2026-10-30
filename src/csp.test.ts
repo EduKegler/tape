@@ -4,7 +4,7 @@ import type { Network } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { venues } from '@tape/venues/index'
 import { DEPOSITS } from '@tape/trade'
-import { CONNECT, contentSecurityPolicy } from './csp'
+import { CONNECT, contentSecurityPolicy, workerSecurityPolicy } from './csp'
 
 async function originsReached(network: Network) {
   const origins = new Set<string>()
@@ -25,6 +25,13 @@ async function originsReached(network: Network) {
   }
   return origins
 }
+
+const connectSrc = (policy: string) =>
+  policy
+    .split('; ')
+    .find((d) => d.startsWith('connect-src '))!
+    .split(' ')
+    .slice(1)
 
 describe('content security policy', () => {
   it.each(NETWORKS)('lets the %s page reach every venue it streams from', async (network) => {
@@ -69,5 +76,21 @@ describe('content security policy', () => {
     expect(directive(false, 'frame-src')).toBe("frame-src 'none'")
     expect(directive(true, 'connect-src')).toContain('wss://relay.walletconnect.org')
     expect(directive(true, 'frame-src')).toBe('frame-src https://verify.walletconnect.org')
+  })
+
+  it.each(NETWORKS)('lets the %s hub worker reach every venue it streams from', async (network) => {
+    const reached = await originsReached(network)
+    const allowed = connectSrc(workerSecurityPolicy(network))
+    expect([...reached].filter((o) => !allowed.includes(o))).toEqual([])
+  })
+
+  it.each(NETWORKS)('keeps the other network out of the %s hub worker', async (network) => {
+    const other = await originsReached(network === 'mainnet' ? 'testnet' : 'mainnet')
+    const allowed = connectSrc(workerSecurityPolicy(network))
+    expect(allowed.filter((o) => other.has(o))).toEqual([])
+  })
+
+  it.each(NETWORKS)('gives the %s hub worker no nonce, since its header is fixed at build time', (network) => {
+    expect(workerSecurityPolicy(network)).not.toContain('nonce')
   })
 })
