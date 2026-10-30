@@ -65,6 +65,7 @@ Before a venue ships, its tests prove these:
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
+| UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
 | The testnet build shows each venue's live book | the `smoke` job in `.github/workflows/nightly.yml` |
 | One logical change per commit | review only |

@@ -10,6 +10,7 @@ on:
       - scripts/record-fixtures.mjs
       - e2e/smoke.config.ts
       - e2e/live.smoke.ts
+      - playwright.config.ts
 
 permissions:
   contents: read
@@ -72,3 +73,29 @@ jobs:
         with:
           name: smoke-results
           path: e2e/results/smoke
+
+  browsers:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm e2e
+      - name: traces and screenshots of the failed journeys
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results-${{ matrix.browser }}
+          path: e2e/results
