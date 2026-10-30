@@ -183,4 +183,15 @@ describe('plainDecimal', () => {
     expect(plainDecimal('-2.5E+3')).toBe('-2500')
     expect(plainDecimal('100.50')).toBe('100.5')
   })
+
+  it('expands every number form JSON allows into a plain decimal, and refuses anything else as a DecimalError', () => {
+    expect(['1e5', '1e-10', '1e-1', '0.05e3', '1.2300e2'].map(plainDecimal)).toEqual([
+      '100000',
+      '0.0000000001',
+      '0.1',
+      '50',
+      '123',
+    ])
+    expect(() => plainDecimal('12,5')).toThrow(new DecimalError('12,5', 'syntax'))
+  })
 })
