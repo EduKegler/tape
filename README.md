@@ -104,7 +104,7 @@ The tests replay recorded history of public mainnet accounts in `packages/trade/
 - Trading was verified on testnets with an unfunded wallet, so the proof is each venue naming the signer it recovered. Orderly orders past registration and mainnet are not verified.
 - No take profit or stop loss on dYdX and Orderly, and no leverage change on dYdX.
 - Deposits go to Hyperliquid only. Tape never sent one in verification: the proof is the transaction the wallet was asked for, and real deposits by other wallets replayed through the receipt.
-- Deposit gas shows in the chain's native token, without USD, and leaves out the L1 data fee on Base and OP Mainnet.
+- Deposit gas shows in the chain's native token, without USD.
 - History has no deposits, withdrawals, transfers or vaults. Hyperliquid serves only its 10,000 most recent fills, dYdX's indexer pages through 25,000 fills, and only dYdX subaccount 0 is read.
 
 ## History CSV

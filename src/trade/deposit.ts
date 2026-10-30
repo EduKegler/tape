@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBalance, useBytecode, useConnection, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
-import { estimateGas, waitForTransactionReceipt } from 'wagmi/actions'
+import { estimateGas, getPublicClient, waitForTransactionReceipt } from 'wagmi/actions'
 import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
-import type { Address, Hex } from 'viem'
+import type { Address, Chain, Client, Hex, Transport } from 'viem'
+import { estimateL1Fee } from 'viem/op-stack'
 import { DEPOSITS } from '@tape/trade'
 import { blocksDeposit, depositIssues } from '@tape/trade/deposit'
 import type { DepositCall, DepositFee, DepositIssue, DepositProgress, DepositRoute } from '@tape/trade/deposit'
@@ -50,7 +51,7 @@ export interface DepositQuote {
   readonly fee: DepositFee | null
   readonly feeError: boolean
   readonly calls: readonly DepositCall[] | null
-  /** Wei for every call, at the chain's max fee per gas. */
+  /** Wei for every call, at the chain's max fee per gas, plus the L1 data fee on Base and OP Mainnet. */
   readonly gasCost: bigint | null
   readonly issues: readonly DepositIssue[]
   /** Every reading is in and nothing blocks. */
@@ -71,7 +72,15 @@ async function estimateCalls(chainId: ChainId, owner: Address, calls: readonly D
       gas.push(call.gasFallback)
     }
   }
-  return { gas, rejected }
+  return { gas, l1Fee: await l1DataFee(chainId, owner, calls), rejected }
+}
+
+/** OP Stack chains such as Base and OP Mainnet charge each transaction an L1 data fee on top of its gas. */
+async function l1DataFee(chainId: ChainId, owner: Address, calls: readonly DepositCall[]) {
+  const client = getPublicClient(wagmiConfig, { chainId }) as Client<Transport, Chain>
+  if (!client.chain.contracts?.gasPriceOracle) return 0n
+  const fees = await Promise.all(calls.map((c) => estimateL1Fee(client, { account: owner, to: c.to, data: c.data })))
+  return fees.reduce((a, b) => a + b, 0n)
 }
 
 export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bigint | null): DepositQuote {
@@ -114,7 +123,8 @@ export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bi
     }),
   )
   const maxFeePerGas = gasPrice.data?.maxFeePerGas ?? gasPrice.data?.gasPrice
-  const gasCost = gas.data && maxFeePerGas ? gas.data.gas.reduce((a, b) => a + b, 0n) * maxFeePerGas : null
+  const gasCost =
+    gas.data && maxFeePerGas ? gas.data.gas.reduce((a, b) => a + b, 0n) * maxFeePerGas + gas.data.l1Fee : null
   const readings = {
     usdc: usdc.data ?? null,
     native: native.data?.value ?? null,

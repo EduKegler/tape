@@ -92,7 +92,7 @@ export interface DepositReadings {
   /** Bytecode at the owner. EIP-7702 delegations start 0xef0100 and stay plain accounts. */
   readonly code: Hex | null
   readonly fee: DepositFee | null
-  /** Wei for every call, at the chain's max fee per gas. */
+  /** Wei for every call, at the chain's max fee per gas, plus the L1 data fee where the chain charges one. */
   readonly gasCost: bigint | null
   /** The revert reason the chain gives when it simulates the first call. Null when it passes or is unknown. */
   readonly rejected: string | null
