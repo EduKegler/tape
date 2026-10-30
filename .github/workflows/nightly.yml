@@ -8,6 +8,9 @@ on:
     paths:
       - .github/workflows/nightly.yml
       - scripts/record-fixtures.mjs
+      - e2e/smoke.config.ts
+      - e2e/live.smoke.ts
+      - playwright.config.ts
 
 permissions:
   contents: read
@@ -18,6 +21,11 @@ jobs:
       fail-fast: false
       matrix:
         network: [mainnet, testnet]
+        venue: [binance, hyperliquid, dydx, orderly]
+        exclude:
+          # Binance refuses testnet REST from GitHub's runners: 451, restricted location.
+          - network: testnet
+            venue: binance
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -30,13 +38,64 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: record two minutes of every venue
-        run: node scripts/record-fixtures.mjs 120
-      - name: replay the recording through the venue parsers and the book
-        run: pnpm exec vitest run packages/venues
-      - name: the recording the parsers failed on
+      - name: record two minutes of the venue
+        run: node scripts/record-fixtures.mjs 120 ${{ matrix.venue }}
+      - name: replay the recording through the venue parser and the book
+        run: pnpm exec vitest run packages/venues -t "^${{ matrix.venue }} adapter"
+      - name: the recording the parser failed on
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: recording-${{ matrix.network }}
-          path: packages/venues/src/__fixtures__
+          name: recording-${{ matrix.network }}-${{ matrix.venue }}
+          path: packages/venues/src/__fixtures__/${{ matrix.venue }}.*
+
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: build the testnet site
+        run: pnpm build
+        env:
+          VITE_NETWORK: testnet
+      - name: wait for each venue's live testnet book
+        run: pnpm exec playwright test -c e2e/smoke.config.ts
+      - name: traces and screenshots of the venues that never went live
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-results
+          path: e2e/results/smoke
+
+  browsers:
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm e2e
+      - name: traces and screenshots of the failed journeys
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results-${{ matrix.browser }}
+          path: e2e/results
