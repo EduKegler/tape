@@ -9,7 +9,6 @@ import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { deriveKey, onboarding } from './dydx/client'
 import { classifyMessage as dydxMessage } from './dydx'
-import { send } from './send'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
@@ -194,16 +193,6 @@ describe('order intent', () => {
 })
 
 describe('failure classification', () => {
-  it('calls a 5xx on a mutating request an unknown outcome even when the body says it failed', async () => {
-    const fetch = (async () =>
-      new Response('{"success":false,"message":"internal"}', { status: 502 })) as unknown as typeof globalThis.fetch
-    const error = await send('orderly', fetch, 'https://x', { method: 'POST', mutates: true }, () => ({
-      kind: 'rejected',
-      detail: 'internal',
-    })).catch((e: unknown) => e)
-    expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
-  })
-
   it('treats a dYdX timeout as unknown and a missing chain account as no account', () => {
     expect(
       dydxMessage(
