@@ -412,3 +412,27 @@ describe('dydx checks before signing', () => {
     expect(chain.placeOrder).not.toHaveBeenCalled()
   })
 })
+
+describe('dydx cancel all', () => {
+  it('cancels every open dYdX order on the market and only that market', async () => {
+    const order = { side: 'BUY', size: '0.001', price: '79000', type: 'LIMIT', reduceOnly: false }
+    const { urls, ctx: open } = indexer(() => [
+      { ...order, id: 'a', clientId: '11', clobPairId: '0', ticker: 'BTC-USD', orderFlags: '64' },
+      { ...order, id: 'b', clientId: '12', clobPairId: '1', ticker: 'ETH-USD', orderFlags: '64' },
+      { ...order, id: 'c', clientId: '13', clobPairId: '0', ticker: 'BTC-USD', orderFlags: '0', goodTilBlock: '30' },
+    ])
+    chain.reply = { code: 0, hash: 'A1' }
+    expect(await dydx.execute(open, { kind: 'cancel-all', symbol: 'BTC-USD' })).toEqual({
+      kind: 'done',
+      detail: 'Canceled 2',
+    })
+    expect(chain.cancelOrder.mock.calls.map((call) => call.slice(1, 4))).toEqual([
+      [11, 64, 0],
+      [13, 0, 0],
+    ])
+    expect(urls[0]).toContain('status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED')
+    expect(await failure(dydx.execute(locked, { kind: 'cancel-all', symbol: 'BTC-USD' }))).toMatchObject({
+      kind: 'needs-setup',
+    })
+  })
+})
