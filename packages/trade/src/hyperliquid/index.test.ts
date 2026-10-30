@@ -306,3 +306,57 @@ describe('hyperliquid market orders without exits', () => {
     expect(posts()).toEqual([])
   })
 })
+
+describe('hyperliquid account sides', () => {
+  // The recorded history.hyperliquid.json frame has a side B fill as Open Long and a long with a positive szi.
+  it('reads a long position, a sell order and a buy fill in the venue shapes', async () => {
+    const position = (coin: string, szi: string, liquidationPx: string) => ({
+      position: {
+        coin,
+        szi,
+        entryPx: '80100.0',
+        unrealizedPnl: '1.5',
+        liquidationPx,
+        leverage: { type: 'cross', value: 5 },
+      },
+    })
+    const order = (coin: string, oid: number) => ({
+      coin,
+      side: 'A',
+      limitPx: '90000.0',
+      sz: '0.02',
+      oid,
+      timestamp: 1793248070251,
+      orderType: 'Limit',
+      reduceOnly: true,
+      isTrigger: false,
+      triggerPx: '0.0',
+    })
+    const answers: Record<string, unknown> = {
+      meta: testnetMeta,
+      clearinghouseState: {
+        marginSummary: { accountValue: '1008.5' },
+        withdrawable: '900.25',
+        assetPositions: [position('BTC', '0.02', '40000.5'), position('ETH', '0.5', '3100.123456789')],
+      },
+      frontendOpenOrders: [order('BTC', 589008353129), order('ETH', 589008353130)],
+      userFills: [{ coin: 'BTC', px: '80100.0', sz: '0.02', side: 'B', time: 1793248071468, fee: '0.36', tid: 1 }],
+    }
+    const { ctx } = venue(() => statuses([]))
+    const view = await hyperliquid.account({
+      ...ctx,
+      fetch: (async (_url: string, init?: RequestInit) =>
+        json(answers[(JSON.parse(init?.body as string) as { type: string }).type] ?? null)) as typeof globalThis.fetch,
+    })
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.positions.map((p) => [p.symbol, p.side, p.size, p.liquidation])).toEqual([
+      ['BTC', 'long', '0.02', '40000.5'],
+      ['ETH', 'long', '0.5', '3100.123457'],
+    ])
+    const [btcOrder, ethOrder] = view.snapshot.orders
+    expect([btcOrder?.ref, btcOrder?.side]).toEqual(['3:589008353129', 'sell'])
+    expect(ethOrder?.side).toBe('sell')
+    expect(ethOrder?.ref).toMatch(/:589008353130$/)
+    expect(view.snapshot.fills.map((f) => f.side)).toEqual(['buy'])
+  })
+})
