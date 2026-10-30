@@ -12,6 +12,7 @@ dist-ssr
 __unconfig*
 todos.json
 .vercel
+.claude/launch.json
 
 docs/research/
 docs/decisions/
