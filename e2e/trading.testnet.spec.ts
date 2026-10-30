@@ -301,6 +301,31 @@ test('a write that times out shows an unknown outcome and asks the venue by clie
   expect(asked).toEqual([order?.orders?.[0]?.c])
 })
 
+test('while the venue is asked about a timed out order, the ticket sends nothing', async ({ page, wallet }) => {
+  const { hyperliquid, ticket } = await enable(page, wallet)
+  hyperliquid.exchange = () => ({ abort: 'timedout' })
+  const status = deferred<unknown>()
+  const asked: string[] = []
+  hyperliquid.orderStatus = (cloid) => {
+    asked.push(cloid)
+    return status.promise
+  }
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  await buy.click()
+
+  await expect(ticket.getByRole('alert')).toContainText('Asking the venue for this order…')
+  await expect.poll(() => asked).toHaveLength(1)
+  await expect(buy).toBeDisabled()
+  await ticket.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit())
+  expect(orders(hyperliquid.sent)).toHaveLength(1)
+
+  status.resolve({ status: 'unknownOid' })
+  await expect(ticket.getByRole('alert')).toContainText('The venue does not show this order.')
+  await expect(buy).toBeEnabled()
+})
+
 test('an account switch with the ticket open sends nothing for the old account', async ({ page, wallet }) => {
   const { hyperliquid, ticket } = await enable(page, wallet)
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
