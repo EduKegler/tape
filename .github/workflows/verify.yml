@@ -18,11 +18,24 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: trees verified by earlier runs of the pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v6
+        with:
+          path: .git/tape-verified-trees
+          key: verified-trees-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: verified-trees-
       - name: pnpm verify on each commit of the pull request and its merge
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.base_ref }}
         run: pnpm verify:commits "origin/$BASE"
+      - name: keep the trees this run verified
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/cache/save@v6
+        with:
+          path: .git/tape-verified-trees
+          key: verified-trees-${{ github.run_id }}-${{ github.run_attempt }}
       - name: pnpm verify
         if: github.event_name == 'push'
         run: pnpm verify
