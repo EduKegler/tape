@@ -18,6 +18,11 @@ jobs:
       fail-fast: false
       matrix:
         network: [mainnet, testnet]
+        venue: [binance, hyperliquid, dydx, orderly]
+        exclude:
+          # Binance refuses testnet REST from GitHub's runners: 451, restricted location.
+          - network: testnet
+            venue: binance
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -30,13 +35,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: record two minutes of every venue
-        run: node scripts/record-fixtures.mjs 120
-      - name: replay the recording through the venue parsers and the book
-        run: pnpm exec vitest run packages/venues
-      - name: the recording the parsers failed on
+      - name: record two minutes of the venue
+        run: node scripts/record-fixtures.mjs 120 ${{ matrix.venue }}
+      - name: replay the recording through the venue parser and the book
+        run: pnpm exec vitest run packages/venues -t "^${{ matrix.venue }} adapter"
+      - name: the recording the parser failed on
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: recording-${{ matrix.network }}
-          path: packages/venues/src/__fixtures__
+          name: recording-${{ matrix.network }}-${{ matrix.venue }}
+          path: packages/venues/src/__fixtures__/${{ matrix.venue }}.*
