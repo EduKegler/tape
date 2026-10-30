@@ -30,6 +30,7 @@ test('grouping the book rounds every price to the group and writes it into the U
   const prices = await rowPrices(book)
   expect(prices.length).toBeGreaterThan(0)
   expect(prices.filter((px) => px % 10 !== 0)).toEqual([])
+  await expectAccessible(page)
 })
 
 test('clicking the best bid puts its price into the ticket', async ({ page }) => {
