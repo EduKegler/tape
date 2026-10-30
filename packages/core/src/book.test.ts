@@ -70,6 +70,18 @@ describe('rest-snapshot-sequenced (Binance)', () => {
     expect(bestBid(visibleBook(steps[3]!.sync)!)).toBe(100)
   })
 
+  it('after a reset waits for a diff, then asks for the snapshot under a new epoch', () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [11, 11]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+      { kind: 'reset', reason: 'corrupt' },
+      delta([lv(100, 7)], [], [20, 21]),
+    ])
+    expect(steps[2]!.effect).toEqual({ kind: 'none' })
+    expect(steps[2]!.sync.phase).toBe('awaiting-snapshot')
+    expect(steps[3]!.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
+  })
+
   it('ignores a snapshot from an older epoch', () => {
     const steps = run('rest-snapshot-sequenced', [
       delta([lv(100, 5)], [], [11, 11]),
