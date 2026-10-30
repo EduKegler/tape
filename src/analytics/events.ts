@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { VENUE_IDS } from '@tape/core/ids'
 import type { Command, StepId, Tif, TradeError } from '@tape/trade/types'
+import { MAX_EVENTS } from './beacon'
+import { CHUNK_ID } from './exception'
 
 /** Keyed records so a new step or error kind fails the build until it is listed here. */
 const STEPS = {
@@ -39,6 +41,17 @@ const error = z.enum(keys(ERRORS))
 const command = z.enum(keys(COMMANDS))
 const connector = z.enum(['injected', 'walletConnect', 'other'])
 
+const frame = z.strictObject({
+  file: z
+    .url({ protocol: /^https?$/ })
+    .max(300)
+    .regex(/^[^?#]*$/),
+  fn: z.string().max(100),
+  line: z.number().int().nonnegative(),
+  col: z.number().int().nonnegative(),
+  chunk: z.string().regex(CHUNK_ID).optional(),
+})
+
 /** Every event the page may send, with every property it may carry. Nothing else reaches PostHog. */
 export const AppEvent = z.discriminatedUnion('event', [
   z.strictObject({
@@ -75,6 +88,15 @@ export const AppEvent = z.discriminatedUnion('event', [
     error: error.optional(),
   }),
   z.strictObject({ event: z.literal('order_lookup'), venue, found: z.boolean() }),
+  /** PostHog error tracking reads frames oldest call first. */
+  z.strictObject({
+    event: z.literal('$exception'),
+    type: z.string().max(100),
+    value: z.string().max(500),
+    handled: z.boolean(),
+    source: z.enum(['window', 'promise', 'router', 'trade', 'hub']),
+    frames: z.array(frame).min(1).max(20),
+  }),
 ])
 export type AppEvent = z.infer<typeof AppEvent>
 
@@ -84,6 +106,6 @@ export const Batch = z.strictObject({
   events: z
     .array(z.tuple([z.number().int().positive(), AppEvent]))
     .min(1)
-    .max(50),
+    .max(MAX_EVENTS),
 })
 export type Batch = z.infer<typeof Batch>

@@ -2,10 +2,11 @@ import { useEffect } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import type { VenueId } from '@tape/core/ids'
 import type { Command, CommandOutcome, TradeError } from '@tape/trade/types'
+import { pack } from './beacon'
 import type { AppEvent, Batch } from './events'
+import { createReporter } from './exception'
 
 const FLUSH_MS = 5_000
-const MAX_EVENTS = 50
 const MAX_PATH = 200
 
 /** A UUIDv7, which PostHog reads the session start from. Lives in memory, so a reload is a new session. */
@@ -25,11 +26,9 @@ let timer: ReturnType<typeof setTimeout> | null = null
 function flush() {
   if (timer) clearTimeout(timer)
   timer = null
-  while (queue.length && session) {
-    const batch: Batch = { session, events: queue.slice(0, MAX_EVENTS) }
-    queue = queue.slice(MAX_EVENTS)
-    navigator.sendBeacon('/r1', JSON.stringify(batch))
-  }
+  if (!session) return
+  for (const body of pack(session, queue)) navigator.sendBeacon('/r1', body)
+  queue = []
 }
 
 export function track(event: AppEvent) {
@@ -55,6 +54,22 @@ export function usePageViews() {
   useEffect(() => {
     track(pageview(path, session ? '' : document.referrer, location.origin))
   }, [path])
+}
+
+export const report = createReporter(track)
+
+/** TanStack Router hands render errors to the route boundary and `defaultOnCatch`, not to `window`. */
+export function useErrorReports() {
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => report(e.error, 'window', false)
+    const onRejection = (e: PromiseRejectionEvent) => report(e.reason, 'promise', false)
+    addEventListener('error', onError)
+    addEventListener('unhandledrejection', onRejection)
+    return () => {
+      removeEventListener('error', onError)
+      removeEventListener('unhandledrejection', onRejection)
+    }
+  }, [])
 }
 
 export function commandSent(venueId: VenueId, c: Command): AppEvent {

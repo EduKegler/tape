@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { MAX_BODY, pack } from './beacon'
 import { ingest, readEnv } from './ingest'
 import { commandResult, commandSent, pageview, uuidv7 } from './track'
-import type { Batch } from './events'
+import type { AppEvent, Batch } from './events'
 import type { Command, OrderIntent } from '@tape/trade/types'
 
 const SITE = 'https://tape.kegler.dev'
@@ -168,6 +169,108 @@ describe('analytics ingest', () => {
     expect((await ingest(beacon({ session, events }), 'mainnet', ENV, send)).status).toBe(204)
     expect(sent[0]!.body.batch[0]!.properties).toMatchObject({ side: 'sell', order: 'market', reduce_only: true })
     expect(sent[0]!.body.batch[0]!.properties).not.toHaveProperty('tif')
+  })
+
+  it('forwards an exception in the shape PostHog error tracking reads', async () => {
+    const { sent, send } = recorder()
+    const exception: AppEvent = {
+      event: '$exception',
+      type: 'TypeError',
+      value: 'level without price',
+      handled: false,
+      source: 'window',
+      frames: [
+        { file: 'https://cdn.wallet.example/inject.js', fn: 'request', line: 2, col: 10 },
+        {
+          file: `${SITE}/assets/index-DvMkFl2s.js`,
+          fn: 'e',
+          line: 1,
+          col: 1020,
+          chunk: '437b5dd7-1ce0-52dc-9602-3c07b1b25a59',
+        },
+      ],
+    }
+    expect((await ingest(beacon({ session, events: [[now, exception]] }), 'mainnet', ENV, send)).status).toBe(204)
+    expect(sent[0]!.body.batch[0]).toEqual({
+      event: '$exception',
+      timestamp: new Date(now).toISOString(),
+      properties: {
+        $exception_list: [
+          {
+            type: 'TypeError',
+            value: 'level without price',
+            mechanism: { handled: false, synthetic: false },
+            stacktrace: {
+              type: 'raw',
+              frames: [
+                {
+                  platform: 'web:javascript',
+                  filename: 'https://cdn.wallet.example/inject.js',
+                  function: 'request',
+                  lineno: 2,
+                  colno: 10,
+                  in_app: false,
+                },
+                {
+                  platform: 'web:javascript',
+                  filename: `${SITE}/assets/index-DvMkFl2s.js`,
+                  function: 'e',
+                  lineno: 1,
+                  colno: 1020,
+                  chunk_id: '437b5dd7-1ce0-52dc-9602-3c07b1b25a59',
+                  in_app: true,
+                },
+              ],
+            },
+          },
+        ],
+        exception_source: 'window',
+        distinct_id: session,
+        $session_id: session,
+        $process_person_profile: false,
+        network: 'mainnet',
+      },
+    })
+  })
+
+  it.each([
+    ['a frame with a query string', { file: `${SITE}/assets/a.js?token=abc`, fn: 'f', line: 1, col: 1 }],
+    ['a frame from an extension', { file: 'chrome-extension://abc/inpage.js', fn: 'f', line: 1, col: 1 }],
+    ['a chunk id that is not a UUID', { file: `${SITE}/assets/a.js`, fn: 'f', line: 1, col: 1, chunk: 'x' }],
+  ])('rejects an exception with %s', async (_, frame) => {
+    const exception = {
+      event: '$exception',
+      type: 'Error',
+      value: 'x',
+      handled: true,
+      source: 'trade',
+      frames: [frame],
+    }
+    const res = await ingest(beacon({ session, events: [[now, exception]] }), 'mainnet', ENV, recorder().send)
+    expect(res.status).toBe(400)
+  })
+
+  it('delivers every queued event when large exceptions share the queue with the funnel', async () => {
+    const frame = { file: `${SITE}/assets/${'a'.repeat(265)}.js`, fn: '\u0000'.repeat(100), line: 1, col: 1 }
+    const exception: AppEvent = {
+      event: '$exception',
+      type: 'E'.repeat(100),
+      value: '"'.repeat(500),
+      handled: false,
+      source: 'hub',
+      frames: Array.from({ length: 20 }, () => frame),
+    }
+    const funnel: AppEvent = { event: 'trading_enabled', venue: 'dydx' }
+    const queue: Batch['events'] = Array.from({ length: 120 }, (_, i) => [now + i, i % 4 ? funnel : exception])
+    const bodies = pack(session, queue)
+    const forwarded: string[] = []
+    for (const body of bodies) {
+      expect(body.length).toBeLessThanOrEqual(MAX_BODY)
+      const { sent, send } = recorder()
+      expect((await ingest(beacon(body), 'mainnet', ENV, send)).status).toBe(204)
+      forwarded.push(...sent[0]!.body.batch.map((e) => e.event))
+    }
+    expect(forwarded).toEqual(queue.map(([, e]) => e.event))
   })
 
   it('rejects a beacon with no origin', async () => {

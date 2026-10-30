@@ -1,4 +1,5 @@
 import { throttle } from '@tanstack/pacer'
+import type { ExceptionEvent } from '#/analytics/exception'
 import { initialSync, stepBook } from '@tape/core/book'
 import type { BookInput, BookSync } from '@tape/core/book'
 import { DecimalError } from '@tape/core/fixed'
@@ -20,6 +21,7 @@ import type { ConnEffect, ConnEvent, ConnState } from './connection'
 
 export interface Hub {
   connect: (port: HubPort) => void
+  report: (event: ExceptionEvent) => void
   inspect: () => HubInspection
   dispose: () => void
 }
@@ -111,6 +113,7 @@ export function createHub(deps: HubDeps): Hub {
   let messages = 0
   let framesPosted = 0
   let reconcileQueued = false
+  const unreported: ExceptionEvent[] = []
 
   const market = (key: MarketKey): MarketState => {
     let m = markets.get(key)
@@ -439,6 +442,12 @@ export function createHub(deps: HubDeps): Hub {
     queueReconcile()
   }
 
+  function sendReports(): void {
+    const tab = [...tabs.values()].find((t) => t.visible) ?? tabs.values().next().value
+    if (!tab) return
+    for (const event of unreported.splice(0)) tab.port.post({ t: 'exception', event })
+  }
+
   let lastMessages = 0
   let lastFrames = 0
   const timer = setInterval(() => {
@@ -468,6 +477,7 @@ export function createHub(deps: HubDeps): Hub {
           const tab = id
           tabs.set(tab, { port, wants: new Map(), visible: msg.visible, sent: new Map() })
           void deps.watchTabGone(tab).then(() => dropTab(tab))
+          sendReports()
           return
         }
         const tab = id ? tabs.get(id) : undefined
@@ -489,6 +499,10 @@ export function createHub(deps: HubDeps): Hub {
             return
         }
       })
+    },
+    report(event) {
+      unreported.push(event)
+      sendReports()
     },
     inspect() {
       return {

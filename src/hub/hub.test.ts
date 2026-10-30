@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExceptionEvent } from '#/analytics/exception'
 import type { TabId } from '@tape/core/ids'
 import { marketKey } from '@tape/core/ids'
 import type { HubToTab, TabToHub } from '#/core/protocol'
@@ -52,21 +53,23 @@ function setup({ openAtOnce = true } = {}) {
 function tab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
   const posted: Frame[] = []
+  const exceptions: ExceptionEvent[] = []
   let deliver: (data: unknown) => void = () => {}
   hub.connect({
     post: (m: HubToTab) => {
-      if (m.t !== 'frames') return
-      for (const f of structuredClone(m.frames)) {
-        frames.set(f.key, f)
-        posted.push(f)
-      }
+      if (m.t === 'frames')
+        for (const f of structuredClone(m.frames)) {
+          frames.set(f.key, f)
+          posted.push(f)
+        }
+      if (m.t === 'exception') exceptions.push(structuredClone(m.event))
     },
     listen: (fn) => (deliver = fn),
     close: () => {},
   })
   const send = (m: TabToHub) => deliver(structuredClone(m))
   send({ t: 'hello', tab: id as TabId, visible })
-  return { frames, posted, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
+  return { frames, posted, exceptions, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
 }
 
 function replay(sockets: FakeSocket[]) {
@@ -301,6 +304,26 @@ describe('hub', () => {
     a.want([bookTopic(btc('dydx'))])
     await vi.advanceTimersByTimeAsync(500)
     expect(liveSince(a.posted, from)).toEqual([])
+    hub.dispose()
+  })
+
+  it('hands each worker error to one tab, and holds it until a tab says hello', async () => {
+    const { hub } = setup()
+    const error = (value: string): ExceptionEvent => ({
+      event: '$exception',
+      type: 'TypeError',
+      value,
+      handled: false,
+      source: 'hub',
+      frames: [{ file: 'https://tape.kegler.dev/assets/worker-abc.js', fn: 'apply', line: 1, col: 10 }],
+    })
+    hub.report(error('before any tab'))
+    const a = tab(hub, 'a', false)
+    const b = tab(hub, 'b')
+    hub.report(error('with two tabs'))
+    await vi.advanceTimersByTimeAsync(50)
+    expect(a.exceptions.map((e) => e.value)).toEqual(['before any tab'])
+    expect(b.exceptions.map((e) => e.value)).toEqual(['with two tabs'])
     hub.dispose()
   })
 })

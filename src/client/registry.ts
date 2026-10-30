@@ -1,6 +1,7 @@
 import { batch, createStore } from '@tanstack/store'
 import type { Store } from '@tanstack/store'
 import type { TabId, TopicKey } from '@tape/core/ids'
+import type { ExceptionEvent } from '#/analytics/exception'
 import type { HubMode, HubStats, HubToTab, TabToHub } from '#/core/protocol'
 import { topicKey } from '#/core/topics'
 import type { Frame, FrameOf, Topic } from '#/core/topics'
@@ -37,7 +38,11 @@ export interface Lifecycle {
   onPageRestore: (fn: () => void) => void
 }
 
-export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClient {
+export function createRegistry(
+  connect: () => TabPort,
+  life: Lifecycle,
+  report: (event: ExceptionEvent) => void,
+): HubClient {
   const entries = new Map<TopicKey, Entry>()
   const pending = new Map<TopicKey, Frame>()
   const stats = createStore<HubStats | null>(null)
@@ -76,6 +81,7 @@ export function createRegistry(connect: () => TabPort, life: Lifecycle): HubClie
     const tab = life.newTabId()
     port.listen((m) => {
       if (m.t === 'stats') stats.setState(() => m.stats)
+      if (m.t === 'exception') report(m.event)
       if (m.t !== 'frames') return
       for (const f of m.frames) if (entries.get(f.key)?.refs) pending.set(f.key, f)
       if (!rafScheduled && pending.size) {

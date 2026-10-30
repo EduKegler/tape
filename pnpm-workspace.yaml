@@ -2,6 +2,8 @@ packages:
   - packages/*
 
 allowBuilds:
+  # Downloads the posthog-cli binary that uploads source maps.
+  '@posthog/cli': true
   esbuild: true
   lightningcss: true
 
