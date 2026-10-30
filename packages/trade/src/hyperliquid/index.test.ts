@@ -239,3 +239,33 @@ describe('hyperliquid cancels', () => {
     expect(none.posts()).toEqual([])
   })
 })
+
+describe('hyperliquid exits', () => {
+  const bracket = { kind: 'market', price: '', takeProfit: '82000', stopLoss: '78000' }
+  const filled = { filled: { totalSz: '0.001', avgPx: '80010' } }
+
+  it('keeps the order when Hyperliquid refuses its stop loss, and names the leg', async () => {
+    const both = venue(() => statuses([filled, 'waitingForTrigger', 'waitingForTrigger']))
+    expect(await hyperliquid.execute(both.ctx, place(bracket))).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: 'Filled 0.001 at 80010',
+    })
+
+    const noStop = venue(() => statuses([filled, 'waitingForTrigger', { error: 'Invalid TP/SL price.' }]))
+    expect(await hyperliquid.execute(noStop.ctx, place(bracket))).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: 'Filled 0.001 at 80010. SL not placed: Invalid TP/SL price.',
+    })
+
+    const noTarget = venue(() =>
+      statuses([{ resting: { oid: 7 } }, { error: 'Invalid TP/SL price.' }, 'waitingForTrigger']),
+    )
+    expect(await hyperliquid.execute(noTarget.ctx, place({ ...bracket, kind: 'limit', price: '80000' }))).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Resting as order 7. TP not placed: Invalid TP/SL price.',
+    })
+  })
+})
