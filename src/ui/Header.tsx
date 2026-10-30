@@ -12,12 +12,7 @@ import { statsQuery } from './queries'
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
   return (
     <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule px-4 py-2">
-      <Link to="/" className="flex items-baseline gap-2 font-display text-[22px] leading-none text-level1">
-        Tape
-        {NETWORK === 'testnet' && (
-          <span className="rounded-full bg-level1/12 px-2 py-0.5 font-sans text-[11px] text-level1">Testnet</span>
-        )}
-      </Link>
+      <Brand />
       <nav aria-label="Market" className="flex items-center gap-1">
         {BASES.map((b) => (
           <Link
@@ -52,6 +47,17 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
         <WalletButton />
       </div>
     </header>
+  )
+}
+
+export function Brand() {
+  return (
+    <Link to="/" className="flex items-baseline gap-2 font-display text-[22px] leading-none text-level1">
+      Tape
+      {NETWORK === 'testnet' && (
+        <span className="rounded-full bg-level1/12 px-2 py-0.5 font-sans text-[11px] text-level1">Testnet</span>
+      )}
+    </Link>
   )
 }
 

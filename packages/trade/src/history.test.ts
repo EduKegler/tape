@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CSV_COLUMNS, realize, summarize, toCsv, walkByTime } from './history'
+import { CSV_COLUMNS, realize, selectHistory, summarize, toCsv, walkByTime } from './history'
 import type { FundingPayment, HistoryFill } from './history'
 import type { Decimal, Side } from './types'
 
@@ -232,5 +232,37 @@ describe('walk by time', () => {
     const { rows, stalled } = await walkByTime(page, walk)
     expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
     expect(stalled).toBe(true)
+  })
+})
+
+describe('history selection', () => {
+  const all = { venue: null, market: null, from: null, to: null, kind: 'all' } as const
+  const history = {
+    fills: [
+      fill('buy', '1', '100', { time: Date.parse('2025-11-30T12:00:00Z'), id: 'open' }),
+      fill('sell', '1', '110', { time: Date.parse('2025-12-02T12:00:00Z'), id: 'close' }),
+      fill('buy', '1', '1', { time: Date.parse('2025-12-31T23:59:59.999Z'), id: 'last', symbol: 'ETH-USD' }),
+      fill('buy', '1', '1', { time: Date.parse('2026-01-01T00:00:00Z'), id: 'next', venue: 'hyperliquid' }),
+    ],
+    funding: [funding('1', Date.parse('2025-12-01T00:00:00Z'))],
+    gaps: [],
+  }
+
+  it('keeps both ends of the period whole, in UTC', () => {
+    const december = selectHistory([history], { ...all, from: '2025-12-01', to: '2025-12-31' })
+    expect(december.fills.map((f) => f.id)).toEqual(['close', 'last'])
+    expect(december.funding).toHaveLength(1)
+  })
+
+  it('realizes against an entry made before the period', () => {
+    const december = selectHistory([history], { ...all, from: '2025-12-01', to: '2025-12-31' })
+    expect(december.fills[0]?.pnl).toBe('10')
+  })
+
+  it('filters by venue, market and kind, and lists the markets of the venue', () => {
+    const dydx = selectHistory([history], { ...all, venue: 'dydx', market: 'BTC-USD', kind: 'fills' })
+    expect(dydx.fills.map((f) => f.id)).toEqual(['open', 'close'])
+    expect(dydx.funding).toEqual([])
+    expect(dydx.markets).toEqual(['BTC-USD', 'ETH-USD'])
   })
 })

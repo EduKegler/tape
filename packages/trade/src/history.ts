@@ -252,3 +252,33 @@ export async function walkByTime<T>(
     start = walk.timeOf(got[got.length - 1] as T)
   }
 }
+
+/** A venue, market and period to keep. `from` and `to` are UTC days, both kept whole. */
+export interface HistoryFilter {
+  readonly venue: TradeVenueId | null
+  readonly market: string | null
+  readonly from: string | null
+  readonly to: string | null
+  readonly kind: 'all' | 'fills' | 'funding'
+}
+
+const DAY_MS = 86_400_000
+
+/**
+ * Realizes every fill over the whole history first, so a period that starts with a position open
+ * still realizes against the entry it had.
+ */
+export function selectHistory(histories: readonly VenueHistory[], filter: HistoryFilter) {
+  const from = filter.from ? Date.parse(`${filter.from}T00:00:00Z`) : -Infinity
+  const to = filter.to ? Date.parse(`${filter.to}T00:00:00Z`) + DAY_MS : Infinity
+  const onVenue = (e: HistoryFill | FundingPayment) => filter.venue === null || e.venue === filter.venue
+  const keep = (e: HistoryFill | FundingPayment) =>
+    onVenue(e) && (filter.market === null || e.symbol === filter.market) && e.time >= from && e.time < to
+  const fills = realize(histories.flatMap((h) => h.fills))
+  const funding = histories.flatMap((h) => h.funding)
+  return {
+    fills: filter.kind === 'funding' ? [] : fills.filter(keep),
+    funding: filter.kind === 'fills' ? [] : funding.filter(keep),
+    markets: [...new Set([...fills, ...funding].filter(onVenue).map((e) => e.symbol))].sort(),
+  }
+}
