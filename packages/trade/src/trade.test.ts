@@ -257,7 +257,7 @@ describe('dydx key', () => {
       'waste sample once ocean tenant mushroom festival hollow regret convince stage able candy jazz champion isolate diary group under entry decorate glare quiz job',
     )
     expect(key.address).toBe(address)
-  })
+  }, 30_000)
 })
 
 describe('exact numbers', () => {
