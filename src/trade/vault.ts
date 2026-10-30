@@ -47,6 +47,7 @@ export function subscribeVault(listener: () => void): () => void {
 type DepositOutcome =
   | { readonly stage: 'credited'; readonly amount: bigint; readonly at: number; readonly receipt: string }
   | { readonly stage: 'reverted' }
+  | { readonly stage: 'replaced' }
 
 /** A deposit as Tape sent it, and what came of it. Kept so a reload or a later visit still has the receipt. */
 export interface DepositRecord {
@@ -54,6 +55,8 @@ export interface DepositRecord {
   readonly amount: bigint
   readonly fee: DepositFee
   readonly hash: Hex
+  /** The hash the wallet sped the transaction up to, which the chain and the venue know it by. */
+  readonly replacement: Hex | null
   readonly sentAt: number
   /** Wei, once the source chain has the receipt. */
   readonly gasPaid: bigint | null
@@ -65,20 +68,23 @@ const units = z
   .string()
   .regex(/^\d+$/)
   .transform((v) => BigInt(v))
+const txHash = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{64}$/)
+  .transform((h) => h as Hex)
 const depositRecord = z.object({
   chainId: z.number().int(),
   amount: units,
   fee: z.object({ expected: units, max: units }),
-  hash: z
-    .string()
-    .regex(/^0x[0-9a-fA-F]{64}$/)
-    .transform((h) => h as Hex),
+  hash: txHash,
+  replacement: txHash.nullable().default(null),
   sentAt: z.number(),
   gasPaid: units.nullable(),
   outcome: z
     .discriminatedUnion('stage', [
       z.object({ stage: z.literal('credited'), amount: units, at: z.number(), receipt: z.string() }),
       z.object({ stage: z.literal('reverted') }),
+      z.object({ stage: z.literal('replaced') }),
     ])
     .nullable(),
 })
@@ -105,7 +111,11 @@ export function addDeposit(ref: AccountRef, record: DepositRecord) {
   writeDeposits(ref, [record, ...parseDeposits(depositsSnapshot(ref)).filter((d) => d.hash !== record.hash)])
 }
 
-export function updateDeposit(ref: AccountRef, hash: Hex, patch: Partial<Pick<DepositRecord, 'gasPaid' | 'outcome'>>) {
+export function updateDeposit(
+  ref: AccountRef,
+  hash: Hex,
+  patch: Partial<Pick<DepositRecord, 'replacement' | 'gasPaid' | 'outcome'>>,
+) {
   writeDeposits(
     ref,
     parseDeposits(depositsSnapshot(ref)).map((d) => (d.hash === hash ? { ...d, ...patch } : d)),

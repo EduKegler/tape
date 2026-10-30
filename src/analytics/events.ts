@@ -95,7 +95,7 @@ export const AppEvent = z.discriminatedUnion('event', [
     event: z.literal('deposit_failed'),
     venue,
     chain,
-    reason: z.enum(['wallet-rejected', 'send', 'reverted']),
+    reason: z.enum(['wallet-rejected', 'send', 'reverted', 'replaced']),
   }),
   z.strictObject({
     event: z.literal('deposit_credited'),

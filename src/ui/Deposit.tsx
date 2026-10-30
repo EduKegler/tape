@@ -9,6 +9,7 @@ import type { AccountRef } from '@tape/trade/types'
 import {
   depositRoutes,
   sendFailure,
+  sentHash,
   useDepositQuote,
   useDepositStatus,
   useDeposits,
@@ -328,6 +329,8 @@ const stageText = (status: DepositStatus, chain: string, destination: string) =>
       return `Waiting for ${chain} to confirm`
     case 'reverted':
       return `Reverted on ${chain}. The USDC stayed in the wallet`
+    case 'replaced':
+      return `The wallet replaced this transaction on ${chain}. Nothing was deposited`
     case 'relaying':
     case 'stuck':
       return status.detail
@@ -341,9 +344,10 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   const route = depositRoutes(account).find((r) => r.chainId === record.chainId)
   const chain = chainName(record.chainId)
   const credited = status.stage === 'credited' ? status : null
+  const failed = status.stage === 'reverted' || status.stage === 'replaced'
   const rows: [string, React.ReactNode][] = [
     ['Sent', `${usdc(record.amount)} USDC from ${chain} at ${clock(record.sentAt)}`],
-    ['Transaction', <TxLink key="tx" chainId={record.chainId} hash={record.hash} />],
+    ['Transaction', <TxLink key="tx" chainId={record.chainId} hash={sentHash(record)} />],
     ['Gas paid', record.gasPaid !== null ? gasText(record.gasPaid, record.chainId) : '…'],
     [
       'Fee',
@@ -355,12 +359,12 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   return (
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
       <p
-        role={status.stage === 'reverted' || status.stage === 'stuck' ? 'alert' : 'status'}
-        className={status.stage === 'credited' ? 'text-bid' : status.stage === 'reverted' ? 'text-ask' : 'text-level1'}
+        role={failed || status.stage === 'stuck' ? 'alert' : 'status'}
+        className={status.stage === 'credited' ? 'text-bid' : failed ? 'text-ask' : 'text-level1'}
       >
         {stageText(status, chain, venue.destination)}
       </p>
-      {late && route && status.stage !== 'credited' && status.stage !== 'reverted' && (
+      {late && route && status.stage !== 'credited' && !failed && (
         <p role="alert" data-deposit-late className="rounded-sm border border-ask/40 p-2 text-level2">
           Not credited after {minutes(route.eta.worst)} min, longer than this route takes.{' '}
           {status.stage === 'confirming'
@@ -420,9 +424,11 @@ function RecentRow({
       ? 'Credited'
       : status.stage === 'reverted'
         ? 'Reverted'
-        : late || status.stage === 'stuck'
-          ? 'Late'
-          : 'In progress'
+        : status.stage === 'replaced'
+          ? 'Replaced'
+          : late || status.stage === 'stuck'
+            ? 'Late'
+            : 'In progress'
   return (
     <li>
       <button

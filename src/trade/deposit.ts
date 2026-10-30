@@ -175,6 +175,7 @@ export function useSendDeposit(ref: AccountRef) {
             amount,
             fee,
             hash,
+            replacement: null,
             sentAt: Date.now(),
             gasPaid: null,
             outcome: null,
@@ -211,7 +212,10 @@ export function useDeposits(ref: AccountRef): readonly DepositRecord[] {
   return useMemo(() => parseDeposits(raw), [raw])
 }
 
-export type DepositStatus = { readonly stage: 'confirming' } | { readonly stage: 'reverted' } | DepositProgress
+export type DepositStatus =
+  { readonly stage: 'confirming' } | { readonly stage: 'reverted' } | { readonly stage: 'replaced' } | DepositProgress
+
+export const sentHash = (record: DepositRecord) => record.replacement ?? record.hash
 
 /** Follows one deposit from the source chain's receipt to the venue's credit, and stores each step on the record. */
 export function useDepositStatus(ref: AccountRef, record: DepositRecord): { status: DepositStatus; late: boolean } {
@@ -228,12 +232,20 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
       queryFn:
         record.gasPaid === null && !record.outcome
           ? async () => {
-              const r = await waitForTransactionReceipt(wagmiConfig, { chainId, hash: record.hash })
-              if (r.status === 'success') updateDeposit(ref, record.hash, { gasPaid: r.gasUsed * r.effectiveGasPrice })
-              else {
-                updateDeposit(ref, record.hash, { outcome: { stage: 'reverted' } })
-                track({ event: 'deposit_failed', venue: ref.venue, chain: record.chainId, reason: 'reverted' })
-              }
+              const seen = { dropped: false }
+              const r = await waitForTransactionReceipt(wagmiConfig, {
+                chainId,
+                hash: sentHash(record),
+                onReplaced: ({ reason, transaction }) => {
+                  if (reason === 'repriced') updateDeposit(ref, record.hash, { replacement: transaction.hash })
+                  else seen.dropped = true
+                },
+              })
+              const failed = seen.dropped ? 'replaced' : r.status === 'success' ? null : 'reverted'
+              if (failed) {
+                updateDeposit(ref, record.hash, { outcome: { stage: failed } })
+                track({ event: 'deposit_failed', venue: ref.venue, chain: record.chainId, reason: failed })
+              } else updateDeposit(ref, record.hash, { gasPaid: r.gasUsed * r.effectiveGasPrice })
               return r.status
             }
           : skipToken,
@@ -248,7 +260,7 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
       queryFn:
         route && record.gasPaid !== null && !record.outcome
           ? async () => {
-              const p = await route.progress(browserFetch, { ...record, ref, claimed })
+              const p = await route.progress(browserFetch, { ...record, hash: sentHash(record), ref, claimed })
               if (p.stage === 'credited') {
                 updateDeposit(ref, record.hash, { outcome: p })
                 track({
