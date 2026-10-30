@@ -19,7 +19,7 @@ const ROUTES: [RegExp, string][] = [
   [/perpetualMarkets\?ticker=BTC-USD/, 'dydx.markets-BTC.json'],
   [/perpetualMarkets\?ticker=ETH-USD/, 'dydx.markets-ETH.json'],
   [/perpetualMarkets\?ticker=SOL-USD/, 'dydx.markets-SOL.json'],
-  [/indexer\.dydx\.trade\/v4\/candles/, 'dydx.candles.json'],
+  [/\/v4\/candles\//, 'dydx.candles.json'],
   [/orderly\.org\/v1\/public\/info\/PERP_BTC_USDC/, 'orderly.info-BTC.json'],
   [/orderly\.org\/v1\/public\/info\/PERP_ETH_USDC/, 'orderly.info-ETH.json'],
   [/orderly\.org\/v1\/public\/info\/PERP_SOL_USDC/, 'orderly.info-SOL.json'],
@@ -31,7 +31,7 @@ const ROUTES: [RegExp, string][] = [
 export const recordedFetch: typeof globalThis.fetch = async (input, init) => {
   const url = input instanceof Request ? input.url : input.toString()
   let file = ROUTES.find(([re]) => re.test(url))?.[1]
-  if (url.includes('api.hyperliquid.xyz/info')) {
+  if (/hyperliquid[^/]*\/info$/.test(url)) {
     const body = JSON.parse(init?.body as string) as { type: string }
     file = `hyperliquid.${body.type}.json`
   }
