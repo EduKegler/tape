@@ -13,8 +13,8 @@ const app = await browser.newPage({ viewport: { width: 1440, height: 900 }, devi
 await app.goto(`${base}/hyperliquid/BTC?interval=1m`)
 await app.waitForFunction(
   () =>
-    document.querySelectorAll('main section')[1]?.innerText.includes('Spread') &&
-    /Sockets \d/.test(document.querySelector('footer')?.innerText ?? ''),
+    document.querySelectorAll('main section')[1]?.innerText.includes('Spread')
+    && /Sockets \d/.test(document.querySelector('footer')?.innerText ?? ''),
 )
 await app.waitForTimeout(6000)
 const shot = await app.screenshot({ path: `${root}docs/screenshot.png` })

@@ -7,10 +7,10 @@ import type { HubPort, SocketLike } from './hub'
 
 interface WorkerScope {
   onconnect?: unknown
-  addEventListener: ((type: 'connect', listener: (event: MessageEvent) => void) => void) &
-    ((type: 'message', listener: (event: MessageEvent) => void) => void) &
-    ((type: 'error', listener: (event: ErrorEvent) => void) => void) &
-    ((type: 'unhandledrejection', listener: (event: PromiseRejectionEvent) => void) => void)
+  addEventListener: ((type: 'connect', listener: (event: MessageEvent) => void) => void)
+    & ((type: 'message', listener: (event: MessageEvent) => void) => void)
+    & ((type: 'error', listener: (event: ErrorEvent) => void) => void)
+    & ((type: 'unhandledrejection', listener: (event: PromiseRejectionEvent) => void) => void)
   postMessage: (message: unknown) => void
 }
 

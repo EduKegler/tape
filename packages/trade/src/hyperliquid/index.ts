@@ -111,8 +111,8 @@ function meta(ctx: VenueContext): Promise<Meta> {
 
 async function asset(ctx: VenueContext, symbol: string): Promise<Asset> {
   return (
-    (await meta(ctx)).get(symbol) ??
-    fail({ kind: 'invalid-order', detail: `${symbol} is not listed on Hyperliquid ${ctx.ref.network}` })
+    (await meta(ctx)).get(symbol)
+    ?? fail({ kind: 'invalid-order', detail: `${symbol} is not listed on Hyperliquid ${ctx.ref.network}` })
   )
 }
 
