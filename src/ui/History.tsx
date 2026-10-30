@@ -334,10 +334,13 @@ function Filters({
   )
 }
 
+const TOTALS_HEIGHT = 'h-36'
+
 function TotalsTable({ rows, first }: { rows: Totals[]; first: string }) {
-  if (rows.length === 0) return <p className="p-3 text-[12px] text-level3">Nothing in this period.</p>
+  if (rows.length === 0)
+    return <p className={`${TOTALS_HEIGHT} p-3 text-[12px] text-level3`}>Nothing in this period.</p>
   return (
-    <div className="max-h-60 overflow-y-auto">
+    <div className={`${TOTALS_HEIGHT} overflow-y-auto`}>
       <table className="num w-full text-[11px]">
         <thead>
           <tr className="h-6 text-level3">
