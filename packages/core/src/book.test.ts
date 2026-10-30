@@ -1,3 +1,4 @@
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { bestAsk, bestBid, initialSync, stepBook, topLevels, visibleBook } from './book'
 import type { BookInput, BookStep, Level } from './book'
@@ -134,5 +135,68 @@ describe('snapshots (Hyperliquid)', () => {
     const book = visibleBook(steps[1]!.sync)!
     expect(topLevels(book.bids, 5)).toEqual([lv(99, 1)])
     expect(steps[1]!.changed).toBe(true)
+  })
+})
+
+describe('book properties', () => {
+  const level = fc
+    .tuple(fc.integer({ min: 1, max: 30 }), fc.oneof(fc.constant(0), fc.integer({ min: 1, max: 5 })))
+    .map(([px, qty]) => lv(px, qty))
+  const sides = fc.record({ bids: fc.array(level, { maxLength: 4 }), asks: fc.array(level, { maxLength: 4 }) })
+
+  type Sides = { bids: Level[]; asks: Level[] }
+  const sorted = (side: Map<number, number>, dir: 1 | -1) =>
+    [...side].sort(([a], [b]) => dir * (a - b)).map(([px, qty]) => lv(px, qty))
+
+  function plainModel(first: Sides, deltas: readonly Sides[]) {
+    const bids = new Map<number, number>()
+    const asks = new Map<number, number>()
+    const write = (side: Map<number, number>, [px, qty]: Level) => (qty === 0 ? side.delete(px) : side.set(px, qty))
+    const dropWhere = (side: Map<number, number>, out: (px: number) => boolean) => {
+      for (const px of [...side.keys()]) if (out(px)) side.delete(px)
+    }
+    for (const l of first.bids) write(bids, l)
+    for (const l of first.asks) write(asks, l)
+    const bid = Math.max(...bids.keys())
+    const ask = Math.min(...asks.keys())
+    if (bid >= ask) {
+      dropWhere(bids, (px) => px >= ask)
+      dropWhere(asks, (px) => px <= bid)
+    }
+    for (const d of deltas) {
+      for (const l of d.bids) {
+        write(bids, l)
+        if (l[1] > 0) dropWhere(asks, (px) => px <= l[0])
+      }
+      for (const l of d.asks) {
+        write(asks, l)
+        if (l[1] > 0) dropWhere(bids, (px) => px >= l[0])
+      }
+    }
+    return { bids: sorted(bids, -1), asks: sorted(asks, 1) }
+  }
+
+  const feeds = {
+    'snapshot-then-deltas': (first: Sides, deltas: readonly Sides[]): BookInput[] => [
+      snapshot(first.bids, first.asks),
+      ...deltas.map((d) => delta(d.bids, d.asks)),
+    ],
+    'rest-snapshot-sequenced': (first: Sides, deltas: readonly Sides[]): BookInput[] => [
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: first.bids, asks: first.asks },
+      ...deltas.map((d, i) => delta(d.bids, d.asks, [11 + i, 11 + i])),
+    ],
+  } as const
+
+  it('matches a plain map model and never crosses, whatever the snapshot and deltas', () => {
+    const protocol = fc.constantFrom('snapshot-then-deltas' as const, 'rest-snapshot-sequenced' as const)
+    fc.assert(
+      fc.property(protocol, sides, fc.array(sides, { maxLength: 20 }), (venue, first, deltas) => {
+        const steps = run(venue, feeds[venue](first, deltas))
+        expect(steps.at(-1)!.sync.phase).toBe('live')
+        const book = visibleBook(steps.at(-1)!.sync)!
+        expect({ bids: topLevels(book.bids, 100), asks: topLevels(book.asks, 100) }).toEqual(plainModel(first, deltas))
+        expect(bestBid(book) ?? -Infinity).toBeLessThan(bestAsk(book) ?? Infinity)
+      }),
+    )
   })
 })

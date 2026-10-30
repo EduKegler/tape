@@ -22,6 +22,30 @@ Our own code explains itself through names, types and tests. A comment stays onl
 
 A why about our own design is a rename, an extracted function or a type instead. `/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */` was deleted for that. `/** Not found comes back as success: false, sometimes with a 200, so reads treat it as rejected. */` stays, because Orderly decides it. Naming the outside party is not enough on its own: the four comments #5 added and #7 deleted named TanStack Router, Vite, Safari and Firefox, but `src/router.tsx` already states the Router fact where it applies, and `V8_STACK`, `JSC_STACK` and `GECKO_STACK` already say which engine wrote each stack. No lint can tell these apart, so read each comment you add against this rule before you commit.
 
+## Tests
+
+A test goes in the one layer that can catch its kind of mistake. A test that repeats another layer's proof stays out.
+
+| What it proves | Layer | Expected value comes from |
+| --- | --- | --- |
+| Decimal math, ticks and steps, order building, book sync | Vitest in Node, examples and fast-check properties | A hand calculation, the venue's docs, or a plain model written in the test |
+| Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
+| Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
+| History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
+| UI wiring and journeys | The `verify-tape` skill, against live data | What the user reads on screen |
+| Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
+
+The expected value never comes from a run of the code under test. Another model writing the test does not fix that, because it reads the same code and guesses the same value.
+
+A property's generators stay inside its valid domain, and invalid input gets its own refusal test. Use `fast-check` with `fc.assert` inside a Vitest `it`. The `it` and `test` from `@fast-check/vitest` rerun every example test `numRuns` times.
+
+Before a venue ships, its tests prove these:
+
+- The recorded replay yields a live, uncrossed book, a reconnect resyncs it, and a stale snapshot is ignored.
+- A 5xx, a timeout or an unreadable reply on a write is an unknown outcome, and the order is then found by client id.
+- A missing order is told apart from a missing key, and cancelling a filled order is not an error.
+- Trading stays off on mainnet unless the build turns it on.
+
 ## Rules and what enforces them
 
 | Rule | Enforced by |
@@ -36,7 +60,9 @@ A why about our own design is a rename, an extracted function or a type instead.
 | Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter | `no-restricted-*` rules in `eslint.config.js` |
 | Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
+| Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
 | One logical change per commit | review only |
+| A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |
 
 When the operator corrects a mistake, fix it and add its row. A rule enforced by review only that breaks again gets a check in the same change, unless no check can tell the mistake apart. Drop a row once its mistake can no longer be written.
