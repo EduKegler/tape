@@ -290,6 +290,7 @@ test('three clicks in one tick send one order, and the next goes after the answe
 test('a write that times out shows an unknown outcome and asks the venue by client id', async ({
   page,
   wallet: _wallet,
+  consoleErrors,
 }) => {
   const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({ abort: 'timedout' })
@@ -310,11 +311,13 @@ test('a write that times out shows an unknown outcome and asks the venue by clie
   await expectAccessible(page)
   const [order] = orders(hyperliquid.sent).map((body) => body.action)
   expect(asked).toEqual([order?.orders?.[0]?.c])
+  expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
 })
 
 test('while the venue is asked about a timed out order, the ticket sends nothing', async ({
   page,
   wallet: _wallet,
+  consoleErrors,
 }) => {
   const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({ abort: 'timedout' })
@@ -338,6 +341,7 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
   status.resolve({ status: 'unknownOid' })
   await expect(ticket.getByRole('alert')).toContainText('The venue does not show this order.')
   await expect(buy).toBeEnabled()
+  expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
 })
 
 test('an account switch with the ticket open sends nothing for the old account', async ({ page, wallet }) => {

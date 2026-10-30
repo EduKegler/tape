@@ -56,6 +56,7 @@ export async function fakeHyperliquid(page: Page, network: Network) {
   const sent: ExchangeBody[] = []
   const venue = {
     sent,
+    exchangeUrl: `${API[network]}/exchange`,
     exchange: (_body: ExchangeBody): Answer | Promise<Answer> => ACCEPTED,
     orderStatus: (_cloid: string): unknown => ({ status: 'unknownOid' }),
     book: { bid: '79990', ask: '80000' },
@@ -64,7 +65,7 @@ export async function fakeHyperliquid(page: Page, network: Network) {
     'abort' in reply
       ? route.abort(reply.abort)
       : route.fulfill({ json: reply.json, headers: { 'access-control-allow-origin': '*' } })
-  await page.route(`${API[network]}/exchange`, async (route) => {
+  await page.route(venue.exchangeUrl, async (route) => {
     const body = route.request().postDataJSON() as ExchangeBody
     sent.push(body)
     return answer(route, await venue.exchange(body))
