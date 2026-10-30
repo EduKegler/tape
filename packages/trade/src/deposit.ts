@@ -92,6 +92,8 @@ export interface DepositReadings {
   readonly fee: DepositFee | null
   /** Wei for every call, at the chain's max fee per gas. */
   readonly gasCost: bigint | null
+  /** The revert reason the chain gives when it simulates the first call. Null when it passes or is unknown. */
+  readonly rejected: string | null
 }
 
 export type DepositIssue =
@@ -100,6 +102,7 @@ export type DepositIssue =
   | { readonly kind: 'insufficient-usdc'; readonly balance: bigint }
   | { readonly kind: 'insufficient-gas'; readonly need: bigint; readonly have: bigint }
   | { readonly kind: 'contract-wallet' }
+  | { readonly kind: 'chain-rejects'; readonly reason: string }
   | { readonly kind: 'high-fee'; readonly bps: number }
 
 /** Every issue but `high-fee` stops the deposit. */
@@ -116,5 +119,7 @@ export function depositIssues(route: DepositRoute, amount: bigint, r: DepositRea
   if (r.native !== null && r.gasCost !== null && r.native < r.gasCost)
     issues.push({ kind: 'insufficient-gas', need: r.gasCost, have: r.native })
   if (r.code && r.code !== '0x' && !r.code.startsWith('0xef0100')) issues.push({ kind: 'contract-wallet' })
+  if (r.rejected !== null && !issues.some((i) => i.kind === 'insufficient-usdc'))
+    issues.push({ kind: 'chain-rejects', reason: r.rejected })
   return issues
 }

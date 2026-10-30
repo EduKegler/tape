@@ -2,10 +2,10 @@ import { useMemo, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useQuery } from '@tanstack/react-query'
 import { useBalance, useBytecode, useConnection, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
 import { estimateGas, waitForTransactionReceipt } from 'wagmi/actions'
-import { UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
-import type { Hex } from 'viem'
+import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
+import type { Address, Hex } from 'viem'
 import { DEPOSITS } from '@tape/trade'
-import { depositIssues } from '@tape/trade/deposit'
+import { blocksDeposit, depositIssues } from '@tape/trade/deposit'
 import type { DepositCall, DepositFee, DepositIssue, DepositProgress, DepositRoute } from '@tape/trade/deposit'
 import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
@@ -57,6 +57,23 @@ export interface DepositQuote {
   readonly ready: boolean
 }
 
+/** Calls after an approval cannot run before it lands, so only the first call's revert means the chain refuses. */
+async function estimateCalls(chainId: ChainId, owner: Address, calls: readonly DepositCall[]) {
+  let rejected: string | null = null
+  const gas: bigint[] = []
+  for (const [i, call] of calls.entries()) {
+    try {
+      gas.push(await estimateGas(wagmiConfig, { chainId, account: owner, to: call.to, data: call.data }))
+    } catch (e) {
+      const revert = e instanceof BaseError ? e.walk((x) => x instanceof ExecutionRevertedError) : null
+      if (i === 0 && revert instanceof ExecutionRevertedError)
+        rejected = (revert.details || revert.shortMessage).replace(/^execution reverted:\s*/i, '')
+      gas.push(call.gasFallback)
+    }
+  }
+  return { gas, rejected }
+}
+
 export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bigint | null): DepositQuote {
   const chainId = wagmiChain(route.chainId)
   const usdc = useReadContract({
@@ -92,37 +109,29 @@ export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bi
   const gas = useQuery(
     queryOptions({
       queryKey: ['deposit', 'gas', chainId, ref.owner, calls?.map((c) => c.data) ?? null],
-      queryFn: calls
-        ? () =>
-            Promise.all(
-              calls.map((c) =>
-                estimateGas(wagmiConfig, { chainId, account: ref.owner, to: c.to, data: c.data }).catch(
-                  () => c.gasFallback,
-                ),
-              ),
-            )
-        : skipToken,
+      queryFn: calls ? () => estimateCalls(chainId, ref.owner, calls) : skipToken,
       staleTime: 30_000,
     }),
   )
   const maxFeePerGas = gasPrice.data?.maxFeePerGas ?? gasPrice.data?.gasPrice
-  const gasCost = gas.data && maxFeePerGas ? gas.data.reduce((a, b) => a + b, 0n) * maxFeePerGas : null
+  const gasCost = gas.data && maxFeePerGas ? gas.data.gas.reduce((a, b) => a + b, 0n) * maxFeePerGas : null
   const readings = {
     usdc: usdc.data ?? null,
     native: native.data?.value ?? null,
     code: code.isSuccess ? (code.data ?? '0x') : null,
     fee: fee.data ?? null,
     gasCost,
+    rejected: gas.data?.rejected ?? null,
   }
   const issues = amount ? depositIssues(route, amount, readings) : []
+  const known = [readings.usdc, readings.native, readings.code, readings.fee, readings.gasCost].every((v) => v !== null)
   return {
     fee: fee.data ?? null,
     feeError: fee.isError,
     calls,
     gasCost,
     issues,
-    ready:
-      Object.values(readings).every((v) => v !== null) && calls !== null && issues.every((i) => i.kind === 'high-fee'),
+    ready: known && calls !== null && !issues.some(blocksDeposit),
   }
 }
 

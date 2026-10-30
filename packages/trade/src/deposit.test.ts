@@ -6,7 +6,14 @@ import type { DepositReadings, DepositRoute, SentDeposit } from './deposit'
 import { DEPOSITS } from './index'
 
 const owner: Address = '0x2e5346477b01397553df3ec9a637f3e535325d6d'
-const known: DepositReadings = { usdc: 50_000_000n, native: 10n ** 15n, code: '0x', fee: null, gasCost: 10n ** 12n }
+const known: DepositReadings = {
+  usdc: 50_000_000n,
+  native: 10n ** 15n,
+  code: '0x',
+  fee: null,
+  gasCost: 10n ** 12n,
+  rejected: null,
+}
 const [mainnetBridge] = DEPOSITS.hyperliquid!.routes('mainnet')
 const bridge = mainnetBridge!
 
@@ -71,8 +78,18 @@ describe('deposit issues', () => {
     expect(depositIssues(route, 50_000_000n, { ...known, fee: { expected: 250_000n, max: 300_000n } })).toEqual([])
   })
 
+  it('stops a deposit the chain would revert, unless the balance already says why', () => {
+    const rejected = 'Blacklistable: account is blacklisted'
+    expect(depositIssues(bridge, 10_000_000n, { ...known, rejected })).toEqual([
+      { kind: 'chain-rejects', reason: rejected },
+    ])
+    expect(depositIssues(bridge, 60_000_000n, { ...known, rejected: 'transfer amount exceeds balance' })).toEqual([
+      { kind: 'insufficient-usdc', balance: 50_000_000n },
+    ])
+  })
+
   it('waits for readings it does not have yet', () => {
-    const unknown = { usdc: null, native: null, code: null, fee: null, gasCost: null }
+    const unknown = { usdc: null, native: null, code: null, fee: null, gasCost: null, rejected: null }
     expect(depositIssues(bridge, 10_000_000n, unknown)).toEqual([])
   })
 })

@@ -278,6 +278,8 @@ function issueText(issue: DepositIssue, route: DepositRoute): string {
       return `Gas needs about ${gasText(issue.need, route.chainId)} on ${chain}. The wallet has ${gasText(issue.have, route.chainId)}.`
     case 'contract-wallet':
       return `This address is a contract on ${chain}. The venue credits the same address, and a contract wallet cannot sign there. Deposit from a regular wallet.`
+    case 'chain-rejects':
+      return `${chain} would reject this transaction: ${issue.reason}. Nothing was sent.`
     case 'high-fee':
       return `The fee is ${(issue.bps / 100).toFixed(2)}% of this deposit.`
   }
