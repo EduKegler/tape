@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { realize } from './history'
-import type { HistoryFill } from './history'
+import { realize, summarize } from './history'
+import type { FundingPayment, HistoryFill } from './history'
 import type { Decimal, Side } from './types'
 
 let seq = 0
@@ -95,6 +95,57 @@ describe('realized pnl', () => {
     expect(out.map((f) => [f.pnl, f.pnlSource])).toEqual([
       ['0', 'venue'],
       ['9.999', 'venue'],
+    ])
+  })
+})
+
+const funding = (amount: string, time: number, extra: Partial<FundingPayment> = {}): FundingPayment => ({
+  venue: 'dydx',
+  account: 'a',
+  symbol: 'BTC-USD',
+  time,
+  amount: amount as Decimal,
+  rate: '0.0001' as Decimal,
+  position: '1' as Decimal,
+  asset: 'USDC',
+  ...extra,
+})
+
+describe('history totals', () => {
+  const fills = realize([
+    fill('buy', '1', '100', { fee: '0.5' as Decimal, time: 10 }),
+    fill('sell', '1', '110', { fee: '0.25' as Decimal, time: 20 }),
+    fill('buy', '1', '100', { fee: '-0.1' as Decimal, time: 30, venue: 'hyperliquid' }),
+  ])
+  const payments = [funding('0.2', 15), funding('-0.05', 25), funding('1', 35, { venue: 'hyperliquid' })]
+
+  it('keeps pnl, fees and funding apart and nets them', () => {
+    expect(summarize(fills, payments, () => 'all')).toEqual([
+      {
+        group: 'all',
+        asset: 'USDC',
+        fills: 3,
+        payments: 3,
+        realized: '10',
+        fees: '0.65',
+        funding: '1.15',
+        net: '10.5',
+      },
+    ])
+  })
+
+  it('totals each group on its own', () => {
+    expect(summarize(fills, payments, (e) => e.venue).map((t) => [t.group, t.net])).toEqual([
+      ['dydx', '9.4'],
+      ['hyperliquid', '1.1'],
+    ])
+  })
+
+  it('never adds amounts settled in different assets', () => {
+    const other = realize([fill('buy', '1', '1', { fee: '2' as Decimal, asset: 'USDH', time: 1 })])
+    expect(summarize([...fills, ...other], [], () => 'all').map((t) => [t.asset, t.fees])).toEqual([
+      ['USDC', '0.65'],
+      ['USDH', '2'],
     ])
   })
 })

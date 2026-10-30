@@ -1,4 +1,4 @@
-import { ZERO, abs, add, amount, divide, format, multiply, negate, plain as plainAmount, subtract } from './money'
+import { ZERO, abs, add, amount, divide, format, multiply, negate, plain as plainAmount, subtract, sum } from './money'
 import type { Amount } from './money'
 import type { Decimal, Fill, TradeVenueId } from './types'
 
@@ -12,6 +12,19 @@ export interface HistoryFill extends Fill {
   readonly liquidation: boolean
   /** Realized PnL as the venue reports it, before fees and funding. Null where the venue reports none. */
   readonly venuePnl: Decimal | null
+}
+
+export interface FundingPayment {
+  readonly venue: TradeVenueId
+  readonly account: string
+  readonly symbol: string
+  readonly time: number
+  /** Received is positive, paid negative. */
+  readonly amount: Decimal
+  readonly asset: string
+  readonly rate: Decimal | null
+  /** Signed: long positive. */
+  readonly position: Decimal | null
 }
 
 export interface RealizedFill extends HistoryFill {
@@ -70,5 +83,61 @@ export function realize(fills: readonly HistoryFill[]): RealizedFill[] {
       return fill.venuePnl === null
         ? { ...fill, pnl: settled(computed), pnlSource: 'computed' }
         : { ...fill, pnl: fill.venuePnl, pnlSource: 'venue' }
+    })
+}
+
+export interface Totals {
+  readonly group: string
+  readonly asset: string
+  readonly fills: number
+  readonly payments: number
+  readonly realized: Decimal
+  readonly fees: Decimal
+  readonly funding: Decimal
+  /** Realized minus fees plus funding. */
+  readonly net: Decimal
+}
+
+/** One row per group and settlement asset, sorted by both. */
+export function summarize(
+  fills: readonly RealizedFill[],
+  funding: readonly FundingPayment[],
+  groupOf: (entry: HistoryFill | FundingPayment) => string,
+): Totals[] {
+  type Acc = { group: string; asset: string; fills: number; pnl: Amount[]; fees: Amount[]; funding: Amount[] }
+  const groups = new Map<string, Acc>()
+  const acc = (entry: HistoryFill | FundingPayment) => {
+    const group = groupOf(entry)
+    const key = `${group}\u0000${entry.asset}`
+    let a = groups.get(key)
+    if (!a) {
+      a = { group, asset: entry.asset, fills: 0, pnl: [], fees: [], funding: [] }
+      groups.set(key, a)
+    }
+    return a
+  }
+  for (const f of fills) {
+    const a = acc(f)
+    a.fills += 1
+    a.pnl.push(amount(f.pnl))
+    a.fees.push(amount(f.fee))
+  }
+  for (const p of funding) acc(p).funding.push(amount(p.amount))
+  return [...groups.values()]
+    .sort((x, y) => (x.group === y.group ? x.asset.localeCompare(y.asset) : x.group.localeCompare(y.group)))
+    .map((a) => {
+      const realized = sum(a.pnl)
+      const fees = sum(a.fees)
+      const paid = sum(a.funding)
+      return {
+        group: a.group,
+        asset: a.asset,
+        fills: a.fills,
+        payments: a.funding.length,
+        realized: plain(realized),
+        fees: plain(fees),
+        funding: plain(paid),
+        net: plain(add(subtract(realized, fees), paid)),
+      }
     })
 }
