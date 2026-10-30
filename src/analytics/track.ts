@@ -58,7 +58,6 @@ export function usePageViews() {
 
 export const report = createReporter(track)
 
-/** TanStack Router hands render errors to the route boundary and `defaultOnCatch`, not to `window`. */
 export function useErrorReports() {
   useEffect(() => {
     const onError = (e: ErrorEvent) => report(e.error, 'window', false)

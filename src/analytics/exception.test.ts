@@ -7,7 +7,6 @@ const SITE = 'https://tape.kegler.dev'
 const BUNDLE = `${SITE}/assets/index-DvMkFl2s.js`
 const CHUNK = '437b5dd7-1ce0-52dc-9602-3c07b1b25a59'
 
-/** Recorded from the Vite test bundle in Node, with file:// swapped for the site's URL. */
 const V8_STACK = [
   'TypeError: level without price',
   `    at e (${BUNDLE}:1:1020)`,
@@ -25,7 +24,6 @@ const PAGE = {
   },
 }
 
-/** Recorded from JavaScriptCore, the engine in Safari, with the path swapped for the site's URL. */
 const JSC_STACK = [
   `parseLevel@${SITE}/assets/t.js:1:56`,
   `@${SITE}/assets/t.js:2:70`,
@@ -34,7 +32,6 @@ const JSC_STACK = [
   `global code@${SITE}/assets/t.js:3:21`,
 ].join('\n')
 
-/** Firefox's format, written by hand. */
 const GECKO_STACK = [
   `parseLevel@${SITE}/assets/t.js:1:56`,
   `applyBookDelta/<@${SITE}/assets/t.js:2:70`,
