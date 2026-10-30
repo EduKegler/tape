@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { marketKey, parseStreamKey, streamKey } from './ids'
+import { marketKey, parseMarketKey, parseStreamKey, streamKey } from './ids'
 
 describe('stream keys', () => {
   it('reads back the market, channel and interval a stream key names', () => {
@@ -13,5 +13,15 @@ describe('stream keys', () => {
       channel: 'book',
       interval: null,
     })
+  })
+})
+
+describe('market keys', () => {
+  it('refuses a market on a venue or base Tape does not list', () => {
+    expect([parseMarketKey('kraken', 'BTC'), parseMarketKey('dydx', 'doge'), parseMarketKey('dydx', 'eth')]).toEqual([
+      null,
+      null,
+      'dydx:ETH',
+    ])
   })
 })
