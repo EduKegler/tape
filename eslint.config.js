@@ -83,8 +83,8 @@ export default [
       ...betterTailwind.configs.recommended.rules,
       // Prettier owns line breaks.
       'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
-      // Plain classes from src/styles.css: num for tabular figures, dark for the dark variant.
-      'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['num', 'dark'] }],
+      // Plain classes from src/styles.css: num for tabular figures.
+      'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['num'] }],
     },
   },
   {

@@ -3,26 +3,7 @@
 @import '@fontsource-variable/atkinson-hyperlegible-next';
 @import '@fontsource-variable/atkinson-hyperlegible-mono';
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 :root {
-  --surface: #f7f7fb;
-  --panel: #ffffff;
-  --rule: rgb(47 49 76 / 0.1);
-  --level1: #2f314c;
-  --level2: #444659;
-  --level3: #6b6d82;
-  --ink: #2a44c2;
-  --ink-contrast: #ffffff;
-  --bid: #0d7d5a;
-  --ask: #c43d3a;
-  --bid-wash: rgb(13 125 90 / 0.12);
-  --ask-wash: rgb(196 61 58 / 0.12);
-  --selection: #d6ddff;
-  --gradient-opacity: 0.12;
-}
-
-.dark {
   --surface: #12141e;
   --panel: #171a27;
   --rule: rgb(200 202 222 / 0.08);
@@ -68,10 +49,6 @@ html {
   font-size: 13px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
-  color-scheme: light;
-}
-
-html.dark {
   color-scheme: dark;
 }
 
