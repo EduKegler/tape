@@ -3,6 +3,11 @@ import type { Network } from '@tape/core/ids'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 const ticketOf = (page: Page) => panel(page, 'Order ticket')
+const notionalOf = (page: Page) =>
+  ticketOf(page)
+    .getByRole('term')
+    .filter({ hasText: /^Notional$/ })
+    .locator('xpath=following-sibling::dd[1]')
 
 async function touchField(page: Page, name: string, value: string) {
   const field = ticketOf(page).getByRole('textbox', { name, exact: true })
@@ -21,7 +26,7 @@ test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
     'Immediate or cancel',
     'Post only',
   ])
-  await expect(ticket.getByRole('definition').first()).toHaveText('—')
+  await expect(notionalOf(page)).toHaveText('—')
   await expect(ticket.getByText('Binance is read only in Tape. It never signs or sends an order here.')).toBeVisible()
   await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toHaveCount(0)
   await expectAccessible(page)
@@ -92,7 +97,7 @@ test('a market buy hides the price, offers slippage and prices the notional at t
   await slippage.getByRole('radio', { name: '0.5%', exact: true }).click()
   await expect(slippage.getByRole('radio', { name: '0.5%', exact: true })).toBeChecked()
   await touchField(page, 'Size (BTC)', '0.01')
-  await expect(ticket.getByRole('definition').first()).toHaveText('805.96 USDC')
+  await expect(notionalOf(page)).toHaveText('805.96 USDC')
   await expectAccessible(page)
 })
 
