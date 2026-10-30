@@ -251,7 +251,7 @@ describe('book properties', () => {
     ],
   } as const
 
-  it('matches a plain map model and never crosses, whatever the snapshot and deltas', () => {
+  it('matches a plain map model, forgets what it removes and never crosses, whatever the snapshot and deltas', () => {
     const protocol = fc.constantFrom('snapshot-then-deltas' as const, 'rest-snapshot-sequenced' as const)
     fc.assert(
       fc.property(protocol, sides, fc.array(sides, { maxLength: 20 }), (venue, first, deltas) => {
@@ -259,6 +259,7 @@ describe('book properties', () => {
         expect(steps.at(-1)!.sync.phase).toBe('live')
         const book = visibleBook(steps.at(-1)!.sync)!
         expect({ bids: topLevels(book.bids, 100), asks: topLevels(book.asks, 100) }).toEqual(plainModel(first, deltas))
+        expect([book.bids.qty.size, book.asks.qty.size]).toEqual([book.bids.prices.length, book.asks.prices.length])
         expect(bestBid(book) ?? -Infinity).toBeLessThan(bestAsk(book) ?? Infinity)
       }),
     )
