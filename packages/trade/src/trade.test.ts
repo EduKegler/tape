@@ -718,6 +718,30 @@ describe('orderly module', () => {
     )
     expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
   })
+
+  it('calls a key Orderly refuses needs-setup by its code, whatever the message says', async () => {
+    const built = buildIntent(perp, draft, TRADING.orderly.capabilities)
+    if (!built.ok) throw new Error('intent')
+    // The descriptions Orderly's error codes page gives -1001 and -1002, both on a 401.
+    for (const [code, message] of [
+      [-1001, 'The API key or secret is in wrong format.'],
+      [-1002, 'API key or secret is invalid. The key may have insufficient permissions, or is expired/revoked.'],
+    ] as const) {
+      const ctx: VenueContext = {
+        ref: { venue: 'orderly', network: 'testnet', owner },
+        config,
+        keys: memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` }),
+        fetch: (async (url: string) =>
+          url.includes('/v1/public/info/')
+            ? new Response('{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001}}')
+            : new Response(JSON.stringify({ success: false, code, message }), {
+                status: 401,
+              })) as typeof globalThis.fetch,
+      }
+      const error = await TRADING.orderly.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
+      expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'needs-setup', detail: message })
+    }
+  })
 })
 
 describe('order lookup after an unknown outcome', () => {

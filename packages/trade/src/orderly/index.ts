@@ -57,10 +57,16 @@ export function classifyMessage(message: string): TradeError {
   return { kind: 'rejected', detail: message }
 }
 
+/** Orderly's codes for an API key in the wrong format, and for one that is invalid, expired or revoked. */
+const BAD_KEY = new Set(['-1001', '-1002'])
+
 const classify: Classify = (status, body, text) => {
-  const b = body as { success?: boolean; message?: string } | null
+  const b = body as { success?: boolean; code?: string; message?: string } | null
   if (status === 429) return { kind: 'rate-limited', detail: b?.message ?? text }
-  return b?.success === false ? classifyMessage(b.message ?? text) : null
+  if (b?.success !== false) return null
+  return b.code !== undefined && BAD_KEY.has(b.code)
+    ? { kind: 'needs-setup', detail: b.message ?? text }
+    : classifyMessage(b.message ?? text)
 }
 
 /** Orderly's code for data not found on the server, as when cancelling an order that is already CANCELLED. */
