@@ -1,3 +1,5 @@
+import type { VenueId } from '@tape/core/ids'
+
 export const CONTROL = 'tape-replay'
 
 export interface Probe {
@@ -13,4 +15,12 @@ export interface ProbeResult {
 export interface Playback {
   sockets: number
   playing: number
+}
+
+export interface Command {
+  probe?: Probe
+  playback?: true
+  loop?: boolean
+  drop?: VenueId
+  restore?: VenueId
 }

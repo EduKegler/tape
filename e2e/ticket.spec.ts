@@ -1,10 +1,117 @@
-import { expect, openMarket, panel, test } from './fixtures'
+import type { Page } from '@playwright/test'
+import type { Network } from '@tape/core/ids'
+import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+
+const ticketOf = (page: Page) => panel(page, 'Order ticket')
+const notionalOf = (page: Page) =>
+  ticketOf(page)
+    .getByRole('term')
+    .filter({ hasText: /^Notional$/ })
+    .locator('xpath=following-sibling::dd[1]')
+
+async function touchField(page: Page, name: string, value: string) {
+  const field = ticketOf(page).getByRole('textbox', { name, exact: true })
+  await field.fill(value)
+  await field.blur()
+  return field
+}
+
+test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  await expect(ticket.getByRole('button', { name: 'buy', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(ticket.getByRole('radio', { name: 'Limit', exact: true })).toBeChecked()
+  await expect(ticket.getByRole('combobox', { name: 'Time in force' }).getByRole('option')).toHaveText([
+    'Good til canceled',
+    'Immediate or cancel',
+    'Post only',
+  ])
+  await expect(notionalOf(page)).toHaveText('—')
+  await expect(ticket.getByText('Binance is read only in Tape. It never signs or sends an order here.')).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toHaveCount(0)
+  await expectAccessible(page)
+})
 
 test('the ticket refuses a price with more decimals than the market has', async ({ page }) => {
   await openMarket(page, '/binance/BTC?interval=1m')
-  const price = panel(page, 'Order ticket').getByRole('textbox', { name: 'Price (USDT)' })
-  await price.fill('1.234')
-  await price.blur()
-  await expect(panel(page, 'Order ticket').getByText('At most 2 decimals')).toBeVisible()
+  const price = await touchField(page, 'Price (USDT)', '1.234')
+  await expect(ticketOf(page).getByText('At most 2 decimals')).toBeVisible()
   await expect(price).toHaveAttribute('aria-invalid', 'true')
+  await expectAccessible(page)
+})
+
+test('the ticket refuses a price that is not a number, zero or empty', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  await touchField(page, 'Price (USDT)', 'abc')
+  await expect(ticket.getByText('Not a number')).toBeVisible()
+  await touchField(page, 'Price (USDT)', '0')
+  await expect(ticket.getByText('Price must be above zero')).toBeVisible()
+  await touchField(page, 'Price (USDT)', '')
+  await expect(ticket.getByText('Enter a price')).toBeVisible()
+})
+
+test('the ticket refuses a price between two Hyperliquid ticks', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  await touchField(page, 'Price (USDC)', '80595.5')
+  await expect(ticketOf(page).getByText('Price must be a multiple of 1')).toBeVisible()
+})
+
+test('the ticket refuses a size finer than the Binance step or below it', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  const size = await touchField(page, 'Size (BTC)', '0.000001')
+  await expect(ticket.getByText('At most 5 decimals')).toBeVisible()
+  await expect(size).toHaveAttribute('aria-invalid', 'true')
+  await touchField(page, 'Size (BTC)', '0')
+  await expect(ticket.getByText('Minimum is 0.00001')).toBeVisible()
+  await touchField(page, 'Size (BTC)', '')
+  await expect(ticket.getByText('Enter a size')).toBeVisible()
+})
+
+test('the touch hint fills the price with the best bid, or the best ask on a sell', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
+  await ticket.getByRole('button', { name: 'Bid 80595', exact: true }).click()
+  await expect(price).toHaveValue('80595')
+  await ticket.getByRole('button', { name: 'sell', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Ask 80596', exact: true }).click()
+  await expect(price).toHaveValue('80596')
+})
+
+test('clicking a trade puts its price into the ticket', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  await panel(page, 'Trades').getByRole('button', { name: '80,589 0.00062', exact: false }).first().click()
+  await expect(ticketOf(page).getByRole('textbox', { name: 'Price (USDC)' })).toHaveValue('80589')
+})
+
+test('a market buy hides the price, offers slippage and prices the notional at the ask', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  await ticket.getByRole('radio', { name: 'Market', exact: true }).click()
+  await expect(ticket.getByRole('textbox', { name: 'Price (USDC)' })).toHaveCount(0)
+  await expect(ticket.getByRole('combobox', { name: 'Time in force' })).toHaveCount(0)
+  const slippage = ticket.getByRole('radiogroup', { name: 'Max slippage' })
+  await expect(slippage.getByRole('radio', { name: '1%', exact: true })).toBeChecked()
+  await slippage.getByRole('radio', { name: '0.5%', exact: true }).click()
+  await expect(slippage.getByRole('radio', { name: '0.5%', exact: true })).toBeChecked()
+  await touchField(page, 'Size (BTC)', '0.01')
+  await expect(notionalOf(page)).toHaveText('805.96 USDC')
+  await expectAccessible(page)
+})
+
+const NETWORK_COPY: Record<Network, { aside: string; mainnetNotes: number; walletUsdc: number }> = {
+  mainnet: { aside: 'Read only', mainnetNotes: 1, walletUsdc: 1 },
+  testnet: { aside: 'Testnet', mainnetNotes: 0, walletUsdc: 0 },
+}
+
+test('the ticket says which network the build is', async ({ page, network }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  const copy = NETWORK_COPY[network]
+  await expect(ticket.getByText(copy.aside, { exact: true })).toBeVisible()
+  await expect(ticket.getByText('Mainnet is read only in Tape.')).toHaveCount(copy.mainnetNotes)
+  await expect(ticket.getByRole('term').filter({ hasText: 'Wallet USDC' })).toHaveCount(copy.walletUsdc)
+  await expectAccessible(page)
 })

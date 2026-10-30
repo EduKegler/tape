@@ -7,6 +7,8 @@ description: Drive the real Tape web app (TanStack Start trading screen with ord
 
 Tape is one browser screen at `/$venue/$base`, fed live by public Binance, Hyperliquid, dYdX and Orderly websockets through a SharedWorker hub. Hyperliquid, dYdX and Orderly also trade. Each build is one network: `up` builds mainnet, which only reads, and `up --network testnet` builds testnet, where market data and trading both run on the testnets. This skill builds the app, serves the build on its own port, starts its own headless Chrome, and drives both with one helper script. Read `features/README.md` before driving, then the feature file that matches the change.
 
+Regressions belong to `pnpm e2e`, which runs these journeys as Playwright specs in `e2e/` on the production build over a recorded replay, with no network. This skill is for exploring the app and reproducing a bug with live venue data. A bug found here gets its regression spec in `e2e/`.
+
 Everything below runs from the repo root. The helper is:
 
 ```bash

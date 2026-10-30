@@ -1,5 +1,5 @@
 import { VENUE_IDS } from '@tape/core/ids'
-import { expect, openMarket, panel, test } from './fixtures'
+import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false })
@@ -15,6 +15,7 @@ test('the market screen hydrates and answers a click', async ({ page }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   await page.getByRole('radio', { name: 'Market', exact: true }).click()
   await expect(page.getByText('Max slippage')).toBeVisible()
+  await expectAccessible(page)
 })
 
 for (const venue of VENUE_IDS)
