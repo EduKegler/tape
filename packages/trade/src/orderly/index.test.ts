@@ -156,3 +156,23 @@ describe('orderly orders', () => {
     })
   })
 })
+
+describe('orderly lookup', () => {
+  it('keeps a refused key needs-setup on lookup even when its message names an order', async () => {
+    const { ctx } = orderlyAt(() => ({
+      status: 401,
+      body: '{"success":false,"code":-1002,"message":"Orderly key not found"}',
+    }))
+    expect(await failureOf(orderly.lookup(ctx, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
+  })
+
+  it('asks Orderly for each leg by client order id', async () => {
+    const { ctx, sent } = orderlyAt(() => ({ body: '{"success":true,"data":{"status":"NEW"}}' }))
+    const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
+    if (intent.order.kind !== 'scale') throw new Error('scale')
+    await orderly.lookup(ctx, intent)
+    expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual(
+      intent.order.legs.map((l) => `GET https://testnet-api.orderly.org/v1/client/order/${l.clientId}`),
+    )
+  })
+})
