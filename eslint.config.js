@@ -192,7 +192,6 @@ export default [
   },
   {
     rules: {
-      'import/no-cycle': 'off',
       'import/order': 'off',
       'sort-imports': 'off',
       '@typescript-eslint/array-type': 'off',
