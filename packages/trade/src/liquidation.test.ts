@@ -14,6 +14,11 @@ const flat = (accountValue: number, tiers = [{ lowerBound: 0, maxLeverage: 50 }]
 
 const px = (l: Liquidation) => (l.kind === 'price' ? l.px : l.kind)
 
+const twoTiers = [
+  { lowerBound: 0, maxLeverage: 50 },
+  { lowerBound: 100_000, maxLeverage: 20 },
+]
+
 describe('liquidation estimate', () => {
   it('puts a long below entry where equity meets maintenance', () => {
     expect(px(estimateLiquidation(flat(10_000), { side: 'buy', size: 1, px: 100_000 }))).toBeCloseTo(90_909.09, 2)
@@ -57,6 +62,26 @@ describe('liquidation estimate', () => {
       86_410.26,
       2,
     )
+  })
+
+  it('says the margin falls short when equity at entry is under maintenance on any tier', () => {
+    expect(estimateLiquidation(flat(500), { side: 'buy', size: 1, px: 100_000 })).toEqual({
+      kind: 'insufficient-margin',
+    })
+    expect(estimateLiquidation(flat(400, twoTiers), { side: 'buy', size: 0.5, px: 100_000 })).toEqual({
+      kind: 'insufficient-margin',
+    })
+  })
+
+  it('uses the tier deduction at entry', () => {
+    expect(px(estimateLiquidation(flat(5_000, twoTiers), { side: 'buy', size: 2, px: 100_000 }))).toBeCloseTo(
+      99_230.77,
+      2,
+    )
+  })
+
+  it('has no price for a fully collateralized long', () => {
+    expect(estimateLiquidation(flat(100_000), { side: 'buy', size: 1, px: 100_000 })).toEqual({ kind: 'none' })
   })
 
   it('passes on why a venue cannot estimate', () => {
