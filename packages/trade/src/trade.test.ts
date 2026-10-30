@@ -14,7 +14,7 @@ import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
 import { buildIntent, closeIntent } from './intent'
-import type { Bps, KeySlot, StoredKey, TradeConfig, VenueContext } from './types'
+import type { Bps, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
 import { domainTypes, walletJson } from './wallet'
 import { TRADING } from './index'
@@ -665,6 +665,32 @@ describe('orderly module', () => {
         body: `{"orders":[{"symbol":"PERP_BTC_USDC","client_order_id":"${first?.clientId}","order_type":"LIMIT","order_price":80000.5,"order_quantity":0.001,"side":"BUY","reduce_only":false},{"symbol":"PERP_BTC_USDC","client_order_id":"${second?.clientId}","order_type":"LIMIT","order_price":79000,"order_quantity":0.001,"side":"BUY","reduce_only":false}]}`,
       },
     ])
+  })
+
+  it('calls a 200 it cannot read an unknown outcome on a write and unreachable on a read', async () => {
+    const ctx = (reply: string): VenueContext => ({
+      ref: { venue: 'orderly', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` }),
+      fetch: (async (url: string) =>
+        new Response(
+          url.includes('/v1/public/info/') ? '{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001}}' : reply,
+        )) as typeof globalThis.fetch,
+    })
+    const built = buildIntent(perp, draft, TRADING.orderly.capabilities)
+    if (!built.ok) throw new Error('intent')
+    const kindOf = (run: Promise<unknown>) =>
+      run.then(
+        () => 'settled',
+        (e: unknown) => e instanceof TradeFailure && e.error.kind,
+      )
+    for (const reply of ['<html>502 Bad Gateway</html>', '{"success":true,"timestamp":1702989203989}']) {
+      const place = TRADING.orderly.execute(ctx(reply), { kind: 'place', intent: built.intent })
+      expect(await kindOf(place)).toBe('unknown-outcome')
+      const cancel = TRADING.orderly.execute(ctx(reply), { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef })
+      expect(await kindOf(cancel)).toBe('unknown-outcome')
+      expect(await kindOf(TRADING.orderly.lookup(ctx(reply), built.intent))).toBe('unreachable')
+    }
   })
 })
 

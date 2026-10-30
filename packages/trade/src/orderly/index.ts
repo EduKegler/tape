@@ -89,14 +89,17 @@ async function signed<T>(ctx: VenueContext, method: 'GET' | 'POST' | 'DELETE', p
     ...signRequest(key, accountId(ctx.ref.owner, brokerFor(ctx)), Date.now(), method, path, body),
     'content-type': method === 'POST' ? 'application/json' : 'application/x-www-form-urlencoded',
   }
-  const reply = await send<{ data: T }>(
+  const mutates = method !== 'GET'
+  const reply = await send<{ data?: T } | null>(
     'orderly',
     ctx.fetch,
     `${API[ctx.ref.network]}${path}`,
-    { method, headers, ...(body ? { body } : {}), mutates: method !== 'GET' },
+    { method, headers, ...(body ? { body } : {}), mutates },
     classify,
   )
-  return reply.data
+  if (reply?.data != null) return reply.data
+  const detail = `Unreadable reply: ${JSON.stringify(reply)}`
+  return fail(mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
 }
 
 const specs = new Map<string, Promise<MarketSpec>>()
