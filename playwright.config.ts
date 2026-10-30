@@ -4,6 +4,23 @@ import type { Network } from '@tape/core/ids'
 
 const origin = (network: Network) => `http://127.0.0.1:${4610 + NETWORKS.indexOf(network)}`
 
+const BROWSERS = {
+  chromium: {
+    ...devices['Desktop Chrome'],
+    launchOptions: { args: ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] },
+  },
+  firefox: {
+    ...devices['Desktop Firefox'],
+    launchOptions: { proxy: { server: 'http://127.0.0.1:9', bypass: '127.0.0.1' } },
+  },
+  webkit: {
+    ...devices['Desktop Safari'],
+    launchOptions: { proxy: { server: 'http://127.0.0.1:9', bypass: '127.0.0.1' } },
+  },
+}
+const browser = process.env.E2E_BROWSER ?? 'chromium'
+if (!(browser in BROWSERS)) throw new Error(`E2E_BROWSER must be one of ${Object.keys(BROWSERS).join(', ')}`)
+
 export default defineConfig({
   testDir: 'e2e',
   outputDir: 'e2e/results',
@@ -11,8 +28,7 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    ...devices['Desktop Chrome'],
-    launchOptions: { args: ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] },
+    ...BROWSERS[browser as keyof typeof BROWSERS],
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
