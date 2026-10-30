@@ -1,17 +1,18 @@
 # Order ticket
 
-The order ticket builds a buy or sell, limit or market order. Price and size are checked against the market's tick and step as the user types. On Hyperliquid, dYdX and Orderly the ticket sends the order once trading is enabled, see [Trading](./trading.md). On Binance it is read only and has no submit button.
+The order ticket builds a buy or sell, limit, market or scale order. Price and size are checked against the market's tick and step as the user types. On Hyperliquid, dYdX and Orderly the ticket sends the order once trading is enabled, see [Trading](./trading.md). On Binance it is read only and has no submit button.
 
 ## Sub-features
 
 - `ticket-side` switches between buy and sell and relabels the submit button.
-- `ticket-kind` switches between limit and market. Market hides the price field, shows `Max slippage`, and prices the notional at the far touch.
+- `ticket-kind` switches between limit, market and, where the venue offers it, scale. Market hides the price field, shows `Max slippage`, and prices the notional at the far touch.
+- `ticket-scale` spreads the total size over `Orders` limit orders from `Start price` to `End price`, the last one `Size skew` times the first. The `Scale orders` list shows each price and size. Hyperliquid offers up to 20, Orderly up to 10, dYdX none.
 - `ticket-validate-price` rejects empty, non-numeric, too precise, zero and off-tick prices.
 - `ticket-validate-size` rejects empty, too precise, below-minimum and off-step sizes.
 - `ticket-hint` fills the price from the `Bid` or `Ask` hint next to the price label.
 - `ticket-propose` fills the price from a click on a book row or a trade row.
 - `ticket-tif` offers `Good til canceled`, `Immediate or cancel` and `Post only` for limit orders.
-- `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on venues that offer them (Hyperliquid).
+- `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on limit and market orders, on venues that offer them (Hyperliquid). A market order's take profit must clear the far touch and its stop the near touch, and a limit that crosses the book keeps its stop below the bid (above the ask for a sell).
 - `ticket-read-only` says `Binance is read only in Tape.` on Binance.
 - `ticket-network` says which network the build is. A mainnet build shows `Read only` and `Mainnet is read only in Tape.`, with a `testnet` link when the build sets `VITE_TESTNET_SITE`. A testnet build shows `Testnet` and hides `Wallet USDC`, which is a mainnet balance.
 
@@ -37,6 +38,7 @@ Preconditions:
 - **Market.** Run `vt click --panel "Order ticket" --role radio --name Market --exact`. The price input is gone, `Max slippage` shows `1%` checked, and Notional is a number in `USDT` once a size is filled.
 - **Propose from trades.** Switch back to `Limit`, then run `vt click --panel Trades --css "button"` and read the price input. It equals the first trade row's price without separators.
 - **Off tick on a coarse market.** On `/hyperliquid/BTC?interval=1m`, read the tick from a book price, then fill a price between two ticks. The panel shows `Price must be a multiple of <tick>`. Hyperliquid's tick depends on the price (5 significant figures).
+- **Scale.** On a trading venue with a connected wallet, run `vt click --panel "Order ticket" --role radio --name Scale --exact`, fill `Start price`, `End price`, `Size skew` and `Total size (BTC)`, then `vt wait --panel "Order ticket" --role list --name "Scale orders"`. The list has `Orders` rows whose sizes sum to the total. `Orders` above the venue limit shows `From 2 to <limit>`. `Time in force` has no `Immediate or cancel`.
 - **Network.** On a mainnet build at `/hyperliquid/BTC?interval=1m`, the ticket and the `Account` panel say `Mainnet is read only in Tape.` Build with `VITE_TESTNET_SITE=https://tape.testnet.kegler.dev vt up` to check the link with `vt attr --panel "Order ticket" --role link --name testnet --attr href`. On `vt up --network testnet` the ticket header says `Testnet`.
 - **Proof.** Run `vt aria --panel "Order ticket" --path ticket/02-after.aria.txt` and `vt shot --panel "Order ticket" --path ticket/02-after.png`.
 
@@ -49,4 +51,5 @@ Preconditions:
 - Quote currency depends on venue: `USDT` on Binance, `USDC` on Hyperliquid and Orderly, `USD` on dYdX.
 - Mainnet trading needs `VITE_TRADE_MAINNET=1` at build time. The harness build has it off, so mainnet is never sendable here.
 - The ticket resets when the market or the wallet changes, because it remounts on each.
+- `Scale` only shows once the wallet is connected, because the venue's capabilities come with the session.
 - With TP/SL open the ticket is taller than the panel. The panel scrolls, and `vt click` scrolls to its target.

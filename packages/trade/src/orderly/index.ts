@@ -24,9 +24,10 @@ import type {
   VenueContext,
   WalletSigner,
 } from '../types'
+import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
-import { cancelPath, orderBody } from './wire'
+import { batchBody, cancelPath, orderBody } from './wire'
 import type { OrderType } from './wire'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
@@ -36,6 +37,8 @@ const CHAIN_ID: Record<Network, number> = { mainnet: 42161, testnet: 421614 }
 const SCOPE = 'read,trading'
 const KEY_DAYS = 365
 const TYPE: Record<'gtc' | 'ioc' | 'post-only', OrderType> = { gtc: 'LIMIT', ioc: 'IOC', 'post-only': 'POST_ONLY' }
+/** Orderly's batch endpoint takes at most 10 orders. */
+const BATCH_ORDERS = 10
 
 const brokerOf = (config: TradeConfig, network: Network) => config.orderly.brokerId[network]
 
@@ -114,9 +117,9 @@ function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
   return cached
 }
 
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
   try {
-    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${intent.clientId}`)
+    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${clientId}`)
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
   } catch (e) {
     if (
@@ -129,12 +132,56 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
   }
 }
 
+async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+  const results: OrderLookup[] = []
+  for (const id of clientIdsOf(intent)) results.push(await lookupOne(ctx, id))
+  return lookupSummary(results)
+}
+
+async function placeScale(
+  ctx: VenueContext,
+  intent: OrderIntent,
+  order: Extract<OrderIntent['order'], { kind: 'scale' }>,
+  spec: MarketSpec,
+): Promise<CommandOutcome> {
+  const legs = order.legs.map((leg, i) => {
+    const quantity = wireDecimal(leg.size, intent.spec.scale.qty)
+    const price = wireDecimal(leg.px, intent.spec.scale.px)
+    const issue = checkSize(spec, quantity) ?? checkPrice(spec, price)
+    if (issue) fail({ kind: 'invalid-order', detail: `Order ${i + 1} at ${price}: ${issue} on this network` })
+    return {
+      symbol: intent.spec.venueSymbol,
+      clientOrderId: leg.clientId,
+      type: TYPE[order.tif],
+      side: intent.side === 'buy' ? ('BUY' as const) : ('SELL' as const),
+      price,
+      quantity,
+      reduceOnly: intent.reduceOnly,
+    }
+  })
+  const data = await signed<{ rows: { order_id?: number | string | null; error_message?: string | null }[] }>(
+    ctx,
+    'POST',
+    '/v1/batch-order',
+    batchBody(legs),
+  )
+  if (data.rows.length === 0)
+    fail({ kind: 'unknown-outcome', detail: `No order rows in the reply: ${JSON.stringify(data)}` })
+  // Orderly writes "none" in error_message on a placed row, so a row stands by its order_id.
+  return scaleOutcome(
+    data.rows.map((r) => (r.order_id == null ? (r.error_message ?? 'Refused without a reason') : undefined)),
+    'resting',
+    (error) => fail(classifyMessage(error)),
+  )
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place': {
       const intent = command.intent
       const symbol = intent.spec.venueSymbol
       const spec = await networkSpec(ctx, symbol)
+      if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
       const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
       const sizeIssue = checkSize(spec, quantity)
       if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
@@ -356,7 +403,7 @@ export const orderly = {
   id: 'orderly',
   label: 'Orderly',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true, scaleOrders: BATCH_ORDERS },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {
     if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'
