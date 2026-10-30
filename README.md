@@ -107,6 +107,7 @@ VITE_NETWORK=testnet pnpm dev
 
 ```bash
 pnpm verify   # package boundaries, typecheck of each package and the app, no notes in the public repo, import cycles, lint, format, unused code, tests
+pnpm verify:commits # pnpm verify on each commit since origin/main, as the pre-push hook and CI run it
 pnpm build
 pnpm fixtures # re-record venue fixtures
 node scripts/capture.mjs # screenshot and social preview from a running preview server
