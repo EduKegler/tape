@@ -11,7 +11,7 @@ The order ticket builds a buy or sell, limit or market order. Price and size are
 - `ticket-hint` fills the price from the `Bid` or `Ask` hint next to the price label.
 - `ticket-propose` fills the price from a click on a book row or a trade row.
 - `ticket-tif` offers `Good til canceled`, `Immediate or cancel` and `Post only` for limit orders.
-- `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on venues that offer them (Hyperliquid).
+- `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on limit and market orders, on venues that offer them (Hyperliquid). A market order's take profit must clear the far touch and its stop the near touch, and a limit that crosses the book keeps its stop below the bid (above the ask for a sell).
 - `ticket-read-only` says `Binance is read only in Tape.` on Binance.
 - `ticket-network` says which network the build is. A mainnet build shows `Read only` and `Mainnet is read only in Tape.`, with a `testnet` link when the build sets `VITE_TESTNET_SITE`. A testnet build shows `Testnet` and hides `Wallet USDC`, which is a mainnet balance.
 

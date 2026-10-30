@@ -46,12 +46,52 @@ export interface IntentDraft {
   readonly takeProfit: string
   readonly stopLoss: string
   readonly slippage: Bps
+  /** The touch on screen, empty while the book has no side. */
+  readonly bid: string
+  readonly ask: string
 }
 
 export type DraftField = 'price' | 'size' | 'tif' | 'takeProfit' | 'stopLoss'
 export type Built =
   | { readonly ok: true; readonly intent: OrderIntent }
   | { readonly ok: false; readonly errors: Partial<Record<DraftField, string>> }
+
+export interface ExitReference {
+  /** Null for a market order. */
+  readonly px: Px | null
+  readonly bid: Px | null
+  readonly ask: Px | null
+}
+
+/** Take profit beyond the order price, or the far touch for a market order. Stop loss short of the order price and the near touch. */
+export function checkExits(
+  side: Side,
+  entry: ExitReference,
+  exits: { readonly takeProfit: Px | null; readonly stopLoss: Px | null },
+): Partial<Record<'takeProfit' | 'stopLoss', string>> {
+  const errors: Partial<Record<'takeProfit' | 'stopLoss', string>> = {}
+  const buy = side === 'buy'
+  const near = buy ? entry.bid : entry.ask
+  const far = buy ? entry.ask : entry.bid
+  const beyond = (a: Px, b: Px) => (buy ? a > b : a < b)
+  const nearName = buy ? 'the bid' : 'the ask'
+  const farName = buy ? 'the ask' : 'the bid'
+  const { takeProfit, stopLoss } = exits
+  if (takeProfit !== null) {
+    const against = entry.px ?? far
+    if (against === null) errors.takeProfit = 'No price on the book yet'
+    else if (!beyond(takeProfit, against))
+      errors.takeProfit = `Must be ${buy ? 'above' : 'below'} ${entry.px === null ? farName : 'the price'}`
+  }
+  if (stopLoss !== null) {
+    if (entry.px === null && near === null) errors.stopLoss = 'No price on the book yet'
+    else if (entry.px !== null && !beyond(entry.px, stopLoss))
+      errors.stopLoss = `Must be ${buy ? 'below' : 'above'} the price`
+    else if (near !== null && !beyond(near, stopLoss))
+      errors.stopLoss = `Must be ${buy ? 'below' : 'above'} ${nearName}`
+  }
+  return errors
+}
 
 export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabilities): Built {
   const errors: Partial<Record<DraftField, string>> = {}
@@ -64,10 +104,6 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   }
   const trigger = (field: 'takeProfit' | 'stopLoss', value: string): Px | null => {
     if (!value) return null
-    if (draft.kind === 'market') {
-      errors[field] = 'Only with a limit order'
-      return null
-    }
     if (!caps.triggers) {
       errors[field] = 'Not offered on this venue'
       return null
@@ -81,14 +117,19 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   }
   const takeProfit = trigger('takeProfit', draft.takeProfit)
   const stopLoss = trigger('stopLoss', draft.stopLoss)
-  if (draft.kind === 'limit' && !errors.price) {
-    const px = parsePx(draft.price, spec.scale)
-    const above = draft.side === 'buy'
-    if (takeProfit !== null && (above ? takeProfit <= px : takeProfit >= px))
-      errors.takeProfit = `Must be ${above ? 'above' : 'below'} the price`
-    if (stopLoss !== null && (above ? stopLoss >= px : stopLoss <= px))
-      errors.stopLoss = `Must be ${above ? 'below' : 'above'} the price`
+  const touchPx = (value: string) => {
+    try {
+      return value ? parsePx(value, spec.scale) : null
+    } catch {
+      return null
+    }
   }
+  const entry = draft.kind === 'limit' ? (errors.price ? undefined : parsePx(draft.price, spec.scale)) : null
+  if (entry !== undefined && (takeProfit !== null || stopLoss !== null))
+    Object.assign(
+      errors,
+      checkExits(draft.side, { px: entry, bid: touchPx(draft.bid), ask: touchPx(draft.ask) }, { takeProfit, stopLoss }),
+    )
   if (Object.keys(errors).length > 0) return { ok: false, errors }
   const order =
     draft.kind === 'limit'

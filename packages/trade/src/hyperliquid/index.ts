@@ -5,7 +5,7 @@ import { parsePx, wireDecimal } from '@tape/core/fixed'
 import type { Decimals, Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { checkExits, checkPrice, checkSize, worstPrice } from '../intent'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, send } from '../send'
@@ -122,15 +122,13 @@ function recheckPx(a: Asset, intent: OrderIntent, px: Px, what: string): string 
   return issue ? fail({ kind: 'invalid-order', detail: `${what} ${wire}: ${issue} on this network` }) : wire
 }
 
-async function touch(ctx: VenueContext, a: Asset, side: 'buy' | 'sell'): Promise<Px> {
+async function touch(ctx: VenueContext, a: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
   const book = await info<{ levels: [{ px: string }[], { px: string }[]] }>(ctx, {
     type: 'l2Book',
     coin: a.spec.venueSymbol,
   })
-  const far = side === 'buy' ? book.levels[1][0] : book.levels[0][0]
-  return far
-    ? parsePx(far.px, a.spec.scale)
-    : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+  const [bid, ask] = book.levels.map((side) => (side[0] ? parsePx(side[0].px, a.spec.scale) : null))
+  return { bid: bid ?? null, ask: ask ?? null }
 }
 
 async function placeWires(
@@ -142,30 +140,43 @@ async function placeWires(
   const sizeIssue = checkSize(a.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   const isBuy = intent.side === 'buy'
-  const limit =
-    intent.order.kind === 'limit'
-      ? { px: recheckPx(a, intent, intent.order.px, 'Price'), tif: TIF[intent.order.tif] }
-      : {
-          px: wireDecimal(
-            worstPrice(a.spec, intent.side, await touch(ctx, a, intent.side), intent.order.slippage),
-            a.spec.scale.px,
-          ),
+  const { takeProfit, stopLoss } = intent.triggers
+  const exits = {
+    takeProfit: takeProfit === null ? null : parsePx(recheckPx(a, intent, takeProfit, 'Take profit'), a.spec.scale),
+    stopLoss: stopLoss === null ? null : parsePx(recheckPx(a, intent, stopLoss, 'Stop loss'), a.spec.scale),
+  }
+  const order = intent.order
+  const limit = order.kind === 'limit' ? { px: recheckPx(a, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
+  const book = limit === null || exits.takeProfit !== null || exits.stopLoss !== null ? await touch(ctx, a) : null
+  if (book) {
+    const issues = checkExits(intent.side, { px: limit && parsePx(limit.px, a.spec.scale), ...book }, exits)
+    const first = Object.entries(issues)[0]
+    if (first)
+      fail({
+        kind: 'invalid-order',
+        detail: `${first[0] === 'takeProfit' ? 'Take profit' : 'Stop loss'}: ${first[1]} on this network`,
+      })
+  }
+  const far = (isBuy ? book?.ask : book?.bid) ?? null
+  const sent =
+    limit
+    ?? (order.kind === 'market' && far !== null
+      ? {
+          px: wireDecimal(worstPrice(a.spec, intent.side, far, order.slippage), a.spec.scale.px),
           tif: 'Ioc' as const,
         }
+      : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' }))
   const wires = [
-    orderWire(a.index, isBuy, limit.px, size, intent.reduceOnly, { limit: { tif: limit.tif } }, intent.clientId),
+    orderWire(a.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
   ]
   const closing = isBuy ? 'sell' : 'buy'
   for (const [tpsl, px] of [
-    ['tp', intent.triggers.takeProfit],
-    ['sl', intent.triggers.stopLoss],
+    ['tp', exits.takeProfit],
+    ['sl', exits.stopLoss],
   ] as const) {
     if (px === null) continue
-    const triggerPx = recheckPx(a, intent, px, tpsl === 'tp' ? 'Take profit' : 'Stop loss')
-    const bound = wireDecimal(
-      worstPrice(a.spec, closing, parsePx(triggerPx, a.spec.scale), TRIGGER_SLIPPAGE_BPS),
-      a.spec.scale.px,
-    )
+    const triggerPx = wireDecimal(px, a.spec.scale.px)
+    const bound = wireDecimal(worstPrice(a.spec, closing, px, TRIGGER_SLIPPAGE_BPS), a.spec.scale.px)
     wires.push(orderWire(a.index, !isBuy, bound, size, true, { trigger: { isMarket: true, triggerPx, tpsl } }))
   }
   return { wires, grouping: wires.length > 1 ? 'normalTpsl' : 'na' }

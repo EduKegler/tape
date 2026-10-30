@@ -87,10 +87,10 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
     defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
     onSubmit: ({ value }) => {
       if (!ref || !canSend || last.pending) return
-      const triggers = protect && kind === 'limit' ? {} : { takeProfit: '', stopLoss: '' }
+      const triggers = protect ? {} : { takeProfit: '', stopLoss: '' }
       const result = buildIntent(
         spec,
-        { ...value, ...triggers, side, kind, slippage: slippage as Bps },
+        { ...value, ...triggers, side, kind, slippage: slippage as Bps, bid: touch.bid, ask: touch.ask },
         caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
       )
       if (!result.ok) {
@@ -215,13 +215,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           </label>
         )}
       </form.Field>
-      {caps?.triggers && kind === 'limit' && (
+      {caps?.triggers && (
         <label className="flex items-center gap-2 text-[12px] text-level2">
           <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
           Take profit and stop loss
         </label>
       )}
-      {caps?.triggers && kind === 'limit' && protect && (
+      {caps?.triggers && protect && (
         <div className="grid grid-cols-2 gap-2">
           {(['takeProfit', 'stopLoss'] as const).map((name) => (
             <form.Field

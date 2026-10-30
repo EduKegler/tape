@@ -41,6 +41,8 @@ const draft = {
   takeProfit: '',
   stopLoss: '',
   slippage: 100 as Bps,
+  bid: '',
+  ask: '',
 } as const
 
 const config: TradeConfig = {
@@ -73,9 +75,26 @@ describe('order intent', () => {
     expect(!bad.ok && bad.errors.takeProfit).toBe('Must be above the price')
   })
 
-  it('refuses take profit and stop loss on a market order', () => {
-    const built = buildIntent(btc, { ...draft, kind: 'market', price: '', takeProfit: '90000' }, caps)
-    expect(!built.ok && built.errors.takeProfit).toBe('Only with a limit order')
+  it('checks take profit and stop loss on a market order against the touch it will take', () => {
+    const market = { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010' } as const
+    const ok = buildIntent(btc, { ...market, takeProfit: '82000', stopLoss: '78000' }, caps)
+    expect(ok.ok && ok.intent.triggers).toEqual({ takeProfit: 820_000, stopLoss: 780_000 })
+    const wrong = buildIntent(btc, { ...market, takeProfit: '80000', stopLoss: '79995' }, caps)
+    expect(!wrong.ok && wrong.errors).toEqual({
+      takeProfit: 'Must be above the ask',
+      stopLoss: 'Must be below the bid',
+    })
+    const sell = buildIntent(btc, { ...market, side: 'sell', takeProfit: '80000', stopLoss: '80005' }, caps)
+    expect(!sell.ok && sell.errors).toEqual({ takeProfit: 'Must be below the bid', stopLoss: 'Must be above the ask' })
+    const blind = buildIntent(btc, { ...market, bid: '', ask: '', takeProfit: '82000' }, caps)
+    expect(!blind.ok && blind.errors.takeProfit).toBe('No price on the book yet')
+  })
+
+  it('keeps the stop of a limit that crosses the book below the bid it will fill near', () => {
+    const crossing = { ...draft, price: '80100', bid: '79990', ask: '80010' } as const
+    const built = buildIntent(btc, { ...crossing, stopLoss: '80000' }, caps)
+    expect(!built.ok && built.errors.stopLoss).toBe('Must be below the bid')
+    expect(buildIntent(btc, { ...crossing, stopLoss: '79900' }, caps).ok).toBe(true)
   })
 
   it('gives every build a fresh client id', () => {
@@ -250,6 +269,59 @@ describe('hyperliquid module', () => {
     expect(
       await recoverAddress({ hash: digest, signature: { r: signature.r, s: signature.s, v: BigInt(signature.v) } }),
     ).toBe(agent)
+  })
+
+  it('sends a market order with its take profit and stop loss as one normalTpsl group', async () => {
+    const book = (bid: string, ask: string) => ({ levels: [[{ px: bid }], [{ px: ask }]] })
+    const answer = (bid: string, ask: string) => (url: string, body: Record<string, unknown>) =>
+      url.endsWith('/info')
+        ? body.type === 'meta'
+          ? testnetMeta
+          : book(bid, ask)
+        : {
+            status: 'ok',
+            response: {
+              type: 'order',
+              data: {
+                statuses: [{ filled: { totalSz: '0.001', avgPx: '80010' } }, 'waitingForFill', 'waitingForFill'],
+              },
+            },
+          }
+    const built = buildIntent(
+      btc,
+      { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010', takeProfit: '82000', stopLoss: '78000' },
+      caps,
+    )
+    if (!built.ok) throw new Error('intent')
+    const ctx = (fetch: typeof globalThis.fetch): VenueContext => ({
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    })
+    const live = venue(answer('79990', '80010'))
+    expect(await TRADING.hyperliquid.execute(ctx(live.fetch), { kind: 'place', intent: built.intent })).toMatchObject({
+      status: 'filled',
+    })
+    const action = live.sent.find((s) => s.url.endsWith('/exchange'))!.body.action as {
+      grouping: string
+      orders: { b: boolean; p: string; r: boolean; t: unknown }[]
+    }
+    expect(action.grouping).toBe('normalTpsl')
+    expect(action.orders.map((o) => [o.b, o.p, o.r, o.t])).toEqual([
+      [true, '80810', false, { limit: { tif: 'Ioc' } }],
+      [false, '73800', true, { trigger: { isMarket: true, triggerPx: '82000', tpsl: 'tp' } }],
+      [false, '70200', true, { trigger: { isMarket: true, triggerPx: '78000', tpsl: 'sl' } }],
+    ])
+    const moved = venue(answer('81990', '82010'))
+    const error = await TRADING.hyperliquid
+      .execute(ctx(moved.fetch), { kind: 'place', intent: built.intent })
+      .catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error).toEqual({
+      kind: 'invalid-order',
+      detail: 'Take profit: Must be above the ask on this network',
+    })
+    expect(moved.sent.some((s) => s.url.endsWith('/exchange'))).toBe(false)
   })
 
   it('turns an unknown API wallet into needs-setup with the venue words', async () => {
