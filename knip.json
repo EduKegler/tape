@@ -8,6 +8,8 @@
         ".claude/skills/verify-tape/scripts/*",
         "e2e/build.mjs",
         "e2e/vite.config.ts",
+        "e2e/smoke.config.ts",
+        "e2e/live.smoke.ts",
         "e2e/replay/worker.ts"
       ],
       "ignoreDependencies": ["@walletconnect/ethereum-provider", "@tanstack/cli", "@tanstack/intent"]
