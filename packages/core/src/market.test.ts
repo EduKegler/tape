@@ -109,6 +109,13 @@ describe('trades and candles', () => {
     expect(tape.items.some((x) => x.time === 1)).toBe(false)
   })
 
+  it('places a late trade by its time', () => {
+    const tape = emptyTape()
+    pushTrades(tape, [t('b', 2)])
+    pushTrades(tape, [t('a', 1)])
+    expect(tape.items.map((x) => x.id)).toEqual(['b', 'a'])
+  })
+
   it('replaces the forming bar and ignores older ones', () => {
     const bar = (open: number, c: number): Candle => ({
       open,
