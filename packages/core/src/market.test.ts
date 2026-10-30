@@ -116,6 +116,14 @@ describe('trades and candles', () => {
     expect(tape.items.map((x) => x.id)).toEqual(['b', 'a'])
   })
 
+  it('remembers every trade on the tape but not every id it was ever sent', () => {
+    const tape = emptyTape()
+    for (let i = 1; i <= 330; i++) pushTrades(tape, [t(`t${i}`, i)])
+    expect(pushTrades(tape, [t('t321', 321)])).toBe(false)
+    expect(new Set(tape.items.map((x) => x.id)).size).toBe(tape.items.length)
+    expect(tape.seen.size).toBeLessThan(330)
+  })
+
   it('replaces the forming bar and ignores older ones', () => {
     const bar = (open: number, c: number): Candle => ({
       open,
