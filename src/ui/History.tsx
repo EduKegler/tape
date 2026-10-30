@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useConnection } from 'wagmi'
@@ -10,6 +10,7 @@ import { amount, format } from '@tape/trade/money'
 import type { TradeVenueId } from '@tape/trade/types'
 import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
+import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { TradeNote } from './TradeNote'
 
@@ -31,7 +32,7 @@ export const historySearch = z.object({
   totals: z.enum(['venue', 'month']).default('venue').catch('venue'),
 })
 
-type HistorySearch = z.infer<typeof historySearch>
+export type HistorySearch = z.infer<typeof historySearch>
 
 type Row =
   | { readonly kind: 'fill'; readonly time: number; readonly fill: RealizedFill }
@@ -57,6 +58,7 @@ function presets(now: number): { label: string; from?: string; to?: string }[] {
 
 export function History({ search, onSearch }: { search: HistorySearch; onSearch: (next: HistorySearch) => void }) {
   const [now] = useState(() => Date.now())
+  useEffect(() => lastHistorySearch.setState(() => search), [search])
   const { address: connected } = useConnection()
   const wallet = (search.address ?? connected ?? null)?.toLowerCase() ?? null
   const owned = wallet !== null && wallet === connected?.toLowerCase() ? (wallet as Address) : null

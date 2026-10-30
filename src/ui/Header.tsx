@@ -7,6 +7,7 @@ import { useFrame } from '#/client/hooks'
 import { NETWORK, VENUES } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
 import { formatCompact, formatPct } from './format'
+import { HistoryLink } from './HistoryLink'
 import { statsQuery } from './queries'
 
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
@@ -44,9 +45,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
       </nav>
       <Ticker venue={venue} base={base} />
       <div className="ml-auto flex items-center gap-4">
-        <Link to="/history" className="text-[13px] text-level3 hover:text-level1">
-          History
-        </Link>
+        <HistoryLink className="text-[13px] text-level3 hover:text-level1">History</HistoryLink>
         <WalletButton />
       </div>
     </header>
