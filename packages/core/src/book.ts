@@ -50,6 +50,8 @@ export type BookSync =
     }
   | { readonly phase: 'live'; readonly epoch: number; readonly book: Book }
 
+type ResetReason = 'subscribed' | 'corrupt' | 'stopped'
+
 export type BookInput =
   | {
       readonly kind: 'snapshot'
@@ -72,8 +74,11 @@ export type BookInput =
       readonly bids: readonly Level[]
       readonly asks: readonly Level[]
     }
-  /** `subscribed`: the venue just (re)sent the stream. `corrupt`: the hub could not trust a message. */
-  | { readonly kind: 'reset'; readonly reason: 'subscribed' | 'corrupt' }
+  /**
+   * `subscribed`: the venue just (re)sent the stream. `corrupt`: the hub could not trust a message.
+   * `stopped`: the hub no longer receives the stream.
+   */
+  | { readonly kind: 'reset'; readonly reason: ResetReason }
 
 export type BookEffect =
   | { readonly kind: 'none' }
@@ -183,7 +188,7 @@ function awaiting(
   protocol: BookProtocol,
   epoch: number,
   previous: Book | null,
-  reason: 'subscribed' | 'corrupt',
+  reason: ResetReason,
   buffer: readonly SequencedDelta[] = [],
 ): BookStep {
   const effect: BookEffect =

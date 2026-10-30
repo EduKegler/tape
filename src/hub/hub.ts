@@ -216,6 +216,13 @@ export function createHub(deps: HubDeps): Hub {
     return conn.s === 'open' && conn.subscribed.has(streamKey(m.key, 'book'))
   }
 
+  function stopBooks(keys: readonly StreamKey[]): void {
+    for (const k of keys) {
+      const { market: m, channel } = parseStreamKey(k)
+      if (channel === 'book') feedBook(market(m), { kind: 'reset', reason: 'stopped' })
+    }
+  }
+
   function feedBook(m: MarketState, input: BookInput): void {
     const v = venues[m.venue]
     const before = m.sync.phase
@@ -330,6 +337,7 @@ export function createHub(deps: HubDeps): Hub {
         const socket = v.socket
         v.socket = null
         socket?.close()
+        for (const m of markets.values()) if (m.venue === venue) feedBook(m, { kind: 'reset', reason: 'stopped' })
         return
       }
       case 'subscribe':
@@ -337,6 +345,7 @@ export function createHub(deps: HubDeps): Hub {
         return
       case 'unsubscribe':
         for (const frame of v.adapter.unsubscribeFrames(targets(venue, effect.streams))) v.socket?.send(frame)
+        stopBooks(effect.streams)
         return
       case 'keepalive':
         if (v.adapter.keepalive) v.socket?.send(v.adapter.keepalive.frame)
@@ -348,6 +357,7 @@ export function createHub(deps: HubDeps): Hub {
         }
         return
       case 'streams-stale':
+        stopBooks(effect.streams)
         for (const k of effect.streams) touch(market(parseStreamKey(k).market))
         return
     }
