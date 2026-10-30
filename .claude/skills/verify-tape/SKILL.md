@@ -41,7 +41,7 @@ Ready prints the run id, both pids and the evidence folder. Server ready is not 
 
 `up --network testnet` builds with `VITE_NETWORK=testnet`. Trading journeys need it. `up --reuse-build` skips the build and serves the last one when it was built for the same network. Only use it when `src/` has not changed since that build.
 
-`up --replay` builds the hub worker of `pnpm e2e`, from `e2e/replay/`, which plays the frames recorded in `packages/venues/src/__fixtures__/` instead of opening the venues' sockets, and starts Chrome with no host but 127.0.0.1 resolvable. Book and trade rows end the same on every run. The page still fetches candles, 24h stats and market rules itself, and only `parity.mjs` serves those from the recordings, so `open` and `shot` on a replay run show `Could not load history.` and `Market rules unavailable.`
+`up --replay` builds the hub worker of `pnpm e2e`, from `e2e/replay/`, which plays the frames recorded in `packages/venues/src/__fixtures__/` instead of opening the venues' sockets, and starts Chrome with no host but 127.0.0.1 resolvable. Book and trade rows end the same on every run. The page still fetches candles, 24h stats and market rules itself, and only `parity.mjs` and `perf-probe.mjs` serve those from the recordings, so `open` and `shot` on a replay run show `Could not load history.` and `Market rules unavailable.`
 
 Override ports with `VERIFY_TAPE_PORT` and `VERIFY_TAPE_CDP_PORT`, and the browser with `CHROME` (default `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`). No Playwright browser download is needed. The script uses `playwright-core` from the repo's devDependencies.
 
@@ -134,6 +134,27 @@ A capture does not see:
 - views outside `VIEWS`, such as the Deposit dialog
 - a different Chrome, which `diff` warns about, so compare captures from the same machine
 
+## Perf probe
+
+```bash
+node .claude/skills/verify-tape/scripts/perf-probe.mjs --runs 3 --baseline <baseline.json>
+```
+
+It needs a run started with `up --replay` and no other Tape tab, because every tab shares the hub and renders too. `close` them first. The probe loads the market twice before the first run, so Chrome's code cache is warm for all of them. Each run opens `/dydx/BTC?interval=1m` in a fresh tab, with REST served from the recordings, waits for the book, asks the replay to loop its recordings so the book keeps changing, warms up 5 s, and measures 60 s while it types `80520` into the ticket's price field and deletes it, one key every 330 ms. dYdX has the longest book recording.
+
+- Frame time from `requestAnimationFrame`, p95 and p99, and the share of frames dropped against the display rate.
+- Long tasks, their count and total blocking time.
+- Key to paint, from the `keydown` time stamp to the first task after the next frame's paint, p50 and p95.
+- Main thread work per key, from `keydown` to the end of the `input` handlers plus the next frame's rendering, p50 and p95.
+- Main thread busy time per second, from CDP `Performance.getMetrics`, with its script, and style and layout, parts.
+- GPU process CPU time per second, from CDP `SystemInfo.getProcessInfo`. Shadow, blur and gradients cost raster and compositing there, and the main thread never sees them.
+- Layouts and style recalculations per second, from the same counters. They count work, so the core speed does not move them.
+- Book commits per second, from a `MutationObserver` on the book panel. A run under 5 a second fails, because a still book measures nothing.
+
+macOS on Apple silicon puts a light renderer on a slow or a fast core depending on what else the machine runs, so the same build can measure almost three times the main thread time in one run as in another. So the probe also times a fixed loop on the page's main thread four times a second, and states main thread and GPU process work in runs of that loop. That cancels most of the core speed. Key to paint stays in ms, because it is what the trader waits, and it moves with the core too.
+
+It writes `run-N.json` with the samples and `summary.json` with the median, min and max of each metric, the build's commit, the Chrome version, the machine and the load average around each run. `--baseline <file>` compares the medians with each metric's `limit` in that file and exits 1 if one is over. A baseline holds only for the machine and Chrome it was measured on, and the probe warns when they differ, or when the calibration loop ran outside the range the baseline saw. Baselines and their limits live outside this repo.
+
 ## Evidence
 
 Every command appends one line to `.claude/skills/verify-tape/artifacts/<run-id>/steps.jsonl`: the command, its flags and its result. Relative `--path` values for `aria` and `shot` land in the same folder. The build log is there too. The folder is gitignored by the skill's own `.gitignore` and survives `down`.
@@ -160,6 +181,8 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 
 - `scripts/verify-tape.mjs` is the harness. Commands: `up`, `doctor`, `down`, `open`, `click`, `fill`, `select`, `press`, `wait`, `text`, `attr`, `eval`, `aria`, `shot`, `pages`, `close`.
 - `scripts/parity.mjs` captures and diffs computed styles on a replay run. Commands: `capture`, `diff`.
+- `scripts/perf-probe.mjs` is the perf probe. Run it with `--help` for its flags.
+- `scripts/replay-routes.mjs` serves a replay page's REST calls from the recordings, for `parity.mjs` and `perf-probe.mjs`.
 - `scripts/vite.verify.config.ts` is verification scaffolding. It only moves build output, and with `--replay` swaps in the E2E hub worker. It is never used by the product.
 
 ## Gotchas
