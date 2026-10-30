@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { Address, Hex } from 'viem'
+import { burnToHyperCore } from './cctp'
 import { depositIssues, parseUsdc } from './deposit'
-import type { DepositReadings, SentDeposit } from './deposit'
+import type { DepositReadings, DepositRoute, SentDeposit } from './deposit'
 import { DEPOSITS } from './index'
 
 const owner: Address = '0x2e5346477b01397553df3ec9a637f3e535325d6d'
 const known: DepositReadings = { usdc: 50_000_000n, native: 10n ** 15n, code: '0x', fee: null, gasCost: 10n ** 12n }
 const [mainnetBridge] = DEPOSITS.hyperliquid!.routes('mainnet')
 const bridge = mainnetBridge!
+
+const routeFrom = (chainId: number): DepositRoute => {
+  const found = DEPOSITS.hyperliquid!.routes('mainnet').find((r) => r.chainId === chainId)
+  if (!found) throw new Error(`no route from ${chainId}`)
+  return found
+}
 
 function ledgerFetch(entries: unknown[]) {
   const asked: Record<string, unknown>[] = []
@@ -117,6 +124,106 @@ describe('Hyperliquid bridge deposit', () => {
       amount: 10_000_000n,
       at: 1_793_325_632_379,
       receipt: hash,
+    })
+  })
+})
+
+describe('Hyperliquid CCTP deposit', () => {
+  const base = routeFrom(8453)
+  const fee = { expected: 263_890n, max: 280_927n }
+
+  it('leaves from Base, Optimism and Ethereum on mainnet only', () => {
+    expect(DEPOSITS.hyperliquid!.routes('mainnet').map((r) => r.chainId)).toEqual([42161, 8453, 10, 1])
+    expect(DEPOSITS.hyperliquid!.routes('testnet').map((r) => r.chainId)).toEqual([421614])
+  })
+
+  it('burns to the HyperCore forwarder exactly as a deposit Circle already forwarded', () => {
+    // Input of 0xaa622ce2…e37c on Arbitrum: 685.64 USDC to the sender's own HyperCore perps.
+    expect(
+      burnToHyperCore(
+        '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+        '0x257caa046a30fa3459cd0a8af642cfb3664f4fca',
+        0x28de0940n,
+        200_000n,
+      ).data.toLowerCase(),
+    ).toBe(
+      '0x779b432d0000000000000000000000000000000000000000000000000000000028de09400000000000000000000000000000000000000000000000000000000000000013000000000000000000000000b21d281dedb17ae5b501f6aa8256fe38c4e45757000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000b21d281dedb17ae5b501f6aa8256fe38c4e457570000000000000000000000000000000000000000000000000000000000030d4000000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000038636374702d666f72776172640000000000000000000000000000000000000018257caa046a30fa3459cd0a8af642cfb3664f4fca000000000000000000000000',
+    )
+  })
+
+  it('approves exactly the amount first when the allowance falls short', () => {
+    expect(base.calls(owner, 100_000_000n, fee, 0n).map((c) => [c.kind, c.to])).toEqual([
+      ['approve', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'],
+      ['deposit', '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d'],
+    ])
+    expect(base.calls(owner, 100_000_000n, fee, 100_000_000n).map((c) => c.kind)).toEqual(['deposit'])
+  })
+
+  it('quotes the Fast Transfer fee in bps of the amount plus the forwarding fee', async () => {
+    const asked: string[] = []
+    const fetch = (async (url: string) => {
+      asked.push(url)
+      return new Response(
+        JSON.stringify([
+          { finalityThreshold: 1000, minimumFee: 1.3, forwardFee: { low: 236453, med: 250890, high: 265327 } },
+          { finalityThreshold: 2000, minimumFee: 0, forwardFee: { low: 236453, med: 250890, high: 265327 } },
+        ]),
+      )
+    }) as typeof globalThis.fetch
+    expect(await base.fee(fetch, 100_000_000n)).toEqual(fee)
+    expect(asked).toEqual(['https://iris-api.circle.com/v2/burn/USDC/fees/6/19?forward=true&hyperCoreDeposit=true'])
+  })
+
+  it('follows the burn through Circle to the send Hyperliquid books from the CoreDepositWallet', async () => {
+    const recipient: Address = '0xefc1aaf1ced837a170c2cad8d0551a49b31a2458'
+    const sent: SentDeposit = {
+      ref: { venue: 'hyperliquid', network: 'mainnet', owner: recipient },
+      chainId: 8453,
+      amount: 10_000_000_000n,
+      hash: '0x984cf110c222b69d4d4f6b9b281957afb58327de519ffc457365f6be24ef46d7',
+      sentAt: 1_793_320_800_000,
+    }
+    const credit = {
+      time: 1_793_320_818_376,
+      hash: '0x85e38878870112a1875d0447a7792800001ea05e2204317329ac33cb4604ec8c',
+      delta: {
+        type: 'send',
+        user: '0x6b9e773128f453f5c2c60935ee2de2cbc5390a24',
+        destination: recipient,
+        sourceDex: 'spot',
+        destinationDex: '',
+        token: 'USDC',
+        amount: '9999.8',
+      },
+    }
+    const answer = (circle: unknown, ledger: unknown[]) =>
+      (async (url: string) =>
+        url.includes('circle')
+          ? new Response(JSON.stringify(circle), { status: circle ? 200 : 404 })
+          : new Response(JSON.stringify(ledger))) as typeof globalThis.fetch
+    const forwarded = {
+      messages: [
+        {
+          status: 'complete',
+          forwardState: 'COMPLETE',
+          forwardTxHash: '0xe7517ef6e8d20dcc5baa413981d377935d544f1379c907e2139477fc3e85ac84',
+          decodedMessage: { decodedMessageBody: { feeExecuted: '200000' } },
+        },
+      ],
+    }
+    expect(await base.progress(answer(null, []), sent)).toMatchObject({ stage: 'relaying' })
+    expect(await base.progress(answer({ messages: [{ status: 'pending_confirmations' }] }, []), sent)).toMatchObject({
+      stage: 'relaying',
+      detail: 'Waiting for Circle to attest the burn',
+    })
+    expect(
+      await base.progress(answer(forwarded, [{ ...credit, delta: { ...credit.delta, amount: '9999.7' } }]), sent),
+    ).toMatchObject({ stage: 'relaying' })
+    expect(await base.progress(answer(forwarded, [credit]), sent)).toEqual({
+      stage: 'credited',
+      amount: 9_999_800_000n,
+      at: credit.time,
+      receipt: credit.hash,
     })
   })
 })

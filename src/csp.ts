@@ -13,6 +13,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
     'https://dydx-ops-rpc.kingnodes.com',
     'https://api.orderly.org',
     'wss://ws-evm.orderly.org',
+    'https://iris-api.circle.com',
     ...CHAINS.mainnet.flatMap((c) => c.rpcUrls.default.http.map((url) => new URL(url).origin)),
   ],
   testnet: [
