@@ -41,6 +41,8 @@ Ready prints the run id, both pids and the evidence folder. Server ready is not 
 
 `up --network testnet` builds with `VITE_NETWORK=testnet`. Trading journeys need it. `up --reuse-build` skips the build and serves the last one when it was built for the same network. Only use it when `src/` has not changed since that build.
 
+`up --replay` builds the hub worker of `pnpm e2e`, from `e2e/replay/`, which plays the frames recorded in `packages/venues/src/__fixtures__/` instead of opening the venues' sockets, and starts Chrome with no host but 127.0.0.1 resolvable. Book and trade rows end the same on every run. The page still fetches candles, 24h stats and market rules itself, so `open` and `shot` on a replay run show `Could not load history.` and `Market rules unavailable.`
+
 Override ports with `VERIFY_TAPE_PORT` and `VERIFY_TAPE_CDP_PORT`, and the browser with `CHROME` (default `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`). No Playwright browser download is needed. The script uses `playwright-core` from the repo's devDependencies.
 
 Why not `pnpm dev`: the user runs it on port 3000, and this harness never drives an instance it did not start. A build also proves the production bundle. `pnpm dev` works too, if a journey needs hot reload.
@@ -64,7 +66,7 @@ Exit 0 means drive it. Exit 1 means the instance is broken: run `down`, then `up
 
 ## Network and fixtures
 
-Verification needs the network. There is no offline mode the browser can use. `packages/venues/src/fixtures.ts` reads recorded frames with `node:fs` and only feeds the Vitest suites. The hub in the browser always opens the real sockets:
+Verification needs the network, except on a replay run. `packages/venues/src/fixtures.ts` reads recorded frames with `node:fs` and only feeds the Vitest suites. Outside a replay run, the hub in the browser opens the real sockets:
 
 - `wss://data-stream.binance.vision/ws` and `https://data-api.binance.vision/api/v3`
 - `wss://api.hyperliquid.xyz/ws` and `https://api.hyperliquid.xyz/info`
@@ -129,7 +131,7 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 ## Helpers
 
 - `scripts/verify-tape.mjs` is the harness. Commands: `up`, `doctor`, `down`, `open`, `click`, `fill`, `select`, `press`, `wait`, `text`, `attr`, `eval`, `aria`, `shot`, `pages`, `close`.
-- `scripts/vite.verify.config.ts` is verification scaffolding. It only moves build output. It is never used by the product.
+- `scripts/vite.verify.config.ts` is verification scaffolding. It only moves build output, and with `--replay` swaps in the E2E hub worker. It is never used by the product.
 
 ## Gotchas
 

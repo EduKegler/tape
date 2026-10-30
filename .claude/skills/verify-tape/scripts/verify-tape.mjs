@@ -122,6 +122,8 @@ async function up(flags) {
 
   const network = flags.network ?? 'mainnet'
   if (network !== 'mainnet' && network !== 'testnet') die(`--network takes mainnet or testnet, not ${network}`)
+  const replay = Boolean(flags.replay)
+  const build = `${network}${replay ? ' replay' : ''}`
   const runId = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', '')
   mkdirSync(STATE_DIR, { recursive: true })
   mkdirSync(join(ARTIFACTS, runId), { recursive: true })
@@ -130,11 +132,11 @@ async function up(flags) {
   const sha = git(['rev-parse', '--short', 'HEAD'])
   const dirty = git(['status', '--porcelain', '--', 'src', 'packages']).split('\n').filter(Boolean).length
   const builtFor = existsSync(join(OUTPUT, 'network')) ? readFileSync(join(OUTPUT, 'network'), 'utf8') : null
-  if (flags['reuse-build'] && existsSync(join(OUTPUT, 'server/index.mjs')) && builtFor === network) {
+  if (flags['reuse-build'] && existsSync(join(OUTPUT, 'server/index.mjs')) && builtFor === build) {
     console.log(`up: reusing the build in ${OUTPUT}. It may not match the working tree.`)
   } else {
     console.log(
-      `up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/ and packages/` : ''} for ${network} into ${OUTPUT}`,
+      `up: building ${sha}${dirty ? ` plus ${dirty} uncommitted file(s) under src/ and packages/` : ''} for ${build} into ${OUTPUT}`,
     )
     try {
       execFileSync(
@@ -147,11 +149,11 @@ async function up(flags) {
         ],
         {
           cwd: REPO,
-          env: { ...process.env, VITE_NETWORK: network },
+          env: { ...process.env, VITE_NETWORK: network, VERIFY_TAPE_REPLAY: replay ? '1' : '' },
           stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')],
         },
       )
-      writeFileSync(join(OUTPUT, 'network'), network)
+      writeFileSync(join(OUTPUT, 'network'), build)
     } catch {
       console.error(readFileSync(buildLog, 'utf8').split('\n').slice(-30).join('\n'))
       rmSync(STATE_DIR, { recursive: true, force: true })
@@ -176,6 +178,7 @@ async function up(flags) {
       '--no-first-run',
       '--no-default-browser-check',
       '--window-size=1440,900',
+      ...(replay ? ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] : []),
       'about:blank',
     ],
     { detached: true, stdio: 'ignore' },
@@ -190,6 +193,7 @@ async function up(flags) {
     chromePid: chrome.pid,
     sha,
     network,
+    replay,
     dirtySrcFiles: dirty,
     startedAt: new Date().toISOString(),
   }
@@ -243,9 +247,9 @@ async function up(flags) {
       address = JSON.parse(readFileSync(join(STATE_DIR, 'wallet-key.json'), 'utf8')).address
   }
   if (!address) die('the test wallet did not start. Log: .state/wallet.log. Run `down`.')
-  record(s, { cmd: 'up', base: BASE, sha: s.sha, network, wallet: address })
+  record(s, { cmd: 'up', base: BASE, sha: s.sha, network, replay, wallet: address })
   console.log(
-    `up: run ${runId}\n  app     ${BASE} (${network})\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
+    `up: run ${runId}\n  app     ${BASE} (${build})\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
   )
 }
 
@@ -297,7 +301,11 @@ async function doctor() {
   if (!s) {
     check('run state', false, `no ${STATE}. Run \`up\`.`)
   } else {
-    check('run state', true, `run ${s.runId}, started ${s.startedAt} at ${s.sha}, ${s.network ?? 'mainnet'}`)
+    check(
+      'run state',
+      true,
+      `run ${s.runId}, started ${s.startedAt} at ${s.sha}, ${s.network ?? 'mainnet'}${s.replay ? ' replay' : ''}`,
+    )
     check('server process', alive(s.serverPid), `pid ${s.serverPid}`)
     check('chrome process', alive(s.chromePid), `pid ${s.chromePid}`)
     check(
@@ -372,7 +380,7 @@ async function doctor() {
         }),
     ],
   ]
-  for (const [name, probe] of venues) {
+  for (const [name, probe] of s?.replay ? [] : venues) {
     try {
       const r = await probe()
       check(`venue ${name} reachable`, r.ok, `HTTP ${r.status}`)
@@ -556,9 +564,10 @@ async function browserCmd(cmd, pos, flags) {
 const HELP = `verify-tape <command> [flags]
 
 Lifecycle
-  up [--network testnet] [--reuse-build]
+  up [--network testnet] [--replay] [--reuse-build]
                              build for mainnet (default) or testnet into .cache/output, serve it on 127.0.0.1:${PORT},
-                             start headless Chrome (CDP ${CDP_PORT})
+                             start headless Chrome (CDP ${CDP_PORT}). --replay builds the E2E hub worker, which
+                             plays the recorded venue frames, and Chrome resolves no host but 127.0.0.1
   doctor                     read-only health check. Exit 1: instance broken. Exit 2: a venue is unreachable.
   down                       stop both processes this run started. Evidence stays.
 
