@@ -1,10 +1,12 @@
 import { BASES, marketKey } from '@tape/core/ids'
 import type { Base, Interval, Network } from '@tape/core/ids'
+import { parsePx } from '@tape/core/fixed'
 import type { Decimals } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
 
+const MIN_ORDER_USDC = '10'
 const HOST: Record<Network, string> = { mainnet: 'api.hyperliquid.xyz', testnet: 'api.hyperliquid-testnet.xyz' }
 const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000 }
 
@@ -59,6 +61,7 @@ export function hyperliquid(network: Network): VenueAdapter {
         const asset = meta.universe.find((u) => u.name === base)
         if (!asset) continue
         const qty = asset.szDecimals as Decimals
+        const scale = { px: (6 - qty) as Decimals, qty }
         specs.set(base, {
           key: marketKey('hyperliquid', base),
           venue: 'hyperliquid',
@@ -66,9 +69,10 @@ export function hyperliquid(network: Network): VenueAdapter {
           quote: 'USDC',
           kind: 'perp',
           venueSymbol: base,
-          scale: { px: (6 - qty) as Decimals, qty },
+          scale,
           tick: { kind: 'sigfig', figures: 5 },
           step: 1 as MarketSpec['step'],
+          minNotional: parsePx(MIN_ORDER_USDC, scale),
         })
       }
       return specs

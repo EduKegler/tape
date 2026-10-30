@@ -5,7 +5,8 @@ import { parsePx, wireDecimal } from '@tape/core/fixed'
 import type { Decimals, Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { checkExits, checkPrice, checkSize, worstPrice } from '../intent'
+import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, send } from '../send'
@@ -17,6 +18,7 @@ import type {
   Command,
   CommandOutcome,
   Decimal,
+  HistoryRequest,
   OrderIntent,
   OrderLookup,
   OrderRef,
@@ -27,6 +29,8 @@ import type {
   VenueContext,
   WalletSigner,
 } from '../types'
+import { walkByTime } from '../history'
+import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
 import { cancelAction, leverageAction, orderAction, orderWire } from './wire'
 import type { OrderWire, Tif } from './wire'
@@ -41,6 +45,7 @@ const AGENT_NAME = 'tape'
 /** Market triggers fill at market. The limit only bounds them, as Hyperliquid's own UI does at 10%. */
 const TRIGGER_SLIPPAGE_BPS = 1000
 const TIF: Record<'gtc' | 'ioc' | 'post-only', Tif> = { gtc: 'Gtc', ioc: 'Ioc', 'post-only': 'Alo' }
+const SCALE_ORDERS = 20
 
 interface Asset {
   readonly index: number
@@ -76,8 +81,9 @@ const classify: Classify = (_status, body) => {
   return b?.status === 'err' ? classifyText(String(b.response)) : null
 }
 
-const info = <T>(ctx: VenueContext, body: unknown) =>
-  send<T>('hyperliquid', ctx.fetch, `${API[ctx.ref.network]}/info`, { ...post(body), mutates: false }, () => null)
+const infoAt = <T>(network: Network, fetch: typeof globalThis.fetch, body: unknown) =>
+  send<T>('hyperliquid', fetch, `${API[network]}/info`, { ...post(body), mutates: false }, () => null)
+const info = <T>(ctx: VenueContext, body: unknown) => infoAt<T>(ctx.ref.network, ctx.fetch, body)
 
 /** Asset ids and szDecimals differ between mainnet and testnet, so each network gets its own rules. */
 function meta(ctx: VenueContext): Promise<Meta> {
@@ -122,15 +128,13 @@ function recheckPx(a: Asset, intent: OrderIntent, px: Px, what: string): string 
   return issue ? fail({ kind: 'invalid-order', detail: `${what} ${wire}: ${issue} on this network` }) : wire
 }
 
-async function touch(ctx: VenueContext, a: Asset, side: 'buy' | 'sell'): Promise<Px> {
+async function touch(ctx: VenueContext, a: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
   const book = await info<{ levels: [{ px: string }[], { px: string }[]] }>(ctx, {
     type: 'l2Book',
     coin: a.spec.venueSymbol,
   })
-  const far = side === 'buy' ? book.levels[1][0] : book.levels[0][0]
-  return far
-    ? parsePx(far.px, a.spec.scale)
-    : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+  const [bid, ask] = book.levels.map((side) => (side[0] ? parsePx(side[0].px, a.spec.scale) : null))
+  return { bid: bid ?? null, ask: ask ?? null }
 }
 
 async function placeWires(
@@ -142,30 +146,56 @@ async function placeWires(
   const sizeIssue = checkSize(a.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   const isBuy = intent.side === 'buy'
-  const limit =
-    intent.order.kind === 'limit'
-      ? { px: recheckPx(a, intent, intent.order.px, 'Price'), tif: TIF[intent.order.tif] }
-      : {
-          px: wireDecimal(
-            worstPrice(a.spec, intent.side, await touch(ctx, a, intent.side), intent.order.slippage),
-            a.spec.scale.px,
-          ),
+  const { takeProfit, stopLoss } = intent.triggers
+  if (intent.order.kind === 'scale') {
+    if (takeProfit !== null || stopLoss !== null)
+      fail({ kind: 'invalid-order', detail: 'A scale order carries no take profit or stop loss' })
+    const tif = TIF[intent.order.tif]
+    const wires = intent.order.legs.map((leg, i) => {
+      const legSize = wireDecimal(leg.size, intent.spec.scale.qty)
+      const issue = checkSize(a.spec, legSize)
+      if (issue) fail({ kind: 'invalid-order', detail: `Order ${i + 1} size ${legSize}: ${issue} on this network` })
+      const px = recheckPx(a, intent, leg.px, `Order ${i + 1} price`)
+      return orderWire(a.index, isBuy, px, legSize, intent.reduceOnly, { limit: { tif } }, leg.clientId)
+    })
+    return { wires, grouping: 'na' }
+  }
+  const exits = {
+    takeProfit: takeProfit === null ? null : parsePx(recheckPx(a, intent, takeProfit, 'Take profit'), a.spec.scale),
+    stopLoss: stopLoss === null ? null : parsePx(recheckPx(a, intent, stopLoss, 'Stop loss'), a.spec.scale),
+  }
+  const order = intent.order
+  const limit = order.kind === 'limit' ? { px: recheckPx(a, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
+  const book = limit === null || exits.takeProfit !== null || exits.stopLoss !== null ? await touch(ctx, a) : null
+  if (book) {
+    const issues = checkExits(intent.side, { px: limit && parsePx(limit.px, a.spec.scale), ...book }, exits)
+    const first = Object.entries(issues)[0]
+    if (first)
+      fail({
+        kind: 'invalid-order',
+        detail: `${first[0] === 'takeProfit' ? 'Take profit' : 'Stop loss'}: ${first[1]} on this network`,
+      })
+  }
+  const far = (isBuy ? book?.ask : book?.bid) ?? null
+  const sent =
+    limit
+    ?? (order.kind === 'market' && far !== null
+      ? {
+          px: wireDecimal(worstPrice(a.spec, intent.side, far, order.slippage), a.spec.scale.px),
           tif: 'Ioc' as const,
         }
+      : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' }))
   const wires = [
-    orderWire(a.index, isBuy, limit.px, size, intent.reduceOnly, { limit: { tif: limit.tif } }, intent.clientId),
+    orderWire(a.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
   ]
   const closing = isBuy ? 'sell' : 'buy'
   for (const [tpsl, px] of [
-    ['tp', intent.triggers.takeProfit],
-    ['sl', intent.triggers.stopLoss],
+    ['tp', exits.takeProfit],
+    ['sl', exits.stopLoss],
   ] as const) {
     if (px === null) continue
-    const triggerPx = recheckPx(a, intent, px, tpsl === 'tp' ? 'Take profit' : 'Stop loss')
-    const bound = wireDecimal(
-      worstPrice(a.spec, closing, parsePx(triggerPx, a.spec.scale), TRIGGER_SLIPPAGE_BPS),
-      a.spec.scale.px,
-    )
+    const triggerPx = wireDecimal(px, a.spec.scale.px)
+    const bound = wireDecimal(worstPrice(a.spec, closing, px, TRIGGER_SLIPPAGE_BPS), a.spec.scale.px)
     wires.push(orderWire(a.index, !isBuy, bound, size, true, { trigger: { isMarket: true, triggerPx, tpsl } }))
   }
   return { wires, grouping: wires.length > 1 ? 'normalTpsl' : 'na' }
@@ -214,33 +244,56 @@ async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
 const GONE = /never placed|already canceled|filled/i
 const legName = (w: OrderWire | undefined) => (w && 'trigger' in w.t ? w.t.trigger.tpsl.toUpperCase() : 'Leg')
 
+type OrderStatus = z.infer<typeof Status>
+const errorOf = (s: OrderStatus | undefined) => (typeof s === 'object' ? s.error : undefined)
+
+function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatus[]): CommandOutcome {
+  const [first, ...legs] = statuses
+  const error = errorOf(first)
+  if (error) fail(classifyText(error))
+  // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
+  const refused = legs.flatMap((s, i) => {
+    const legError = errorOf(s)
+    return legError ? [`${legName(wires[i + 1])} not placed: ${legError}`] : []
+  })
+  const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
+  if (typeof first === 'object' && first.filled)
+    return {
+      kind: 'placed',
+      status: 'filled',
+      detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}`,
+    }
+  if (typeof first === 'object' && first.resting)
+    return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
+  return {
+    kind: 'placed',
+    status: 'accepted',
+    detail: `${typeof first === 'string' ? first : JSON.stringify(first)}${note}`,
+  }
+}
+
+/** Hyperliquid judges each order of the action on its own, so some legs can stand while others are refused. */
+function legsOutcome(statuses: readonly OrderStatus[]): CommandOutcome {
+  const count = (key: 'resting' | 'filled') => statuses.filter((s) => typeof s === 'object' && s[key]).length
+  const resting = count('resting')
+  const filled = count('filled')
+  return scaleOutcome(
+    statuses.map(errorOf),
+    filled === statuses.length ? 'filled' : resting > 0 ? 'resting' : 'accepted',
+    (error) => fail(classifyText(error)),
+    `: ${resting} resting, ${filled} filled`,
+  )
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place': {
       const { wires, grouping } = await placeWires(ctx, command.intent)
       const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
-      const [first, ...legs] = reply.response.data?.statuses ?? []
-      if (first === undefined)
+      const statuses = reply.response.data?.statuses ?? []
+      if (statuses.length === 0)
         fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
-      if (typeof first === 'object' && first.error) fail(classifyText(first.error))
-      // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
-      const refused = legs.flatMap((s, i) =>
-        typeof s === 'object' && s.error ? [`${legName(wires[i + 1])} not placed: ${s.error}`] : [],
-      )
-      const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
-      if (typeof first === 'object' && first.filled)
-        return {
-          kind: 'placed',
-          status: 'filled',
-          detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}`,
-        }
-      if (typeof first === 'object' && first.resting)
-        return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
-      return {
-        kind: 'placed',
-        status: 'accepted',
-        detail: `${typeof first === 'string' ? first : JSON.stringify(first)}${note}`,
-      }
+      return command.intent.order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
     }
     case 'cancel':
     case 'cancel-all': {
@@ -263,14 +316,18 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
-  const reply = await info<{ status: string; order?: { status: string } }>(ctx, {
-    type: 'orderStatus',
-    user: ctx.ref.owner,
-    oid: intent.clientId,
-  })
-  return reply.status === 'order' && reply.order
-    ? { kind: 'found', detail: `Order ${reply.order.status}` }
-    : { kind: 'absent', detail: `Hyperliquid answered ${reply.status}` }
+  const replies = await Promise.all(
+    clientIdsOf(intent).map((oid) =>
+      info<{ status: string; order?: { status: string } }>(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }),
+    ),
+  )
+  return lookupSummary(
+    replies.map((reply) =>
+      reply.status === 'order' && reply.order
+        ? { kind: 'found', detail: `Order ${reply.order.status}` }
+        : { kind: 'absent', detail: `Hyperliquid answered ${reply.status}` },
+    ),
+  )
 }
 
 const refOf = (index: number, oid: string) => `${index}:${oid}` as OrderRef
@@ -491,11 +548,100 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   if (key) ctx.keys.write({ ...key, status: 'linked' })
 }
 
+/** Page sizes from the info endpoint docs. */
+const FILL_PAGE = 2000
+const FUNDING_PAGE = 500
+const RECENT_FILLS = 10000
+
+interface HlHistoryFill {
+  coin: string
+  px: string
+  sz: string
+  side: 'A' | 'B'
+  time: string
+  startPosition: string
+  closedPnl: string
+  hash: string
+  oid: string
+  fee: string
+  feeToken: string
+  tid: string
+  liquidation?: { liquidatedUser: string }
+}
+
+interface HlFunding {
+  time: string
+  delta: { coin: string; usdc: string; szi: string; fundingRate: string }
+}
+
+/** Spot coins are `@index` or `BASE/QUOTE`. Perps on HIP-3 dexes are `dex:COIN`. */
+const isSpot = (coin: string) => coin.startsWith('@') || coin.includes('/')
+
+async function history({ network, address, fetch }: HistoryRequest): Promise<VenueHistory> {
+  const user = address.toLowerCase()
+  const [fills, funding] = await Promise.all([
+    walkByTime(
+      (startTime) =>
+        infoAt<HlHistoryFill[]>(network, fetch, { type: 'userFillsByTime', user, startTime, aggregateByTime: false }),
+      // Dust conversions come with tid 0 and a zero hash, so the tid alone repeats.
+      { size: FILL_PAGE, timeOf: (f) => Number(f.time), keyOf: (f) => `${f.tid}:${f.oid}:${f.coin}:${f.hash}` },
+    ),
+    walkByTime((startTime) => infoAt<HlFunding[]>(network, fetch, { type: 'userFunding', user, startTime }), {
+      size: FUNDING_PAGE,
+      timeOf: (f) => Number(f.time),
+      keyOf: (f) => `${f.time}:${f.delta.coin}`,
+    }),
+  ])
+  const perps = fills.rows.filter((f) => !isSpot(f.coin))
+  const firsts = new Map<string, HlHistoryFill>()
+  for (const f of perps) if (!firsts.has(f.coin)) firsts.set(f.coin, f)
+  const startsOpen = [...firsts.values()].some((f) => Number(f.startPosition) !== 0)
+  const d = (s: string) => s as Decimal
+  const gaps: string[] = []
+  if (fills.rows.length >= RECENT_FILLS)
+    gaps.push(`Hyperliquid serves only its ${RECENT_FILLS} most recent fills, so earlier fills are missing.`)
+  else if (startsOpen)
+    gaps.push(
+      'Hyperliquid serves only its most recent fills, and this history starts with a position already open. Earlier fills are missing.',
+    )
+  if (fills.stalled || funding.stalled)
+    gaps.push('Hyperliquid sent more rows for one moment than a page holds, so later rows are missing.')
+  if (perps.length < fills.rows.length) gaps.push('Spot fills are left out.')
+  const collateral = new Map(perps.map((f) => [f.coin, f.feeToken]))
+  return {
+    fills: perps.map((f): HistoryFill => ({
+      venue: 'hyperliquid',
+      account: user,
+      id: f.tid,
+      symbol: f.coin,
+      side: f.side === 'B' ? 'buy' : 'sell',
+      px: d(f.px),
+      size: d(f.sz),
+      fee: d(f.fee),
+      asset: f.feeToken,
+      time: Number(f.time),
+      liquidation: f.liquidation?.liquidatedUser.toLowerCase() === user,
+      venuePnl: d(f.closedPnl),
+    })),
+    funding: funding.rows.map((f): FundingPayment => ({
+      venue: 'hyperliquid',
+      account: user,
+      symbol: f.delta.coin,
+      time: Number(f.time),
+      amount: d(f.delta.usdc),
+      asset: collateral.get(f.delta.coin) ?? 'USDC',
+      rate: d(f.delta.fundingRate),
+      position: d(f.delta.szi),
+    })),
+    gaps,
+  }
+}
+
 export const hyperliquid = {
   id: 'hyperliquid',
   label: 'Hyperliquid',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true, scaleOrders: SCALE_ORDERS },
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
   steps,
@@ -504,4 +650,5 @@ export const hyperliquid = {
   margin,
   execute,
   lookup,
+  history,
 } satisfies TradingVenue & { id: 'hyperliquid' }

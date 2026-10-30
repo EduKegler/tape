@@ -5,7 +5,7 @@ import type { Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize } from '../intent'
-import { send } from '../send'
+import { post, send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure } from '../types'
 import type {
@@ -13,6 +13,7 @@ import type {
   Command,
   CommandOutcome,
   Decimal,
+  HistoryRequest,
   OrderIntent,
   OrderLookup,
   OrderRef,
@@ -24,9 +25,12 @@ import type {
   VenueContext,
   WalletSigner,
 } from '../types'
+import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
+import { amount, negate, plain } from '../money'
+import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
-import { cancelPath, orderBody } from './wire'
+import { batchBody, cancelPath, orderBody } from './wire'
 import type { OrderType } from './wire'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
@@ -36,6 +40,8 @@ const CHAIN_ID: Record<Network, number> = { mainnet: 42161, testnet: 421614 }
 const SCOPE = 'read,trading'
 const KEY_DAYS = 365
 const TYPE: Record<'gtc' | 'ioc' | 'post-only', OrderType> = { gtc: 'LIMIT', ioc: 'IOC', 'post-only': 'POST_ONLY' }
+/** Orderly's batch endpoint takes at most 10 orders. */
+const BATCH_ORDERS = 10
 
 const brokerOf = (config: TradeConfig, network: Network) => config.orderly.brokerId[network]
 
@@ -58,11 +64,13 @@ const classify: Classify = (status, body, text) => {
 }
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
+const unsuccessful: Classify = (_s, body, text) => {
+  const b = body as { success?: boolean; message?: string } | null
+  return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
+}
+
 const publicGet = <T>(ctx: VenueContext, path: string) =>
-  send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { mutates: false }, (_s, body, text) => {
-    const b = body as { success?: boolean; message?: string } | null
-    return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
-  })
+  send<{ data: T }>('orderly', ctx.fetch, `${API[ctx.ref.network]}${path}`, { mutates: false }, unsuccessful)
 
 function keyOf(ctx: VenueContext): OrderlyKey | null {
   const secret = ctx.keys.read()?.secret
@@ -114,9 +122,9 @@ function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
   return cached
 }
 
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
   try {
-    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${intent.clientId}`)
+    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${clientId}`)
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
   } catch (e) {
     if (
@@ -129,12 +137,56 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
   }
 }
 
+async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+  const results: OrderLookup[] = []
+  for (const id of clientIdsOf(intent)) results.push(await lookupOne(ctx, id))
+  return lookupSummary(results)
+}
+
+async function placeScale(
+  ctx: VenueContext,
+  intent: OrderIntent,
+  order: Extract<OrderIntent['order'], { kind: 'scale' }>,
+  spec: MarketSpec,
+): Promise<CommandOutcome> {
+  const legs = order.legs.map((leg, i) => {
+    const quantity = wireDecimal(leg.size, intent.spec.scale.qty)
+    const price = wireDecimal(leg.px, intent.spec.scale.px)
+    const issue = checkSize(spec, quantity) ?? checkPrice(spec, price)
+    if (issue) fail({ kind: 'invalid-order', detail: `Order ${i + 1} at ${price}: ${issue} on this network` })
+    return {
+      symbol: intent.spec.venueSymbol,
+      clientOrderId: leg.clientId,
+      type: TYPE[order.tif],
+      side: intent.side === 'buy' ? ('BUY' as const) : ('SELL' as const),
+      price,
+      quantity,
+      reduceOnly: intent.reduceOnly,
+    }
+  })
+  const data = await signed<{ rows: { order_id?: number | string | null; error_message?: string | null }[] }>(
+    ctx,
+    'POST',
+    '/v1/batch-order',
+    batchBody(legs),
+  )
+  if (data.rows.length === 0)
+    fail({ kind: 'unknown-outcome', detail: `No order rows in the reply: ${JSON.stringify(data)}` })
+  // Orderly writes "none" in error_message on a placed row, so a row stands by its order_id.
+  return scaleOutcome(
+    data.rows.map((r) => (r.order_id == null ? (r.error_message ?? 'Refused without a reason') : undefined)),
+    'resting',
+    (error) => fail(classifyMessage(error)),
+  )
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place': {
       const intent = command.intent
       const symbol = intent.spec.venueSymbol
       const spec = await networkSpec(ctx, symbol)
+      if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
       const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
       const sizeIssue = checkSize(spec, quantity)
       if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
@@ -352,11 +404,115 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   if (key) ctx.keys.write({ ...key, status: 'linked' })
 }
 
+/** Largest pages the public query takes with a time range. */
+const TRADE_PAGE = 2000
+const FUNDING_PAGE = 500
+
+interface QueryTrade {
+  id: string
+  symbol: string
+  side: 'BUY' | 'SELL'
+  executed_price: string
+  executed_quantity: string
+  fee: string
+  fee_asset: string
+  /** Null on liquidation fills. */
+  order_id: string | null
+  realized_pnl: string | null
+  executed_timestamp: string
+}
+
+interface QueryFunding {
+  symbol: string
+  funding_rate: string
+  funding_fee: string
+  position_qty: string
+  funding_rate_timestamp: string
+  funding_status: string
+}
+
+/**
+ * Orderly's public query reads any address without a key. Without a time range it returns only the
+ * last 24 hours, so every read starts at 1 ms and follows the cursor into the archive.
+ */
+async function history({ network, address, fetch }: HistoryRequest): Promise<VenueHistory> {
+  const query = <T>(body: Record<string, unknown>) =>
+    send<{ data: T }>(
+      'orderly',
+      fetch,
+      `${API[network]}/v1/public/query`,
+      { ...post(body), mutates: false },
+      unsuccessful,
+    ).then((r) => r.data)
+  const follow = async <T>(body: Record<string, unknown>): Promise<T[]> => {
+    const rows: T[] = []
+    let cursor: string | null = null
+    do {
+      const page: { rows: T[]; next_cursor: string | null } = await query({ ...body, ...(cursor ? { cursor } : {}) })
+      rows.push(...page.rows)
+      cursor = page.next_cursor
+    } while (cursor)
+    return rows
+  }
+  let accounts: { account_id: string }[]
+  try {
+    accounts = (await query<{ accounts: { account_id: string }[] }>({ type: 'accountState', address })).accounts
+  } catch (e) {
+    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
+    throw e
+  }
+  const read = await Promise.all(
+    accounts.map(async ({ account_id }) => {
+      const scope = { address, account_id, start_time: 1 }
+      const [trades, payments] = await Promise.all([
+        follow<QueryTrade>({ type: 'trades', ...scope, limit: TRADE_PAGE }),
+        follow<QueryFunding>({ type: 'fundingPayments', ...scope, limit: FUNDING_PAGE }),
+      ])
+      // Orderly pages trades newest first, and fills in one millisecond must stay in the order they matched.
+      return { id: account_id, trades: trades.reverse(), payments }
+    }),
+  )
+  return {
+    fills: read.flatMap(({ id, trades }) =>
+      trades.map((t): HistoryFill => ({
+        venue: 'orderly',
+        account: id,
+        id: t.id,
+        symbol: t.symbol,
+        side: t.side === 'BUY' ? 'buy' : 'sell',
+        px: d(t.executed_price),
+        size: d(t.executed_quantity),
+        fee: d(t.fee),
+        asset: t.fee_asset,
+        time: Number(t.executed_timestamp),
+        liquidation: t.order_id === null,
+        venuePnl: t.realized_pnl === null ? null : d(t.realized_pnl),
+      })),
+    ),
+    // Accrued payments are not settled yet and can still change.
+    funding: read.flatMap(({ id, payments }) =>
+      payments
+        .filter((p) => p.funding_status === 'Settled')
+        .map((p): FundingPayment => ({
+          venue: 'orderly',
+          account: id,
+          symbol: p.symbol,
+          time: Number(p.funding_rate_timestamp),
+          amount: plain(negate(amount(p.funding_fee))) as Decimal,
+          asset: 'USDC',
+          rate: d(p.funding_rate),
+          position: d(p.position_qty),
+        })),
+    ),
+    gaps: [],
+  }
+}
+
 export const orderly = {
   id: 'orderly',
   label: 'Orderly',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true, scaleOrders: BATCH_ORDERS },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {
     if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'
@@ -367,4 +523,5 @@ export const orderly = {
   account,
   execute,
   lookup,
+  history,
 } satisfies TradingVenue & { id: 'orderly' }

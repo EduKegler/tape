@@ -73,7 +73,7 @@ function contextFor(ref: AccountRef): VenueContext {
   }
 }
 
-async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> {
+export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> {
   try {
     return await run()
   } catch (e) {

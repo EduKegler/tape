@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HistoryRouteImport } from './routes/history'
 import { Route as R1RouteImport } from './routes/r1'
 import { Route as VenueBaseRouteImport } from './routes/$venue.$base'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const R1Route = R1RouteImport.update({
@@ -31,30 +37,34 @@ const VenueBaseRoute = VenueBaseRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/history': typeof HistoryRoute
   '/r1': typeof R1Route
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/history': typeof HistoryRoute
   '/r1': typeof R1Route
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/history': typeof HistoryRoute
   '/r1': typeof R1Route
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/r1' | '/$venue/$base'
+  fullPaths: '/' | '/history' | '/r1' | '/$venue/$base'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/r1' | '/$venue/$base'
-  id: '__root__' | '/' | '/r1' | '/$venue/$base'
+  to: '/' | '/history' | '/r1' | '/$venue/$base'
+  id: '__root__' | '/' | '/history' | '/r1' | '/$venue/$base'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HistoryRoute: typeof HistoryRoute
   R1Route: typeof R1Route
   VenueBaseRoute: typeof VenueBaseRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/r1': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HistoryRoute: HistoryRoute,
   R1Route: R1Route,
   VenueBaseRoute: VenueBaseRoute,
 }

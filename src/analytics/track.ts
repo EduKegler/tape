@@ -80,7 +80,7 @@ export function commandSent(venueId: VenueId, c: Command): AppEvent {
     command: 'place',
     side,
     order: order.kind,
-    ...(order.kind === 'limit' ? { tif: order.tif } : {}),
+    ...(order.kind === 'market' ? {} : { tif: order.tif }),
     reduce_only: reduceOnly,
   }
 }

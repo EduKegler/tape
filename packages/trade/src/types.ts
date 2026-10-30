@@ -2,6 +2,7 @@ import type { Address, Hex } from 'viem'
 import type { Brand, Network, VenueId } from '@tape/core/ids'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
+import type { VenueHistory } from './history'
 import type { MarginState } from './liquidation'
 
 export const READ_ONLY_VENUES = ['binance'] as const
@@ -43,8 +44,17 @@ export type IntentFields = {
   readonly reduceOnly: boolean
   /** Market carries no price: the module reads the touch from the network it sends to. */
   readonly order:
-    { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif } | { readonly kind: 'market'; readonly slippage: Bps }
+    | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
+    | { readonly kind: 'market'; readonly slippage: Bps }
+    | { readonly kind: 'scale'; readonly tif: Exclude<Tif, 'ioc'>; readonly legs: readonly ScaleLeg[] }
   readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
+}
+
+/** One limit order of a scale order. The first leg carries the intent's clientId. */
+export interface ScaleLeg {
+  readonly px: Px
+  readonly size: Qty
+  readonly clientId: ClientOrderId
 }
 
 /** Opaque outside the module that made it. Carries what that venue needs to cancel. */
@@ -120,6 +130,8 @@ export interface Capabilities {
   readonly tif: readonly Tif[]
   readonly triggers: boolean
   readonly leverage: boolean
+  /** The most legs one scale order sends, all in one request. 0 where the venue takes no such request. */
+  readonly scaleOrders: number
 }
 
 export type TradeError =
@@ -191,6 +203,13 @@ export interface VenueContext {
   readonly fetch: typeof globalThis.fetch
 }
 
+/** Whose history to read. dYdX takes the account's dydx1 address, the others the wallet address. */
+export interface HistoryRequest {
+  readonly network: Network
+  readonly address: string
+  readonly fetch: typeof globalThis.fetch
+}
+
 export interface TradingVenue {
   readonly id: TradeVenueId
   readonly label: string
@@ -211,6 +230,8 @@ export interface TradingVenue {
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
   /** Asks the venue for the order by its clientId, after a send that ended in unknown-outcome. */
   lookup: (ctx: VenueContext, intent: OrderIntent) => Promise<OrderLookup>
+  /** Every fill and funding payment the venue still serves, read without a key. */
+  history: (request: HistoryRequest) => Promise<VenueHistory>
 }
 
 export type TradingRegistry = { readonly [V in TradeVenueId]: TradingVenue & { readonly id: V } }

@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const [base = 'origin/main', head = 'HEAD'] = process.argv.slice(2)
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+// Git sets GIT_DIR for hooks, and it wins over `git -C`, so a pre-push run would check out commits in the caller's worktree.
+const env = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => !/^GIT_(?:DIR|WORK_TREE|INDEX_FILE)$/.test(key)),
+)
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env }).trim()
 
 const commits = git('rev-list', '--reverse', `${base}..${head}`).split('\n').filter(Boolean)
 const passedFile = join(git('rev-parse', '--path-format=absolute', '--git-common-dir'), 'tape-verified-trees')
@@ -23,6 +27,7 @@ const logs = mkdtempSync(join(tmpdir(), 'tape-verify-logs-'))
 const install = (log, ...flags) =>
   spawnSync('pnpm', ['install', '--frozen-lockfile', '--ignore-scripts', ...flags], {
     cwd: dir,
+    env,
     stdio: ['ignore', log, log],
   }).status === 0
 
@@ -38,7 +43,7 @@ try {
     const lock = git('rev-parse', `${sha}:pnpm-lock.yaml`)
     const installed = lock === lockfile || install(log, '--offline') || install(log)
     lockfile = installed ? lock : undefined
-    const ok = installed && spawnSync('pnpm', ['verify'], { cwd: dir, stdio: ['ignore', log, log] }).status === 0
+    const ok = installed && spawnSync('pnpm', ['verify'], { cwd: dir, env, stdio: ['ignore', log, log] }).status === 0
     closeSync(log)
     if (ok) {
       appendFileSync(passedFile, `${treeOf(sha)}\n`)

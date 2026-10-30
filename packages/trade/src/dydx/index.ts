@@ -11,6 +11,7 @@ import type {
   Command,
   CommandOutcome,
   Decimal,
+  HistoryRequest,
   OrderIntent,
   OrderLookup,
   OrderRef,
@@ -21,6 +22,7 @@ import type {
   VenueContext,
   WalletSigner,
 } from '../types'
+import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { ONBOARDING_CHAIN, deriveKey, onboarding, sdk, validatorOf, walletOf } from './client'
 import { LONG_TERM_SECONDS, clientIdOf, quantums, subticks } from './wire'
 import type { ClobMarket } from './wire'
@@ -52,10 +54,11 @@ export function classifyMessage(message: string): TradeError {
   return { kind: 'unknown-outcome', detail: message }
 }
 
-const indexer = <T>(ctx: VenueContext, path: string) =>
-  send<T>('dydx', ctx.fetch, `${INDEXER[ctx.ref.network]}${path}`, { mutates: false }, (status, _b, text) =>
+const indexerAt = <T>(network: Network, fetch: typeof globalThis.fetch, path: string) =>
+  send<T>('dydx', fetch, `${INDEXER[network]}${path}`, { mutates: false }, (status, _b, text) =>
     status === 404 ? { kind: 'rejected', detail: text } : null,
   )
+const indexer = <T>(ctx: VenueContext, path: string) => indexerAt<T>(ctx.ref.network, ctx.fetch, path)
 
 const markets = new Map<string, Promise<Market>>()
 function market(ctx: VenueContext, ticker: string): Promise<Market> {
@@ -138,6 +141,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const size = wireDecimal(intent.size, intent.spec.scale.qty)
   const sizeIssue = checkSize(m.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
+  if (intent.order.kind === 'scale') fail({ kind: 'unsupported', detail: 'dYdX takes no scale order from Tape' })
   let px: Px
   let tif: 0 | 1 | 2
   if (intent.order.kind === 'limit') {
@@ -391,11 +395,108 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   ctx.keys.write({ status: 'linked', public: { address }, secret: mnemonic })
 }
 
+/** The indexer's largest page, and the last page its proxy serves. */
+const PAGE = 1000
+const LAST_PAGE = 25
+/** Fills where the protocol, not the account's own order, closed the position. */
+const FORCED = new Set(['LIQUIDATED', 'DELEVERAGED'])
+
+interface IndexerFill {
+  id: string
+  side: 'BUY' | 'SELL'
+  type: string
+  market: string
+  marketType: string
+  price: string
+  size: string
+  fee: string
+  createdAt: string
+}
+
+interface IndexerFunding {
+  ticker: string
+  payment: string
+  rate: string
+  size: string
+  createdAt: string
+}
+
+/** Page mode returns fills oldest first by event, which keeps fills in one block in the order they happened. */
+async function pages<T>(read: (page: number) => Promise<T[]>): Promise<{ rows: T[]; capped: boolean }> {
+  const rows: T[] = []
+  for (let page = 1; page <= LAST_PAGE; page++) {
+    const got = await read(page)
+    rows.push(...got)
+    if (got.length < PAGE) return { rows, capped: false }
+  }
+  return { rows, capped: true }
+}
+
+async function history({ network, address, fetch }: HistoryRequest): Promise<VenueHistory> {
+  const query = `address=${address}&subaccountNumber=0&limit=${PAGE}`
+  let fills: { rows: IndexerFill[]; capped: boolean }
+  let funding: { rows: IndexerFunding[]; capped: boolean }
+  try {
+    ;[fills, funding] = await Promise.all([
+      pages((page) =>
+        indexerAt<{ fills: IndexerFill[] }>(network, fetch, `/fills?${query}&page=${page}`).then((r) => r.fills),
+      ),
+      pages((page) =>
+        indexerAt<{ fundingPayments: IndexerFunding[] }>(network, fetch, `/fundingPayments?${query}&page=${page}`).then(
+          (r) => r.fundingPayments,
+        ),
+      ),
+    ])
+  } catch (e) {
+    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
+    throw e
+  }
+  const d = (s: string) => s as Decimal
+  const perps = fills.rows.filter((f) => f.marketType === 'PERPETUAL')
+  const gaps = [
+    'dYdX reports no realized PnL per fill, so Tape computes it by average cost over the whole history.',
+    'Only subaccount 0 is read. Isolated positions on dYdX live in other subaccounts.',
+  ]
+  if (fills.capped)
+    gaps.push(`dYdX's indexer pages through ${PAGE * LAST_PAGE} fills at most, so some fills are missing.`)
+  if (funding.capped)
+    gaps.push(
+      `dYdX's indexer pages through ${PAGE * LAST_PAGE} funding payments at most, so some payments are missing.`,
+    )
+  return {
+    fills: perps.map((f): HistoryFill => ({
+      venue: 'dydx',
+      account: address,
+      id: f.id,
+      symbol: f.market,
+      side: f.side === 'BUY' ? 'buy' : 'sell',
+      px: d(f.price),
+      size: d(f.size),
+      fee: d(f.fee),
+      asset: 'USDC',
+      time: Date.parse(f.createdAt),
+      liquidation: FORCED.has(f.type),
+      venuePnl: null,
+    })),
+    funding: funding.rows.map((f): FundingPayment => ({
+      venue: 'dydx',
+      account: address,
+      symbol: f.ticker,
+      time: Date.parse(f.createdAt),
+      amount: d(f.payment),
+      asset: 'USDC',
+      rate: d(f.rate),
+      position: d(f.size),
+    })),
+    gaps,
+  }
+}
+
 export const dydx = {
   id: 'dydx',
   label: 'dYdX',
   secrets: 'tab',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false, scaleOrders: 0 },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
@@ -404,4 +505,5 @@ export const dydx = {
   account,
   execute,
   lookup,
+  history,
 } satisfies TradingVenue & { id: 'dydx' }

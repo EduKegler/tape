@@ -45,4 +45,8 @@ export function orderBody(o: OrderFields): string {
   })
 }
 
+export function batchBody(orders: readonly OrderFields[]): string {
+  return `{"orders":[${orders.map(orderBody).join(',')}]}`
+}
+
 export const cancelPath = (symbol: string, orderId: number) => `/v1/order?order_id=${orderId}&symbol=${symbol}`

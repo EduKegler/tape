@@ -1,10 +1,21 @@
 import { BASES, marketKey } from '@tape/core/ids'
 import type { Base, Interval, Network } from '@tape/core/ids'
-import { decimalsOf, parsePx, parseQty } from '@tape/core/fixed'
+import { DecimalError, decimalsOf, parsePx, parseQty, plainDecimal } from '@tape/core/fixed'
+import type { Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { parseExactJson } from '@tape/core/json'
 import { VenueParseError, chartBar, getExactJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
+
+function minNotionalOf(value: string | undefined, scale: Scale): Pick<MarketSpec, 'minNotional'> {
+  if (!value) return {}
+  try {
+    return { minNotional: parsePx(plainDecimal(value), scale) }
+  } catch (e) {
+    if (e instanceof DecimalError) return {}
+    throw e
+  }
+}
 
 const symbolOf = (base: Base) => `PERP_${base}_USDC`
 const RESOLUTION: Record<Interval, string> = { '1m': '1', '5m': '5', '15m': '15', '1h': '60' }
@@ -63,11 +74,9 @@ export function orderly(network: Network): VenueAdapter {
       const specs = new Map<Base, MarketSpec>()
       await Promise.all(
         BASES.map(async (base) => {
-          const json = await getExactJson<{ data?: { quote_tick: string; base_tick: string; status: string } }>(
-            fetch,
-            `${rest}/public/info/${symbolOf(base)}`,
-            { signal: signal ?? null },
-          )
+          const json = await getExactJson<{
+            data?: { quote_tick: string; base_tick: string; min_notional?: string; status: string }
+          }>(fetch, `${rest}/public/info/${symbolOf(base)}`, { signal: signal ?? null })
           const m = json.data
           if (m?.status !== 'ACTIVE') return
           const scale = { px: decimalsOf(m.quote_tick), qty: decimalsOf(m.base_tick) }
@@ -81,6 +90,7 @@ export function orderly(network: Network): VenueAdapter {
             scale,
             tick: { kind: 'fixed', tick: parsePx(m.quote_tick, scale) },
             step: parseQty(m.base_tick, scale),
+            ...minNotionalOf(m.min_notional, scale),
           })
         }),
       )
