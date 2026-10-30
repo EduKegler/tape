@@ -2,6 +2,7 @@
   "name": "tape",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.7.0",
   "imports": {
     "#/*": "./src/*"
   },
