@@ -18,7 +18,7 @@
     "typecheck": "node scripts/check-packages.mjs && tsc -p packages/core && tsc -p packages/venues && tsc -p packages/trade && tsc --noEmit",
     "fixtures": "node scripts/record-fixtures.mjs 8",
     "fixtures:history": "RECORD_HISTORY=1 vitest run packages/trade/src/history.record.test.ts",
-    "verify": "pnpm typecheck && node scripts/check-public.mjs && node scripts/check-cycles.mjs && eslint --max-warnings 0 && prettier --check . && knip && vitest run",
+    "verify": "node scripts/verify.mjs",
     "verify:commits": "node scripts/verify-commits.mjs",
     "e2e": "node e2e/build.mjs && playwright test",
     "prepare": "lefthook install"
