@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useQuery } from '@tanstack/react-query'
 import { useBalance, useBytecode, useConnection, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
 import { estimateGas, waitForTransactionReceipt } from 'wagmi/actions'
@@ -212,6 +212,16 @@ export function useDeposits(ref: AccountRef): readonly DepositRecord[] {
   return useMemo(() => parseDeposits(raw), [raw])
 }
 
+function usePassed(deadline: number): boolean {
+  const [passed, setPassed] = useState(() => Date.now() > deadline)
+  useEffect(() => {
+    if (passed || !Number.isFinite(deadline)) return
+    const timer = setTimeout(() => setPassed(true), deadline - Date.now())
+    return () => clearTimeout(timer)
+  }, [deadline, passed])
+  return passed
+}
+
 export type DepositStatus =
   { readonly stage: 'confirming' } | { readonly stage: 'reverted' } | { readonly stage: 'replaced' } | DepositProgress
 
@@ -225,7 +235,7 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
   const claimed = new Set(
     others.flatMap((d) => (d.hash !== record.hash && d.outcome?.stage === 'credited' ? [d.outcome.receipt] : [])),
   )
-  const confirmed = useQuery(
+  useQuery(
     // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the hash names the deposit
     queryOptions({
       queryKey: ['deposit', 'receipt', record.hash],
@@ -276,8 +286,7 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
       refetchInterval: PROGRESS_POLL_MS,
     }),
   )
-  const checkedAt = Math.max(confirmed.dataUpdatedAt, progress.dataUpdatedAt, confirmed.errorUpdatedAt)
-  const late = route ? checkedAt > record.sentAt + route.eta.worst * 1000 : false
+  const late = usePassed(route ? record.sentAt + route.eta.worst * 1000 : Infinity)
   if (record.outcome) return { status: record.outcome, late: false }
   if (record.gasPaid === null) return { status: { stage: 'confirming' }, late }
   return { status: progress.data ?? { stage: 'relaying', detail: 'Checking with the venue' }, late }
