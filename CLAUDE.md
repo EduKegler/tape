@@ -32,8 +32,10 @@ A test goes in the one layer that can catch its kind of mistake. A test that rep
 | Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
 | Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
 | History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
-| UI wiring and journeys | The `verify-tape` skill, against live data | What the user reads on screen |
+| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production build over the recorded replay, with no network | What the user reads on screen |
 | Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
+
+The `verify-tape` skill explores and reproduces bugs against live data. Regressions belong to `pnpm e2e`. A spec finds elements by role and accessible name, and a `data-testid` goes in only where neither is reliable.
 
 The expected value never comes from a run of the code under test. Another model writing the test does not fix that, because it reads the same code and guesses the same value.
 
@@ -61,6 +63,7 @@ Before a venue ships, its tests prove these:
 | Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
+| UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
 | One logical change per commit | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |
