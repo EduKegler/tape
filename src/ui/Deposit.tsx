@@ -38,7 +38,7 @@ export function DepositButton({ account }: { account: AccountRef }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-full border border-rule px-2.5 py-0.5 text-[11px] text-level1 hover:border-level3"
+        className="rounded-full bg-ink px-3 py-0.5 text-[12px] font-medium text-ink-contrast hover:opacity-90"
       >
         Deposit
       </button>
