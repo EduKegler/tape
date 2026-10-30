@@ -3,11 +3,13 @@ import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
-import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
-import type { Px } from '@tape/core/fixed'
+import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty, toDisplayFloat } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
-import { buildIntent, checkPrice, checkSize } from '@tape/trade/intent'
+import { buildIntent, buildScale, checkCount, checkPrice, checkSize, checkSkew } from '@tape/trade/intent'
+import type { DraftField } from '@tape/trade/intent'
+import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
 import type { Bps, Side, Tif, TradeError } from '@tape/trade/types'
@@ -23,7 +25,18 @@ import { TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
-type Kind = 'limit' | 'market'
+type Kind = 'limit' | 'market' | 'scale'
+const FIELD_LABEL: Record<DraftField, string> = {
+  price: 'Price',
+  size: 'Size',
+  tif: 'Time in force',
+  takeProfit: 'Take profit',
+  stopLoss: 'Stop loss',
+  start: 'Start price',
+  end: 'End price',
+  count: 'Orders',
+  skew: 'Size skew',
+}
 const TIF_LABEL: Record<Tif, string> = {
   gtc: 'Good til canceled',
   ioc: 'Immediate or cancel',
@@ -76,20 +89,31 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const { run, last } = useTradeCommands(ref)
   const margin = useMarginReading(ref, spec.venueSymbol)
   const form = useForm({
-    defaultValues: { price: '', size: '', tif: 'gtc' as Tif, reduceOnly: false, takeProfit: '', stopLoss: '' },
+    defaultValues: {
+      price: '',
+      size: '',
+      tif: 'gtc' as Tif,
+      reduceOnly: false,
+      takeProfit: '',
+      stopLoss: '',
+      start: '',
+      end: '',
+      count: '5',
+      skew: '1',
+    },
     onSubmit: ({ value }) => {
       if (!ref || !canSend || last.pending) return
-      const triggers = protect && kind === 'limit' ? {} : { takeProfit: '', stopLoss: '' }
+      const triggers = protect && kind !== 'scale' ? {} : { takeProfit: '', stopLoss: '' }
       const result = buildIntent(
         spec,
-        { ...value, ...triggers, side, kind, slippage: slippage as Bps },
-        caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
+        { ...value, ...triggers, side, kind, slippage: slippage as Bps, bid: touch.bid, ask: touch.ask },
+        caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false, scaleOrders: 0 },
       )
       if (!result.ok) {
         setBuilt({
           kind: 'invalid-order',
           detail: Object.entries(result.errors)
-            .map(([k, v]) => `${k}: ${v}`)
+            .map(([k, v]) => `${FIELD_LABEL[k as DraftField]}: ${v}`)
             .join('; '),
         })
         return
@@ -127,10 +151,14 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       <Segmented
         label="Order type"
         value={kind}
-        onChange={setKind}
+        onChange={(k) => {
+          setKind(k)
+          if (k === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
+        }}
         options={[
           { value: 'limit', label: 'Limit' },
           { value: 'market', label: 'Market' },
+          ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
         ]}
       />
       {kind === 'limit' && (
@@ -158,10 +186,65 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           )}
         </form.Field>
       )}
+      {kind === 'scale' && (
+        <div className="grid grid-cols-2 gap-2">
+          {(['start', 'end'] as const).map((name) => (
+            <form.Field key={name} name={name} validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
+              {(field) => (
+                <Input
+                  label={FIELD_LABEL[name]}
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  hint={
+                    near ? (
+                      <button
+                        type="button"
+                        className="text-level3 hover:text-level1"
+                        onClick={() => field.handleChange(near)}
+                      >
+                        {side === 'buy' ? 'Bid' : 'Ask'}
+                      </button>
+                    ) : null
+                  }
+                />
+              )}
+            </form.Field>
+          ))}
+          <form.Field name="count" validators={{ onChange: ({ value }) => checkCount(value, caps?.scaleOrders ?? 0) }}>
+            {(field) => (
+              <Input
+                label={FIELD_LABEL.count}
+                name={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                hint={<span className="text-level3">Up to {caps?.scaleOrders}</span>}
+              />
+            )}
+          </form.Field>
+          <form.Field name="skew" validators={{ onChange: ({ value }) => checkSkew(value) }}>
+            {(field) => (
+              <Input
+                label={FIELD_LABEL.skew}
+                name={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                hint={<span className="text-level3">Last over first</span>}
+              />
+            )}
+          </form.Field>
+        </div>
+      )}
       <form.Field name="size" validators={{ onChange: ({ value }) => checkSize(spec, value) }}>
         {(field) => (
           <Input
-            label={`Size (${spec.base})`}
+            label={`${kind === 'scale' ? 'Total size' : 'Size'} (${spec.base})`}
             name={field.name}
             value={field.state.value}
             onBlur={field.handleBlur}
@@ -171,7 +254,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           />
         )}
       </form.Field>
-      {kind === 'limit' ? (
+      {kind !== 'market' ? (
         <form.Field name="tif">
           {(field) => (
             <label className="flex items-center justify-between text-[12px] text-level3">
@@ -182,11 +265,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 onChange={(e) => field.handleChange(e.target.value as Tif)}
                 className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-[12px] text-level1"
               >
-                {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const)).map((t) => (
-                  <option key={t} value={t}>
-                    {TIF_LABEL[t]}
-                  </option>
-                ))}
+                {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
+                  .filter((t) => kind !== 'scale' || t !== 'ioc')
+                  .map((t) => (
+                    <option key={t} value={t}>
+                      {TIF_LABEL[t]}
+                    </option>
+                  ))}
               </select>
             </label>
           )}
@@ -207,13 +292,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           </label>
         )}
       </form.Field>
-      {caps?.triggers && kind === 'limit' && (
+      {caps?.triggers && kind !== 'scale' && (
         <label className="flex items-center gap-2 text-[12px] text-level2">
           <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
           Take profit and stop loss
         </label>
       )}
-      {caps?.triggers && kind === 'limit' && protect && (
+      {caps?.triggers && kind !== 'scale' && protect && (
         <div className="grid grid-cols-2 gap-2">
           {(['takeProfit', 'stopLoss'] as const).map((name) => (
             <form.Field
@@ -236,18 +321,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           ))}
         </div>
       )}
-      <form.Subscribe selector={(s) => [s.values.price, s.values.size, s.canSubmit] as const}>
-        {([price, size, canSubmit]) => {
-          const px = kind === 'market' ? far : price
-          const valid = Boolean(px && size && !checkSize(spec, size) && (kind === 'market' || !checkPrice(spec, px)))
-          let total = '—'
-          if (valid) {
-            try {
-              total = `${formatNotional(notional(parsePx(px, spec.scale), parseQty(size, spec.scale)), spec.scale)} ${spec.quote}`
-            } catch {
-              total = '—'
-            }
-          }
+      <form.Subscribe selector={(s) => [s.values, s.canSubmit] as const}>
+        {([values, canSubmit]) => {
+          const scale = kind === 'scale' ? buildScale(spec, { ...values, side }, caps?.scaleOrders ?? 0) : null
+          const legs = scale?.ok ? scale.legs : null
+          const px = kind === 'market' ? far : checkPrice(spec, values.price) ? '' : values.price
+          const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
+          const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
           return (
             <>
               <dl className="num grid grid-cols-2 gap-y-1 text-[12px]">
@@ -256,13 +336,12 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 {margin.status !== 'no-estimate' && (
                   <>
                     <dt className="text-level3">Est. liquidation</dt>
-                    <dd className="text-right text-level1">
-                      {liquidationText(spec, margin, valid ? { side, size: Number(size), px: Number(px) } : null)}
-                    </dd>
+                    <dd className="text-right text-level1">{liquidationText(spec, margin, entry)}</dd>
                   </>
                 )}
                 {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
               </dl>
+              {legs && <ScaleLegs spec={spec} legs={legs} />}
               <SubmitArea
                 session={session}
                 venue={VENUES[spec.venue].label}
@@ -277,6 +356,41 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       {built && <TradeNote error={built} />}
       {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />}
     </form>
+  )
+}
+
+type Preview = Entry & { readonly notional: bigint }
+
+function singleEntry(spec: MarketSpec, side: Side, px: string, size: string): Preview | null {
+  if (!px || !size || checkSize(spec, size)) return null
+  try {
+    return {
+      side,
+      px: Number(px),
+      size: Number(size),
+      notional: notional(parsePx(px, spec.scale), parseQty(size, spec.scale)),
+    }
+  } catch {
+    return null
+  }
+}
+
+function averageEntry(spec: MarketSpec, side: Side, legs: readonly Slice[]): Preview {
+  const total = legs.reduce((sum, l) => sum + notional(l.px, l.size), 0n)
+  const size = toDisplayFloat(legs.reduce((sum, l) => sum + l.size, 0) as Qty, spec.scale.qty)
+  return { side, size, px: Number(total) / 10 ** (spec.scale.px + spec.scale.qty) / size, notional: total }
+}
+
+function ScaleLegs({ spec, legs }: { spec: MarketSpec; legs: readonly Slice[] }) {
+  return (
+    <ol aria-label="Scale orders" className="num flex max-h-40 flex-col gap-0.5 overflow-y-auto text-[12px]">
+      {legs.map((l) => (
+        <li key={l.px} className="flex justify-between">
+          <span className="text-level3">{formatPx(l.px, spec.scale)}</span>
+          <span className="text-level1">{formatQty(l.size, spec.scale)}</span>
+        </li>
+      ))}
+    </ol>
   )
 }
 

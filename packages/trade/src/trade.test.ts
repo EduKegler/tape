@@ -4,7 +4,7 @@ import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address, Hex } from 'viem'
 import { plainDecimal } from '@tape/core/fixed'
-import type { Qty } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { deriveKey, onboarding } from './dydx/client'
@@ -41,6 +41,12 @@ const draft = {
   takeProfit: '',
   stopLoss: '',
   slippage: 100 as Bps,
+  bid: '',
+  ask: '',
+  start: '',
+  end: '',
+  count: '',
+  skew: '1',
 } as const
 
 const config: TradeConfig = {
@@ -73,9 +79,92 @@ describe('order intent', () => {
     expect(!bad.ok && bad.errors.takeProfit).toBe('Must be above the price')
   })
 
-  it('refuses take profit and stop loss on a market order', () => {
-    const built = buildIntent(btc, { ...draft, kind: 'market', price: '', takeProfit: '90000' }, caps)
-    expect(!built.ok && built.errors.takeProfit).toBe('Only with a limit order')
+  it('checks take profit and stop loss on a market order against the touch it will take', () => {
+    const market = { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010' } as const
+    const ok = buildIntent(btc, { ...market, takeProfit: '82000', stopLoss: '78000' }, caps)
+    expect(ok.ok && ok.intent.triggers).toEqual({ takeProfit: 820_000, stopLoss: 780_000 })
+    const wrong = buildIntent(btc, { ...market, takeProfit: '80000', stopLoss: '79995' }, caps)
+    expect(!wrong.ok && wrong.errors).toEqual({
+      takeProfit: 'Must be above the ask',
+      stopLoss: 'Must be below the bid',
+    })
+    const sell = buildIntent(btc, { ...market, side: 'sell', takeProfit: '80000', stopLoss: '80005' }, caps)
+    expect(!sell.ok && sell.errors).toEqual({ takeProfit: 'Must be below the bid', stopLoss: 'Must be above the ask' })
+    const blind = buildIntent(btc, { ...market, bid: '', ask: '', takeProfit: '82000' }, caps)
+    expect(!blind.ok && blind.errors.takeProfit).toBe('No price on the book yet')
+  })
+
+  it('keeps the stop of a limit that crosses the book below the bid it will fill near', () => {
+    const crossing = { ...draft, price: '80100', bid: '79990', ask: '80010' } as const
+    const built = buildIntent(btc, { ...crossing, stopLoss: '80000' }, caps)
+    expect(!built.ok && built.errors.stopLoss).toBe('Must be below the bid')
+    expect(buildIntent(btc, { ...crossing, stopLoss: '79900' }, caps).ok).toBe(true)
+  })
+
+  it('refuses an order worth less than the venue minimum, unless it only reduces', () => {
+    const ten = { ...btc, minNotional: 100 as Px }
+    const small = { ...draft, size: '0.0001' } as const
+    expect(buildIntent(ten, small, caps)).toEqual({ ok: false, errors: { size: 'Must be worth at least 10.0 USDC' } })
+    expect(buildIntent(ten, { ...small, size: '0.00013' }, caps).ok).toBe(true)
+    expect(buildIntent(ten, { ...small, reduceOnly: true }, caps).ok).toBe(true)
+    const market = { ...small, kind: 'market', price: '', bid: '79990', ask: '125000' } as const
+    expect(buildIntent(ten, market, caps).ok).toBe(true)
+    expect(buildIntent(ten, { ...market, side: 'sell' }, caps).ok).toBe(false)
+  })
+
+  it('builds a scale order whose legs sum to the size, the first under the intent client id', () => {
+    const scale = {
+      ...draft,
+      kind: 'scale',
+      price: '',
+      size: '0.01',
+      start: '80000',
+      end: '79000',
+      count: '5',
+    } as const
+    const built = buildIntent(btc, scale, caps)
+    if (!built.ok) throw new Error(JSON.stringify(built.errors))
+    if (built.intent.order.kind !== 'scale') throw new Error(built.intent.order.kind)
+    const legs = built.intent.order.legs
+    expect(legs.map((l) => [l.px, l.size])).toEqual([
+      [800_000, 200],
+      [797_500, 200],
+      [795_000, 200],
+      [792_500, 200],
+      [790_000, 200],
+    ])
+    expect(legs[0]?.clientId).toBe(built.intent.clientId)
+    expect(new Set(legs.map((l) => l.clientId)).size).toBe(5)
+  })
+
+  it('refuses a scale order the venue cannot send or the legs cannot carry', () => {
+    const scale = {
+      ...draft,
+      kind: 'scale',
+      price: '',
+      size: '0.01',
+      start: '80000',
+      end: '79000',
+      count: '5',
+    } as const
+    const errors = (d: Parameters<typeof buildIntent>[1], c = caps, spec = btc) => {
+      const built = buildIntent(spec, d, c)
+      return built.ok ? {} : built.errors
+    }
+    expect(errors(scale, TRADING.dydx.capabilities)).toEqual({ count: 'Not offered on this venue' })
+    expect(errors({ ...scale, count: '21' })).toEqual({ count: 'From 2 to 20 orders' })
+    expect(errors({ ...scale, count: '1', skew: '0' })).toEqual({
+      count: 'From 2 to 20 orders',
+      skew: 'Between 0.1 and 10',
+    })
+    expect(errors({ ...scale, end: '79999' })).toEqual({ count: 'The range is too narrow for 5 orders' })
+    expect(errors({ ...scale, tif: 'ioc', takeProfit: '90000' })).toEqual({
+      tif: 'Not with a scale order',
+      takeProfit: 'Not with a scale order',
+    })
+    expect(errors({ ...scale, size: '0.0005' }, caps, { ...btc, minNotional: 100 as Px })).toEqual({
+      size: 'Each order must be worth at least 10.0 USDC',
+    })
   })
 
   it('gives every build a fresh client id', () => {
@@ -252,6 +341,113 @@ describe('hyperliquid module', () => {
     ).toBe(agent)
   })
 
+  it('sends a market order with its take profit and stop loss as one normalTpsl group', async () => {
+    const book = (bid: string, ask: string) => ({ levels: [[{ px: bid }], [{ px: ask }]] })
+    const answer = (bid: string, ask: string) => (url: string, body: Record<string, unknown>) =>
+      url.endsWith('/info')
+        ? body.type === 'meta'
+          ? testnetMeta
+          : book(bid, ask)
+        : {
+            status: 'ok',
+            response: {
+              type: 'order',
+              data: {
+                statuses: [{ filled: { totalSz: '0.001', avgPx: '80010' } }, 'waitingForFill', 'waitingForFill'],
+              },
+            },
+          }
+    const built = buildIntent(
+      btc,
+      { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010', takeProfit: '82000', stopLoss: '78000' },
+      caps,
+    )
+    if (!built.ok) throw new Error('intent')
+    const ctx = (fetch: typeof globalThis.fetch): VenueContext => ({
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    })
+    const live = venue(answer('79990', '80010'))
+    expect(await TRADING.hyperliquid.execute(ctx(live.fetch), { kind: 'place', intent: built.intent })).toMatchObject({
+      status: 'filled',
+    })
+    const action = live.sent.find((s) => s.url.endsWith('/exchange'))!.body.action as {
+      grouping: string
+      orders: { b: boolean; p: string; r: boolean; t: unknown }[]
+    }
+    expect(action.grouping).toBe('normalTpsl')
+    expect(action.orders.map((o) => [o.b, o.p, o.r, o.t])).toEqual([
+      [true, '80810', false, { limit: { tif: 'Ioc' } }],
+      [false, '73800', true, { trigger: { isMarket: true, triggerPx: '82000', tpsl: 'tp' } }],
+      [false, '70200', true, { trigger: { isMarket: true, triggerPx: '78000', tpsl: 'sl' } }],
+    ])
+    const moved = venue(answer('81990', '82010'))
+    const error = await TRADING.hyperliquid
+      .execute(ctx(moved.fetch), { kind: 'place', intent: built.intent })
+      .catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error).toEqual({
+      kind: 'invalid-order',
+      detail: 'Take profit: Must be above the ask on this network',
+    })
+    expect(moved.sent.some((s) => s.url.endsWith('/exchange'))).toBe(false)
+  })
+
+  it('sends every scale leg in one action and reports the legs Hyperliquid refused', async () => {
+    const { fetch, sent } = venue((url, body) =>
+      url.endsWith('/info')
+        ? body.type === 'meta'
+          ? testnetMeta
+          : null
+        : {
+            status: 'ok',
+            response: {
+              type: 'order',
+              data: {
+                statuses: [
+                  { resting: { oid: 1 } },
+                  { error: 'Post only order would have immediately matched' },
+                  { resting: { oid: 3 } },
+                ],
+              },
+            },
+          },
+    )
+    const ctx: VenueContext = {
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    }
+    const built = buildIntent(
+      btc,
+      { ...draft, kind: 'scale', tif: 'post-only', size: '0.003', start: '80000', end: '79000', count: '3' },
+      caps,
+    )
+    if (!built.ok || built.intent.order.kind !== 'scale') throw new Error('intent')
+    const outcome = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })
+    expect(outcome).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail:
+        '2 of 3 orders placed: 2 resting, 0 filled. Order 2 not placed: Post only order would have immediately matched',
+    })
+    const action = sent.find((s) => s.url.endsWith('/exchange'))!.body.action as {
+      grouping: string
+      orders: { p: string; s: string; t: unknown; c: string }[]
+    }
+    expect(action.grouping).toBe('na')
+    expect(action.orders.map((o) => [o.p, o.s, o.t, o.c])).toEqual(
+      built.intent.order.legs.map((l, i) => [
+        ['80000', '79500', '79000'][i],
+        '0.001',
+        { limit: { tif: 'Alo' } },
+        l.clientId,
+      ]),
+    )
+  })
+
   it('turns an unknown API wallet into needs-setup with the venue words', async () => {
     const { fetch } = venue((url, body) =>
       url.endsWith('/info')
@@ -424,6 +620,54 @@ describe('hyperliquid module', () => {
   })
 })
 
+describe('orderly module', () => {
+  const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' as Address
+  const perp: MarketSpec = {
+    ...btc,
+    key: marketKey('orderly', 'BTC'),
+    venue: 'orderly',
+    venueSymbol: 'PERP_BTC_USDC',
+    tick: { kind: 'fixed', tick: 1 as Px },
+  }
+
+  it('sends a scale order as one signed batch in the exact decimals', async () => {
+    const posts: { url: string; body: string }[] = []
+    const fetch = (async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posts.push({ url, body: init.body as string })
+        return new Response(
+          '{"success":true,"data":{"rows":[{"order_id":1,"error_message":"none"},{"order_id":null,"error_message":"Price out of range"}]}}',
+        )
+      }
+      return new Response('{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001}}')
+    }) as typeof globalThis.fetch
+    const ctx: VenueContext = {
+      ref: { venue: 'orderly', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` }),
+      fetch,
+    }
+    const built = buildIntent(
+      perp,
+      { ...draft, kind: 'scale', size: '0.002', start: '80000.5', end: '79000', count: '2' },
+      TRADING.orderly.capabilities,
+    )
+    if (!built.ok || built.intent.order.kind !== 'scale') throw new Error('intent')
+    expect(await TRADING.orderly.execute(ctx, { kind: 'place', intent: built.intent })).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: '1 of 2 orders placed. Order 2 not placed: Price out of range',
+    })
+    const [first, second] = built.intent.order.legs
+    expect(posts).toEqual([
+      {
+        url: 'https://testnet-api.orderly.org/v1/batch-order',
+        body: `{"orders":[{"symbol":"PERP_BTC_USDC","client_order_id":"${first?.clientId}","order_type":"LIMIT","order_price":80000.5,"order_quantity":0.001,"side":"BUY","reduce_only":false},{"symbol":"PERP_BTC_USDC","client_order_id":"${second?.clientId}","order_type":"LIMIT","order_price":79000,"order_quantity":0.001,"side":"BUY","reduce_only":false}]}`,
+      },
+    ])
+  })
+})
+
 describe('order lookup after an unknown outcome', () => {
   const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' as Address
   const built = buildIntent(btc, draft, caps)
@@ -446,6 +690,25 @@ describe('order lookup after an unknown outcome', () => {
       expect(result).toEqual(expected)
       expect(sent[0]?.body).toEqual({ type: 'orderStatus', user: owner, oid: intent.clientId })
     }
+  })
+
+  it('calls a scale order found when any leg is on Hyperliquid, since legs are judged one by one', async () => {
+    const scale = buildIntent(
+      btc,
+      { ...draft, kind: 'scale', size: '0.003', start: '80000', end: '79000', count: '3' },
+      caps,
+    )
+    if (!scale.ok || scale.intent.order.kind !== 'scale') throw new Error('intent')
+    const second = scale.intent.order.legs[1]?.clientId
+    const { fetch, sent } = venue((_url, body) =>
+      body.oid === second ? { status: 'order', order: { status: 'open' } } : { status: 'unknownOid' },
+    )
+    const result = await TRADING.hyperliquid.lookup(
+      { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
+      scale.intent,
+    )
+    expect(result).toEqual({ kind: 'found', detail: '1 of 3 orders on the venue' })
+    expect(sent.map((s) => s.body.oid)).toEqual(scale.intent.order.legs.map((l) => l.clientId))
   })
 
   it('finds a dYdX order by the uint32 client id among the latest on the market', async () => {

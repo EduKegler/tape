@@ -5,7 +5,8 @@ import { parsePx, wireDecimal } from '@tape/core/fixed'
 import type { Decimals, Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { checkExits, checkPrice, checkSize, worstPrice } from '../intent'
+import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, send } from '../send'
@@ -44,6 +45,7 @@ const AGENT_NAME = 'tape'
 /** Market triggers fill at market. The limit only bounds them, as Hyperliquid's own UI does at 10%. */
 const TRIGGER_SLIPPAGE_BPS = 1000
 const TIF: Record<'gtc' | 'ioc' | 'post-only', Tif> = { gtc: 'Gtc', ioc: 'Ioc', 'post-only': 'Alo' }
+const SCALE_ORDERS = 20
 
 interface Asset {
   readonly index: number
@@ -126,15 +128,13 @@ function recheckPx(a: Asset, intent: OrderIntent, px: Px, what: string): string 
   return issue ? fail({ kind: 'invalid-order', detail: `${what} ${wire}: ${issue} on this network` }) : wire
 }
 
-async function touch(ctx: VenueContext, a: Asset, side: 'buy' | 'sell'): Promise<Px> {
+async function touch(ctx: VenueContext, a: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
   const book = await info<{ levels: [{ px: string }[], { px: string }[]] }>(ctx, {
     type: 'l2Book',
     coin: a.spec.venueSymbol,
   })
-  const far = side === 'buy' ? book.levels[1][0] : book.levels[0][0]
-  return far
-    ? parsePx(far.px, a.spec.scale)
-    : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+  const [bid, ask] = book.levels.map((side) => (side[0] ? parsePx(side[0].px, a.spec.scale) : null))
+  return { bid: bid ?? null, ask: ask ?? null }
 }
 
 async function placeWires(
@@ -146,30 +146,56 @@ async function placeWires(
   const sizeIssue = checkSize(a.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   const isBuy = intent.side === 'buy'
-  const limit =
-    intent.order.kind === 'limit'
-      ? { px: recheckPx(a, intent, intent.order.px, 'Price'), tif: TIF[intent.order.tif] }
-      : {
-          px: wireDecimal(
-            worstPrice(a.spec, intent.side, await touch(ctx, a, intent.side), intent.order.slippage),
-            a.spec.scale.px,
-          ),
+  const { takeProfit, stopLoss } = intent.triggers
+  if (intent.order.kind === 'scale') {
+    if (takeProfit !== null || stopLoss !== null)
+      fail({ kind: 'invalid-order', detail: 'A scale order carries no take profit or stop loss' })
+    const tif = TIF[intent.order.tif]
+    const wires = intent.order.legs.map((leg, i) => {
+      const legSize = wireDecimal(leg.size, intent.spec.scale.qty)
+      const issue = checkSize(a.spec, legSize)
+      if (issue) fail({ kind: 'invalid-order', detail: `Order ${i + 1} size ${legSize}: ${issue} on this network` })
+      const px = recheckPx(a, intent, leg.px, `Order ${i + 1} price`)
+      return orderWire(a.index, isBuy, px, legSize, intent.reduceOnly, { limit: { tif } }, leg.clientId)
+    })
+    return { wires, grouping: 'na' }
+  }
+  const exits = {
+    takeProfit: takeProfit === null ? null : parsePx(recheckPx(a, intent, takeProfit, 'Take profit'), a.spec.scale),
+    stopLoss: stopLoss === null ? null : parsePx(recheckPx(a, intent, stopLoss, 'Stop loss'), a.spec.scale),
+  }
+  const order = intent.order
+  const limit = order.kind === 'limit' ? { px: recheckPx(a, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
+  const book = limit === null || exits.takeProfit !== null || exits.stopLoss !== null ? await touch(ctx, a) : null
+  if (book) {
+    const issues = checkExits(intent.side, { px: limit && parsePx(limit.px, a.spec.scale), ...book }, exits)
+    const first = Object.entries(issues)[0]
+    if (first)
+      fail({
+        kind: 'invalid-order',
+        detail: `${first[0] === 'takeProfit' ? 'Take profit' : 'Stop loss'}: ${first[1]} on this network`,
+      })
+  }
+  const far = (isBuy ? book?.ask : book?.bid) ?? null
+  const sent =
+    limit
+    ?? (order.kind === 'market' && far !== null
+      ? {
+          px: wireDecimal(worstPrice(a.spec, intent.side, far, order.slippage), a.spec.scale.px),
           tif: 'Ioc' as const,
         }
+      : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' }))
   const wires = [
-    orderWire(a.index, isBuy, limit.px, size, intent.reduceOnly, { limit: { tif: limit.tif } }, intent.clientId),
+    orderWire(a.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
   ]
   const closing = isBuy ? 'sell' : 'buy'
   for (const [tpsl, px] of [
-    ['tp', intent.triggers.takeProfit],
-    ['sl', intent.triggers.stopLoss],
+    ['tp', exits.takeProfit],
+    ['sl', exits.stopLoss],
   ] as const) {
     if (px === null) continue
-    const triggerPx = recheckPx(a, intent, px, tpsl === 'tp' ? 'Take profit' : 'Stop loss')
-    const bound = wireDecimal(
-      worstPrice(a.spec, closing, parsePx(triggerPx, a.spec.scale), TRIGGER_SLIPPAGE_BPS),
-      a.spec.scale.px,
-    )
+    const triggerPx = wireDecimal(px, a.spec.scale.px)
+    const bound = wireDecimal(worstPrice(a.spec, closing, px, TRIGGER_SLIPPAGE_BPS), a.spec.scale.px)
     wires.push(orderWire(a.index, !isBuy, bound, size, true, { trigger: { isMarket: true, triggerPx, tpsl } }))
   }
   return { wires, grouping: wires.length > 1 ? 'normalTpsl' : 'na' }
@@ -218,33 +244,56 @@ async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
 const GONE = /never placed|already canceled|filled/i
 const legName = (w: OrderWire | undefined) => (w && 'trigger' in w.t ? w.t.trigger.tpsl.toUpperCase() : 'Leg')
 
+type OrderStatus = z.infer<typeof Status>
+const errorOf = (s: OrderStatus | undefined) => (typeof s === 'object' ? s.error : undefined)
+
+function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatus[]): CommandOutcome {
+  const [first, ...legs] = statuses
+  const error = errorOf(first)
+  if (error) fail(classifyText(error))
+  // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
+  const refused = legs.flatMap((s, i) => {
+    const legError = errorOf(s)
+    return legError ? [`${legName(wires[i + 1])} not placed: ${legError}`] : []
+  })
+  const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
+  if (typeof first === 'object' && first.filled)
+    return {
+      kind: 'placed',
+      status: 'filled',
+      detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}`,
+    }
+  if (typeof first === 'object' && first.resting)
+    return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
+  return {
+    kind: 'placed',
+    status: 'accepted',
+    detail: `${typeof first === 'string' ? first : JSON.stringify(first)}${note}`,
+  }
+}
+
+/** Hyperliquid judges each order of the action on its own, so some legs can stand while others are refused. */
+function legsOutcome(statuses: readonly OrderStatus[]): CommandOutcome {
+  const count = (key: 'resting' | 'filled') => statuses.filter((s) => typeof s === 'object' && s[key]).length
+  const resting = count('resting')
+  const filled = count('filled')
+  return scaleOutcome(
+    statuses.map(errorOf),
+    filled === statuses.length ? 'filled' : resting > 0 ? 'resting' : 'accepted',
+    (error) => fail(classifyText(error)),
+    `: ${resting} resting, ${filled} filled`,
+  )
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place': {
       const { wires, grouping } = await placeWires(ctx, command.intent)
       const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
-      const [first, ...legs] = reply.response.data?.statuses ?? []
-      if (first === undefined)
+      const statuses = reply.response.data?.statuses ?? []
+      if (statuses.length === 0)
         fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
-      if (typeof first === 'object' && first.error) fail(classifyText(first.error))
-      // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
-      const refused = legs.flatMap((s, i) =>
-        typeof s === 'object' && s.error ? [`${legName(wires[i + 1])} not placed: ${s.error}`] : [],
-      )
-      const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
-      if (typeof first === 'object' && first.filled)
-        return {
-          kind: 'placed',
-          status: 'filled',
-          detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}`,
-        }
-      if (typeof first === 'object' && first.resting)
-        return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
-      return {
-        kind: 'placed',
-        status: 'accepted',
-        detail: `${typeof first === 'string' ? first : JSON.stringify(first)}${note}`,
-      }
+      return command.intent.order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
     }
     case 'cancel':
     case 'cancel-all': {
@@ -267,14 +316,18 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
-  const reply = await info<{ status: string; order?: { status: string } }>(ctx, {
-    type: 'orderStatus',
-    user: ctx.ref.owner,
-    oid: intent.clientId,
-  })
-  return reply.status === 'order' && reply.order
-    ? { kind: 'found', detail: `Order ${reply.order.status}` }
-    : { kind: 'absent', detail: `Hyperliquid answered ${reply.status}` }
+  const replies = await Promise.all(
+    clientIdsOf(intent).map((oid) =>
+      info<{ status: string; order?: { status: string } }>(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }),
+    ),
+  )
+  return lookupSummary(
+    replies.map((reply) =>
+      reply.status === 'order' && reply.order
+        ? { kind: 'found', detail: `Order ${reply.order.status}` }
+        : { kind: 'absent', detail: `Hyperliquid answered ${reply.status}` },
+    ),
+  )
 }
 
 const refOf = (index: number, oid: string) => `${index}:${oid}` as OrderRef
@@ -588,7 +641,7 @@ export const hyperliquid = {
   id: 'hyperliquid',
   label: 'Hyperliquid',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true, scaleOrders: SCALE_ORDERS },
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
   steps,

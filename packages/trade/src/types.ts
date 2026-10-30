@@ -44,8 +44,17 @@ export type IntentFields = {
   readonly reduceOnly: boolean
   /** Market carries no price: the module reads the touch from the network it sends to. */
   readonly order:
-    { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif } | { readonly kind: 'market'; readonly slippage: Bps }
+    | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
+    | { readonly kind: 'market'; readonly slippage: Bps }
+    | { readonly kind: 'scale'; readonly tif: Exclude<Tif, 'ioc'>; readonly legs: readonly ScaleLeg[] }
   readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
+}
+
+/** One limit order of a scale order. The first leg carries the intent's clientId. */
+export interface ScaleLeg {
+  readonly px: Px
+  readonly size: Qty
+  readonly clientId: ClientOrderId
 }
 
 /** Opaque outside the module that made it. Carries what that venue needs to cancel. */
@@ -121,6 +130,8 @@ export interface Capabilities {
   readonly tif: readonly Tif[]
   readonly triggers: boolean
   readonly leverage: boolean
+  /** The most legs one scale order sends, all in one request. 0 where the venue takes no such request. */
+  readonly scaleOrders: number
 }
 
 export type TradeError =

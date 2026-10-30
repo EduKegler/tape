@@ -141,6 +141,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const size = wireDecimal(intent.size, intent.spec.scale.qty)
   const sizeIssue = checkSize(m.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
+  if (intent.order.kind === 'scale') fail({ kind: 'unsupported', detail: 'dYdX takes no scale order from Tape' })
   let px: Px
   let tif: 0 | 1 | 2
   if (intent.order.kind === 'limit') {
@@ -495,7 +496,7 @@ export const dydx = {
   id: 'dydx',
   label: 'dYdX',
   secrets: 'tab',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false, scaleOrders: 0 },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,

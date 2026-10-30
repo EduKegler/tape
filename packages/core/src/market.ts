@@ -19,6 +19,8 @@ export interface MarketSpec {
   readonly scale: Scale
   readonly tick: TickRule
   readonly step: Qty
+  /** The least an order may be worth, in quote units at the price scale. Absent where the venue sets none. */
+  readonly minNotional?: Px
 }
 
 export function effectiveTick(spec: MarketSpec, ref: Px): Px {
