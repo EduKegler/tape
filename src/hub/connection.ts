@@ -6,7 +6,6 @@ export type ConnState =
   | {
       readonly s: 'open'
       readonly subscribed: ReadonlySet<StreamKey>
-      readonly lastMessageAt: number
       readonly lastKeepaliveAt: number
       readonly attempt: number
       readonly openedAt: number
@@ -107,7 +106,7 @@ function reconcile(state: OpenState, input: ConnInput, policy: ConnPolicy, effec
     lastKeepaliveAt = input.now
   }
   return {
-    state: { ...state, subscribed: new Set(wanted), lastMessageAt: input.lastMessageAt, lastKeepaliveAt, holds },
+    state: { ...state, subscribed: new Set(wanted), lastKeepaliveAt, holds },
     effects: out,
   }
 }
@@ -120,7 +119,6 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
         {
           s: 'open',
           subscribed: new Set(),
-          lastMessageAt: input.now,
           lastKeepaliveAt: input.now,
           attempt: state.attempt,
           openedAt: input.now,
