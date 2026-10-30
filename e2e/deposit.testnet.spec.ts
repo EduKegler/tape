@@ -27,8 +27,7 @@ test('the deposit form stops an amount the bridge keeps or the wallet lacks', as
 
   await expectAccessible(page)
   await amount.fill('3')
-  const summary = dialog.getByRole('definition')
-  await expect(summary.nth(3)).toHaveText('Nothing, under the minimum')
+  await expect(dialog.locator('dt:text-is("You receive") + dd')).toHaveText('Nothing, under the minimum')
   await expect(dialog.getByRole('alert')).toHaveText(
     'Deposits under 5 USDC on this route are kept and never credited. Send at least 5.',
   )
@@ -39,7 +38,7 @@ test('the deposit form stops an amount the bridge keeps or the wallet lacks', as
   await expect(dialog.getByRole('button', { name: 'Deposit 60 USDC from Arbitrum Sepolia' })).toBeDisabled()
 
   await amount.fill('10')
-  await expect(summary).toHaveText([
+  await expect(dialog.getByRole('definition')).toHaveText([
     'Arbitrum Sepolia → Hyperliquid bridge on Arbitrum → Hyperliquid perps',
     '0xf39f…2266, the same address',
     'None',
