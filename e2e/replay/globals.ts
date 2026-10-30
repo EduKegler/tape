@@ -3,7 +3,7 @@ import { venues } from '@tape/venues/index'
 import { NETWORK } from '#/site'
 import { RECORDED_AT } from './clock'
 import { CONTROL } from './control'
-import type { Probe, ProbeResult } from './control'
+import type { Playback, Probe, ProbeResult } from './control'
 import { createFeed, restRecording } from './feed'
 import type { Feed } from './feed'
 
@@ -15,6 +15,7 @@ const recordings = import.meta.glob<string>('../../packages/venues/src/__fixture
 const recording = (name: string) => recordings[`../../packages/venues/src/__fixtures__/${name}`] ?? null
 
 const urls = venues(NETWORK)
+const open = new Set<Feed>()
 const realFetch = globalThis.fetch.bind(globalThis)
 const RealWebSocket = globalThis.WebSocket
 
@@ -34,6 +35,7 @@ class ReplayWebSocket {
       send: (data) => this.onmessage?.({ data }),
       close: () => this.closed(),
     })
+    open.add(this.feed)
     setTimeout(() => {
       this.readyState = 1
       this.onopen?.()
@@ -52,6 +54,7 @@ class ReplayWebSocket {
   private closed() {
     if (this.readyState === 3) return
     this.readyState = 3
+    open.delete(this.feed)
     setTimeout(() => this.onclose?.(), 0)
   }
 }
@@ -85,6 +88,10 @@ Date.now = () => Math.round(RECORDED_AT + performance.now() - startedAt)
 Object.assign(globalThis, { WebSocket: ReplayWebSocket, fetch: replayFetch })
 
 const control = new BroadcastChannel(CONTROL)
-control.onmessage = async (e: MessageEvent<{ probe?: Probe }>) => {
+control.onmessage = async (e: MessageEvent<{ probe?: Probe; playback?: true }>) => {
   if (e.data.probe) control.postMessage({ reached: await reaches(e.data.probe) })
+  if (e.data.playback) {
+    const playback: Playback = { sockets: open.size, playing: [...open].filter((feed) => !feed.played()).length }
+    control.postMessage({ playback })
+  }
 }
