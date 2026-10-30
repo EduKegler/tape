@@ -163,6 +163,15 @@ describe('dydx history paging', () => {
       "dYdX's indexer pages through 25000 funding payments at most, so some payments are missing.",
     )
   })
+
+  it('reads an address the indexer does not know as an empty history', async () => {
+    const fetch = (async () => new Response('{"errors":[]}', { status: 404 })) as typeof globalThis.fetch
+    expect(await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })).toEqual({
+      fills: [],
+      funding: [],
+      gaps: [],
+    })
+  })
 })
 
 describe('orderly history paging', () => {
