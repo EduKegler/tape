@@ -13,6 +13,11 @@ describe('money', () => {
     expect(() => amount('')).toThrow()
   })
 
+  it('refuses an amount finer than 18 places', () => {
+    expect(() => amount('0.0000000000000000001')).toThrow(RangeError)
+    expect(format(amount('0.000000000000000001'), 18)).toBe('0.000000000000000001')
+  })
+
   it('multiplies without float error', () => {
     expect(format(multiply(amount('0.1'), amount('0.2')), 6)).toBe('0.020000')
     expect(format(multiply(amount('-3.5'), amount('118250.1')), 2)).toBe('-413875.35')
