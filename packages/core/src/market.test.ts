@@ -81,6 +81,10 @@ describe('ticks', () => {
     expect(snapGroup(binance, 8_100_000 as Px, '10')).toBe(50)
     expect(groupDecimals(binance, snapGroup(binance, 8_100_000 as Px, '0.5'))).toBe(1)
   })
+
+  it('shows a whole-dollar group with no decimals, however many zeros it has', () => {
+    expect([groupDecimals(hl(1), 500 as Px), groupDecimals(hl(1), 100 as Px)]).toEqual([0, 0])
+  })
 })
 
 describe('trades and candles', () => {
