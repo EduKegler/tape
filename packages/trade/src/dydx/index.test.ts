@@ -100,6 +100,16 @@ const failure = (p: Promise<unknown>) =>
     () => null,
     (e: unknown) => (e instanceof TradeFailure ? e.error : e),
   )
+function indexer(answer: (url: string) => unknown) {
+  const urls: string[] = []
+  const fetch = (async (url: string) => {
+    urls.push(url)
+    const reply = answer(url)
+    return reply instanceof Response ? reply : new Response(JSON.stringify(reply))
+  }) as typeof globalThis.fetch
+  return { urls, ctx: { ...ctx, fetch } }
+}
+const locked: VenueContext = { ...ctx, keys: { ...ctx.keys, read: () => null } }
 // The TimeoutError v4-client-js's tendermintClient throws when the transaction is not seen on chain in time.
 const TIMEOUT =
   'Transaction with hash [AB] was submitted but was not yet found on the chain. You might want to check later. Query timed out after 60 seconds.'
@@ -178,5 +188,25 @@ describe('dydx broadcast', () => {
       kind: 'done',
       detail: 'Cancel broadcast',
     })
+  })
+})
+
+describe('dydx key and lookup', () => {
+  it('tells a dYdX order missing from the indexer apart from a missing key', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    for (const command of [place, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef } as const])
+      expect(await failure(dydx.execute(locked, command))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failure(dydx.lookup(locked, place.intent))).toMatchObject({ kind: 'needs-setup' })
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+
+    const at = (status: number, body: unknown) => indexer(() => new Response(JSON.stringify(body), { status })).ctx
+    expect(await dydx.lookup(at(404, {}), place.intent)).toEqual({
+      kind: 'absent',
+      detail: 'The dYdX indexer has no account for this address',
+    })
+    expect(await dydx.lookup(at(200, [{ clientId: '1', status: 'OPEN' }]), place.intent)).toMatchObject({
+      kind: 'absent',
+    })
+    expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), place.intent))).toMatchObject({ kind: 'unreachable' })
   })
 })
