@@ -1,3 +1,4 @@
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
   DecimalError,
@@ -13,8 +14,84 @@ import {
   toDisplayFloat,
   wireDecimal,
 } from './fixed'
+import type { Decimals, Px } from './fixed'
 
 const btc = { px: 2, qty: 5 } as const
+
+const decimals = fc.integer({ min: 0, max: 8 }).map((d) => d as Decimals)
+const units = fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER })
+
+function venueString(value: number, scale: number, padding: number, trimmed: boolean): string {
+  const digits = String(value).padStart(scale + 1, '0')
+  const whole = digits.slice(0, digits.length - scale)
+  const fraction = digits.slice(digits.length - scale) + '0'.repeat(padding)
+  const shown = trimmed ? fraction.replace(/(?<!0)0+$/, '') : fraction
+  return shown ? `${whole}.${shown}` : whole
+}
+
+function grouped(plain: string): string {
+  const [whole = '', fraction] = plain.split('.')
+  const groups: string[] = []
+  for (let end = whole.length; end > 0; end -= 3) groups.unshift(whole.slice(Math.max(0, end - 3), end))
+  return fraction === undefined ? groups.join(',') : `${groups.join(',')}.${fraction}`
+}
+
+describe('decimal properties', () => {
+  it('reads any venue string at the market scale as its exact units', () => {
+    fc.assert(
+      fc.property(units, decimals, fc.integer({ min: 0, max: 8 }), fc.boolean(), (value, scale, padding, trimmed) => {
+        expect(parsePx(venueString(value, scale, padding, trimmed), { px: scale, qty: 0 })).toBe(value)
+      }),
+    )
+  })
+
+  it('refuses a nonzero digit beyond the market scale', () => {
+    fc.assert(
+      fc.property(
+        units,
+        decimals,
+        fc.integer({ min: 0, max: 4 }),
+        fc.integer({ min: 1, max: 9 }),
+        (value, scale, zeros, extra) => {
+          fc.pre(scale < 8)
+          const tooFine = `${venueString(value, scale, 0, false)}${scale === 0 ? '.' : ''}${'0'.repeat(zeros)}${extra}`
+          expect(() => parsePx(tooFine, { px: scale, qty: 0 })).toThrow(new DecimalError(tooFine, 'precision'))
+        },
+      ),
+    )
+  })
+
+  it('writes the shortest wire decimal that reads back the same', () => {
+    fc.assert(
+      fc.property(units, decimals, (value, scale) => {
+        const wire = wireDecimal(value as Px, scale)
+        expect(wire).toMatch(/^(0|[1-9]\d*)(\.\d*[1-9])?$/)
+        expect(parsePx(wire, { px: scale, qty: 0 })).toBe(value)
+      }),
+    )
+  })
+
+  it('formats every scale digit with grouping, and reads back once it goes', () => {
+    fc.assert(
+      fc.property(units, decimals, (value, scale) => {
+        const shown = formatPx(value as Px, { px: scale, qty: 0 })
+        expect(shown).toBe(grouped(venueString(value, scale, 0, false)))
+        expect(parsePx(shown.replaceAll(',', ''), { px: scale, qty: 0 })).toBe(value)
+      }),
+    )
+  })
+
+  it('cuts digits below the scale toward zero', () => {
+    fc.assert(
+      fc.property(units, decimals, decimals, (value, scale, shown) => {
+        fc.pre(shown < scale)
+        const full = venueString(value, scale, 0, false)
+        const cut = shown === 0 ? full.slice(0, full.indexOf('.')) : full.slice(0, full.indexOf('.') + 1 + shown)
+        expect(formatPx(value as Px, { px: scale, qty: 0 }, shown)).toBe(grouped(cut))
+      }),
+    )
+  })
+})
 
 describe('parsePx', () => {
   it('reads venue strings at the market scale', () => {

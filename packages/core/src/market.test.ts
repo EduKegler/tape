@@ -1,3 +1,4 @@
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
   effectiveTick,
@@ -10,7 +11,7 @@ import {
   upsertCandle,
 } from './market'
 import type { Candle, MarketSpec, Trade } from './market'
-import type { Px, Qty } from './fixed'
+import type { Decimals, Px, Qty } from './fixed'
 import { marketKey } from './ids'
 
 const hl = (px: 1 | 2 | 4): MarketSpec => ({
@@ -33,6 +34,44 @@ describe('ticks', () => {
     expect(effectiveTick(hl(4), 2_001_234 as Px)).toBe(100)
     expect(priceTick(hl(1), 1_000_010 as Px)).toBe(10)
     expect(effectiveTick(hl(1), 1_000_010 as Px)).toBe(100)
+  })
+
+  const price = fc.oneof(
+    fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER }),
+    fc
+      .tuple(fc.integer({ min: 0, max: 15 }), fc.integer({ min: -2, max: 2 }))
+      .map(([power, offset]) => 10 ** power + offset)
+      .filter((px) => px > 0),
+  )
+  const scale = fc.integer({ min: 0, max: 8 }).map((d) => d as Decimals)
+  const onTick = (spec: MarketSpec, px: number) => px % priceTick(spec, px as Px) === 0
+
+  it('accepts a Hyperliquid price when it is whole or has at most five significant figures', () => {
+    fc.assert(
+      fc.property(price, scale, (px, decimals) => {
+        const spec = { ...hl(1), scale: { px: decimals, qty: 5 } as const }
+        const whole = px % 10 ** decimals === 0
+        const figures = String(px).replace(/(?<!0)0+$/, '').length
+        expect(onTick(spec, px)).toBe(whole || figures <= 5)
+      }),
+    )
+  })
+
+  const tickUpToOneUnit = scale.chain((decimals) =>
+    fc.tuple(fc.constant(decimals), fc.integer({ min: 1, max: 10 ** decimals })),
+  )
+
+  it('accepts a fixed-tick price only on a multiple of the tick', () => {
+    fc.assert(
+      fc.property(price, tickUpToOneUnit, (px, [decimals, tick]) => {
+        const spec: MarketSpec = {
+          ...binance,
+          scale: { px: decimals, qty: 5 },
+          tick: { kind: 'fixed', tick: tick as Px },
+        }
+        expect(onTick(spec, px)).toBe(px % tick === 0)
+      }),
+    )
   })
 
   it('snaps a requested group to the closest allowed step', () => {
