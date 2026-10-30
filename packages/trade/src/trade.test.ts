@@ -6,7 +6,7 @@ import type { Address, Hex } from 'viem'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
-import { deriveKey, onboarding } from './dydx/client'
+import { deriveKey, onboarding, walletOf } from './dydx/client'
 import { classifyMessage as dydxMessage } from './dydx'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
@@ -240,20 +240,25 @@ describe('commands in flight', () => {
 })
 
 describe('dydx key', () => {
+  // From v4-client-js __tests__/helpers/constants.ts: SIGNATURE_RESULT, MNEMONIC_ and PUBLIC_KEY_FROM_SIGNATURE_RESULT.
+  const signature =
+    '0xf2006b4fc0afa08a6048b40d3d67e437ac2e20e6bacf3f947f9b33aa2756d204287f5fb2155bec067d879a25d7ddac791826cf28e2786919065e19848020f1531b'
+  const mnemonic =
+    'waste sample once ocean tenant mushroom festival hollow regret convince stage able candy jazz champion isolate diary group under entry decorate glare quiz job'
+  const publicKey = new Uint8Array([
+    2, 204, 94, 45, 7, 83, 196, 55, 195, 107, 10, 35, 169, 32, 24, 37, 193, 196, 34, 210, 84, 26, 107, 89, 119, 240,
+    211, 63, 187, 34, 162, 197, 36,
+  ])
+  const address = bech32.encode('dydx', bech32.toWords(ripemd160(sha256(publicKey, 'bytes'), 'bytes')))
+
   it('derives the mnemonic and address of the official onboarding vector', async () => {
-    // From v4-client-js __tests__/helpers/constants.ts: SIGNATURE_RESULT, MNEMONIC_ and PUBLIC_KEY_FROM_SIGNATURE_RESULT.
-    const signature =
-      '0xf2006b4fc0afa08a6048b40d3d67e437ac2e20e6bacf3f947f9b33aa2756d204287f5fb2155bec067d879a25d7ddac791826cf28e2786919065e19848020f1531b'
-    const publicKey = new Uint8Array([
-      2, 204, 94, 45, 7, 83, 196, 55, 195, 107, 10, 35, 169, 32, 24, 37, 193, 196, 34, 210, 84, 26, 107, 89, 119, 240,
-      211, 63, 187, 34, 162, 197, 36,
-    ])
-    const address = bech32.encode('dydx', bech32.toWords(ripemd160(sha256(publicKey, 'bytes'), 'bytes')))
     const key = await deriveKey(signature)
-    expect(key.mnemonic).toBe(
-      'waste sample once ocean tenant mushroom festival hollow regret convince stage able candy jazz champion isolate diary group under entry decorate glare quiz job',
-    )
+    expect(key.mnemonic).toBe(mnemonic)
     expect(key.address).toBe(address)
+  }, 30_000)
+
+  it('opens the wallet of the onboarding vector mnemonic at its dydx1 address', async () => {
+    expect((await walletOf(mnemonic)).address).toBe(address)
   }, 30_000)
 })
 
