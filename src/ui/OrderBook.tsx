@@ -76,6 +76,7 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
     <button
       type="button"
       tabIndex={row.px ? 0 : -1}
+      aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
       className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3 text-left hover:bg-level1/5"
     >
