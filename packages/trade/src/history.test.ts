@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { realize, summarize } from './history'
+import { CSV_COLUMNS, realize, summarize, toCsv } from './history'
 import type { FundingPayment, HistoryFill } from './history'
 import type { Decimal, Side } from './types'
 
@@ -147,5 +147,62 @@ describe('history totals', () => {
       ['USDC', '0.65'],
       ['USDH', '2'],
     ])
+  })
+})
+
+describe('history csv', () => {
+  it('writes the documented columns in order', () => {
+    expect(toCsv([], [], 'mainnet')).toBe(
+      'time_utc,timestamp_ms,venue,network,account,type,market,side,size,price,notional,fee,asset,realized_pnl,realized_pnl_source,funding,funding_rate,liquidation,venue_id',
+    )
+  })
+
+  it('writes one row per fill and per payment, oldest first, in UTC', () => {
+    const rows = realize([
+      fill('buy', '0.5', '100', { time: Date.UTC(2026, 0, 2), id: 'f1', fee: '0.01' as Decimal }),
+      fill('sell', '0.5', '110', { time: Date.UTC(2026, 0, 4), id: 'f2', liquidation: true }),
+    ])
+    const lines = toCsv(rows, [funding('-0.3', Date.UTC(2026, 0, 3))], 'mainnet').split('\r\n')
+    const record = (line: string) => Object.fromEntries(CSV_COLUMNS.map((c, i) => [c, line.split(',')[i]]))
+    expect(lines).toHaveLength(4)
+    expect(record(lines[1]!)).toMatchObject({
+      time_utc: '2026-01-02T00:00:00.000Z',
+      timestamp_ms: String(Date.UTC(2026, 0, 2)),
+      venue: 'dydx',
+      network: 'mainnet',
+      account: 'a',
+      type: 'fill',
+      market: 'BTC-USD',
+      side: 'buy',
+      size: '0.5',
+      price: '100',
+      notional: '50',
+      fee: '0.01',
+      asset: 'USDC',
+      realized_pnl: '0',
+      realized_pnl_source: 'computed',
+      funding: '',
+      funding_rate: '',
+      liquidation: 'false',
+      venue_id: 'f1',
+    })
+    expect(record(lines[2]!)).toMatchObject({
+      type: 'funding',
+      side: '',
+      size: '1',
+      price: '',
+      fee: '',
+      funding: '-0.3',
+      funding_rate: '0.0001',
+      asset: 'USDC',
+    })
+    expect(record(lines[3]!)).toMatchObject({ realized_pnl: '5', liquidation: 'true' })
+  })
+
+  it('quotes a field that holds a comma or a quote', () => {
+    const odd = realize([fill('buy', '1', '1', { symbol: 'A,"B"' })])
+    expect(toCsv(odd, [], 'testnet').split('\r\n')[1]).toContain('"A,""B"""')
+    const broken = realize([fill('buy', '1', '1', { symbol: 'A\r\nB' })])
+    expect(toCsv(broken, [], 'testnet')).toContain('"A\r\nB"')
   })
 })

@@ -1,3 +1,4 @@
+import type { Network } from '@tape/core/ids'
 import { ZERO, abs, add, amount, divide, format, multiply, negate, plain as plainAmount, subtract, sum } from './money'
 import type { Amount } from './money'
 import type { Decimal, Fill, TradeVenueId } from './types'
@@ -140,4 +141,82 @@ export function summarize(
         net: plain(add(subtract(realized, fees), paid)),
       }
     })
+}
+
+export const CSV_COLUMNS = [
+  'time_utc',
+  'timestamp_ms',
+  'venue',
+  'network',
+  'account',
+  'type',
+  'market',
+  'side',
+  'size',
+  'price',
+  'notional',
+  'fee',
+  'asset',
+  'realized_pnl',
+  'realized_pnl_source',
+  'funding',
+  'funding_rate',
+  'liquidation',
+  'venue_id',
+] as const
+
+type CsvRow = Record<(typeof CSV_COLUMNS)[number], string>
+
+const field = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value)
+
+/** RFC 4180 with CRLF, oldest first. The README's History CSV section is the column contract. */
+export function toCsv(fills: readonly RealizedFill[], funding: readonly FundingPayment[], network: Network): string {
+  const common = (e: HistoryFill | FundingPayment) => ({
+    time_utc: new Date(e.time).toISOString(),
+    timestamp_ms: String(e.time),
+    venue: e.venue,
+    network,
+    account: e.account,
+    market: e.symbol,
+    asset: e.asset,
+  })
+  const rows: { time: number; row: CsvRow }[] = [
+    ...fills.map((f) => ({
+      time: f.time,
+      row: {
+        ...common(f),
+        type: 'fill',
+        side: f.side,
+        size: f.size,
+        price: f.px,
+        notional: plain(multiply(amount(f.px), amount(f.size))),
+        fee: f.fee,
+        realized_pnl: f.pnl,
+        realized_pnl_source: f.pnlSource,
+        funding: '',
+        funding_rate: '',
+        liquidation: String(f.liquidation),
+        venue_id: f.id,
+      },
+    })),
+    ...funding.map((p) => ({
+      time: p.time,
+      row: {
+        ...common(p),
+        type: 'funding',
+        side: '',
+        size: p.position ?? '',
+        price: '',
+        notional: '',
+        fee: '',
+        realized_pnl: '',
+        realized_pnl_source: '',
+        funding: p.amount,
+        funding_rate: p.rate ?? '',
+        liquidation: '',
+        venue_id: '',
+      },
+    })),
+  ].sort((a, b) => a.time - b.time)
+  return [CSV_COLUMNS.join(','), ...rows.map(({ row }) => CSV_COLUMNS.map((c) => field(row[c])).join(','))].join('\r\n')
 }
