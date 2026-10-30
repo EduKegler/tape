@@ -1,5 +1,5 @@
-import { getAddress, keccak256, numberToHex, stringToBytes } from 'viem'
-import type { Address, Hex } from 'viem'
+import { concat, getAddress, hashDomain, hashStruct, keccak256, numberToHex } from 'viem'
+import type { Address, Hex, TypedDataDomain, TypedDataParameter } from 'viem'
 import { mnemonicToAccount } from 'viem/accounts'
 import type { BrowserContext } from '@playwright/test'
 
@@ -16,6 +16,12 @@ interface TypedData {
   readonly domain: Readonly<Record<string, unknown>>
   readonly primaryType: string
   readonly message: Readonly<Record<string, unknown>>
+}
+
+interface SignRequest extends TypedData {
+  readonly domain: TypedDataDomain
+  readonly types: Record<string, readonly TypedDataParameter[]>
+  readonly message: Record<string, unknown>
 }
 
 interface Transaction {
@@ -66,13 +72,14 @@ const USER_REJECTED = 4001
 const UNAUTHORIZED = 4100
 const UNSUPPORTED = 4200
 
+/** viem's hashTypedData without its name check, which refuses Hyperliquid's `HyperliquidTransaction:` types. */
+const typedDataHash = ({ domain, types, primaryType, message }: SignRequest) =>
+  keccak256(concat(['0x1901', hashDomain({ domain, types }), hashStruct({ data: message, primaryType, types })]))
+
 const accountOf = (address: unknown) =>
   (Object.keys(signers) as TestAccount[]).find(
     (name) => typeof address === 'string' && signers[name].address.toLowerCase() === address.toLowerCase(),
   )
-
-const signRequestBytes = (account: TestAccount, json: string) =>
-  signers[account].sign({ hash: keccak256(stringToBytes(json)) })
 
 /** Starts on Ethereum, as a fresh MetaMask does. */
 export async function installWallet(context: BrowserContext): Promise<Wallet> {
@@ -124,7 +131,8 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
         const [address, json] = params as [string, string]
         const from = accountOf(address)
         if (!from) return { error: { code: UNAUTHORIZED, message: `The test wallet does not hold ${address}` } }
-        const { domain, primaryType, message } = JSON.parse(json) as TypedData
+        const request = JSON.parse(json) as SignRequest
+        const { domain, primaryType, message } = request
         state.asked.push({
           kind: 'sign',
           from,
@@ -132,7 +140,7 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
           chainId: state.chainId,
           typedData: { domain, primaryType, message },
         })
-        return { result: await signRequestBytes(from, json), emit: [] }
+        return { result: await signers[from].sign({ hash: typedDataHash(request) }), emit: [] }
       }
       case 'eth_sendTransaction': {
         const tx = params[0] as { from: string; to: Address; data: Hex; chainId?: Hex }
