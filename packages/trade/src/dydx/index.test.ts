@@ -344,4 +344,8 @@ describe('dydx contract', () => {
     })
     expect(buildIntent(btc, { ...draft, tif: 'ioc' }, dydx.capabilities).ok).toBe(true)
   })
+
+  it('keeps the dYdX mnemonic in the tab, out of storage', () => {
+    expect(dydx.secrets).toBe('tab')
+  })
 })
