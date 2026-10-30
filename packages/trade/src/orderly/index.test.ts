@@ -104,4 +104,13 @@ describe('orderly orders', () => {
       ])
     }
   })
+
+  it('sends every leg of a sell scale order as SELL', async () => {
+    const { ctx, sent } = orderlyAt(() => ({
+      body: '{"success":true,"data":{"rows":[{"order_id":1,"error_message":"none"},{"order_id":2,"error_message":"none"}]}}',
+    }))
+    const intent = intentOf({ side: 'sell', kind: 'scale', size: '0.002', start: '80000', end: '81000', count: '2' })
+    expect(await orderly.execute(ctx, { kind: 'place', intent })).toMatchObject({ kind: 'placed' })
+    expect(sent[0]?.body?.match(/"side":"\w+"/g)).toEqual(['"side":"SELL"', '"side":"SELL"'])
+  })
 })
