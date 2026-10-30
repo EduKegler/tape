@@ -100,6 +100,11 @@ function record(name, { url, subscribe }) {
   })
 }
 
+async function reply(name, key, response) {
+  if (!response.ok) throw new Error(`${name} ${key} answered ${response.status}: ${await response.text()}`)
+  return [key, await response.json()]
+}
+
 await mkdir(out, { recursive: true })
 const only = process.argv[3]
 await Promise.all(
@@ -110,18 +115,19 @@ await Promise.all(
         record(name, v),
         ...Object.entries(v.rest).map(async ([k, u]) => {
           if (k === 'depth') await firstDiffSeen
-          return [k, await (await fetch(u)).json()]
+          return reply(name, k, await fetch(u))
         }),
-        ...Object.entries(v.post ?? {}).map(async ([k, body]) => [
-          k,
-          await (
+        ...Object.entries(v.post ?? {}).map(async ([k, body]) =>
+          reply(
+            name,
+            k,
             await fetch(`https://${host.hyperliquid}/info`, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify(body),
-            })
-          ).json(),
-        ]),
+            }),
+          ),
+        ),
       ])
       const kept = name === 'dydx' ? frames.slice(0, dydxLines) : frames
       await writeFile(new URL(`${name}.ws.jsonl`, out), kept.join('\n') + '\n')
