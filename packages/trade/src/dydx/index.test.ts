@@ -10,7 +10,7 @@ import { dydx } from '.'
 
 const chain = vi.hoisted(() => {
   const state: { reply: unknown } = { reply: undefined }
-  const answer = async () => {
+  const answer = async (..._args: unknown[]) => {
     if (state.reply instanceof Error) throw state.reply
     return state.reply
   }
@@ -215,5 +215,76 @@ describe('dydx key and lookup', () => {
     await dydx.lookup(testnet, place.intent)
     // IndexerApiHost.TESTNET in v4-client-js.
     expect(urls[0]?.startsWith('https://indexer.v4testnet.dydx.exchange/v4/orders?')).toBe(true)
+  })
+})
+
+// ETH-USD and SOL-USD params from the recorded indexer.dydx.trade/v4/perpetualMarkets frames.
+const ethMarkets = {
+  markets: {
+    'ETH-USD': {
+      clobPairId: '1',
+      atomicResolution: -9,
+      quantumConversionExponent: -9,
+      stepBaseQuantums: 1_000_000,
+      subticksPerTick: 100_000,
+      tickSize: '0.1',
+      stepSize: '0.001',
+    },
+  },
+}
+const solMarkets = {
+  markets: {
+    'SOL-USD': {
+      clobPairId: '5',
+      atomicResolution: -7,
+      quantumConversionExponent: -9,
+      stepBaseQuantums: 1_000_000,
+      subticksPerTick: 1_000_000,
+      tickSize: '0.01',
+      stepSize: '0.1',
+    },
+  },
+}
+const eth: MarketSpec = {
+  ...btc,
+  key: marketKey('dydx', 'ETH'),
+  base: 'ETH',
+  venueSymbol: 'ETH-USD',
+  scale: { px: 1, qty: 3 },
+}
+const sol: MarketSpec = {
+  ...btc,
+  key: marketKey('dydx', 'SOL'),
+  base: 'SOL',
+  venueSymbol: 'SOL-USD',
+  scale: { px: 2, qty: 1 },
+}
+
+describe('dydx markets', () => {
+  it('places an ETH order on the ETH market after a BTC order on the same network', async () => {
+    const { urls, ctx: both } = indexer((url) =>
+      url.endsWith('ticker=ETH-USD') ? ethMarkets : url.endsWith('ticker=BTC-USD') ? markets : { markets: {} },
+    )
+    chain.reply = { code: 0, hash: 'A1' }
+    await dydx.execute(both, place)
+    await dydx.execute(both, { kind: 'place', intent: intentOf(eth, { price: '2330.5', size: '0.01' }) })
+    expect(chain.placeOrder.mock.calls.map((call) => call[2])).toEqual([0, 1])
+    expect(urls).toContain('https://indexer.v4testnet.dydx.exchange/v4/perpetualMarkets?ticker=ETH-USD')
+
+    const doge = intentOf({ ...btc, venueSymbol: 'DOGE-USD' })
+    expect(await failure(dydx.execute(both, { kind: 'place', intent: doge }))).toEqual({
+      kind: 'invalid-order',
+      detail: 'DOGE-USD is not listed on dYdX testnet',
+    })
+  })
+
+  it('reads the market again after a failed read', async () => {
+    let down = true
+    const { ctx: flaky } = indexer(() => (down ? new Response('Bad Gateway', { status: 502 }) : solMarkets))
+    const order = { kind: 'place', intent: intentOf(sol, { price: '100.87', size: '0.1' }) } as const
+    chain.reply = { code: 0, hash: 'A1' }
+    expect(await failure(dydx.execute(flaky, order))).toMatchObject({ kind: 'unreachable' })
+    down = false
+    expect(await dydx.execute(flaky, order)).toMatchObject({ kind: 'placed' })
   })
 })
