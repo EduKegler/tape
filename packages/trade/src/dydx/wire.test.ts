@@ -35,6 +35,10 @@ describe('dydx wire integers', () => {
     expect(() => quantums(5 as Qty, { px: 2, qty: 2 }, { ...sol, stepBaseQuantums: 1_000_000 })).toThrow('quantums')
   })
 
+  it('refuses a price finer than the tick', () => {
+    expect(() => subticks(1 as Px, { px: 1, qty: 4 }, btc)).toThrow('subticks')
+  })
+
   it('keeps the low 32 bits of the cloid as the client id', () => {
     expect(clientIdOf('0x000000000000000000000001ffffffff')).toBe(0xffff_ffff)
     expect(clientIdOf('0x00000000000000000000000000000007')).toBe(7)
