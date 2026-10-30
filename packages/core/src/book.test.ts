@@ -116,6 +116,16 @@ describe('snapshot-then-deltas (dYdX)', () => {
     ])
     expect(steps[1]!.effect).toEqual({ kind: 'resubscribe' })
   })
+
+  it('leaves live with the last book on screen once the hub stops the stream, asking for nothing', () => {
+    const steps = run('snapshot-then-deltas', [
+      snapshot([lv(100, 1)], [lv(101, 1)]),
+      { kind: 'reset', reason: 'stopped' },
+    ])
+    expect(steps[1]!.sync.phase).toBe('awaiting-snapshot')
+    expect(steps[1]!.effect).toEqual({ kind: 'none' })
+    expect(bestBid(visibleBook(steps[1]!.sync)!)).toBe(100)
+  })
 })
 
 describe('snapshots (Hyperliquid)', () => {

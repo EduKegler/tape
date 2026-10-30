@@ -17,7 +17,7 @@ interface FakeSocket extends SocketLike {
   closed: boolean
 }
 
-function setup() {
+function setup({ openAtOnce = true } = {}) {
   const sockets: FakeSocket[] = []
   const gone = new Map<TabId, () => void>()
   const hub = createHub({
@@ -43,7 +43,7 @@ function setup() {
         },
       }
       sockets.push(socket)
-      queueMicrotask(() => socket.onopen?.())
+      if (openAtOnce) queueMicrotask(() => socket.onopen?.())
       return socket
     },
   })
@@ -52,11 +52,16 @@ function setup() {
 
 function tab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
+  const posted: Frame[] = []
   const exceptions: ExceptionEvent[] = []
   let deliver: (data: unknown) => void = () => {}
   hub.connect({
     post: (m: HubToTab) => {
-      if (m.t === 'frames') for (const f of structuredClone(m.frames)) frames.set(f.key, f)
+      if (m.t === 'frames')
+        for (const f of structuredClone(m.frames)) {
+          frames.set(f.key, f)
+          posted.push(f)
+        }
       if (m.t === 'exception') exceptions.push(structuredClone(m.event))
     },
     listen: (fn) => (deliver = fn),
@@ -64,7 +69,7 @@ function tab(hub: Hub, id: string, visible = true) {
   })
   const send = (m: TabToHub) => deliver(structuredClone(m))
   send({ t: 'hello', tab: id as TabId, visible })
-  return { frames, exceptions, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
+  return { frames, posted, exceptions, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
 }
 
 function replay(sockets: FakeSocket[]) {
@@ -75,6 +80,19 @@ function replay(sockets: FakeSocket[]) {
 }
 
 const btc = (venue: 'binance' | 'hyperliquid' | 'dydx') => marketKey(venue, 'BTC')
+
+const hyperliquidBook = (coin: 'BTC' | 'ETH') =>
+  wsFrames('hyperliquid')
+    .find((r) => r.includes('"l2Book"') && r.includes('"levels"'))!
+    .replaceAll('"coin":"BTC"', `"coin":"${coin}"`)
+    .replace(/"sz":"[0-9.]+"/g, '"sz":"1.0"')
+const dydxBook = wsFrames('dydx').find((r) => r.includes('"subscribed"') && r.includes('v4_orderbook'))!
+const dydxCorrupt = wsFrames('dydx')
+  .find((r) => r.includes('channel_data') && r.includes('v4_orderbook'))!
+  .replace(/\["\d+"/, '["8x"')
+const bookTopic = (market: ReturnType<typeof btc>) => ({ kind: 'book', market, group: '1' }) as const
+const liveSince = (posted: readonly Frame[], from: number) =>
+  posted.slice(from).filter((f) => f.kind === 'book' && f.status === 'live')
 
 describe('hub', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -224,6 +242,68 @@ describe('hub', () => {
     replay(sockets)
     await vi.advanceTimersByTimeAsync(500)
     expect(a.frames.size).toBe(0)
+    hub.dispose()
+  })
+
+  it('posts no pre-drop book as live while a new socket resets its books', async () => {
+    const { hub, sockets } = setup({ openAtOnce: false })
+    const a = tab(hub, 'a')
+    const eth = marketKey('hyperliquid', 'ETH')
+    a.want([bookTopic(eth), bookTopic(btc('hyperliquid'))])
+    await vi.advanceTimersByTimeAsync(1100)
+    sockets[0]!.onopen!()
+    sockets[0]!.onmessage!(hyperliquidBook('BTC'))
+    sockets[0]!.onmessage!(hyperliquidBook('ETH'))
+    await vi.advanceTimersByTimeAsync(300)
+    expect(hub.inspect().phases).toMatchObject({ [eth]: 'live', [btc('hyperliquid')]: 'live' })
+
+    sockets[0]!.onclose!()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(sockets).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(150)
+    const from = a.posted.length
+    sockets[1]!.onopen!()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(liveSince(a.posted, from)).toEqual([])
+    hub.dispose()
+  })
+
+  it('keeps a dYdX book off live when its snapshot lands after a held resubscribe', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([bookTopic(btc('dydx'))])
+    await vi.advanceTimersByTimeAsync(1100)
+    const socket = sockets.find((s) => s.url.includes('dydx'))!
+    socket.onmessage!(dydxBook)
+    await vi.advanceTimersByTimeAsync(200)
+    socket.onmessage!(dydxCorrupt)
+    socket.onmessage!(dydxCorrupt)
+    expect(socket.sent.at(-1)).toContain('unsubscribe')
+    const from = a.posted.length
+    socket.onmessage!(dydxBook)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(liveSince(a.posted, from)).toEqual([])
+    hub.dispose()
+  })
+
+  it('keeps a dYdX book off live when a tab wants it back during its hold', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([bookTopic(btc('dydx'))])
+    await vi.advanceTimersByTimeAsync(1100)
+    const socket = sockets.find((s) => s.url.includes('dydx'))!
+    socket.onmessage!(dydxBook)
+    await vi.advanceTimersByTimeAsync(200)
+    a.want([bookTopic(marketKey('dydx', 'ETH'))])
+    await vi.advanceTimersByTimeAsync(9000)
+    socket.onmessage!(dydxCorrupt)
+    socket.onmessage!(dydxBook)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(socket.sent.at(-1)).toContain('unsubscribe')
+    const from = a.posted.length
+    a.want([bookTopic(btc('dydx'))])
+    await vi.advanceTimersByTimeAsync(500)
+    expect(liveSince(a.posted, from)).toEqual([])
     hub.dispose()
   })
 
