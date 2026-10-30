@@ -1,4 +1,4 @@
-import { expect, openMarket, panel, test } from './fixtures'
+import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 test('the ticket refuses a price with more decimals than the market has', async ({ page }) => {
   await openMarket(page, '/binance/BTC?interval=1m')
@@ -7,4 +7,5 @@ test('the ticket refuses a price with more decimals than the market has', async 
   await price.blur()
   await expect(panel(page, 'Order ticket').getByText('At most 2 decimals')).toBeVisible()
   await expect(price).toHaveAttribute('aria-invalid', 'true')
+  await expectAccessible(page)
 })

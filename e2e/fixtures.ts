@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import AxeBuilder from '@axe-core/playwright'
 import { test as base, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
@@ -56,6 +57,20 @@ export const panel = (page: Page, title: string) =>
 export async function openMarket(page: Page, path: string) {
   await page.goto(path)
   await expect(panel(page, 'Order book').getByText(/^Spread .* bps$/)).toBeVisible()
+}
+
+const BLOCKING_IMPACT = new Set(['serious', 'critical'])
+const FAILS_UNTIL_THE_DESIGN_PROGRAM_FIXES_IT = ['color-contrast']
+
+export async function expectAccessible(page: Page) {
+  const { violations } = await new AxeBuilder({ page })
+    .exclude('canvas')
+    .disableRules(FAILS_UNTIL_THE_DESIGN_PROGRAM_FIXES_IT)
+    .analyze()
+  const blocking = violations
+    .filter((v) => BLOCKING_IMPACT.has(v.impact ?? ''))
+    .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+  expect(blocking, 'serious and critical axe violations').toEqual([])
 }
 
 export { expect }
