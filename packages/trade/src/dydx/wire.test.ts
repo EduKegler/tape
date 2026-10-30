@@ -1,5 +1,6 @@
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import type { Px, Qty } from '@tape/core/fixed'
+import type { Decimals, Px, Qty } from '@tape/core/fixed'
 import { clientIdOf, quantums, subticks } from './wire'
 
 // Params from indexer.dydx.trade/v4/perpetualMarkets.
@@ -35,8 +36,33 @@ describe('dydx wire integers', () => {
     expect(() => quantums(5 as Qty, { px: 2, qty: 2 }, { ...sol, stepBaseQuantums: 1_000_000 })).toThrow('quantums')
   })
 
+  it('refuses a price finer than the tick', () => {
+    expect(() => subticks(1 as Px, { px: 1, qty: 4 }, btc)).toThrow('subticks')
+  })
+
   it('keeps the low 32 bits of the cloid as the client id', () => {
     expect(clientIdOf('0x000000000000000000000001ffffffff')).toBe(0xffff_ffff)
     expect(clientIdOf('0x00000000000000000000000000000007')).toBe(7)
+  })
+})
+
+describe('dydx wire properties', () => {
+  it("maps one step and one tick to the market's step quantums and tick subticks, for any market", () => {
+    const decimals = fc.integer({ min: 0, max: 8 }).map((d) => d as Decimals)
+    fc.assert(
+      fc.property(decimals, decimals, decimals, decimals, (qty, finerQty, px, finerPx) => {
+        // dYdX: stepSize = stepBaseQuantums * 10^atomicResolution, tickSize = subticksPerTick * 10^(qce - atomicResolution - 6).
+        const atomicResolution = -(qty + finerQty)
+        const market = {
+          clobPairId: 0,
+          atomicResolution,
+          quantumConversionExponent: atomicResolution + 6 - px - finerPx,
+          stepBaseQuantums: 10 ** finerQty,
+          subticksPerTick: 10 ** finerPx,
+        }
+        expect(quantums(1 as Qty, { px, qty }, market)).toBe(BigInt(10 ** finerQty))
+        expect(subticks(1 as Px, { px, qty }, market)).toBe(BigInt(10 ** finerPx))
+      }),
+    )
   })
 })

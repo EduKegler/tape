@@ -98,6 +98,17 @@ describe('dydx history', () => {
   it('nets to the total PnL the indexer reports for the closed account, to the micro dollar', async () => {
     expect(netOf(await read())).toEqual([['USDC', recording.reference.totalPnl]])
   })
+
+  it('tags every fill and payment with the venue, and keeps the recorded sells sells', async () => {
+    const h = await read()
+    const recorded = recording.exchanges.flatMap(
+      (e) => (e.response as { fills?: { id: string; side: string; marketType: string }[] }).fills ?? [],
+    )
+    const sells = recorded.filter((f) => f.side === 'SELL' && f.marketType === 'PERPETUAL').map((f) => f.id)
+    expect(sells.length).toBeGreaterThan(0)
+    expect(h.fills.filter((f) => f.side === 'sell').map((f) => f.id)).toEqual(sells)
+    expect([...h.fills, ...h.funding].every((e) => e.venue === 'dydx')).toBe(true)
+  })
 })
 
 describe('orderly history', () => {

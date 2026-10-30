@@ -2,6 +2,7 @@ import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
   DecimalError,
+  decimalsOf,
   formatMid,
   formatNotional,
   formatPx,
@@ -9,6 +10,7 @@ import {
   notional,
   parsePx,
   parseQty,
+  plainDecimal,
   rescalePx,
   spreadBps,
   toDisplayFloat,
@@ -165,5 +167,31 @@ describe('wireDecimal', () => {
     expect(wireDecimal(parseQty('0.00120', btc), btc.qty)).toBe('0.0012')
     expect(wireDecimal(0n, 6)).toBe('0')
     expect(wireDecimal(-1500n, 3)).toBe('-1.5')
+  })
+})
+
+describe('decimalsOf', () => {
+  it('reads the decimals a venue increment implies, trailing zeros or not', () => {
+    // Binance BTCUSDT tickSize and stepSize, and dYdX ETH-USD and BTC-USD tickSize, from the recorded frames.
+    expect(['0.01000000', '0.00001000', '0.1', '1'].map(decimalsOf)).toEqual([2, 5, 1, 0])
+  })
+})
+
+describe('plainDecimal', () => {
+  it('expands JSON exponents without a float', () => {
+    expect(plainDecimal('1e-7')).toBe('0.0000001')
+    expect(plainDecimal('-2.5E+3')).toBe('-2500')
+    expect(plainDecimal('100.50')).toBe('100.5')
+  })
+
+  it('expands every number form JSON allows into a plain decimal, and refuses anything else as a DecimalError', () => {
+    expect(['1e5', '1e-10', '1e-1', '0.05e3', '1.2300e2'].map(plainDecimal)).toEqual([
+      '100000',
+      '0.0000000001',
+      '0.1',
+      '50',
+      '123',
+    ])
+    expect(() => plainDecimal('12,5')).toThrow(new DecimalError('12,5', 'syntax'))
   })
 })

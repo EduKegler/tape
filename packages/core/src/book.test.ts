@@ -70,6 +70,40 @@ describe('rest-snapshot-sequenced (Binance)', () => {
     expect(bestBid(visibleBook(steps[3]!.sync)!)).toBe(100)
   })
 
+  it('after a reset waits for a diff, then asks for the snapshot under a new epoch', () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [11, 11]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+      { kind: 'reset', reason: 'corrupt' },
+      delta([lv(100, 7)], [], [20, 21]),
+    ])
+    expect(steps[2]!.effect).toEqual({ kind: 'none' })
+    expect(steps[2]!.sync.phase).toBe('awaiting-snapshot')
+    expect(steps[3]!.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
+  })
+
+  it("drops a buffered diff that ends at the snapshot's lastUpdateId", () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [9, 10]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    expect(topLevels(visibleBook(steps[1]!.sync)!.bids, 5)).toEqual([lv(100, 1)])
+  })
+
+  it('keeps only the diffs from the gap on when a buffered diff skips ahead', () => {
+    const steps = run('rest-snapshot-sequenced', [
+      delta([lv(100, 2)], [], [11, 11]),
+      delta([lv(100, 3)], [], [14, 15]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    const last = steps[2]!
+    expect(last.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
+    expect(last.sync.phase === 'awaiting-snapshot' && last.sync.buffer.map((d) => d.seq)).toEqual([
+      { from: 14, to: 15 },
+    ])
+    expect(topLevels(visibleBook(last.sync)!.bids, 5)).toEqual([lv(100, 2)])
+  })
+
   it('ignores a snapshot from an older epoch', () => {
     const steps = run('rest-snapshot-sequenced', [
       delta([lv(100, 5)], [], [11, 11]),
@@ -136,6 +170,36 @@ describe('snapshots (Hyperliquid)', () => {
     expect(topLevels(book.bids, 5)).toEqual([lv(99, 1)])
     expect(steps[1]!.changed).toBe(true)
   })
+
+  it('waits for the next full snapshot after a corrupt one, asking for nothing', () => {
+    const steps = run('snapshots', [
+      snapshot([lv(100, 1)], [lv(101, 1)]),
+      { kind: 'reset', reason: 'corrupt' },
+      snapshot([lv(99, 1)], [lv(100, 1)]),
+    ])
+    expect(steps[1]!.effect).toEqual({ kind: 'none' })
+    expect(steps[2]!.sync.phase).toBe('live')
+  })
+})
+
+describe('repaint', () => {
+  it('reports a change whenever the visible book changes', () => {
+    expect(
+      run('snapshot-then-deltas', [snapshot([lv(100, 1)], [lv(101, 1)]), delta([lv(99, 2)], [])])[1]!.changed,
+    ).toBe(true)
+    const live = run('rest-snapshot-sequenced', [
+      delta([lv(100, 2)], [], [11, 11]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+      delta([lv(99, 3)], [], [12, 12]),
+    ])
+    expect(live[2]!.changed).toBe(true)
+    const gap = run('rest-snapshot-sequenced', [
+      delta([lv(100, 5)], [], [20, 21]),
+      { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: [lv(100, 1)], asks: [lv(101, 1)] },
+    ])
+    expect(gap[1]!.changed).toBe(true)
+    expect(topLevels(visibleBook(gap[1]!.sync)!.bids, 5)).toEqual([lv(100, 1)])
+  })
 })
 
 describe('book properties', () => {
@@ -187,7 +251,7 @@ describe('book properties', () => {
     ],
   } as const
 
-  it('matches a plain map model and never crosses, whatever the snapshot and deltas', () => {
+  it('matches a plain map model, forgets what it removes and never crosses, whatever the snapshot and deltas', () => {
     const protocol = fc.constantFrom('snapshot-then-deltas' as const, 'rest-snapshot-sequenced' as const)
     fc.assert(
       fc.property(protocol, sides, fc.array(sides, { maxLength: 20 }), (venue, first, deltas) => {
@@ -195,6 +259,7 @@ describe('book properties', () => {
         expect(steps.at(-1)!.sync.phase).toBe('live')
         const book = visibleBook(steps.at(-1)!.sync)!
         expect({ bids: topLevels(book.bids, 100), asks: topLevels(book.asks, 100) }).toEqual(plainModel(first, deltas))
+        expect([book.bids.qty.size, book.asks.qty.size]).toEqual([book.bids.prices.length, book.asks.prices.length])
         expect(bestBid(book) ?? -Infinity).toBeLessThan(bestAsk(book) ?? Infinity)
       }),
     )

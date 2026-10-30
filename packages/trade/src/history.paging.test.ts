@@ -145,6 +145,33 @@ describe('dydx history paging', () => {
       ['c', false],
     ])
   })
+
+  it('stops at the last funding page the indexer serves and says so', async () => {
+    const payment = {
+      ticker: 'BTC-USD',
+      payment: '0.1',
+      rate: '0.0001',
+      size: '1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    const { fetch } = stub((url) =>
+      url.includes('/fills') ? { fills: [] } : { fundingPayments: Array.from({ length: 1000 }, () => payment) },
+    )
+    const h = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
+    expect(h.funding).toHaveLength(25_000)
+    expect(h.gaps).toContain(
+      "dYdX's indexer pages through 25000 funding payments at most, so some payments are missing.",
+    )
+  })
+
+  it('reads an address the indexer does not know as an empty history', async () => {
+    const fetch = (async () => new Response('{"errors":[]}', { status: 404 })) as typeof globalThis.fetch
+    expect(await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })).toEqual({
+      fills: [],
+      funding: [],
+      gaps: [],
+    })
+  })
 })
 
 describe('orderly history paging', () => {
