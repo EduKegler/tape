@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { Network } from '@tape/core/ids'
+import { MAX_BODY } from './beacon'
 import { Batch } from './events'
+import type { ExceptionEvent } from './exception'
 
-const MAX_BODY = 32_000
 const MAX_SKEW_MS = 60 * 60_000
 
 const Env = z.object({
@@ -16,6 +17,32 @@ export const readEnv = (): Env =>
   Env.parse({ POSTHOG_KEY: process.env.POSTHOG_KEY || undefined, POSTHOG_HOST: process.env.POSTHOG_HOST || undefined })
 
 type Context = { readonly network: Network; readonly origin: string; readonly ip: string | null; readonly now: number }
+
+/** PostHog's exception shape. `web:javascript` frames with a chunk id resolve against the uploaded source maps. */
+function exception({ type, value, handled, source, frames }: Omit<ExceptionEvent, 'event'>, origin: string) {
+  return {
+    $exception_list: [
+      {
+        type,
+        value,
+        mechanism: { handled, synthetic: false },
+        stacktrace: {
+          type: 'raw',
+          frames: frames.map((f) => ({
+            platform: 'web:javascript',
+            filename: f.file,
+            function: f.fn,
+            lineno: f.line,
+            colno: f.col,
+            ...(f.chunk ? { chunk_id: f.chunk } : {}),
+            in_app: new URL(f.file).origin === origin,
+          })),
+        },
+      },
+    ],
+    exception_source: source,
+  }
+}
 
 /** The body for PostHog's batch endpoint. Every event is anonymous and keyed by the page load, so no person profile is made. */
 function toPostHog(batch: Batch, key: string, ctx: Context) {
@@ -31,7 +58,9 @@ function toPostHog(batch: Batch, key: string, ctx: Context) {
               $host: host,
               ...(props.referrer ? { $referrer: props.referrer, $referring_domain: new URL(props.referrer).host } : {}),
             }
-          : props
+          : 'frames' in props
+            ? exception(props, ctx.origin)
+            : props
       return {
         event,
         timestamp: new Date(Math.abs(at - ctx.now) > MAX_SKEW_MS ? ctx.now : at).toISOString(),

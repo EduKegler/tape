@@ -1,4 +1,5 @@
 import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
+import type { ExceptionEvent } from '#/analytics/exception'
 import type { TabId } from '@tape/core/ids'
 import type { Frame, Topic } from './topics'
 
@@ -20,7 +21,9 @@ export interface HubStats {
 }
 
 export type HubToTab =
-  { readonly t: 'frames'; readonly frames: readonly Frame[] } | { readonly t: 'stats'; readonly stats: HubStats }
+  | { readonly t: 'frames'; readonly frames: readonly Frame[] }
+  | { readonly t: 'stats'; readonly stats: HubStats }
+  | { readonly t: 'exception'; readonly event: ExceptionEvent }
 
 function parseTopic(value: unknown): Topic | null {
   if (typeof value !== 'object' || value === null) return null
