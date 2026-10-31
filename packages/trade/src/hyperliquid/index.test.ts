@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address } from 'viem'
 import type { Qty } from '@tape/core/fixed'
@@ -8,7 +8,7 @@ import type { MarketSpec } from '@tape/core/market'
 import { buildIntent, closeIntent } from '../intent'
 import type { TakeProfitDraft } from '../intent'
 import { TradeFailure } from '../types'
-import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext } from '../types'
+import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext, WalletSigner } from '../types'
 import { hyperliquid } from '.'
 
 const owner: Address = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b'
@@ -54,8 +54,8 @@ const draft = {
   activation: '',
 }
 
-function place(over: Partial<typeof draft>): Command {
-  const built = buildIntent(btc, { ...draft, ...over } as Parameters<typeof buildIntent>[1], hyperliquid.capabilities)
+function place(over: Partial<typeof draft>, spec = btc): Command {
+  const built = buildIntent(spec, { ...draft, ...over } as Parameters<typeof buildIntent>[1], hyperliquid.capabilities)
   if (!built.ok) throw new Error(JSON.stringify(built))
   return { kind: 'place', intent: built.intent }
 }
@@ -153,6 +153,30 @@ describe('hyperliquid sells', () => {
   })
 })
 
+describe('hyperliquid time in force', () => {
+  // Order type docs: tif is Alo, Ioc or Gtc, and an order with no TP/SL goes under grouping na.
+  it('sends an IOC limit as Ioc, alone under grouping na', async () => {
+    const { ctx, posts } = venue(() => statuses([{ filled: { totalSz: '0.001', avgPx: '80010' } }]))
+    await hyperliquid.execute(ctx, place({ tif: 'ioc', price: '80010' }))
+    expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80010', false, { limit: { tif: 'Ioc' } }]] })
+  })
+})
+
+describe('hyperliquid nonces', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // Nonce docs: the signer's nonces must grow and stay within a day or two of the block time.
+  it('signs each action with the current millisecond, or one above the last within the same millisecond', async () => {
+    const now = Date.now() + 3_600_000
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    await hyperliquid.execute(ctx, place({}))
+    await hyperliquid.execute(ctx, place({}))
+    expect(posts().map((p) => p.body.nonce)).toEqual([now, now + 1])
+  })
+})
+
 describe('hyperliquid writes without a readable reply', () => {
   it('calls a 5xx, a dropped connection or a reply it cannot parse on a write an unknown outcome', async () => {
     const replies: (() => Response | Promise<Response>)[] = [
@@ -179,6 +203,31 @@ describe('hyperliquid writes without a readable reply', () => {
     expect(await failureOf(hyperliquid.enable({ ...ctx, keys }, wallet, () => {}))).toMatchObject({
       kind: 'unknown-outcome',
     })
+  })
+})
+
+describe('hyperliquid reads that fail', () => {
+  it('calls a failed read unreachable, since nothing was sent, and reads the market rules again next time', async () => {
+    const metaReplies = [new Response('<html>502 Bad Gateway</html>', { status: 502 }), json(testnetMeta)]
+    const { ctx, sent, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const fetch = ((url: string, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as { type?: string }
+      if (body.type !== 'meta') return ctx.fetch(url, init)
+      sent.push({ url, body })
+      return Promise.resolve(metaReplies.shift()!)
+    }) as typeof globalThis.fetch
+    const mainnet: VenueContext = { ...ctx, ref: { ...ctx.ref, network: 'mainnet' }, fetch }
+    expect(await failureOf(hyperliquid.execute(mainnet, place({})))).toMatchObject({ kind: 'unreachable' })
+    expect(posts()).toEqual([])
+    expect(await hyperliquid.execute(mainnet, place({}))).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Resting as order 9',
+    })
+    expect(sent.filter((s) => s.body.type === 'meta').map((s) => s.url)).toEqual([
+      'https://api.hyperliquid.xyz/info',
+      'https://api.hyperliquid.xyz/info',
+    ])
   })
 })
 
@@ -209,6 +258,66 @@ describe('hyperliquid refusals', () => {
     expect(await failureOf(hyperliquid.execute(ctx, scale))).toEqual({
       kind: 'insufficient-margin',
       detail: 'Insufficient margin to place order.',
+    })
+  })
+})
+
+describe('hyperliquid refusals before signing', () => {
+  const spec = (venueSymbol: string): MarketSpec => ({
+    ...btc,
+    key: marketKey('hyperliquid', venueSymbol as Base),
+    base: venueSymbol as Base,
+    venueSymbol,
+  })
+  const sol = { price: '150', bid: '149.9', ask: '150.1' }
+
+  it('refuses before signing when this device has no key or the market is not listed', async () => {
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    expect(await failureOf(hyperliquid.execute({ ...ctx, keys: memorySlot(null) }, place({})))).toEqual({
+      kind: 'needs-setup',
+      detail: 'Enable trading on this device first',
+    })
+    expect(await failureOf(hyperliquid.execute(ctx, place({}, spec('DOGE'))))).toEqual({
+      kind: 'invalid-order',
+      detail: 'DOGE is not listed on Hyperliquid testnet',
+    })
+    expect(posts()).toEqual([])
+  })
+
+  it('refuses a size or a scale leg finer than the 2 szDecimals SOL has on this network', async () => {
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    expect(await failureOf(hyperliquid.execute(ctx, place({ ...sol, size: '0.001' }, spec('SOL'))))).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Size 0\.001: /) as string,
+    })
+    const scale = place({ ...sol, kind: 'scale', size: '0.05', start: '150', end: '149', count: '3' }, spec('SOL'))
+    expect(await failureOf(hyperliquid.execute(ctx, scale))).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Order 1 size 0\.0\d+: /) as string,
+    })
+    expect(posts()).toEqual([])
+  })
+})
+
+describe('hyperliquid order outcomes', () => {
+  it('reports an order Hyperliquid answered with a status it does not name as accepted, not as a failure', async () => {
+    for (const [status, detail] of [
+      ['waitingForFill', 'waitingForFill'],
+      [{ other: 'x' }, '{"other":"x"}'],
+    ] as const) {
+      const { ctx } = venue(() => statuses([status]))
+      expect(await hyperliquid.execute(ctx, place({}))).toEqual({ kind: 'placed', status: 'accepted', detail })
+    }
+  })
+
+  it('calls a scale order filled when every leg filled', async () => {
+    const fill = { filled: { totalSz: '0.001', avgPx: '80020' } }
+    const { ctx } = venue(() => statuses([fill, fill, fill]))
+    const scale = place({ kind: 'scale', size: '0.003', start: '80100', end: '80020', count: '3' })
+    expect(await hyperliquid.execute(ctx, scale)).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: '3 of 3 orders placed: 0 resting, 3 filled',
     })
   })
 })
@@ -255,6 +364,23 @@ describe('hyperliquid cancels', () => {
   })
 })
 
+describe('hyperliquid leverage', () => {
+  // The updateLeverage action from the exchange endpoint docs.
+  it('sets cross leverage on the testnet asset id at the testnet host', async () => {
+    const { ctx, posts } = venue(() => json({ status: 'ok', response: { type: 'default' } }))
+    expect(await hyperliquid.execute(ctx, { kind: 'leverage', symbol: 'BTC', leverage: 5 })).toEqual({
+      kind: 'done',
+      detail: 'Leverage 5x cross',
+    })
+    expect(posts().map((p) => [p.url, p.body.action])).toEqual([
+      [
+        'https://api.hyperliquid-testnet.xyz/exchange',
+        { type: 'updateLeverage', asset: 3, isCross: true, leverage: 5 },
+      ],
+    ])
+  })
+})
+
 describe('hyperliquid exits', () => {
   const bracket = { kind: 'market', price: '', takeProfits: [{ price: '82000', share: '100' }], stopLoss: '78000' }
   const filled = { filled: { totalSz: '0.001', avgPx: '80010' } }
@@ -282,6 +408,15 @@ describe('hyperliquid exits', () => {
       status: 'resting',
       detail: 'Resting as order 7. TP not placed: Invalid TP/SL price.',
     })
+  })
+
+  it('refuses a limit order whose stop loss the book on this network already crossed, before signing', async () => {
+    const { ctx, posts } = venue(() => statuses([]), [], [[{ px: '78990' }], [{ px: '79010' }]])
+    expect(await failureOf(hyperliquid.execute(ctx, place({ stopLoss: '79000' })))).toEqual({
+      kind: 'invalid-order',
+      detail: 'Stop loss: Must be below the bid on this network',
+    })
+    expect(posts()).toEqual([])
   })
 })
 
@@ -369,5 +504,197 @@ describe('hyperliquid account sides', () => {
     expect(ethOrder?.side).toBe('sell')
     expect(ethOrder?.ref).toMatch(/:589008353130$/)
     expect(view.snapshot.fills.map((f) => f.side)).toEqual(['buy'])
+  })
+})
+
+describe('hyperliquid balances', () => {
+  const noState = { marginSummary: { accountValue: '0.0' }, withdrawable: '0.0', assetPositions: [] }
+  const accountOf = (answers: Record<string, unknown>) =>
+    hyperliquid.account({
+      ...venue(() => statuses([])).ctx,
+      fetch: (async (_url: string, init?: RequestInit) => {
+        const { type } = JSON.parse(init?.body as string) as { type: string }
+        return json(type === 'meta' ? testnetMeta : (answers[type] ?? []))
+      }) as typeof globalThis.fetch,
+    })
+
+  // Account abstraction docs: a unified or portfolio margin account keeps its USDC in spot.
+  it('reads a portfolio margin balance from the USDC row in spot, whatever comes before it', async () => {
+    const spot = {
+      balances: [
+        { coin: 'HYPE', token: 150, total: '12.5' },
+        { coin: 'USDC', token: 0, total: '907.158556' },
+      ],
+      tokenToAvailableAfterMaintenance: [
+        [150, '12.5'],
+        [0, '904.758556'],
+      ],
+    }
+    const portfolio = { userAbstraction: 'portfolioMargin', clearinghouseState: noState }
+    const view = await accountOf({ ...portfolio, spotClearinghouseState: spot })
+    expect(view.kind === 'live' && view.snapshot).toMatchObject({ equity: '907.158556', available: '904.758556' })
+    const { tokenToAvailableAfterMaintenance: _, ...noAvailable } = spot
+    for (const spotState of [noAvailable, { ...noAvailable, tokenToAvailableAfterMaintenance: [[150, '12.5']] }]) {
+      const all = await accountOf({ ...portfolio, spotClearinghouseState: spotState })
+      expect(all.kind === 'live' && all.snapshot).toMatchObject({ equity: '907.158556', available: '907.158556' })
+    }
+  })
+
+  it('reads an account with nothing in it as empty, and one with only past fills as live', async () => {
+    expect(await accountOf({ clearinghouseState: noState })).toEqual({ kind: 'empty' })
+    const fill = { coin: 'BTC', px: '80100.0', sz: '0.02', side: 'B', time: 1793248071468, fee: '0.36', tid: 1 }
+    expect(await accountOf({ clearinghouseState: noState, userFills: [fill] })).toMatchObject({ kind: 'live' })
+  })
+})
+
+describe('hyperliquid setup', () => {
+  const builder = { b: '0x1924b8561eef20e70ede628a296175d358be80e5' as Address, f: 10 }
+  const day = 86_400_000
+  const listed = (address: string, validUntil: number) => [{ name: 'tape', address, validUntil }]
+  const valid = () => listed(agent.toLowerCase(), Date.now() + day)
+  const withKey = (status: StoredKey['status'], secret: string | null = agentKey) =>
+    memorySlot({ status, public: { agent }, secret })
+
+  function setup(keys: KeySlot, agents: unknown[], fee: number | null = null) {
+    const sent: Sent[] = []
+    const fetch = (async (url: string, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as Record<string, unknown>
+      sent.push({ url, body })
+      if (url.endsWith('/exchange')) return json({ status: 'ok', response: { type: 'default' } })
+      if (body.type === 'extraAgents') return json(agents)
+      if (body.type === 'maxBuilderFee') return json(fee)
+      return json(null)
+    }) as typeof globalThis.fetch
+    const { ctx } = venue(() => statuses([]))
+    const config = { ...ctx.config, hyperliquid: { builder: fee === null ? null : builder } }
+    return { ctx: { ...ctx, config, keys, fetch }, sent, posts: () => sent.filter((s) => s.url.endsWith('/exchange')) }
+  }
+
+  function wallet() {
+    const signed: unknown[] = []
+    const signer: WalletSigner = {
+      address: owner,
+      chainId: async () => 421614,
+      switchChain: async () => {},
+      signTypedData: async (data) => {
+        signed.push(data)
+        return `0x${'11'.repeat(32)}${'22'.repeat(32)}1b`
+      },
+    }
+    return { signer, signed }
+  }
+
+  afterEach(() => vi.useRealTimers())
+
+  // extraAgents from the info endpoint docs lists the API wallets with their expiry in ms.
+  it('marks the trading key approved only when Hyperliquid lists it unexpired', async () => {
+    const approved = async (keys: KeySlot, agents: unknown[]) => (await hyperliquid.steps(setup(keys, agents).ctx))[0]
+    expect(await approved(withKey('linked'), valid())).toEqual({
+      id: 'approve-agent',
+      label: 'Approve a trading key',
+      done: true,
+    })
+    expect((await approved(withKey('linked'), listed(agent.toLowerCase(), Date.now() - 1000)))?.done).toBe(false)
+    expect((await approved(withKey('linked'), listed(owner, Date.now() + day)))?.done).toBe(false)
+    expect((await approved(withKey('linked'), [...listed(owner, Date.now() + day), ...valid()]))?.done).toBe(true)
+    expect((await approved(withKey('draft', null), valid()))?.done).toBe(false)
+    const { ctx, sent } = setup(withKey('linked'), valid())
+    await hyperliquid.steps(ctx)
+    expect(sent.map((s) => s.body)).toEqual([{ type: 'extraAgents', user: owner }])
+  })
+
+  // maxBuilderFee from the info endpoint docs answers in tenths of a basis point, the unit of the builder f.
+  it("asks for Tape's builder fee until the user approved at least that rate", async () => {
+    for (const [fee, done] of [
+      [5, false],
+      [10, true],
+    ] as const) {
+      const { ctx, sent } = setup(withKey('linked'), valid(), fee)
+      expect(await hyperliquid.steps(ctx)).toEqual([
+        { id: 'approve-agent', label: 'Approve a trading key', done: true },
+        { id: 'approve-builder', label: "Approve Tape's fee of 1 bp", done },
+      ])
+      expect(sent.find((s) => s.body.type === 'maxBuilderFee')?.body).toEqual({
+        type: 'maxBuilderFee',
+        user: owner,
+        builder: builder.b,
+      })
+    }
+  })
+
+  // approveAgent and approveBuilderFee from the exchange endpoint docs, signed with the EIP-712 types of
+  // hyperliquid-python-sdk signing.py. 421614 is 0x66eee, and a fee of 10 tenths of a basis point is 0.01%.
+  it('sends the agent named tape and the builder fee the wallet signed, then links the key', async () => {
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    const keys = memorySlot(null)
+    const { ctx, posts } = setup(keys, [], 0)
+    const { signer, signed } = wallet()
+    const steps: string[] = []
+    await hyperliquid.enable(ctx, signer, (step) => steps.push(step))
+    const key = keys.read()
+    const agentAddress = key?.public.agent
+    expect(key).toEqual({ status: 'linked', public: { agent: agentAddress }, secret: expect.any(String) as string })
+    expect(privateKeyToAccount(key?.secret as `0x${string}`).address).toBe(agentAddress)
+    expect(steps).toEqual(['approve-agent', 'approve-builder'])
+    const signature = { r: `0x${'11'.repeat(32)}`, s: `0x${'22'.repeat(32)}`, v: 27 }
+    const chain = { signatureChainId: '0x66eee', hyperliquidChain: 'Testnet' }
+    const agentMessage = { hyperliquidChain: 'Testnet', agentAddress, agentName: 'tape', nonce: now }
+    const feeMessage = { hyperliquidChain: 'Testnet', maxFeeRate: '0.01%', builder: builder.b, nonce: now }
+    expect(posts().map((p) => [p.url, p.body])).toEqual([
+      [
+        'https://api.hyperliquid-testnet.xyz/exchange',
+        { action: { type: 'approveAgent', ...chain, ...agentMessage }, nonce: now, signature },
+      ],
+      [
+        'https://api.hyperliquid-testnet.xyz/exchange',
+        { action: { type: 'approveBuilderFee', ...chain, ...feeMessage }, nonce: now, signature },
+      ],
+    ])
+    const domain = {
+      name: 'HyperliquidSignTransaction',
+      version: '1',
+      chainId: 421614,
+      verifyingContract: '0x0000000000000000000000000000000000000000',
+    }
+    expect(signed).toEqual([
+      {
+        domain,
+        types: {
+          'HyperliquidTransaction:ApproveAgent': [
+            { name: 'hyperliquidChain', type: 'string' },
+            { name: 'agentAddress', type: 'address' },
+            { name: 'agentName', type: 'string' },
+            { name: 'nonce', type: 'uint64' },
+          ],
+        },
+        primaryType: 'HyperliquidTransaction:ApproveAgent',
+        message: agentMessage,
+      },
+      {
+        domain,
+        types: {
+          'HyperliquidTransaction:ApproveBuilderFee': [
+            { name: 'hyperliquidChain', type: 'string' },
+            { name: 'maxFeeRate', type: 'string' },
+            { name: 'builder', type: 'address' },
+            { name: 'nonce', type: 'uint64' },
+          ],
+        },
+        primaryType: 'HyperliquidTransaction:ApproveBuilderFee',
+        message: feeMessage,
+      },
+    ])
+  })
+
+  it('skips the steps already done and keeps the approved key', async () => {
+    const keys = withKey('draft')
+    const { ctx, posts } = setup(keys, valid(), 0)
+    const steps: string[] = []
+    await hyperliquid.enable(ctx, wallet().signer, (step) => steps.push(step))
+    expect(steps).toEqual(['approve-builder'])
+    expect(posts().map((p) => (p.body.action as { type: string }).type)).toEqual(['approveBuilderFee'])
+    expect(keys.read()).toEqual({ status: 'linked', public: { agent }, secret: agentKey })
   })
 })

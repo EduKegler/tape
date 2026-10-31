@@ -58,8 +58,8 @@ interface Asset {
 }
 
 type HlMeta = {
-  universe: { name: string; szDecimals: string; maxLeverage: number; marginTableId: number; onlyIsolated?: boolean }[]
-  marginTables: [number, { marginTiers: { lowerBound: string; maxLeverage: number }[] }][]
+  universe: { name: string; szDecimals: string; maxLeverage: string; marginTableId: number; onlyIsolated?: boolean }[]
+  marginTables: [number, { marginTiers: { lowerBound: string; maxLeverage: string }[] }][]
 }
 
 type Meta = ReadonlyMap<string, Asset>
@@ -107,7 +107,7 @@ function meta(ctx: VenueContext): Promise<Meta> {
           // A table id the list lacks is a single tier at the asset's max leverage.
           const tiers = (
             tables.get(u.marginTableId)?.marginTiers ?? [{ lowerBound: '0', maxLeverage: u.maxLeverage }]
-          ).map((t) => ({ lowerBound: Number(t.lowerBound), maxLeverage: t.maxLeverage }))
+          ).map((t) => ({ lowerBound: Number(t.lowerBound), maxLeverage: Number(t.maxLeverage) }))
           return [u.name, { index, spec, tiers, isolatedOnly: Boolean(u.onlyIsolated) }] as const
         }),
       )

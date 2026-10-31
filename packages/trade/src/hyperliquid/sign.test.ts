@@ -133,4 +133,28 @@ describe('hyperliquid signing', () => {
       28,
     )
   })
+
+  // Some wallets end the signature with the y parity 00 or 01, and Hyperliquid takes v as 27 or 28 like the vectors above.
+  it('normalizes a wallet signature with v 0 or 1 to 27 or 28', async () => {
+    const message = {
+      hyperliquidChain: 'Testnet',
+      destination: '0x5e9ee1089755c3435139848e47e6635505d5a13a',
+      amount: '1',
+      time: 1,
+    }
+    const ending = (r: Hex, s: Hex, parity: '00' | '01') => ({
+      address: wallet.address,
+      signTypedData: async () => `${r}${s.slice(2)}${parity}` as Hex,
+    })
+    const [r27, s27] = [
+      '0x637b37dd731507cdd24f46532ca8ba6eec616952c56218baeff04144e4a77073',
+      '0x11a6a24900e6e314136d2592e2f8d502cd89b7c15b198e1bee043c9589f9fad7',
+    ] as const
+    const [r28, s28] = [
+      '0x8363524c799e90ce9bc41022f7c39b4e9bdba786e5f9c72b20e43e1462c37cf9',
+      '0x58b1411a775938b83e29182e8ef74975f9054c8e97ebf5ec2dc8d51bfc893881',
+    ] as const
+    expectSig(await signUserAction(ending(r27, s27, '00'), 'HyperliquidTransaction:UsdSend', message), r27, s27, 27)
+    expectSig(await signUserAction(ending(r28, s28, '01'), 'HyperliquidTransaction:UsdSend', message), r28, s28, 28)
+  })
 })
