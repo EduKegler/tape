@@ -7,6 +7,7 @@ import pluginRouter from '@tanstack/eslint-plugin-router'
 import eslintReact from '@eslint-react/eslint-plugin'
 import vitest from '@vitest/eslint-plugin'
 import betterTailwind from 'eslint-plugin-better-tailwindcss'
+import { getDefaultSelectors } from 'eslint-plugin-better-tailwindcss/defaults'
 import noUnsanitized from 'eslint-plugin-no-unsanitized'
 import playwright from 'eslint-plugin-playwright'
 import regexp from 'eslint-plugin-regexp'
@@ -78,7 +79,15 @@ export default [
   {
     ...betterTailwind.configs.recommended,
     files: ['src/**/*.tsx'],
-    settings: { 'better-tailwindcss': { entryPoint: 'src/styles.css' } },
+    settings: {
+      'better-tailwindcss': {
+        entryPoint: 'src/styles.css',
+        selectors: [
+          ...getDefaultSelectors(),
+          { kind: 'variable', name: '^classes$', match: [{ type: 'objectValues' }] },
+        ],
+      },
+    },
     rules: {
       ...betterTailwind.configs.recommended.rules,
       // Prettier owns line breaks.
@@ -90,6 +99,7 @@ export default [
   {
     ...jsxA11y.configs.recommended,
     files: ['src/**/*.tsx'],
+    settings: { 'jsx-a11y-x': { components: { Button: 'button' } } },
   },
   {
     ...reactHooks.configs.flat['recommended-latest'],

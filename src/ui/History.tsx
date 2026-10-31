@@ -12,7 +12,7 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { Table } from './primitives'
+import { Button, Table } from './primitives'
 import type { Column } from './primitives'
 import { TradeNote } from './TradeNote'
 
@@ -139,14 +139,9 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
         <Panel
           title="Fills and funding"
           aside={
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={fills.length + payments.length === 0}
-              className="rounded-full border border-rule px-2.5 py-0.5 text-sm text-level2 hover:text-level1 disabled:opacity-40"
-            >
+            <Button look="outline" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
               Export CSV
-            </button>
+            </Button>
           }
         >
           <div className="flex h-full min-h-80 flex-col">
@@ -201,13 +196,9 @@ function Addresses({
           className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
-      <button
-        type="submit"
-        disabled={!walletOk || !dydxOk}
-        className="self-start rounded-full border border-rule px-2.5 py-0.5 text-level2 hover:text-level1 disabled:opacity-40"
-      >
+      <Button look="outline" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
         Read history
-      </button>
+      </Button>
     </form>
   )
 }
@@ -230,14 +221,9 @@ function VenueStatus({
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-level1">{label}</span>
         {address && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={result.isFetching}
-            className="text-level3 hover:text-level1"
-          >
+          <Button look="quiet" onClick={onRefresh} disabled={result.isFetching}>
             {result.isFetching ? 'Reading…' : 'Refresh'}
-          </button>
+          </Button>
         )}
       </div>
       {!address && (
@@ -309,15 +295,14 @@ function Filters({
       </label>
       <div role="group" aria-label="Period" className="flex items-center gap-1 text-level3">
         {presets(now).map((p) => (
-          <button
+          <Button
             key={p.label}
-            type="button"
+            look="preset"
             aria-pressed={search.from === p.from && search.to === p.to}
             onClick={() => set({ from: p.from, to: p.to })}
-            className={`rounded-full px-2 py-0.5 ${search.from === p.from && search.to === p.to ? 'bg-level1/12 text-level1' : 'hover:text-level2'}`}
           >
             {p.label}
-          </button>
+          </Button>
         ))}
         <input
           type="date"

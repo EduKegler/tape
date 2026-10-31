@@ -9,7 +9,7 @@ import type { TradeSession } from '#/trade/hooks'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { Table } from './primitives'
+import { Button, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { slippageBps } from './ticket-store'
@@ -93,13 +93,9 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
-          <button
-            type="button"
-            onClick={() => run({ kind: 'cancel-all', symbol })}
-            className="text-level3 hover:text-ask"
-          >
+          <Button look="danger" onClick={() => run({ kind: 'cancel-all', symbol })}>
             Cancel all {base}
-          </button>
+          </Button>
         )}
         {leverage && symbol && <LeverageControl onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })} />}
       </div>
@@ -162,9 +158,9 @@ function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
         onChange={(e) => setValue(e.target.value.trim())}
         className="num w-10 rounded-sm border border-rule bg-surface px-1 text-level1"
       />
-      <button type="submit" className="hover:text-level1">
+      <Button look="inline" type="submit">
         Set
-      </button>
+      </Button>
     </form>
   )
 }
@@ -192,14 +188,9 @@ function Positions({
     {
       header: '',
       cell: (p) => (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onClose(p)}
-          className="text-level3 hover:text-ask disabled:opacity-40"
-        >
+        <Button look="danger" disabled={busy} onClick={() => onClose(p)}>
           Close
-        </button>
+        </Button>
       ),
     },
   ]
@@ -225,14 +216,9 @@ function Orders({
     {
       header: '',
       cell: (o) => (
-        <button
-          type="button"
-          disabled={busy(o)}
-          onClick={() => onCancel(o)}
-          className="text-level3 hover:text-ask disabled:opacity-40"
-        >
+        <Button look="danger" disabled={busy(o)} onClick={() => onCancel(o)}>
           Cancel
-        </button>
+        </Button>
       ),
     },
   ]

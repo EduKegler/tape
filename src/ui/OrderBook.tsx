@@ -5,6 +5,7 @@ import { useFrame } from '#/client/hooks'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
 import { Panel } from './Panel'
+import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
@@ -73,12 +74,12 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
   const row = useFrame(topic, (f: BookFrame | null) => f?.[side][index] ?? EMPTY_ROW, shallow)
   const ask = side === 'asks'
   return (
-    <button
-      type="button"
+    <Button
+      look="row"
       tabIndex={row.px ? 0 : -1}
       aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
-      className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3 text-left hover:bg-level1/5"
+      className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3"
     >
       <span
         aria-hidden
@@ -88,7 +89,7 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
       <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>{row.px}</span>
       <span className="relative text-right text-level1">{row.qty}</span>
       <span className="relative text-right text-level3">{row.cum}</span>
-    </button>
+    </Button>
   )
 })
 

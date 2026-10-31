@@ -20,7 +20,7 @@ import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
-import { Input } from './primitives'
+import { Button, Input } from './primitives'
 import { specsQuery } from './queries'
 import { TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
@@ -138,15 +138,14 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
     >
       <div className="grid grid-cols-2 gap-1 rounded-full border border-rule p-0.5">
         {(['buy', 'sell'] as const).map((s) => (
-          <button
+          <Button
             key={s}
-            type="button"
+            look={s === 'buy' ? 'side-buy' : 'side-sell'}
             aria-pressed={side === s}
             onClick={() => setSide(s)}
-            className={`rounded-full py-1 text-base capitalize ${side === s ? (s === 'buy' ? 'bg-bid-wash text-bid' : 'bg-ask-wash text-ask') : 'text-level3'}`}
           >
             {s}
-          </button>
+          </Button>
         ))}
       </div>
       <Segmented
@@ -174,13 +173,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
               hint={
                 near ? (
-                  <button
-                    type="button"
-                    className="text-level3 hover:text-level1"
-                    onClick={() => field.handleChange(near)}
-                  >
+                  <Button look="quiet" onClick={() => field.handleChange(near)}>
                     {side === 'buy' ? 'Bid' : 'Ask'} {near}
-                  </button>
+                  </Button>
                 ) : null
               }
             />
@@ -201,13 +196,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
                   hint={
                     near ? (
-                      <button
-                        type="button"
-                        className="text-level3 hover:text-level1"
-                        onClick={() => field.handleChange(near)}
-                      >
+                      <Button look="quiet" onClick={() => field.handleChange(near)}>
                         {side === 'buy' ? 'Bid' : 'Ask'}
-                      </button>
+                      </Button>
                     ) : null
                   }
                 />
@@ -425,13 +416,9 @@ function SubmitArea({
 }) {
   const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
   const button = (
-    <button
-      type="submit"
-      disabled={!canSubmit}
-      className={`rounded-full py-2 text-base disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}
-    >
+    <Button look={side === 'buy' ? 'buy' : 'sell'} type="submit" disabled={!canSubmit}>
       {label}
-    </button>
+    </Button>
   )
   switch (session.status) {
     case 'read-only':
@@ -455,9 +442,9 @@ function SubmitArea({
       return (
         <>
           {button}
-          <button type="button" onClick={session.forget} className="self-end text-xs text-level3 hover:text-level1">
+          <Button look="quiet-xs" onClick={session.forget} className="self-end">
             Forget trading key on this device
-          </button>
+          </Button>
         </>
       )
   }

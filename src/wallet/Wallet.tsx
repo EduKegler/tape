@@ -11,6 +11,7 @@ import {
 import type { Connector, CreateConnectorFn } from 'wagmi'
 import { UserRejectedRequestError, erc20Abi, formatUnits } from 'viem'
 import { shortAddress } from '#/ui/format'
+import { Button } from '#/ui/primitives'
 import { track } from '#/analytics/track'
 import { USDC, chains } from './config'
 import { PairingQr } from './PairingQr'
@@ -54,18 +55,17 @@ export function WalletButton() {
       <div className="flex flex-col items-end gap-1">
         <div className="flex gap-2">
           {connectors.map((connector) => (
-            <button
+            <Button
               key={connector.uid}
-              type="button"
+              look="primary-connect"
               disabled={isPending}
               onClick={() => {
                 setChosen(connector)
                 connect({ connector })
               }}
-              className="rounded-full bg-ink px-4 py-1.5 text-base text-ink-contrast disabled:opacity-50"
             >
               {isPending && chosen === connector ? 'Connecting…' : (LABEL[connector.type] ?? connector.name)}
-            </button>
+            </Button>
           ))}
         </div>
         {error && (
@@ -96,14 +96,9 @@ export function WalletButton() {
           </option>
         ))}
       </select>
-      <button
-        type="button"
-        onClick={() => disconnect()}
-        className="num rounded-full border border-rule px-3 py-1 text-sm text-level1 hover:border-level3"
-        title="Disconnect"
-      >
+      <Button look="outline-wallet" onClick={() => disconnect()} title="Disconnect">
         {shortAddress(address)}
-      </button>
+      </Button>
     </div>
   )
 }
