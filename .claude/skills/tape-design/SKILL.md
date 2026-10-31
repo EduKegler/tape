@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `Search` and `Table`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `Search`, `Select` and `Table`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 
@@ -52,7 +52,7 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 
 - arbitrary values and properties, such as `text-[13px]`, `z-[60]` or `[transition:…]`;
 - `rounded-full`, shadows, and any class outside the closed scales;
-- a raw `<button>`, `<input>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
+- a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
 - a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
 - a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn` or `accent`;
 - an animation without `motion-safe:`.
