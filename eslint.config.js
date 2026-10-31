@@ -231,6 +231,17 @@ export default [
         },
         { selector: "JSXOpeningElement[name.name='button']", message: 'Use Button from src/ui/primitives.' },
         { selector: "JSXOpeningElement[name.name='table']", message: 'Use Table from src/ui/primitives.' },
+        { selector: "JSXOpeningElement[name.name='dialog']", message: 'Use Dialog from src/ui/primitives.' },
+        {
+          selector: "JSXAttribute[name.name='role'][value.value=/^(alert)?dialog$/]",
+          message: 'Use Dialog from src/ui/primitives.',
+        },
+        { selector: "JSXAttribute[name.name='aria-modal']", message: 'Use Dialog from src/ui/primitives.' },
+        {
+          selector:
+            ':matches(Literal[value=/(^|\\s)z-dialog(\\s|$)/], TemplateElement[value.raw=/(^|\\s)z-dialog(\\s|$)/])',
+          message: 'Use Dialog from src/ui/primitives.',
+        },
       ],
     },
   },

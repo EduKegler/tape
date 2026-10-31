@@ -53,6 +53,7 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 - arbitrary values and properties, such as `text-[13px]`, `z-[60]` or `[transition:…]`;
 - `rounded-full`, shadows, and any class outside the closed scales;
 - a raw `<button>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
+- a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
 - an animation without `motion-safe:`.
 
 Review catches the rest. A screen that shows one of these goes back:
