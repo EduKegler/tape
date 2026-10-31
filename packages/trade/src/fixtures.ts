@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { hexToBytes } from 'viem'
+import { z } from 'zod'
 import type { Hex } from 'viem'
 import type { TradeVenueId } from './types'
 
@@ -23,9 +24,36 @@ export interface RecordedWrite {
   readonly chain: readonly RecordedBroadcast[]
 }
 
-interface Recording {
-  readonly cases: Readonly<Record<string, Partial<RecordedWrite>>>
-}
+const Recording = z.object({
+  cases: z.record(
+    z.string(),
+    z.object({
+      exchanges: z
+        .array(
+          z.object({
+            method: z.string(),
+            url: z.string(),
+            request: z.unknown(),
+            status: z.number(),
+            response: z.unknown(),
+          }),
+        )
+        .optional(),
+      chain: z
+        .array(
+          z.union([
+            z.object({
+              method: z.enum(['placeOrder', 'cancelOrder']),
+              thrown: z.object({ name: z.string(), message: z.string() }),
+            }),
+            z.object({ method: z.enum(['placeOrder', 'cancelOrder']), reply: z.unknown() }),
+          ]),
+        )
+        .optional(),
+    }),
+  ),
+})
+type Recording = z.infer<typeof Recording>
 
 const revive = (_key: string, value: unknown) => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -43,7 +71,7 @@ export function recordedWrite(venue: TradeVenueId, name: string): RecordedWrite 
   let recording = recordings.get(venue)
   if (!recording) {
     const text = readFileSync(new URL(`./__fixtures__/writes.${venue}.json`, import.meta.url), 'utf8')
-    recording = JSON.parse(text, revive) as Recording
+    recording = Recording.parse(JSON.parse(text, revive))
     recordings.set(venue, recording)
   }
   const found = recording.cases[name]

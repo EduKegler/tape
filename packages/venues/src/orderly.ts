@@ -1,7 +1,7 @@
 import type { Base, Interval, Network } from '@tape/core/ids'
-import { parseExactJson } from '@tape/core/json'
+import { isRecord, parseExactJson } from '@tape/core/json'
 import { readOrderlyMarket, readOrderlyMarkets } from './markets'
-import { VenueParseError, chartBar, getExactJson } from './types'
+import { VenueParseError, chartBar, getExactJson, readReply } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
 import { isPairs, isText } from './wire'
 
@@ -31,15 +31,38 @@ interface WireKline {
   volume: string
   startTime: string
 }
-type Wire =
-  | { topic: string; ts: string; data?: Partial<WireBook & WireTrade & WireKline> | null }
-  | { event: 'ping' | 'pong' | 'subscribe' | 'unsubscribe'; success?: boolean; topic?: undefined }
+type Fields = Record<string, unknown>
 
-const isBook = (book: Partial<WireBook>): book is WireBook => isPairs(book.bids) && isPairs(book.asks)
-const isTrade = (trade: Partial<WireTrade>): trade is WireTrade =>
+const isBook = (book: Fields): book is Fields & WireBook => isPairs(book.bids) && isPairs(book.asks)
+const isTrade = (trade: Fields): trade is Fields & WireTrade =>
   isText(trade.price) && isText(trade.size) && (trade.side === 'BUY' || trade.side === 'SELL')
-const isKline = (kline: Partial<WireKline>): kline is WireKline =>
+const isKline = (kline: Fields): kline is Fields & WireKline =>
   [kline.open, kline.close, kline.high, kline.low, kline.volume, kline.startTime].every(isText)
+
+interface Futures {
+  index_price: string
+  est_funding_rate: string
+  '24h_open': string
+  '24h_close': string
+  '24h_amount': string
+}
+const isFutures = (reply: unknown): reply is { data: Futures } =>
+  isRecord(reply)
+  && isRecord(reply.data)
+  && [
+    reply.data.index_price,
+    reply.data.est_funding_rate,
+    reply.data['24h_open'],
+    reply.data['24h_close'],
+    reply.data['24h_amount'],
+  ].every(isText)
+const isFundingPeriod = (reply: unknown): reply is { data: { funding_period: string } } =>
+  isRecord(reply) && isRecord(reply.data) && isText(reply.data.funding_period)
+const isTexts = (values: unknown): values is string[] => Array.isArray(values) && values.every(isText)
+const isBars = (
+  reply: unknown,
+): reply is { t: string[]; o: string[]; h: string[]; l: string[]; c: string[]; v: string[] } =>
+  isRecord(reply) && [reply.t, reply.o, reply.h, reply.l, reply.c, reply.v].every(isTexts)
 
 function topicOf(target: StreamTarget): string {
   const symbol = target.spec.venueSymbol
@@ -76,16 +99,18 @@ export function orderly(network: Network): VenueAdapter {
     unsubscribeFrames: frame('unsubscribe'),
 
     parse(raw, symbols) {
-      const message = parseExactJson<Wire>(raw)
+      const message = parseExactJson(raw)
+      if (!isRecord(message)) throw new VenueParseError('orderly', null, raw)
       if ('event' in message) {
         if (message.event === 'subscribe' && message.success === false) throw new VenueParseError('orderly', null, raw)
         return []
       }
+      if (!isText(message.topic)) throw new VenueParseError('orderly', null, raw)
       const [symbol = '', stream = ''] = message.topic.split('@')
       const market = symbols(symbol)
       if (!market) return []
       if (!isText(message.ts)) throw new VenueParseError('orderly', market, raw)
-      const data = message.data ?? {}
+      const data = isRecord(message.data) ? message.data : {}
       const time = Number(message.ts)
       if (stream === 'orderbook' && isBook(data))
         return [{ kind: 'book-snapshot', market, bids: data.bids, asks: data.asks, time }]
@@ -124,18 +149,9 @@ export function orderly(network: Network): VenueAdapter {
     },
 
     async fetchStats(base, fetch, signal) {
-      type Futures = {
-        index_price: string
-        est_funding_rate: string
-        '24h_open': string
-        '24h_close': string
-        '24h_amount': string
-      }
       const [futures, info] = await Promise.all([
-        getExactJson<{ data: Futures }>(fetch, `${rest}/public/futures/${symbolOf(base)}`, { signal: signal ?? null }),
-        getExactJson<{ data: { funding_period: string } }>(fetch, `${rest}/public/info/${symbolOf(base)}`, {
-          signal: signal ?? null,
-        }),
+        getExactJson(fetch, `${rest}/public/futures/${symbolOf(base)}`, isFutures, { signal: signal ?? null }),
+        getExactJson(fetch, `${rest}/public/info/${symbolOf(base)}`, isFundingPeriod, { signal: signal ?? null }),
       ])
       const stats = futures.data
       const open = Number(stats['24h_open'])
@@ -151,16 +167,9 @@ export function orderly(network: Network): VenueAdapter {
       const to = Math.floor(Date.now() / 1000)
       const from = to - (500 * INTERVAL_MS[interval]) / 1000
       const url = `${rest}/tv/history?symbol=${symbolOf(base)}&resolution=${RESOLUTION[interval]}&from=${from}&to=${to}`
-      const history = await getExactJson<{
-        s: string
-        t: string[]
-        o: string[]
-        h: string[]
-        l: string[]
-        c: string[]
-        v: string[]
-      }>(fetch, url, { signal: signal ?? null })
-      if (history.s !== 'ok') return []
+      const reply = await getExactJson(fetch, url, isRecord, { signal: signal ?? null })
+      if (reply.s !== 'ok') return []
+      const history = readReply(url, reply, isBars)
       return history.t.map((openTime, index) =>
         chartBar(
           Number(openTime) * 1000,

@@ -91,7 +91,7 @@ const Ledger = z.array(
 const LEDGER_SLACK_MS = 10 * 60_000
 
 async function ledger(fetch: typeof globalThis.fetch, sent: SentDeposit) {
-  const body = await send<unknown>(
+  const body = await send(
     'hyperliquid',
     fetch,
     `${API[sent.ref.network]}/info`,

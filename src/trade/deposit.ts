@@ -5,6 +5,7 @@ import { estimateGas, getPublicClient, waitForTransactionReceipt } from 'wagmi/a
 import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
 import type { Address, Chain, Client, Hex, Transport } from 'viem'
 import { estimateL1Fee } from 'viem/op-stack'
+import { isRecord } from '@tape/core/json'
 import { DEPOSITS, TRADING } from '@tape/trade'
 import { blocksDeposit, depositIssues } from '@tape/trade/deposit'
 import { claim, release } from '@tape/trade/in-flight'
@@ -175,8 +176,7 @@ async function onChain(provider: Eip1193, chainId: number) {
 export function sendFailure(error: unknown): SendFailure {
   const approved = error instanceof FailedAfterApproval
   const cause = approved ? error.cause : error
-  if ((cause as { code?: number } | null)?.code === UserRejectedRequestError.code)
-    return { kind: 'wallet-rejected', approved }
+  if (isRecord(cause) && cause.code === UserRejectedRequestError.code) return { kind: 'wallet-rejected', approved }
   if (cause instanceof TradeFailure) return { kind: 'failed', detail: cause.message, approved }
   return { kind: 'failed', detail: rejectionMessage(cause).split('\n')[0]!, approved }
 }

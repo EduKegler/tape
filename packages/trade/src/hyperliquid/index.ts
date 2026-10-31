@@ -4,11 +4,12 @@ import type { Address, Hex } from 'viem'
 import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
 import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
 import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
-import { post, send } from '../send'
+import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
 import { TradeFailure, orderRef, toDecimal } from '../types'
@@ -57,10 +58,25 @@ interface Asset {
   readonly isolatedOnly: boolean
 }
 
-type HlMeta = {
-  universe: { name: string; szDecimals: string; maxLeverage: string; marginTableId: number; onlyIsolated?: boolean }[]
-  marginTables: [number, { marginTiers: { lowerBound: string; maxLeverage: string }[] }][]
-}
+const HlMeta = z.object({
+  universe: z.array(
+    z.object({
+      name: z.string(),
+      szDecimals: z.string(),
+      maxLeverage: z.string().optional(),
+      marginTableId: z.string().optional(),
+      onlyIsolated: z.boolean().optional(),
+    }),
+  ),
+  marginTables: z
+    .array(
+      z.tuple([
+        z.string(),
+        z.object({ marginTiers: z.array(z.object({ lowerBound: z.string(), maxLeverage: z.string() })) }),
+      ]),
+    )
+    .optional(),
+})
 
 type Meta = ReadonlyMap<string, Asset>
 
@@ -79,21 +95,23 @@ export function classifyText(text: string): TradeError {
   return { kind: 'rejected', detail: text }
 }
 
-const classify: Classify = (_status, body) => {
-  const reply = body as { status?: string; response?: unknown } | null
-  return reply?.status === 'err' ? classifyText(String(reply.response)) : null
-}
+const classify: Classify = (_status, body) =>
+  isRecord(body) && body.status === 'err' ? classifyText(String(body.response)) : null
 
-const infoAt = <T>(network: Network, fetch: typeof globalThis.fetch, body: unknown) =>
-  send<T>('hyperliquid', fetch, `${API[network]}/info`, { ...post(body), mutates: false }, () => null)
-const info = <T>(ctx: VenueContext, body: unknown) => infoAt<T>(ctx.ref.network, ctx.fetch, body)
+const read = <T>(reply: z.ZodType<T>, body: unknown) => readReply('hyperliquid', reply, body, false)
+const infoAt = <T>(network: Network, fetch: typeof globalThis.fetch, body: unknown, reply: z.ZodType<T>) =>
+  send('hyperliquid', fetch, `${API[network]}/info`, { ...post(body), mutates: false }, () => null).then((got) =>
+    read(reply, got),
+  )
+const info = <T>(ctx: VenueContext, body: unknown, reply: z.ZodType<T>) =>
+  infoAt(ctx.ref.network, ctx.fetch, body, reply)
 
 /** Asset ids and szDecimals differ between mainnet and testnet, so each network gets its own rules. */
 function meta(ctx: VenueContext): Promise<Meta> {
   const network = ctx.ref.network
   let cached = metas.get(network)
   if (!cached) {
-    cached = info<HlMeta>(ctx, { type: 'meta' }).then((hlMeta) => {
+    cached = info(ctx, { type: 'meta' }, HlMeta).then((hlMeta) => {
       const tables = new Map(hlMeta.marginTables)
       return new Map(
         hlMeta.universe.map((perp, index) => {
@@ -106,7 +124,9 @@ function meta(ctx: VenueContext): Promise<Meta> {
           }
           // A table id the list lacks is a single tier at the asset's max leverage.
           const tiers = (
-            tables.get(perp.marginTableId)?.marginTiers ?? [{ lowerBound: '0', maxLeverage: perp.maxLeverage }]
+            (perp.marginTableId === undefined ? undefined : tables.get(perp.marginTableId)?.marginTiers) ?? [
+              { lowerBound: '0', maxLeverage: perp.maxLeverage },
+            ]
           ).map((tier) => ({ lowerBound: Number(tier.lowerBound), maxLeverage: Number(tier.maxLeverage) }))
           return [perp.name, { index, spec, tiers, isolatedOnly: Boolean(perp.onlyIsolated) }] as const
         }),
@@ -137,11 +157,10 @@ function recheckSize(market: Asset, intent: OrderIntent): string {
   return issue ? fail({ kind: 'invalid-order', detail: `Size ${size}: ${issue} on this network` }) : size
 }
 
+const Book = z.object({ levels: z.array(z.array(z.object({ px: z.string() }))) })
+
 async function touch(ctx: VenueContext, market: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
-  const book = await info<{ levels: [{ px: string }[], { px: string }[]] }>(ctx, {
-    type: 'l2Book',
-    coin: market.spec.venueSymbol,
-  })
+  const book = await info(ctx, { type: 'l2Book', coin: market.spec.venueSymbol }, Book)
   const [bid, ask] = book.levels.map((side) => (side[0] ? parsePx(side[0].px, market.spec.scale) : null))
   return { bid: bid ?? null, ask: ask ?? null }
 }
@@ -250,17 +269,14 @@ type Statuses = z.infer<typeof Reply>
 async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
   const nonce = nextNonce()
   const signature = await signL1Action(localSigner(agentOf(ctx)), action, nonce, CHAIN[ctx.ref.network])
-  const body = await send<unknown>(
+  const body = await send(
     'hyperliquid',
     ctx.fetch,
     `${API[ctx.ref.network]}/exchange`,
     { ...post({ action, nonce, signature }), mutates: true },
     classify,
   )
-  const reply = Reply.safeParse(body)
-  return reply.success
-    ? reply.data
-    : fail({ kind: 'unknown-outcome', detail: `Unreadable reply: ${JSON.stringify(body)}` })
+  return readReply('hyperliquid', Reply, body, true)
 }
 
 const GONE = /never placed|already canceled|filled/i
@@ -371,6 +387,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   }
 }
 
+const OrderLookupReply = z.object({ status: z.string(), order: z.object({ status: z.string() }).nullish() })
+
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
   if (intent.order.kind === 'trailing')
@@ -379,9 +397,7 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
       detail: 'Hyperliquid takes no client id on a trailing stop, so it cannot be found by one',
     })
   const replies = await Promise.all(
-    clientIdsOf(intent).map((oid) =>
-      info<{ status: string; order?: { status: string } }>(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }),
-    ),
+    clientIdsOf(intent).map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
   )
   return lookupSummary(
     replies.map((reply) =>
@@ -398,22 +414,28 @@ function refParts(ref: OrderRef) {
   return { asset: Number(index), oid: Number(oid) }
 }
 
-interface HlOrder {
-  coin: string
-  side: 'A' | 'B'
-  limitPx: string
-  sz: string
-  oid: string
-  timestamp: string
-  orderType: string
-  reduceOnly: boolean
-  isTrigger: boolean
-  triggerPx: string
-}
+const HlOrders = z.array(
+  z.object({
+    coin: z.string(),
+    side: z.string(),
+    limitPx: z.string(),
+    sz: z.string(),
+    oid: z.string(),
+    timestamp: z.string(),
+    orderType: z.string(),
+    reduceOnly: z.boolean(),
+    isTrigger: z.boolean(),
+    triggerPx: z.string(),
+  }),
+)
 
 async function openOf(ctx: VenueContext, symbol: string) {
   const [orders, markets] = await Promise.all([
-    info<HlOrder[]>(ctx, { type: 'frontendOpenOrders', user: ctx.ref.owner }),
+    info(
+      ctx,
+      { type: 'frontendOpenOrders', user: ctx.ref.owner },
+      z.array(z.object({ coin: z.string(), oid: z.string() })),
+    ),
     meta(ctx),
   ])
   return orders
@@ -422,42 +444,57 @@ async function openOf(ctx: VenueContext, symbol: string) {
 }
 
 const UNIFIED = new Set(['unifiedAccount', 'portfolioMargin'])
+const isUnified = (mode: unknown) => typeof mode === 'string' && UNIFIED.has(mode)
+
+const AccountState = z.object({
+  marginSummary: z.object({ accountValue: z.string() }),
+  withdrawable: z.string(),
+  assetPositions: z.array(
+    z.object({
+      position: z.object({
+        coin: z.string(),
+        szi: z.string(),
+        entryPx: z.string(),
+        unrealizedPnl: z.string(),
+        liquidationPx: z.string().nullable(),
+        leverage: z.object({ type: z.string(), value: z.string() }),
+      }),
+    }),
+  ),
+})
+const Spot = z.object({
+  balances: z.array(z.object({ coin: z.string(), token: z.string(), total: z.string() })),
+  tokenToAvailableAfterMaintenance: z.array(z.tuple([z.string(), z.string()])).optional(),
+})
+const HlFills = z.array(
+  z.object({
+    coin: z.string(),
+    px: z.string(),
+    sz: z.string(),
+    side: z.string(),
+    time: z.string(),
+    fee: z.string(),
+    tid: z.string(),
+  }),
+)
 
 async function account(ctx: VenueContext): Promise<AccountView> {
   const user = ctx.ref.owner
-  type State = {
-    marginSummary: { accountValue: string }
-    withdrawable: string
-    assetPositions: {
-      position: {
-        coin: string
-        szi: string
-        entryPx: string
-        unrealizedPnl: string
-        liquidationPx: string | null
-        leverage: { type: string; value: string }
-      }
-    }[]
-  }
-  type Spot = {
-    balances: { coin: string; token: number; total: string }[]
-    tokenToAvailableAfterMaintenance?: [number, string][]
-  }
-  type HlFill = { coin: string; px: string; sz: string; side: 'A' | 'B'; time: string; fee: string; tid: string }
-  const [state, spot, mode, orders, fills, markets] = await Promise.all([
-    info<State>(ctx, { type: 'clearinghouseState', user }),
-    info<Spot>(ctx, { type: 'spotClearinghouseState', user }),
-    info<string>(ctx, { type: 'userAbstraction', user }),
-    info<HlOrder[]>(ctx, { type: 'frontendOpenOrders', user }),
-    info<HlFill[]>(ctx, { type: 'userFills', user }),
+  const [state, spotState, mode, orders, fills, markets] = await Promise.all([
+    info(ctx, { type: 'clearinghouseState', user }, AccountState),
+    info(ctx, { type: 'spotClearinghouseState', user }, z.unknown()),
+    info(ctx, { type: 'userAbstraction', user }, z.unknown()),
+    info(ctx, { type: 'frontendOpenOrders', user }, HlOrders),
+    info(ctx, { type: 'userFills', user }, HlFills),
     meta(ctx),
   ])
   // A unified or portfolio margin account keeps one USDC balance in spot for spot and perps alike.
   // Its perp state holds only the margin in use, so it is not the balance.
-  const usdc = UNIFIED.has(mode) ? spot.balances.find((balance) => balance.coin === 'USDC') : undefined
+  const spot = isUnified(mode) ? read(Spot, spotState) : null
+  const usdc = spot?.balances.find((balance) => balance.coin === 'USDC')
   const equity = usdc ? usdc.total : state.marginSummary.accountValue
   const available = usdc
-    ? (spot.tokenToAvailableAfterMaintenance?.find(([token]) => token === usdc.token)?.[1] ?? usdc.total)
+    ? (spot?.tokenToAvailableAfterMaintenance?.find(([token]) => token === usdc.token)?.[1] ?? usdc.total)
     : state.withdrawable
   if (Number(equity) === 0 && state.assetPositions.length === 0 && orders.length === 0 && fills.length === 0)
     return { kind: 'empty' }
@@ -502,22 +539,33 @@ async function account(ctx: VenueContext): Promise<AccountView> {
   }
 }
 
+const MarginState = z.object({
+  crossMarginSummary: z.object({ accountValue: z.string() }),
+  crossMaintenanceMarginUsed: z.string(),
+  assetPositions: z.array(
+    z.object({
+      position: z.object({
+        coin: z.string(),
+        szi: z.string(),
+        positionValue: z.string(),
+        leverage: z.object({ type: z.string() }),
+      }),
+    }),
+  ),
+})
+const ActiveAsset = z.object({ leverage: z.object({ type: z.string() }) })
+
 async function margin(ctx: VenueContext, symbol: string): Promise<MarginState> {
   const user = ctx.ref.owner
-  type State = {
-    crossMarginSummary: { accountValue: string }
-    crossMaintenanceMarginUsed: string
-    assetPositions: { position: { coin: string; szi: string; positionValue: string; leverage: { type: string } } }[]
-  }
   const [market, mode, state, active] = await Promise.all([
     asset(ctx, symbol),
-    info<string>(ctx, { type: 'userAbstraction', user }),
-    info<State>(ctx, { type: 'clearinghouseState', user }),
-    info<{ leverage: { type: string } }>(ctx, { type: 'activeAssetData', user, coin: symbol }),
+    info(ctx, { type: 'userAbstraction', user }, z.unknown()),
+    info(ctx, { type: 'clearinghouseState', user }, MarginState),
+    info(ctx, { type: 'activeAssetData', user, coin: symbol }, z.unknown()),
   ])
-  if (UNIFIED.has(mode)) return { kind: 'unsupported', reason: 'Not estimated for unified accounts' }
+  if (isUnified(mode)) return { kind: 'unsupported', reason: 'Not estimated for unified accounts' }
   const held = state.assetPositions.find((entry) => entry.position.coin === symbol)?.position
-  if (market.isolatedOnly || (held ?? active).leverage.type !== 'cross')
+  if (market.isolatedOnly || (held ?? read(ActiveAsset, active)).leverage.type !== 'cross')
     return { kind: 'unsupported', reason: 'Not estimated for isolated margin' }
   const size = held ? Number(held.szi) : 0
   const value = held ? Number(held.positionValue) : 0
@@ -530,15 +578,15 @@ async function margin(ctx: VenueContext, symbol: string): Promise<MarginState> {
   }
 }
 
+const Agents = z.array(z.object({ address: z.string(), validUntil: z.string() }))
+
 async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
   const key = ctx.keys.read()
   const agent = key?.public.agent?.toLowerCase()
   const builder = ctx.config.hyperliquid.builder
   const [agents, fee] = await Promise.all([
-    info<{ address: string; validUntil: string }[]>(ctx, { type: 'extraAgents', user: ctx.ref.owner }),
-    builder
-      ? info<string>(ctx, { type: 'maxBuilderFee', user: ctx.ref.owner, builder: builder.b })
-      : Promise.resolve(null),
+    info(ctx, { type: 'extraAgents', user: ctx.ref.owner }, Agents),
+    builder ? info(ctx, { type: 'maxBuilderFee', user: ctx.ref.owner, builder: builder.b }, z.unknown()) : null,
   ])
   const approved = Boolean(
     key?.secret
@@ -621,26 +669,27 @@ const FILL_PAGE = 2000
 const FUNDING_PAGE = 500
 const RECENT_FILLS = 10000
 
-interface HlHistoryFill {
-  coin: string
-  px: string
-  sz: string
-  side: 'A' | 'B'
-  time: string
-  startPosition: string
-  closedPnl: string
-  hash: string
-  oid: string
-  fee: string
-  feeToken: string
-  tid: string
-  liquidation?: { liquidatedUser: string }
-}
+const HlHistoryFill = z.object({
+  coin: z.string(),
+  px: z.string(),
+  sz: z.string(),
+  side: z.string(),
+  time: z.string(),
+  startPosition: z.string(),
+  closedPnl: z.string(),
+  hash: z.string(),
+  oid: z.string(),
+  fee: z.string(),
+  feeToken: z.string(),
+  tid: z.string(),
+  liquidation: z.object({ liquidatedUser: z.string() }).nullish(),
+})
+type HlHistoryFill = z.infer<typeof HlHistoryFill>
 
-interface HlFunding {
-  time: string
-  delta: { coin: string; usdc: string; szi: string; fundingRate: string }
-}
+const HlFunding = z.object({
+  time: z.string(),
+  delta: z.object({ coin: z.string(), usdc: z.string(), szi: z.string(), fundingRate: z.string() }),
+})
 
 /** Spot coins are `@index` or `BASE/QUOTE`. Perps on HIP-3 dexes are `dex:COIN`. */
 const isSpot = (coin: string) => coin.startsWith('@') || coin.includes('/')
@@ -650,7 +699,12 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   const [fills, funding] = await Promise.all([
     walkByTime(
       (startTime) =>
-        infoAt<HlHistoryFill[]>(network, fetch, { type: 'userFillsByTime', user, startTime, aggregateByTime: false }),
+        infoAt(
+          network,
+          fetch,
+          { type: 'userFillsByTime', user, startTime, aggregateByTime: false },
+          z.array(HlHistoryFill),
+        ),
       // Dust conversions come with tid 0 and a zero hash, so the tid alone repeats.
       {
         size: FILL_PAGE,
@@ -658,7 +712,7 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
         keyOf: (fill) => `${fill.tid}:${fill.oid}:${fill.coin}:${fill.hash}`,
       },
     ),
-    walkByTime((startTime) => infoAt<HlFunding[]>(network, fetch, { type: 'userFunding', user, startTime }), {
+    walkByTime((startTime) => infoAt(network, fetch, { type: 'userFunding', user, startTime }, z.array(HlFunding)), {
       size: FUNDING_PAGE,
       timeOf: (payment) => Number(payment.time),
       keyOf: (payment) => `${payment.time}:${payment.delta.coin}`,

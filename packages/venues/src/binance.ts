@@ -1,8 +1,9 @@
 import { isInterval } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import type { Base, Network } from '@tape/core/ids'
 import { readBinanceMarket, readBinanceMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
-import type { RawLevel, StreamTarget, VenueAdapter } from './types'
+import type { RawSnapshot, StreamTarget, VenueAdapter } from './types'
 import { isNumber, isPairs, isText } from './wire'
 
 const symbolOf = (base: Base) => `${base}USDT`
@@ -16,13 +17,20 @@ interface WireKline {
   c: string
   v: string
 }
-type Wire =
-  | { e: 'depthUpdate'; E: number; s: string; U: number; u: number; b: RawLevel[]; a: RawLevel[] }
-  | { e: 'trade'; s: string; t: number; p: string; q: string; T: number; m: boolean }
-  | { e: 'kline'; s: string; k: WireKline }
 
-const isKline = (kline: Partial<WireKline> | undefined): kline is WireKline =>
-  isNumber(kline?.t) && [kline.i, kline.o, kline.h, kline.l, kline.c, kline.v].every(isText)
+const isKline = (kline: unknown): kline is WireKline =>
+  isRecord(kline) && isNumber(kline.t) && [kline.i, kline.o, kline.h, kline.l, kline.c, kline.v].every(isText)
+
+const isSnapshot = (reply: unknown): reply is RawSnapshot =>
+  isRecord(reply) && isNumber(reply.lastUpdateId) && isPairs(reply.bids) && isPairs(reply.asks)
+const isTicker = (reply: unknown): reply is { priceChangePercent: string; quoteVolume: string } =>
+  isRecord(reply) && isText(reply.priceChangePercent) && isText(reply.quoteVolume)
+type KlineRow = [openTime: number, open: string, high: string, low: string, close: string, volume: string]
+const isKlineRows = (reply: unknown): reply is KlineRow[] =>
+  Array.isArray(reply)
+  && reply.every(
+    (row: unknown) => Array.isArray(row) && isNumber(row[0]) && [row[1], row[2], row[3], row[4], row[5]].every(isText),
+  )
 
 function streamName(target: StreamTarget): string {
   const symbol = target.spec.venueSymbol.toLowerCase()
@@ -53,9 +61,7 @@ export function binance(network: Network): VenueAdapter {
       protocol: 'rest-snapshot-sequenced',
       async fetchSnapshot(spec, fetch, signal) {
         const url = `${rest}/depth?symbol=${spec.venueSymbol}&limit=1000`
-        return getJson<{ lastUpdateId: number; bids: RawLevel[]; asks: RawLevel[] }>(fetch, url, {
-          signal: signal ?? null,
-        })
+        return getJson(fetch, url, isSnapshot, { signal: signal ?? null })
       },
     },
     keepalive: null,
@@ -68,9 +74,11 @@ export function binance(network: Network): VenueAdapter {
     unsubscribeFrames: (targets) => control('UNSUBSCRIBE', targets),
 
     parse(raw, symbols) {
-      const json = JSON.parse(raw) as { data?: Wire; result?: unknown } & Partial<Wire>
+      const json: unknown = JSON.parse(raw)
+      if (!isRecord(json)) throw new VenueParseError('binance', null, raw)
       if ('result' in json) return []
-      const frame = (json.data ?? json) as Wire
+      const frame = json.data ?? json
+      if (!isRecord(frame) || !isText(frame.s)) return []
       const market = symbols(frame.s)
       if (!market) return []
       switch (frame.e) {
@@ -120,11 +128,9 @@ export function binance(network: Network): VenueAdapter {
     },
 
     async fetchStats(base, fetch, signal) {
-      const ticker = await getJson<{ priceChangePercent: string; quoteVolume: string }>(
-        fetch,
-        `${rest}/ticker/24hr?symbol=${symbolOf(base)}`,
-        { signal: signal ?? null },
-      )
+      const ticker = await getJson(fetch, `${rest}/ticker/24hr?symbol=${symbolOf(base)}`, isTicker, {
+        signal: signal ?? null,
+      })
       return {
         changePct: Number(ticker.priceChangePercent),
         volumeQuote: Number(ticker.quoteVolume),
@@ -135,9 +141,7 @@ export function binance(network: Network): VenueAdapter {
 
     async fetchCandles(base, interval, fetch, signal) {
       const url = `${rest}/klines?symbol=${symbolOf(base)}&interval=${interval}&limit=500`
-      const rows = await getJson<[number, string, string, string, string, string][]>(fetch, url, {
-        signal: signal ?? null,
-      })
+      const rows = await getJson(fetch, url, isKlineRows, { signal: signal ?? null })
       return rows.map(([openTime, open, high, low, close, volume]) =>
         chartBar(openTime, open, high, low, close, volume),
       )

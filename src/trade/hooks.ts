@@ -4,6 +4,7 @@ import { useConnection } from 'wagmi'
 import { UserRejectedRequestError } from 'viem'
 import type { Address } from 'viem'
 import type { VenueId } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
 import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
@@ -79,7 +80,7 @@ export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Prom
     return await run()
   } catch (error) {
     if (error instanceof TradeFailure) throw error
-    if ((error as { code?: number } | null)?.code === UserRejectedRequestError.code)
+    if (isRecord(error) && error.code === UserRejectedRequestError.code)
       throw new TradeFailure(venue, { kind: 'wallet-rejected' })
     report(error, 'trade', true)
     throw new TradeFailure(venue, { kind: 'unexpected', detail: rejectionMessage(error) })

@@ -1,5 +1,6 @@
 import { isBase, isInterval, isTabId, parseMarketKey } from '@tape/core/ids'
 import type { TabId } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import type { ExceptionEvent } from '#/analytics/exception'
 import type { Frame, Topic } from './topics'
 
@@ -25,9 +26,8 @@ export type HubToTab =
   | { readonly t: 'stats'; readonly stats: HubStats }
   | { readonly t: 'exception'; readonly event: ExceptionEvent }
 
-function parseTopic(value: unknown): Topic | null {
-  if (typeof value !== 'object' || value === null) return null
-  const fields = value as Record<string, unknown>
+function parseTopic(fields: unknown): Topic | null {
+  if (!isRecord(fields)) return null
   if (fields.kind === 'compare')
     return typeof fields.base === 'string' && isBase(fields.base) ? { kind: 'compare', base: fields.base } : null
   const market = typeof fields.market === 'string' ? parseMarketKey(fields.market) : null
@@ -47,9 +47,8 @@ function parseTopic(value: unknown): Topic | null {
   }
 }
 
-export function parseTabMessage(data: unknown): TabToHub | null {
-  if (typeof data !== 'object' || data === null) return null
-  const message = data as Record<string, unknown>
+export function parseTabMessage(message: unknown): TabToHub | null {
+  if (!isRecord(message)) return null
   switch (message.t) {
     case 'hello':
       return typeof message.tab === 'string' && isTabId(message.tab) && typeof message.visible === 'boolean'

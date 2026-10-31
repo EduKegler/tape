@@ -10,6 +10,7 @@ import {
 } from 'wagmi'
 import type { Connector, CreateConnectorFn } from 'wagmi'
 import { UserRejectedRequestError, erc20Abi, formatUnits } from 'viem'
+import { isRecord } from '@tape/core/json'
 import { shortAddress } from '#/ui/format'
 import { Button } from '#/ui/primitives'
 import { track } from '#/analytics/track'
@@ -42,7 +43,7 @@ export function WalletButton() {
           reason:
             failure instanceof ProviderNotFoundError
               ? 'no-wallet'
-              : (failure as { code?: number }).code === UserRejectedRequestError.code
+              : isRecord(failure) && failure.code === UserRejectedRequestError.code
                 ? 'rejected'
                 : 'other',
         }),

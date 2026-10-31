@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { isRecord } from '@tape/core/json'
 import type { VenueId } from '@tape/core/ids'
 
 const dir = new URL('./__fixtures__/', import.meta.url)
@@ -35,8 +36,8 @@ export const recordedFetch: typeof globalThis.fetch = async (input, init) => {
   const url = input instanceof Request ? input.url : input.toString()
   let file = ROUTES.find(([re]) => re.test(url))?.[1]
   if (/hyperliquid[^/]*\/info$/.test(url)) {
-    const body = JSON.parse(init?.body as string) as { type: string }
-    file = `hyperliquid.${body.type}.json`
+    const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+    file = isRecord(body) && typeof body.type === 'string' ? `hyperliquid.${body.type}.json` : undefined
   }
   if (!file) throw new Error(`no recording for ${url}`)
   return new Response(readFileSync(new URL(file, dir), 'utf8'), {

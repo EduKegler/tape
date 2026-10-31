@@ -1,10 +1,12 @@
 import { isBase, marketKey, splitBase } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import { DecimalError, decimalsOf, isDecimals, parsePx, parseQty, plainDecimal, toQty } from '@tape/core/fixed'
-import { parseExactJson } from '@tape/core/json'
+import { isRecord, parseExactJson } from '@tape/core/json'
 import type { Scale } from '@tape/core/fixed'
 import type { MarketGroup, MarketSpec } from '@tape/core/market'
-import { getExactJson, getJson } from './types'
+import { getExactJson, getJson, readReply } from './types'
+import type { ReplyGuard } from './types'
+import { isNumber, isText } from './wire'
 
 type Fetch = typeof globalThis.fetch
 
@@ -38,22 +40,29 @@ const isHip3 = (base: Base) => splitBase(base).dex !== ''
 async function listedJson<T>(
   fetch: Fetch,
   url: string,
+  isReply: ReplyGuard<T>,
   signal?: AbortSignal,
-  parse: (text: string) => T = (text) => JSON.parse(text) as T,
+  parse: (text: string) => unknown = (text) => JSON.parse(text),
 ): Promise<T | null> {
   const response = await fetch(url, { signal: signal ?? null })
   if (response.status === 400) return null
   if (!response.ok) throw new Error(`${response.status} ${url}`)
-  return parse(await response.text())
+  return readReply(url, parse(await response.text()), isReply)
 }
+
+const isList = (reply: unknown): reply is unknown[] => Array.isArray(reply)
 
 interface HyperliquidAsset {
   name: string
   szDecimals: number
-  isDelisted?: boolean
+  isDelisted?: unknown
 }
 
-function hyperliquidSpec(asset: HyperliquidAsset): MarketSpec | null {
+const isHyperliquidAsset = (asset: unknown): asset is HyperliquidAsset =>
+  isRecord(asset) && isText(asset.name) && isNumber(asset.szDecimals)
+
+function hyperliquidSpec(asset: unknown): MarketSpec | null {
+  if (!isHyperliquidAsset(asset)) return null
   const base = baseOf(asset.name)
   const qty = asset.szDecimals
   const px = HYPERLIQUID_PX_DECIMALS - qty
@@ -73,16 +82,13 @@ function hyperliquidSpec(asset: HyperliquidAsset): MarketSpec | null {
   }
 }
 
-interface HyperliquidMeta {
-  universe: HyperliquidAsset[]
-  collateralToken: number
-}
-
 /** Token 0 in Hyperliquid's spot token list is USDC. A HIP-3 dex settled in another token prices in that token. */
 const HYPERLIQUID_USDC = 0
 
-const hyperliquidMarkets = (meta: HyperliquidMeta) =>
-  meta.collateralToken === HYPERLIQUID_USDC ? specs(meta.universe, hyperliquidSpec) : []
+const hyperliquidMarkets = (meta: unknown) =>
+  isRecord(meta) && meta.collateralToken === HYPERLIQUID_USDC && Array.isArray(meta.universe)
+    ? specs(meta.universe, hyperliquidSpec)
+    : []
 
 const hyperliquidPost = (fetch: Fetch, info: string, body: unknown, signal?: AbortSignal) =>
   fetch(info, {
@@ -98,16 +104,19 @@ export async function readHyperliquidMarkets(
   info: string,
   signal?: AbortSignal,
 ): Promise<readonly MarketGroup[]> {
-  const read = async <T>(type: string) => {
+  const read = async (type: string) => {
     const response = await hyperliquidPost(fetch, info, { type }, signal)
     if (!response.ok) throw new Error(`${response.status} ${info}`)
-    return (await response.json()) as T
+    return readReply(info, await response.json(), isList)
   }
-  const [metas, dexes] = await Promise.all([
-    read<HyperliquidMeta[]>('allPerpMetas'),
-    read<({ name: string; fullName: string } | null)[]>('perpDexs'),
-  ])
-  const fullNames = new Map(dexes.flatMap((perpDex) => (perpDex ? [[perpDex.name, perpDex.fullName] as const] : [])))
+  const [metas, dexes] = await Promise.all([read('allPerpMetas'), read('perpDexs')])
+  const fullNames = new Map(
+    dexes.flatMap((perpDex) =>
+      isRecord(perpDex) && isText(perpDex.name) && isText(perpDex.fullName)
+        ? [[perpDex.name, perpDex.fullName] as const]
+        : [],
+    ),
+  )
   return metas.flatMap((meta) => {
     const markets = hyperliquidMarkets(meta)
     const first = markets[0]
@@ -128,7 +137,8 @@ export async function readHyperliquidMarket(
   // Hyperliquid answers a dex it does not list with a 500 and the body null.
   if (response.status === 500 && text === 'null') return null
   if (!response.ok) throw new Error(`${response.status} ${info}`)
-  return hyperliquidMarkets(JSON.parse(text) as HyperliquidMeta).find((market) => market.base === base) ?? null
+  const meta: unknown = JSON.parse(text)
+  return hyperliquidMarkets(meta).find((market) => market.base === base) ?? null
 }
 
 interface DydxMarket {
@@ -138,9 +148,17 @@ interface DydxMarket {
   status: string
 }
 
+const isDydxMarket = (market: unknown): market is DydxMarket =>
+  isRecord(market) && [market.ticker, market.tickSize, market.stepSize, market.status].every(isText)
+
+/** The indexer's reply to /perpetualMarkets, keyed by ticker. */
+export const isDydxMarkets = (reply: unknown): reply is { markets: Record<string, unknown> } =>
+  isRecord(reply) && isRecord(reply.markets)
+
 const DYDX_TICKER = /^(.+)-USD$/
 
-function dydxSpec(market: DydxMarket): MarketSpec | null {
+function dydxSpec(market: unknown): MarketSpec | null {
+  if (!isDydxMarket(market)) return null
   const base = baseOf(DYDX_TICKER.exec(market.ticker)?.[1] ?? '')
   if (!base || market.status !== 'ACTIVE') return null
   const scale = { px: decimalsOf(market.tickSize), qty: decimalsOf(market.stepSize) }
@@ -162,9 +180,7 @@ export async function readDydxMarkets(
   indexer: string,
   signal?: AbortSignal,
 ): Promise<readonly MarketGroup[]> {
-  const json = await getJson<{ markets: Record<string, DydxMarket> }>(fetch, `${indexer}/perpetualMarkets`, {
-    signal: signal ?? null,
-  })
+  const json = await getJson(fetch, `${indexer}/perpetualMarkets`, isDydxMarkets, { signal: signal ?? null })
   return own(specs(Object.values(json.markets), dydxSpec))
 }
 
@@ -176,16 +192,17 @@ export async function readDydxMarket(
 ): Promise<MarketSpec | null> {
   if (isHip3(base)) return null
   const ticker = `${base}-USD`
-  const json = await listedJson<{ markets: Record<string, DydxMarket> }>(
+  const json = await listedJson(
     fetch,
     `${indexer}/perpetualMarkets?ticker=${encodeURIComponent(ticker)}`,
+    isDydxMarkets,
     signal,
   )
   const market = json?.markets[ticker]
   return market ? specOf(market, dydxSpec) : null
 }
 
-function minNotionalOf(value: string | undefined, scale: Scale): Pick<MarketSpec, 'minNotional'> {
+function minNotionalOf(value: string | null | undefined, scale: Scale): Pick<MarketSpec, 'minNotional'> {
   if (!value) return {}
   try {
     return { minNotional: parsePx(plainDecimal(value), scale) }
@@ -199,14 +216,21 @@ interface OrderlyMarket {
   symbol: string
   quote_tick: string
   base_tick: string
-  min_notional?: string
+  min_notional?: string | null
   status: string
   broker_id: string | null
 }
 
+const isOrderlyMarket = (market: unknown): market is OrderlyMarket =>
+  isRecord(market)
+  && [market.symbol, market.quote_tick, market.base_tick, market.status].every(isText)
+  && (market.min_notional == null || isText(market.min_notional))
+  && (market.broker_id === null || isText(market.broker_id))
+
 const ORDERLY_SYMBOL = /^PERP_(.+)_USDC$/
 
-function orderlySpec(market: OrderlyMarket): MarketSpec | null {
+function orderlySpec(market: unknown): MarketSpec | null {
+  if (!isOrderlyMarket(market)) return null
   const base = baseOf(ORDERLY_SYMBOL.exec(market.symbol)?.[1] ?? '')
   // A row with a broker_id is a Community Listed market that a Builder runs and Orderly does not vet.
   if (!base || market.status !== 'ACTIVE' || market.broker_id !== null) return null
@@ -225,14 +249,15 @@ function orderlySpec(market: OrderlyMarket): MarketSpec | null {
   }
 }
 
+const isOrderlyMarkets = (reply: unknown): reply is { data: { rows: unknown[] } } =>
+  isRecord(reply) && isRecord(reply.data) && Array.isArray(reply.data.rows)
+
 export async function readOrderlyMarkets(
   fetch: Fetch,
   rest: string,
   signal?: AbortSignal,
 ): Promise<readonly MarketGroup[]> {
-  const json = await getExactJson<{ data: { rows: OrderlyMarket[] } }>(fetch, `${rest}/public/info`, {
-    signal: signal ?? null,
-  })
+  const json = await getExactJson(fetch, `${rest}/public/info`, isOrderlyMarkets, { signal: signal ?? null })
   return own(specs(json.data.rows, orderlySpec))
 }
 
@@ -247,8 +272,9 @@ export async function readOrderlyMarket(
   const json = await listedJson(
     fetch,
     `${rest}/public/info/${encodeURIComponent(`PERP_${base}_USDC`)}`,
+    isRecord,
     signal,
-    parseExactJson<{ data?: OrderlyMarket }>,
+    parseExactJson,
   )
   return json?.data ? specOf(json.data, orderlySpec) : null
 }
@@ -258,10 +284,20 @@ interface BinanceSymbol {
   status: string
   baseAsset: string
   quoteAsset: string
-  filters: { filterType: string; tickSize?: string; stepSize?: string }[]
+  filters: Record<string, unknown>[]
 }
 
-function binanceSpec(listing: BinanceSymbol): MarketSpec | null {
+const isBinanceSymbol = (listing: unknown): listing is BinanceSymbol =>
+  isRecord(listing)
+  && [listing.symbol, listing.status, listing.baseAsset, listing.quoteAsset].every(isText)
+  && Array.isArray(listing.filters)
+  && listing.filters.every(isRecord)
+
+const isBinanceSymbols = (reply: unknown): reply is { symbols: unknown[] } =>
+  isRecord(reply) && Array.isArray(reply.symbols)
+
+function binanceSpec(listing: unknown): MarketSpec | null {
+  if (!isBinanceSymbol(listing)) return null
   const base = baseOf(listing.baseAsset)
   const tick = listing.filters.find((filter) => filter.filterType === 'PRICE_FILTER')?.tickSize
   const step = listing.filters.find((filter) => filter.filterType === 'LOT_SIZE')?.stepSize
@@ -270,7 +306,9 @@ function binanceSpec(listing: BinanceSymbol): MarketSpec | null {
     || listing.status !== 'TRADING'
     || listing.quoteAsset !== 'USDT'
     || listing.symbol !== `${base}USDT`
+    || !isText(tick)
     || !tick
+    || !isText(step)
     || !step
   )
     return null
@@ -293,9 +331,10 @@ export async function readBinanceMarkets(
   rest: string,
   signal?: AbortSignal,
 ): Promise<readonly MarketGroup[]> {
-  const info = await getJson<{ symbols: BinanceSymbol[] }>(
+  const info = await getJson(
     fetch,
     `${rest}/exchangeInfo?permissions=SPOT&symbolStatus=TRADING&showPermissionSets=false`,
+    isBinanceSymbols,
     { signal: signal ?? null },
   )
   return own(specs(info.symbols, binanceSpec))
@@ -312,11 +351,12 @@ export async function readBinanceMarket(
 ): Promise<MarketSpec | null> {
   const symbol = `${base}USDT`
   if (isHip3(base) || BINANCE_REFUSED.test(symbol)) return null
-  let info: { symbols: BinanceSymbol[] } | null
+  let info: { symbols: unknown[] } | null
   try {
     info = await listedJson(
       fetch,
       `${rest}/exchangeInfo?symbol=${encodeURIComponent(symbol)}&showPermissionSets=false`,
+      isBinanceSymbols,
       signal,
     )
   } catch (error) {
@@ -326,6 +366,6 @@ export async function readBinanceMarket(
     const [all] = await readBinanceMarkets(fetch, rest, signal)
     return all?.markets.find((market) => market.base === base) ?? null
   }
-  const row = info?.symbols.find((listing) => listing.symbol === symbol)
+  const row = info?.symbols.find((listing) => isRecord(listing) && listing.symbol === symbol)
   return row ? specOf(row, binanceSpec) : null
 }

@@ -1,4 +1,5 @@
 import type { Address, Hex } from 'viem'
+import { isRecord } from '@tape/core/json'
 import type { Eip712, WalletSigner } from './types'
 
 interface Eip1193 {
@@ -42,6 +43,6 @@ export function walletSigner(
 /** What went wrong in a wallet call. Wallets such as MetaMask reject with a plain `{ code, message }`, not an Error. */
 export function rejectionMessage(error: unknown): string {
   if (error instanceof Error) return error.message
-  const message = (error as { message?: unknown } | null)?.message
+  const message = isRecord(error) ? error.message : undefined
   return typeof message === 'string' ? message : String(error)
 }

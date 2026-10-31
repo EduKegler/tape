@@ -1,5 +1,6 @@
 import type { Base, Interval, MarketKey, Network } from '@tape/core/ids'
-import { readDydxMarket, readDydxMarkets } from './markets'
+import { isRecord } from '@tape/core/json'
+import { isDydxMarkets, readDydxMarket, readDydxMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawCandle, RawLevel, RawTrade, StreamTarget, VenueAdapter, VenueEvent } from './types'
 import { isPairs, isText } from './wire'
@@ -25,22 +26,25 @@ interface WireTrade {
   price: string
   createdAt: string
 }
-interface Wire {
-  type: 'connected' | 'subscribed' | 'unsubscribed' | 'channel_data' | 'channel_batch_data' | 'error'
-  channel?: 'v4_orderbook' | 'v4_trades' | 'v4_candles'
-  id?: string
-  contents?: unknown
-}
 
 type WireSnapshotLevel = { price: string; size: string }
 
 const isSnapshotSide = (side: unknown): side is WireSnapshotLevel[] =>
   Array.isArray(side)
   && side.every((level: Partial<WireSnapshotLevel> | null) => isText(level?.price) && isText(level.size))
-const isTrade = (wire: Partial<WireTrade> | null): wire is WireTrade =>
-  (wire?.side === 'BUY' || wire?.side === 'SELL') && [wire.id, wire.size, wire.price, wire.createdAt].every(isText)
-const isCandle = (wire: Partial<WireCandle> | null): wire is WireCandle =>
-  [wire?.startedAt, wire?.open, wire?.high, wire?.low, wire?.close, wire?.baseTokenVolume].every(isText)
+const isTrade = (wire: unknown): wire is WireTrade =>
+  isRecord(wire)
+  && (wire.side === 'BUY' || wire.side === 'SELL')
+  && [wire.id, wire.size, wire.price, wire.createdAt].every(isText)
+const isCandle = (wire: unknown): wire is WireCandle =>
+  isRecord(wire) && [wire.startedAt, wire.open, wire.high, wire.low, wire.close, wire.baseTokenVolume].every(isText)
+const isCandles = (reply: unknown): reply is { candles: WireCandle[] } =>
+  isRecord(reply) && Array.isArray(reply.candles) && reply.candles.every(isCandle)
+const isStats = (
+  market: unknown,
+): market is { oraclePrice: string; priceChange24H: string; volume24H: string; nextFundingRate: string } =>
+  isRecord(market)
+  && [market.oraclePrice, market.priceChange24H, market.volume24H, market.nextFundingRate].every(isText)
 
 function channelOf(target: StreamTarget): { channel: string; id: string } {
   const ticker = target.spec.venueSymbol
@@ -66,7 +70,7 @@ const candle = (wire: WireCandle): RawCandle => ({
 })
 
 function events(
-  channel: Wire['channel'],
+  channel: unknown,
   market: MarketKey,
   interval: Interval | null,
   snapshot: boolean,
@@ -127,9 +131,10 @@ export function dydx(network: Network): VenueAdapter {
       targets.map((target) => JSON.stringify({ type: 'unsubscribe', ...channelOf(target) })),
 
     parse(raw, symbols) {
-      const frame = JSON.parse(raw) as Wire
+      const frame: unknown = JSON.parse(raw)
+      if (!isRecord(frame)) throw new VenueParseError('dydx', null, raw)
       if (frame.type === 'connected' || frame.type === 'unsubscribed') return []
-      if (frame.type === 'error' || !frame.id) throw new VenueParseError('dydx', null, raw)
+      if (frame.type === 'error' || !isText(frame.id) || !frame.id) throw new VenueParseError('dydx', null, raw)
       const [ticker, resolution] = frame.id.split('/') as [string, string | undefined]
       const market = symbols(ticker)
       if (!market) return []
@@ -145,15 +150,13 @@ export function dydx(network: Network): VenueAdapter {
     },
 
     async fetchStats(base, fetch, signal) {
-      type Market = { oraclePrice: string; priceChange24H: string; volume24H: string; nextFundingRate: string }
       const ticker = tickerOf(base)
-      const json = await getJson<{ markets: Record<string, Market> }>(
-        fetch,
-        `${indexer}/perpetualMarkets?ticker=${ticker}`,
-        { signal: signal ?? null },
-      )
+      const json = await getJson(fetch, `${indexer}/perpetualMarkets?ticker=${ticker}`, isDydxMarkets, {
+        signal: signal ?? null,
+      })
       const market = json.markets[ticker]
       if (!market) throw new Error(`no ${ticker} on dydx`)
+      if (!isStats(market)) throw new Error(`unreadable ${ticker} stats from dydx`)
       const oracle = Number(market.oraclePrice)
       const change = Number(market.priceChange24H)
       return {
@@ -166,7 +169,7 @@ export function dydx(network: Network): VenueAdapter {
 
     async fetchCandles(base, interval, fetch, signal) {
       const url = `${indexer}/candles/perpetualMarkets/${tickerOf(base)}?resolution=${RESOLUTION[interval]}&limit=500`
-      const json = await getJson<{ candles: WireCandle[] }>(fetch, url, { signal: signal ?? null })
+      const json = await getJson(fetch, url, isCandles, { signal: signal ?? null })
       return json.candles
         .map((wire) =>
           chartBar(Date.parse(wire.startedAt), wire.open, wire.high, wire.low, wire.close, wire.baseTokenVolume),

@@ -123,16 +123,37 @@ export class VenueParseError extends Error {
   }
 }
 
-export async function getJson<T>(fetch: typeof globalThis.fetch, url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init)
-  if (!response.ok) throw new Error(`${response.status} ${url}`)
-  return (await response.json()) as T
+/** Tells a venue reply Tape can read as T from one it cannot. */
+export type ReplyGuard<T> = (reply: unknown) => reply is T
+
+/** The reply as T, or an Error naming the URL when `isReply` cannot read it. */
+export function readReply<T>(url: string, reply: unknown, isReply: ReplyGuard<T>): T {
+  if (!isReply(reply)) throw new Error(`unreadable reply from ${url}`)
+  return reply
 }
 
-export async function getExactJson<T>(fetch: typeof globalThis.fetch, url: string, init?: RequestInit): Promise<T> {
+/** GETs JSON read by `isReply`. A failed status or a reply it cannot read throws. */
+export async function getJson<T>(
+  fetch: typeof globalThis.fetch,
+  url: string,
+  isReply: ReplyGuard<T>,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) throw new Error(`${response.status} ${url}`)
-  return parseExactJson<T>(await response.text())
+  return readReply(url, await response.json(), isReply)
+}
+
+/** As getJson, with every JSON number kept as its source text. */
+export async function getExactJson<T>(
+  fetch: typeof globalThis.fetch,
+  url: string,
+  isReply: ReplyGuard<T>,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(url, init)
+  if (!response.ok) throw new Error(`${response.status} ${url}`)
+  return readReply(url, parseExactJson(await response.text()), isReply)
 }
 
 export function chartBar(
