@@ -59,6 +59,15 @@
   --ease-*: initial;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --transition-duration-fast: 120ms;
+
+  --animate-*: initial;
+  --animate-fade-in: fade-in var(--transition-duration-fast) var(--ease-out);
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
 }
 
 @theme inline {

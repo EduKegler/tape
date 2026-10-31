@@ -55,7 +55,7 @@ function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue
     return () => removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 motion-safe:animate-fade-in">
       <div
         role="dialog"
         aria-modal

@@ -14,7 +14,7 @@ export function PairingQr({ connector, onCancel }: { connector: Connector; onCan
   }, [connector])
 
   return (
-    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 motion-safe:animate-fade-in">
       <div
         role="dialog"
         aria-label="Connect with WalletConnect"

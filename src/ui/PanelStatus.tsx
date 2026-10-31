@@ -17,7 +17,11 @@ function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => vo
         data-connection={state.connection}
         className={state.data === 'stale' || state.data === 'error' ? 'text-warn' : 'text-level3'}
       >
-        {state.text}
+        {state.text && (
+          <span key={`${state.data} ${state.connection}`} className="motion-safe:animate-fade-in">
+            {state.text}
+          </span>
+        )}
       </span>
       {state.data === 'error' && onRetry && (
         <Button look="secondary" size="sm" onClick={onRetry}>
