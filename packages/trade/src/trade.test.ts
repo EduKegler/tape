@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { decode, encode } from '@msgpack/msgpack'
@@ -89,6 +90,12 @@ function venue(answer: (url: string, body: Record<string, unknown>) => unknown) 
   }) as typeof globalThis.fetch
   return { fetch, sent }
 }
+
+const orderlyReply = (name: string) =>
+  JSON.parse(readFileSync(new URL(`./__fixtures__/${name}.orderly.json`, import.meta.url), 'utf8')) as {
+    status: number
+    body: unknown
+  }
 
 describe('order intent', () => {
   it('builds a limit intent and refuses take profit on the wrong side', () => {
@@ -1141,19 +1148,21 @@ describe('order lookup after an unknown outcome', () => {
 
   it('treats only a missing Orderly order as absent, not a missing key', async () => {
     const keys = memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` })
-    const ctx = (answer: unknown): VenueContext => ({
+    const ctx = (answer: unknown, status = 200): VenueContext => ({
       ref: { venue: 'orderly', network: 'testnet', owner },
       config,
       keys,
-      fetch: venue(() => answer).fetch,
+      fetch: async () => new Response(JSON.stringify(answer), { status }),
     })
     expect(await TRADING.orderly.lookup(ctx({ success: true, data: { status: 'NEW' } }), intent)).toEqual({
       kind: 'found',
       detail: 'Order new',
     })
-    expect(await TRADING.orderly.lookup(ctx({ success: false, message: 'The order does not exist.' }), intent)).toEqual(
-      { kind: 'absent', detail: 'The order does not exist.' },
-    )
+    const missing = orderlyReply('lookup')
+    expect(await TRADING.orderly.lookup(ctx(missing.body, missing.status), intent)).toEqual({
+      kind: 'absent',
+      detail: 'Orderly has no order with this client id',
+    })
     const error = await TRADING.orderly
       .lookup(ctx({ success: false, message: 'Orderly key not registered' }), intent)
       .catch((e: unknown) => e)
