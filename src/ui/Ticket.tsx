@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
@@ -20,6 +20,7 @@ import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
+import { Input } from './primitives'
 import { specsQuery } from './queries'
 import { TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
@@ -501,44 +502,6 @@ function SlippageField() {
         onChange={(v) => slippageBps.setState(() => Number(v))}
         options={options.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
       />
-    </div>
-  )
-}
-
-function Input(props: {
-  label: string
-  name: string
-  value: string
-  error: string | undefined
-  hint: React.ReactNode
-  onChange: (v: string) => void
-  onBlur: () => void
-}) {
-  const id = useId()
-  // The hint can be a button, so it sits beside the label and not inside it.
-  return (
-    <div className="flex flex-col gap-1 text-sm">
-      <div className="flex justify-between text-level3">
-        <label htmlFor={id}>{props.label}</label>
-        {props.hint}
-      </div>
-      <input
-        id={id}
-        name={props.name}
-        inputMode="decimal"
-        autoComplete="off"
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value.trim())}
-        onBlur={props.onBlur}
-        aria-invalid={Boolean(props.error)}
-        aria-describedby={props.error ? `${id}-error` : undefined}
-        className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
-      />
-      {props.error && (
-        <span id={`${id}-error`} className="text-ask">
-          {props.error}
-        </span>
-      )}
     </div>
   )
 }
