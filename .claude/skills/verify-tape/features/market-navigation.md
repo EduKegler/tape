@@ -1,12 +1,12 @@
 # Market navigation
 
-A user picks any market a venue lists on one of four venues (Binance, Hyperliquid, dYdX, Orderly), from the `Market` nav or the header search. The route is `/$venue/$base`, the page title follows it, and `interval` and `group` ride along in the URL. `/` redirects to Hyperliquid BTC. An unknown venue or a name no venue could list shows `Not Found`. A market the venue does not list says so.
+A user picks any market a venue lists on one of four venues (Binance, Hyperliquid, dYdX, Orderly), from the `Market` nav or the header search. Hyperliquid's HIP-3 markets carry their dex, as in `xyz:TSLA`. The route is `/$venue/$base`, the page title follows it, and `interval` and `group` ride along in the URL. `/` redirects to Hyperliquid BTC. An unknown venue or a name no venue could list shows `Not Found`. A market the venue does not list says so.
 
 ## Sub-features
 
 - `nav-root` redirects `/` to `/hyperliquid/BTC?interval=1m`.
 - `nav-market` switches base from the `Market` nav and keeps the venue and search params. The nav holds BTC, ETH, SOL and the current market.
-- `nav-search` filters the venue's markets in `Search markets` as the user types and opens one with the arrows and Enter. A query with no match shows `No market matches`.
+- `nav-search` filters the venue's markets in `Search markets` as the user types, Hyperliquid's grouped by dex, and opens one with the arrows and Enter. A query with no match shows `No market matches`.
 - `nav-venue` switches venue from the `Venue` nav and keeps the base and search params.
 - `nav-compare` switches venue by clicking a row in the `Venues` table.
 - `nav-interval` switches the chart interval from the `Interval` radio group and writes `interval=<i>`.
