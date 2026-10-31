@@ -1,4 +1,5 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { useConnection } from 'wagmi'
 import { formatEther, formatUnits } from 'viem'
 import type { Hex } from 'viem'
@@ -20,7 +21,7 @@ import type { DepositQuote, DepositStatus } from '#/trade/deposit'
 import type { DepositRecord } from '#/trade/vault'
 import { wagmiConfig } from '#/wallet/config'
 import { shortAddress } from './format'
-import { Button } from './primitives'
+import { Button, Dialog, Input } from './primitives'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
 const chainOf = (id: number) => wagmiConfig.chains.find((c) => c.id === id)
@@ -31,91 +32,127 @@ const minutes = (seconds: number) => Math.max(1, Math.round(seconds / 60))
 const clock = (ms: number) => new Date(ms).toLocaleTimeString('en-GB')
 
 export function DepositButton({ account }: { account: AccountRef }) {
-  const [open, setOpen] = useState(false)
   const venue = DEPOSITS[account.venue]
   if (!venue || depositRoutes(account).length === 0) return null
+  return <Deposit account={account} venue={venue} />
+}
+
+type Send = ReturnType<typeof useSendDeposit>
+
+interface Draft {
+  readonly text: string
+  readonly setText: (text: string) => void
+  readonly chainId: number | null
+  readonly setChainId: (chainId: number) => void
+  readonly shown: Hex | null
+  readonly setShown: (hash: Hex | null) => void
+}
+
+function Deposit({ account, venue }: { account: AccountRef; venue: DepositVenue }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [chainId, setChainId] = useState<number | null>(null)
+  const [shown, setShown] = useState<Hex | null>(null)
+  const deposit = useSendDeposit(account)
+  const amountRef = useRef<HTMLInputElement>(null)
   return (
     <>
       <Button look="primary" size="sm" onClick={() => setOpen(true)}>
         Deposit
       </Button>
-      {open && <DepositDialog account={account} venue={venue} onClose={() => setOpen(false)} />}
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={`Deposit USDC to ${venue.destination}`}
+        initialFocus={amountRef}
+        lockReason={
+          deposit.pending
+            ? 'Confirm in your wallet. Esc stays here until you answer it, and closing keeps this deposit.'
+            : null
+        }
+      >
+        <DepositBody
+          account={account}
+          venue={venue}
+          draft={{ text, setText, chainId, setChainId, shown, setShown }}
+          deposit={deposit}
+          amountRef={amountRef}
+        />
+      </Dialog>
     </>
   )
 }
 
-function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue: DepositVenue; onClose: () => void }) {
-  const titleId = useId()
+function DepositBody({
+  account,
+  venue,
+  draft,
+  deposit,
+  amountRef,
+}: {
+  account: AccountRef
+  venue: DepositVenue
+  draft: Draft
+  deposit: Send
+  amountRef: RefObject<HTMLInputElement | null>
+}) {
   const deposits = useDeposits(account)
-  const [shown, setShown] = useState<Hex | null>(null)
-  const record = deposits.find((d) => d.hash === shown)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    addEventListener('keydown', onKey)
-    return () => removeEventListener('keydown', onKey)
-  }, [onClose])
+  const record = deposits.find((d) => d.hash === draft.shown)
   return (
-    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 motion-safe:animate-fade-in">
-      <div
-        role="dialog"
-        aria-modal
-        aria-labelledby={titleId}
-        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-sm border border-rule bg-raised p-4 text-sm"
-      >
-        <div className="flex items-center justify-between">
-          <h2 id={titleId} className="text-base text-level1">
-            Deposit USDC to {venue.destination}
-          </h2>
-          <Button look="quiet" onClick={onClose} aria-label="Close">
-            ×
+    <>
+      {record ? (
+        <>
+          <Receipt account={account} venue={venue} record={record} />
+          <Button look="quiet" onClick={() => draft.setShown(null)} className="self-start">
+            New deposit
           </Button>
-        </div>
-        {record ? (
-          <>
-            <Receipt account={account} venue={venue} record={record} />
-            <Button look="quiet" onClick={() => setShown(null)} className="self-start">
-              New deposit
-            </Button>
-          </>
-        ) : (
-          <DepositForm account={account} venue={venue} onSent={setShown} />
-        )}
-        {deposits.length > 0 && <Recent account={account} deposits={deposits} shown={shown} onShow={setShown} />}
-      </div>
-    </div>
+        </>
+      ) : (
+        <DepositForm account={account} venue={venue} draft={draft} deposit={deposit} amountRef={amountRef} />
+      )}
+      {deposits.length > 0 && (
+        <Recent account={account} deposits={deposits} shown={draft.shown} onShow={draft.setShown} />
+      )}
+    </>
   )
 }
 
 function DepositForm({
   account,
   venue,
-  onSent,
+  draft,
+  deposit,
+  amountRef,
 }: {
   account: AccountRef
   venue: DepositVenue
-  onSent: (hash: Hex) => void
+  draft: Draft
+  deposit: Send
+  amountRef: RefObject<HTMLInputElement | null>
 }) {
   const routes = depositRoutes(account)
   const balances = useRouteBalances(account, routes)
   const { chainId: walletChain } = useConnection()
-  const [chainId, setChainId] = useState(
-    () => routes.find((r) => r.chainId === walletChain)?.chainId ?? routes[0]!.chainId,
-  )
-  const route = routes.find((r) => r.chainId === chainId) ?? routes[0]!
+  const route =
+    routes.find((r) => r.chainId === draft.chainId) ?? routes.find((r) => r.chainId === walletChain) ?? routes[0]!
   const balance = balances[routes.indexOf(route)] ?? null
-  const [text, setText] = useState('')
-  const amount = parseUsdc(text)
+  const amount = parseUsdc(draft.text)
   const quote = useDepositQuote(account, route, amount)
-  const deposit = useSendDeposit(account)
   const fromId = useId()
-  const amountId = useId()
+  const edit = (text: string) => {
+    deposit.reset()
+    draft.setText(text)
+  }
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (!amount || !quote.ready || !quote.terms || !quote.calls) return
-        deposit.send({ route, amount, terms: quote.terms, calls: quote.calls }, onSent)
+        deposit.send({ route, amount, terms: quote.terms, calls: quote.calls }, (hash) => {
+          draft.setText('')
+          draft.setShown(hash)
+        })
       }}
     >
       <div className="flex flex-col gap-1">
@@ -124,12 +161,13 @@ function DepositForm({
         </label>
         <select
           id={fromId}
-          value={chainId}
+          value={route.chainId}
+          disabled={deposit.pending}
           onChange={(e) => {
             deposit.reset()
-            setChainId(Number(e.target.value))
+            draft.setChainId(Number(e.target.value))
           }}
-          className="rounded-sm border border-rule bg-surface px-2 py-1.5 text-level1"
+          className="h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1"
         >
           {routes.map((r, i) => (
             <option key={r.chainId} value={r.chainId}>
@@ -139,46 +177,33 @@ function DepositForm({
           ))}
         </select>
       </div>
-      {walletChain !== route.chainId && (
+      {!deposit.pending && walletChain !== route.chainId && (
         <p role="status" className="text-level2">
           Your wallet is on {walletChain ? chainName(walletChain) : 'another network'}. Tape asks it to switch to{' '}
           {chainName(route.chainId)} before you sign.
         </p>
       )}
-      <div className="flex flex-col gap-1">
-        <div className="flex justify-between text-level3">
-          <label htmlFor={amountId}>Amount (USDC)</label>
-          {balance !== null && (
-            <Button
-              look="quiet"
-              onClick={() => {
-                deposit.reset()
-                setText(usdc(balance))
-              }}
-            >
+      <Input
+        inputRef={amountRef}
+        label="Amount (USDC)"
+        name="amount"
+        value={draft.text}
+        disabled={deposit.pending}
+        error={draft.text !== '' && amount === null ? 'A positive amount, at most 6 decimals.' : undefined}
+        hint={
+          balance !== null && (
+            <Button look="quiet" disabled={deposit.pending} onClick={() => edit(usdc(balance))}>
               Max {usdc(balance)}
             </Button>
-          )}
-        </div>
-        <input
-          id={amountId}
-          inputMode="decimal"
-          autoComplete="off"
-          value={text}
-          onChange={(e) => {
-            deposit.reset()
-            setText(e.target.value.trim())
-          }}
-          aria-invalid={text !== '' && amount === null}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
-        />
-        {text !== '' && amount === null && <span className="text-ask">A positive amount, at most 6 decimals.</span>}
-      </div>
+          )
+        }
+        onChange={edit}
+      />
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
       {amount !== null && <Issues issues={quote.issues} route={route} messenger={quote.terms?.message?.via ?? null} />}
       <Button look="primary" size="lg" type="submit" disabled={!quote.ready || deposit.pending}>
         {deposit.pending
-          ? 'Confirm in your wallet…'
+          ? 'Waiting for your wallet…'
           : amount
             ? `Deposit ${usdc(amount)} USDC from ${chainName(route.chainId)}`
             : 'Deposit'}
@@ -300,7 +325,7 @@ function Issues({
         <li
           key={issue.kind}
           data-deposit-issue={issue.kind}
-          className={`rounded-sm border p-2 ${blocksDeposit(issue) ? 'border-ask/40 text-ask' : 'border-rule text-level2'}`}
+          className={`border-l-2 pl-2 ${blocksDeposit(issue) ? 'border-warn text-level1' : 'border-level3 text-level2'}`}
         >
           <span role={blocksDeposit(issue) ? 'alert' : 'status'}>{issueText(issue, route, messenger)}</span>
         </li>
@@ -312,8 +337,8 @@ function Issues({
 function SendError({ error }: { error: Error }) {
   const failure = sendFailure(error)
   return (
-    <div role="alert" data-deposit-error={failure.kind} className="rounded-sm border border-ask/40 p-2 text-level2">
-      <p className="text-ask">
+    <div role="alert" data-deposit-error={failure.kind} className="border-l-2 border-warn pl-2 text-level2">
+      <p className="text-level1">
         {failure.approved
           ? `${failure.kind === 'wallet-rejected' ? 'You declined the deposit in the wallet' : 'The deposit was not sent'}. The approval went through, so the next try asks for the deposit only.`
           : failure.kind === 'wallet-rejected'
@@ -336,7 +361,7 @@ function TxLink({ chainId, hash }: { chainId: number; hash: string }) {
   )
 }
 
-const stageText = (status: DepositStatus, chain: string, destination: string) => {
+const stageText = (status: DepositStatus, chain: string, destination: string): string => {
   switch (status.stage) {
     case 'confirming':
       return `Waiting for ${chain} to confirm`
@@ -345,6 +370,7 @@ const stageText = (status: DepositStatus, chain: string, destination: string) =>
     case 'replaced':
       return `The wallet replaced this transaction on ${chain}. Nothing was deposited`
     case 'relaying':
+    case 'unwatched':
       return status.detail
     case 'unresolved':
       return `Check manually. ${status.detail}`
@@ -373,13 +399,13 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
       <p
         role={failed || status.stage === 'unresolved' ? 'alert' : 'status'}
-        className={status.stage === 'credited' ? 'text-bid' : failed ? 'text-ask' : 'text-level1'}
+        className={failed ? 'border-l-2 border-warn pl-2 text-level1' : 'text-level1'}
       >
         {stageText(status, chain, venue.destination)}
       </p>
       {status.stage === 'unresolved' && <CheckManually check={status.check} hash={sentHash(record)} />}
       {late && route && !ended && (
-        <p role="alert" data-deposit-late className="rounded-sm border border-ask/40 p-2 text-level2">
+        <p role="alert" data-deposit-late className="border-l-2 border-warn pl-2 text-level2">
           Not credited after {minutes(route.eta.worst)} min, longer than this route takes.{' '}
           {status.stage === 'confirming'
             ? `${chain} has not confirmed the transaction yet. Check it in the explorer before sending again.`
@@ -400,7 +426,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
 
 function CheckManually({ check, hash }: { check: { label: string; url: string }; hash: string }) {
   return (
-    <div className="rounded-sm border border-ask/40 p-2 text-level2">
+    <div className="border-l-2 border-warn pl-2 text-level2">
       <p>
         Open the{' '}
         <a href={check.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
@@ -436,6 +462,23 @@ function Recent({
   )
 }
 
+const recentLabel = (status: DepositStatus, late: boolean): string => {
+  switch (status.stage) {
+    case 'credited':
+      return 'Credited'
+    case 'reverted':
+      return 'Reverted'
+    case 'replaced':
+      return 'Replaced'
+    case 'unresolved':
+      return 'Check manually'
+    case 'confirming':
+    case 'relaying':
+    case 'unwatched':
+      return late ? 'Late' : 'In progress'
+  }
+}
+
 function RecentRow({
   account,
   record,
@@ -448,18 +491,6 @@ function RecentRow({
   onShow: (hash: Hex) => void
 }) {
   const { status, late } = useDepositStatus(account, record)
-  const label =
-    status.stage === 'credited'
-      ? 'Credited'
-      : status.stage === 'reverted'
-        ? 'Reverted'
-        : status.stage === 'replaced'
-          ? 'Replaced'
-          : status.stage === 'unresolved'
-            ? 'Check manually'
-            : late
-              ? 'Late'
-              : 'In progress'
   return (
     <li>
       <Button
@@ -471,7 +502,7 @@ function RecentRow({
         <span>
           {usdc(record.amount)} USDC · {chainName(record.chainId)} · {clock(record.sentAt)}
         </span>
-        <span>{label}</span>
+        <span>{recentLabel(status, late)}</span>
       </Button>
     </li>
   )

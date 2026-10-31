@@ -110,3 +110,67 @@ test('three clicks in one tick ask the wallet for one deposit', async ({ page, w
   await expect(dialog.getByRole('alert')).toHaveText('You declined in the wallet. Nothing was sent.')
   expect(wallet.askedFor('send')).toHaveLength(1)
 })
+
+test('the deposit dialog starts on the amount, keeps Tab inside, and Escape gives the focus back', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { dialog, amount } = await openDeposit(page)
+  await expect(amount).toBeFocused()
+  const insideDialog = () => page.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)
+  for (const key of [...Array<string>(12).fill('Tab'), ...Array<string>(12).fill('Shift+Tab')]) {
+    await page.keyboard.press(key)
+    await expect.poll(insideDialog).toBe(true)
+  }
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(panel(page, 'Account').getByRole('button', { name: 'Deposit' })).toBeFocused()
+})
+
+function holdSends() {
+  const hold = () => {
+    const wallet = (window as { ethereum?: { request: (r: { method: string }) => Promise<unknown> } }).ethereum
+    if (!wallet) return void setTimeout(hold, 0)
+    const ask = wallet.request.bind(wallet)
+    wallet.request = (r) =>
+      r.method === 'eth_sendTransaction'
+        ? new Promise((resolve) => Object.assign(window, { answerSend: resolve }))
+        : ask(r)
+  }
+  hold()
+}
+
+test('Escape and close keep the amount, and while the wallet signs only close leaves, keeping the receipt', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  await page.addInitScript(holdSends)
+  const { dialog, amount } = await openDeposit(page)
+  const reopen = () => panel(page, 'Account').getByRole('button', { name: 'Deposit' }).click()
+  await amount.fill('10')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await reopen()
+  await expect(amount).toHaveValue('10')
+
+  await dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' }).click()
+  await expect(dialog.getByRole('status')).toHaveText(
+    'Confirm in your wallet. Esc stays here until you answer it, and closing keeps this deposit.',
+  )
+  await page.keyboard.press('Escape')
+  await page.mouse.click(4, 4)
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Waiting for your wallet…' })).toBeDisabled()
+  await expectAccessible(page)
+
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect(dialog).toBeHidden()
+  await page.evaluate(
+    (hash) => (window as unknown as { answerSend: (hash: string) => void }).answerSend(hash),
+    `0x${'cd'.repeat(32)}`,
+  )
+  await reopen()
+  await expect(dialog.getByRole('region', { name: 'Deposit receipt' }).getByRole('definition').first()).toHaveText(
+    /^10 USDC from Arbitrum Sepolia at /,
+  )
+})

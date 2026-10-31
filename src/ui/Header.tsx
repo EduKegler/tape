@@ -15,9 +15,9 @@ import { statsQuery } from './queries'
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
   const bases = PINNED_BASES.includes(base) ? PINNED_BASES : [...PINNED_BASES, base]
   return (
-    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule px-4 py-2">
+    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule px-4 py-2 xl:flex-nowrap">
       <Brand />
-      <nav aria-label="Market" className="flex items-center gap-1">
+      <nav aria-label="Market" className="flex shrink-0 items-center gap-1">
         {bases.map((b) => (
           <Link
             key={b}
@@ -32,7 +32,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
         ))}
       </nav>
       <MarketSearch venue={venue} />
-      <nav aria-label="Venue" className="flex items-center gap-1">
+      <nav aria-label="Venue" className="flex shrink-0 items-center gap-1">
         {VENUE_IDS.map((v) => (
           <Link
             key={v}
@@ -48,7 +48,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
         ))}
       </nav>
       <Ticker venue={venue} base={base} />
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex shrink-0 items-center gap-4">
         <HistoryLink className="text-base text-level3 hover:text-level1">History</HistoryLink>
         <WalletButton />
       </div>
@@ -58,7 +58,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
 
 export function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2 text-level1">
+    <Link to="/" className="flex shrink-0 items-center gap-2 text-level1">
       <svg role="img" aria-label="Tape" viewBox="0 0 95 32" className="h-5 w-auto">
         <path fill="currentColor" d={LOCKUP} />
       </svg>
@@ -75,8 +75,8 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
   const stats = useQuery(statsQuery(venue, base))
   const s = stats.data
   return (
-    <div className="flex items-baseline gap-3">
-      <dl className="num flex items-baseline gap-5 text-sm">
+    <div className="flex min-w-0 items-baseline gap-3">
+      <dl className="num flex h-11.5 min-w-0 flex-wrap items-baseline gap-5 overflow-hidden text-sm">
         <div>
           <dt className="sr-only">Last price</dt>
           <dd
@@ -102,11 +102,13 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
         {s?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(s.fundingRate * 100, 4)} />}
         {s?.indexPrice != null && <Stat label="Index" value={s.indexPrice.toLocaleString('en-US')} />}
       </dl>
-      <TopicStatus
-        topic={topic}
-        error={stats.isError ? 'Could not load 24h stats.' : null}
-        onRetry={() => void stats.refetch()}
-      />
+      <div className="shrink-0">
+        <TopicStatus
+          topic={topic}
+          error={stats.isError ? 'Could not load 24h stats.' : null}
+          onRetry={() => void stats.refetch()}
+        />
+      </div>
     </div>
   )
 }

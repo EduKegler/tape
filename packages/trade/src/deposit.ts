@@ -82,6 +82,8 @@ export interface SentDeposit {
 
 export type DepositProgress =
   | { readonly stage: 'relaying'; readonly detail: string }
+  /** Tape cannot follow the credit until the trader gives the venue something, such as a trading key. `detail` says what. */
+  | { readonly stage: 'unwatched'; readonly detail: string }
   | { readonly stage: 'credited'; readonly amount: bigint; readonly at: number; readonly receipt: string }
   /** The watch ended without an outcome Tape can trust. `check` is where a person can look it up. */
   | {

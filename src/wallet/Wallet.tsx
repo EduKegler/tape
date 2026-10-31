@@ -76,7 +76,7 @@ export function WalletButton() {
               : error.message.split('\n')[0]}
           </p>
         )}
-        {pairing && <PairingQr connector={pairing} onCancel={reset} />}
+        <PairingQr connector={pairing} onCancel={reset} />
       </div>
     )
   }

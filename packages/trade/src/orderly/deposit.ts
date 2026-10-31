@@ -117,7 +117,7 @@ async function progress(
 ): Promise<DepositProgress> {
   const key = keys.read()
   if (key?.status !== 'linked' || !key.secret)
-    return { stage: 'relaying', detail: 'Enable trading on Orderly to follow the credit here' }
+    return { stage: 'unwatched', detail: 'Enable trading on Orderly to follow the credit here' }
   const path = `/v1/asset/history?side=DEPOSIT&start_t=${sent.sentAt - HISTORY_SLACK_MS}`
   const account = accountId(sent.ref.owner, brokerId)
   const headers = signRequest(orderlyKey(hexToBytes(key.secret as Hex)), account, Date.now(), 'GET', path)

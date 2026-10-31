@@ -354,5 +354,6 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
   const late = usePassed(route ? record.sentAt + route.eta.worst * 1000 : Infinity)
   if (record.outcome) return { status: record.outcome, late: false }
   if (record.gasPaid === null) return { status: { stage: 'confirming' }, late }
-  return { status: progress.data ?? { stage: 'relaying', detail: 'Checking with the venue' }, late }
+  const status = progress.data ?? { stage: 'relaying', detail: 'Checking with the venue' }
+  return { status, late: late && !progress.isPending && status.stage !== 'unwatched' }
 }

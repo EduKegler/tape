@@ -3,8 +3,11 @@ import { SITE_READ_ONLY } from '#/trade/config'
 
 export function StatusBar() {
   const stats = useHubStats()
+  const offline = stats?.sockets === 0
   return (
-    <footer className="num flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-rule px-4 py-1.5 text-xs text-level3">
+    <footer
+      className={`num flex flex-wrap items-center gap-x-5 gap-y-1 border-t px-4 py-1.5 text-xs text-level3 lg:h-8 lg:flex-nowrap lg:py-0 lg:whitespace-nowrap ${offline ? 'border-warn' : 'border-rule'}`}
+    >
       {stats ? (
         <>
           <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">
@@ -14,7 +17,7 @@ export function StatusBar() {
             Tabs <span className="text-level2">{stats.tabs}</span>
           </span>
           <span>
-            Sockets <span className="text-level2">{stats.sockets}</span>
+            Sockets <span className={offline ? 'text-warn' : 'text-level2'}>{stats.sockets}</span>
           </span>
           <span>
             Streams <span className="text-level2">{stats.streams}</span>
@@ -29,10 +32,12 @@ export function StatusBar() {
       ) : (
         <span>Starting hub…</span>
       )}
-      <span className="ml-auto">
-        {SITE_READ_ONLY
-          ? 'Market data comes straight from the venues. Tape has no server in between.'
-          : 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'}
+      <span aria-live="polite" className={`ml-auto min-w-0 truncate ${offline ? 'text-sm text-warn' : ''}`}>
+        {offline
+          ? 'Offline. No venue socket is open, so every price on screen is frozen. Tape keeps retrying.'
+          : SITE_READ_ONLY
+            ? 'Market data comes straight from the venues. Tape has no server in between.'
+            : 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'}
       </span>
       <a className="hover:text-level1" href="https://github.com/EduKegler/tape">
         Source
