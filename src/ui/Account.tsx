@@ -234,8 +234,10 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
   )
 }
 
-const side = (s: 'long' | 'short' | 'buy' | 'sell') => (
-  <span className={s === 'long' || s === 'buy' ? 'text-bid' : 'text-ask'}>{s}</span>
+const SIDE_WORD = { long: 'Long', short: 'Short', buy: 'Buy', sell: 'Sell' } as const
+
+const side = (s: keyof typeof SIDE_WORD) => (
+  <span className={s === 'long' || s === 'buy' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[s]}</span>
 )
 
 function Positions({

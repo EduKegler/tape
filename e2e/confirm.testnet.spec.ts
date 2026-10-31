@@ -124,6 +124,13 @@ test('Escape and a click outside put Close back and send nothing', async ({ page
   expect(writes(hyperliquid.sent)).toEqual([])
 })
 
+test('positions and orders spell their side out', async ({ page, wallet: _wallet }) => {
+  const { account } = await holding(page)
+  await expect(account.getByRole('row', { name: /^BTC Long 0\.01 / })).toBeVisible()
+  await account.getByRole('radio', { name: 'Orders 1' }).click()
+  await expect(account.getByRole('row', { name: /^BTC Buy / })).toBeVisible()
+})
+
 test('Cancel all BTC asks first, then sends one cancel for the BTC orders', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, account } = await holding(page)
   await account.getByRole('button', { name: 'Cancel all BTC' }).click()
