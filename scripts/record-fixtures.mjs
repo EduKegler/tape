@@ -40,6 +40,7 @@ const venues = {
       .map((type) => ({ method: 'subscribe', subscription: { type, coin: 'BTC' } }))
       .concat({ method: 'subscribe', subscription: { type: 'candle', coin: 'BTC', interval: '1m' } }),
     trade: '"channel":"trades"',
+    keepalive: { everyMs: 30_000, frame: '{"method":"ping"}' },
     rest: {},
     post: {
       meta: { type: 'meta' },
@@ -73,6 +74,7 @@ const venues = {
       event: 'subscribe',
     })),
     trade: '"topic":"PERP_BTC_USDC@trade"',
+    keepalive: { everyMs: 10_000, frame: '{"event":"pong"}' },
     rest: {
       'info-BTC': `https://${host.orderly.rest}/v1/public/info/PERP_BTC_USDC`,
       'info-ETH': `https://${host.orderly.rest}/v1/public/info/PERP_ETH_USDC`,
@@ -91,19 +93,24 @@ const firstDiffSeen = new Promise((resolve) => (firstDiff = resolve))
 const waitForTrade = network === 'mainnet'
 const secondsAtMost = seconds * 4
 
-function record(name, { url, subscribe, trade }) {
+function record(name, { url, subscribe, trade, keepalive }) {
   return new Promise((resolve) => {
     const frames = []
     let traded = !waitForTrade
     let longEnough = false
+    let beat
     const ws = new WebSocket(url)
     const cap = setTimeout(stop, secondsAtMost * 1000)
     function stop() {
       clearTimeout(cap)
+      clearInterval(beat)
       ws.close()
       resolve(frames)
     }
-    ws.onopen = () => subscribe.forEach((s) => ws.send(JSON.stringify(s)))
+    ws.onopen = () => {
+      subscribe.forEach((s) => ws.send(JSON.stringify(s)))
+      if (keepalive) beat = setInterval(() => ws.send(keepalive.frame), keepalive.everyMs)
+    }
     ws.onmessage = (e) => {
       const frame = String(e.data)
       frames.push(frame)
