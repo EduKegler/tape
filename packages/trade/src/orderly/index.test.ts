@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ed25519 } from '@noble/curves/ed25519'
 import { base58, base64url } from '@scure/base'
 import { hexToBytes, stringToBytes } from 'viem'
+import type { Hex } from 'viem'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import { TradeFailure } from '../types'
-import type { Bps, OrderRef, VenueContext } from '../types'
+import type { Bps, Eip712, KeySlot, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { orderly } from '.'
 
 const perp: MarketSpec = {
@@ -584,5 +585,190 @@ describe('orderly account', () => {
     ] as const)
       expect(await orderly.account({ ...ctx, keys: { ...ctx.keys, read: () => key } })).toEqual({ kind: 'unknown' })
     expect(sent).toEqual([])
+  })
+})
+
+describe('orderly setup', () => {
+  // The address and the account id Orderly gives it under the flipper broker, from the recorded accountState
+  // in packages/trade/src/__fixtures__/history.orderly.json.
+  const owner = '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6'
+  const account = '0xd96bacbff940748d1215f933fc6c04d6798eb9fbd8926fe2388d02eb31003655'
+  // Recorded from testnet-api.orderly.org and api.orderly.org on 2026-10-31.
+  const UNREGISTERED = '{"success":false,"code":-1607,"message":"Account not found."}'
+  const REGISTERED = `{"success":true,"data":{"user_id":1476258,"account_id":"${account}"},"timestamp":1793452555211}`
+  const NONCE = '{"success":true,"data":{"registration_nonce":"154330517462"},"timestamp":1793452555582}'
+  const NO_KEY = '{"success":false,"code":-1617,"message":"orderlyKey is not exist"}'
+  // The example replies of GET /v1/get_orderly_key, POST /v1/register_account and POST /v1/orderly_key in
+  // Orderly's OpenAPI spec. The key example expired in 2023.
+  const keyUntil = (expiration: number) =>
+    `{"success":true,"timestamp":1702989203989,"data":{"orderly_key":"ed25519:7tEoJo5hMBKBrQsqmc8yw1xNfoQCFQBVwQT1eFafRNRf","scope":"read,trading","expiration":${expiration},"tag":"<string>"}}`
+  const REGISTER = `{"success":true,"timestamp":1702989203989,"data":{"account_id":"${account}"}}`
+  const KEY_ADDED =
+    '{"success":true,"timestamp":1702989203989,"data":{"id":123,"orderly_key":"ed25519:FRXntsPJBCy6dzKv9WPw4eYSw3rKU9Npz3T6UmvvJc9Z"}}'
+  const now = Date.UTC(2026, 9, 31, 12)
+  const SIGNATURE: Hex = `0x${'ab'.repeat(65)}`
+  const secret: Hex = `0x${'11'.repeat(32)}`
+  const keyId = `ed25519:${base58.encode(ed25519.getPublicKey(hexToBytes(secret)))}`
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function slot(initial: StoredKey | null): KeySlot & { writes: StoredKey[] } {
+    let key = initial
+    const writes: StoredKey[] = []
+    return {
+      writes,
+      read: () => key,
+      write: (k) => {
+        key = k
+        writes.push(k)
+      },
+      clear: () => {
+        key = null
+      },
+    }
+  }
+
+  function setup(replies: Record<string, string | Response>, key: StoredKey | null) {
+    const { ctx, sent, headers } = orderlyAt(({ url }) => {
+      const reply = replies[new URL(url).pathname]
+      if (reply === undefined) throw new Error(`no reply for ${url}`)
+      return typeof reply === 'string'
+        ? { body: reply }
+        : { status: reply.status, body: '<html>502 Bad Gateway</html>' }
+    })
+    const keys = slot(key)
+    const flipper: VenueContext = {
+      ...ctx,
+      ref: { ...ctx.ref, owner },
+      config: { ...ctx.config, orderly: { brokerId: { mainnet: null, testnet: 'flipper' } } },
+      keys,
+    }
+    let chain = 1
+    const signed: { typed: Eip712; slot: StoredKey['status'] | undefined }[] = []
+    const wallet = {
+      address: owner as `0x${string}`,
+      chainId: async () => chain,
+      switchChain: vi.fn(async (id: number) => {
+        chain = id
+      }),
+      signTypedData: async (typed: Eip712) => {
+        signed.push({ typed, slot: keys.read()?.status })
+        return SIGNATURE
+      },
+    }
+    return { ctx: flipper, sent, headers, keys, wallet, signed }
+  }
+
+  it('asks a new wallet to register and add a key, and a registered one only for a key missing or expired', async () => {
+    const linked = { status: 'linked', public: { key: keyId }, secret } as const
+    const cases = [
+      [UNREGISTERED, NO_KEY, null, [false, false]],
+      [REGISTERED, NO_KEY, null, [true, false]],
+      [REGISTERED, NO_KEY, linked, [true, false]],
+      [REGISTERED, keyUntil(1689086651947), linked, [true, false]],
+      [REGISTERED, keyUntil(now + 86_400_000), linked, [true, true]],
+    ] as const
+    for (const [registered, key, stored, done] of cases) {
+      const { ctx } = setup({ '/v1/get_account': registered, '/v1/get_orderly_key': key }, stored)
+      expect(await orderly.steps(ctx)).toEqual([
+        { id: 'register-account', label: 'Register an Orderly account', done: done[0] },
+        { id: 'add-key', label: 'Add a trading key', done: done[1] },
+      ])
+    }
+    const { ctx, sent } = setup({ '/v1/get_account': REGISTERED, '/v1/get_orderly_key': NO_KEY }, linked)
+    await orderly.steps(ctx)
+    expect(sent.map((s) => s.url)).toEqual([
+      `https://testnet-api.orderly.org/v1/get_account?address=${owner}&broker_id=flipper`,
+      `https://testnet-api.orderly.org/v1/get_orderly_key?account_id=${account}&orderly_key=${encodeURIComponent(keyId)}`,
+    ])
+    const down = setup({ '/v1/get_account': BAD_GATEWAY(), '/v1/get_orderly_key': BAD_GATEWAY() }, linked)
+    expect(await failureOf(orderly.steps(down.ctx))).toMatchObject({ kind: 'unreachable' })
+    const keyDown = setup({ '/v1/get_account': REGISTERED, '/v1/get_orderly_key': BAD_GATEWAY() }, linked)
+    expect(await failureOf(orderly.steps(keyDown.ctx))).toMatchObject({ kind: 'unreachable' })
+  })
+
+  it('enables trading: registers, adds a read,trading key for 365 days, then links it', async () => {
+    const { ctx, sent, headers, keys, wallet, signed } = setup(
+      {
+        '/v1/get_account': UNREGISTERED,
+        '/v1/registration_nonce': NONCE,
+        '/v1/register_account': REGISTER,
+        '/v1/orderly_key': KEY_ADDED,
+      },
+      null,
+    )
+    const steps: StepId[] = []
+    await orderly.enable(ctx, wallet, (step) => steps.push(step))
+    expect(wallet.switchChain.mock.calls).toEqual([[421614]])
+    expect(steps).toEqual(['register-account', 'add-key'])
+    const [drafted, linked] = keys.writes
+    const id = `ed25519:${base58.encode(ed25519.getPublicKey(hexToBytes((drafted?.secret ?? '0x') as Hex)))}`
+    expect(keys.writes).toEqual([
+      { status: 'draft', public: { key: id }, secret: drafted?.secret },
+      { status: 'linked', public: { key: id }, secret: drafted?.secret },
+    ])
+    expect(linked?.secret).toMatch(/^0x[0-9a-f]{64}$/)
+    const registration = { brokerId: 'flipper', chainId: 421614, timestamp: now, registrationNonce: '154330517462' }
+    const addKey = {
+      brokerId: 'flipper',
+      chainId: 421614,
+      orderlyKey: id,
+      scope: 'read,trading',
+      timestamp: now,
+      expiration: now + 365 * 86_400_000,
+    }
+    expect(signed.map((s) => [s.typed.primaryType, s.typed.message, s.slot])).toEqual([
+      ['Registration', registration, undefined],
+      ['AddOrderlyKey', addKey, 'draft'],
+    ])
+    expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual([
+      `GET https://testnet-api.orderly.org/v1/get_account?address=${owner}&broker_id=flipper`,
+      'GET https://testnet-api.orderly.org/v1/registration_nonce',
+      'POST https://testnet-api.orderly.org/v1/register_account',
+      'POST https://testnet-api.orderly.org/v1/orderly_key',
+    ])
+    expect(sent.slice(2).map((s) => JSON.parse(s.body ?? '') as unknown)).toEqual([
+      { message: registration, signature: SIGNATURE, userAddress: owner },
+      { message: addKey, signature: SIGNATURE, userAddress: owner },
+    ])
+    expect(headers.slice(2).map((h) => h['content-type'])).toEqual(['application/json', 'application/json'])
+  })
+
+  it('adds the key this device already holds to a registered account, and calls a lost reply unknown', async () => {
+    const unlinked = { status: 'draft', public: { key: keyId }, secret } as const
+    const { ctx, keys, wallet, signed } = setup(
+      { '/v1/get_account': REGISTERED, '/v1/get_orderly_key': NO_KEY, '/v1/orderly_key': KEY_ADDED },
+      unlinked,
+    )
+    await orderly.enable(ctx, wallet, () => {})
+    expect(signed.map((s) => [s.typed.primaryType, (s.typed.message as { orderlyKey?: string }).orderlyKey])).toEqual([
+      ['AddOrderlyKey', keyId],
+    ])
+    expect(keys.writes).toEqual([{ ...unlinked, status: 'linked' }])
+
+    const lost = setup(
+      { '/v1/get_account': REGISTERED, '/v1/get_orderly_key': NO_KEY, '/v1/orderly_key': BAD_GATEWAY() },
+      unlinked,
+    )
+    expect(await failureOf(orderly.enable(lost.ctx, lost.wallet, () => {}))).toMatchObject({ kind: 'unknown-outcome' })
+    expect(lost.keys.writes).toEqual([])
+  })
+
+  it('links a key Orderly already holds without asking the wallet to sign', async () => {
+    const unlinked = { status: 'draft', public: { key: keyId }, secret } as const
+    const { ctx, keys, wallet, signed } = setup(
+      { '/v1/get_account': REGISTERED, '/v1/get_orderly_key': keyUntil(now + 86_400_000) },
+      unlinked,
+    )
+    await orderly.enable(ctx, { ...wallet, chainId: async () => 421614 }, () => {})
+    expect(signed).toEqual([])
+    expect(wallet.switchChain).not.toHaveBeenCalled()
+    expect(keys.writes).toEqual([{ ...unlinked, status: 'linked' }])
   })
 })
