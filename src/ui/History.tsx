@@ -139,7 +139,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
         <Panel
           title="Fills and funding"
           aside={
-            <Button look="outline" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
+            <Button look="secondary" size="sm" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
               Export CSV
             </Button>
           }
@@ -196,7 +196,7 @@ function Addresses({
           className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
-      <Button look="outline" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
+      <Button look="secondary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
         Read history
       </Button>
     </form>
@@ -297,7 +297,7 @@ function Filters({
         {presets(now).map((p) => (
           <Button
             key={p.label}
-            look="preset"
+            look="toggle"
             aria-pressed={search.from === p.from && search.to === p.to}
             onClick={() => set({ from: p.from, to: p.to })}
           >

@@ -12,6 +12,7 @@ const PAIRS = [
   ['Button sell', 'ink-contrast', 'ask', 'text'],
   ['Button buy, fill against the ticket', 'bid', 'ticket', 'graphic'],
   ['Button sell, fill against the ticket', 'ask', 'ticket', 'graphic'],
+  ['Button secondary', 'level2', 'surface', 'text'],
   ['Button quiet', 'level3', 'surface', 'text'],
   ['Button quiet, in the ticket', 'level3', 'ticket', 'text'],
   ['Button quiet, in a dialog', 'level3', 'raised', 'text'],

@@ -23,10 +23,10 @@ export function PairingQr({ connector, onCancel }: { connector: Connector; onCan
         <p className="text-base text-level1">Scan with your phone wallet</p>
         {uri ? <Qr text={uri} /> : <p className="py-24 text-sm text-level3">Opening a pairing link…</p>}
         <div className="flex w-full justify-between">
-          <Button look="quiet-sm" disabled={!uri} onClick={() => uri && void navigator.clipboard.writeText(uri)}>
+          <Button look="quiet" disabled={!uri} onClick={() => uri && void navigator.clipboard.writeText(uri)}>
             Copy link
           </Button>
-          <Button look="quiet-sm" onClick={onCancel}>
+          <Button look="quiet" onClick={onCancel}>
             Cancel
           </Button>
         </div>

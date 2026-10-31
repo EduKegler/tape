@@ -443,7 +443,7 @@ function SubmitArea({
       return (
         <>
           {button}
-          <Button look="quiet-xs" onClick={session.forget} className="self-end">
+          <Button look="quiet" onClick={session.forget} className="self-end">
             Forget trading key on this device
           </Button>
         </>

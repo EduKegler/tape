@@ -18,7 +18,7 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
         ))}
         {!session.steps && <li className="text-level3">Checking the venue…</li>}
       </ol>
-      <Button look="outline-block" disabled={busy || !session.steps} onClick={session.enable}>
+      <Button look="primary" size="lg" disabled={busy || !session.steps} onClick={session.enable}>
         {busy ? 'Confirm in your wallet…' : 'Enable trading'}
       </Button>
       <TradeNote error={session.error} />

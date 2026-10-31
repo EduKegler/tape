@@ -57,7 +57,8 @@ export function WalletButton() {
           {connectors.map((connector) => (
             <Button
               key={connector.uid}
-              look="primary-connect"
+              look="primary"
+              size="md"
               disabled={isPending}
               onClick={() => {
                 setChosen(connector)
@@ -96,7 +97,7 @@ export function WalletButton() {
           </option>
         ))}
       </select>
-      <Button look="outline-wallet" onClick={() => disconnect()} title="Disconnect">
+      <Button look="secondary" size="md" className="num" onClick={() => disconnect()} title="Disconnect">
         {shortAddress(address)}
       </Button>
     </div>

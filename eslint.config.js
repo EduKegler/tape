@@ -93,7 +93,7 @@ export default [
         entryPoint: 'src/styles.css',
         selectors: [
           ...getDefaultSelectors(),
-          { kind: 'variable', name: '^classes$', match: [{ type: 'objectValues' }] },
+          { kind: 'variable', name: '^(?:classes|sizes)$', match: [{ type: 'objectValues' }] },
         ],
       },
     },

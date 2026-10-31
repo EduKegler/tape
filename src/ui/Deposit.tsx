@@ -36,7 +36,7 @@ export function DepositButton({ account }: { account: AccountRef }) {
   if (!venue || depositRoutes(account).length === 0) return null
   return (
     <>
-      <Button look="primary" onClick={() => setOpen(true)}>
+      <Button look="primary" size="sm" onClick={() => setOpen(true)}>
         Deposit
       </Button>
       {open && <DepositDialog account={account} venue={venue} onClose={() => setOpen(false)} />}
@@ -73,7 +73,7 @@ function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue
         {record ? (
           <>
             <Receipt account={account} venue={venue} record={record} />
-            <Button look="link" onClick={() => setShown(null)} className="self-start">
+            <Button look="quiet" onClick={() => setShown(null)} className="self-start">
               New deposit
             </Button>
           </>
@@ -150,7 +150,7 @@ function DepositForm({
           <label htmlFor={amountId}>Amount (USDC)</label>
           {balance !== null && (
             <Button
-              look="inline"
+              look="quiet"
               onClick={() => {
                 send.reset()
                 setText(usdc(balance))
@@ -176,7 +176,7 @@ function DepositForm({
       </div>
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
       {amount !== null && <Issues issues={quote.issues} route={route} />}
-      <Button look="primary-block" type="submit" disabled={!quote.ready || send.isPending}>
+      <Button look="primary" size="lg" type="submit" disabled={!quote.ready || send.isPending}>
         {send.isPending
           ? 'Confirm in your wallet…'
           : amount
@@ -422,10 +422,10 @@ function RecentRow({
   return (
     <li>
       <Button
-        look="record"
+        look="row"
         aria-current={current}
         onClick={() => onShow(record.hash)}
-        className="flex w-full justify-between"
+        className="num flex w-full justify-between py-0.5"
       >
         <span>
           {usdc(record.amount)} USDC · {chainName(record.chainId)} · {clock(record.sentAt)}
