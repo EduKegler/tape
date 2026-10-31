@@ -96,7 +96,7 @@ const History = z.object({
 })
 
 /** Orderly's `trans_status` values for a deposit it has seen and not yet credited. */
-const CREDITING = new Set(['NEW', 'CONFIRM', 'PROCESSING', 'PENDING_REBALANCE'])
+const CREDITING = new Set(['PENDING', 'PENDING_REBALANCE', 'PROCESSING', 'NEW', 'CONFIRM'])
 /** The wallet's clock and Orderly's can disagree. */
 const HISTORY_SLACK_MS = 10 * 60_000
 

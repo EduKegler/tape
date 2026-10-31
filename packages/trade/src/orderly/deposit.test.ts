@@ -238,7 +238,9 @@ describe('Orderly deposit credit', () => {
   })
 
   it('keeps relaying while Orderly lists the deposit as on its way', async () => {
-    for (const status of ['NEW', 'CONFIRM', 'PROCESSING', 'PENDING_REBALANCE']) {
+    /** Orderly's Get asset history docs: PENDING, PENDING_REBALANCE and PROCESSING from the reply's `trans_status` enum, NEW and CONFIRM from the `status` filter. */
+    const onTheWay = ['PENDING', 'PENDING_REBALANCE', 'PROCESSING', 'NEW', 'CONFIRM']
+    for (const status of onTheWay) {
       const { fetch } = orderlyAnswering(history([row(status)]))
       expect(await arbitrum().progress({ fetch, keys: keys(linked) }, sent)).toEqual({
         stage: 'relaying',
