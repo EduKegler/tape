@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { Hex } from 'viem'
-import type { DepositFee } from '@tape/trade/deposit'
+import type { DepositFee, DepositTerms } from '@tape/trade/deposit'
 import { accountKey } from '@tape/trade/types'
 import type { AccountRef, KeySlot, SecretLifetime, StoredKey } from '@tape/trade/types'
 
@@ -54,6 +54,7 @@ export interface DepositRecord {
   readonly chainId: number
   readonly amount: bigint
   readonly fee: DepositFee
+  readonly message: DepositTerms['message']
   readonly hash: Hex
   /** The hash the wallet sped the transaction up to, which the chain and the venue know it by. */
   readonly replacement: Hex | null
@@ -76,6 +77,7 @@ const depositRecord = z.object({
   chainId: z.number().int(),
   amount: units,
   fee: z.object({ expected: units, max: units }),
+  message: z.object({ via: z.string(), wei: units }).nullable().default(null),
   hash: txHash,
   replacement: txHash.nullable().default(null),
   sentAt: z.number(),

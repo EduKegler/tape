@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test'
 import { fakeChains } from './chain'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { fakeOrderly } from './orderly'
+import { RECORDED_AT } from './replay/clock'
 import { ACCOUNTS } from './wallet'
 
 /** Orderly's testnet Vault and the USDC it takes on Arbitrum Sepolia, from Orderly's testnet addresses. */
@@ -67,5 +68,36 @@ test('a registered address sees the LayerZero fee and the wallet is asked to app
       },
     },
   ])
+  expect(chains.unanswered()).toEqual([])
+})
+
+test('a receipt kept before Tape stored the LayerZero fee still opens', async ({ page, wallet }) => {
+  const storedBeforeTheFee = {
+    chainId: ARBITRUM_SEPOLIA,
+    amount: '10000000',
+    fee: { expected: '0', max: '0' },
+    hash: `0x${'ab'.repeat(32)}`,
+    replacement: null,
+    sentAt: RECORDED_AT,
+    gasPaid: '20000000000000',
+    outcome: null,
+  }
+  await page.addInitScript(
+    ([key, value]) => localStorage.setItem(key!, value!),
+    [`tape:trade:v1:orderly:testnet:${ACCOUNTS.alice.toLowerCase()}:deposits`, JSON.stringify([storedBeforeTheFee])],
+  )
+  const { dialog, chains } = await openDeposit(page, true)
+  await dialog.getByRole('button', { name: /^10 USDC · Arbitrum Sepolia · / }).click()
+  const receipt = dialog.getByRole('region', { name: 'Deposit receipt' })
+  await expect(receipt.getByRole('status')).toHaveText('Enable trading on Orderly to follow the credit here')
+  await expect(receipt.getByRole('definition')).toHaveText([
+    /^10 USDC from Arbitrum Sepolia at /,
+    '0xabab…abab',
+    '0.00002 ETH',
+    'None',
+    '…',
+  ])
+  await expectAccessible(page)
+  expect(wallet.askedFor('send')).toEqual([])
   expect(chains.unanswered()).toEqual([])
 })
