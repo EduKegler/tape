@@ -174,7 +174,7 @@ describe('cross-scale math', () => {
     expect(rescalePx(parsePx('823678.362', { px: 8, qty: 0 }), 8, 3)).toBe(823678362)
   })
 
-  it('computes spread in basis points', () => {
+  it('computes spread in basis points, truncated to 2 dp', () => {
     expect(spreadBps(parsePx('100.00', btc), parsePx('100.10', btc))).toBe('9.99')
     expect(spreadBps(parsePx('81029.43', btc), parsePx('81029.44', btc))).toBe('0.00')
   })
