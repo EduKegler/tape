@@ -169,12 +169,11 @@ async function up(flags) {
     }
   }
   const fd = openSync(serverLog, 'a')
-  const server = spawn(process.execPath, [join(OUTPUT, 'server/index.mjs')], {
-    cwd: REPO,
-    detached: true,
-    stdio: ['ignore', fd, fd],
-    env: { ...process.env, NITRO_PORT: String(PORT), PORT: String(PORT), NITRO_HOST: '127.0.0.1', HOST: '127.0.0.1' },
-  })
+  const server = spawn(
+    join(REPO, 'node_modules/.bin/wrangler'),
+    ['dev', '-c', join(OUTPUT, 'server/wrangler.json'), '--ip', '127.0.0.1', '--port', String(PORT)],
+    { cwd: REPO, detached: true, stdio: ['ignore', fd, fd] },
+  )
   server.unref()
   const chrome = spawn(
     CHROME,

@@ -44,7 +44,11 @@ describe('analytics ingest', () => {
       events: [[now, { event: '$pageview', path: '/hyperliquid/BTC', referrer: 'https://x.com' }]],
     }
     const res = await ingest(
-      beacon(batch, { origin: SITE, 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }),
+      beacon(batch, {
+        origin: SITE,
+        'x-forwarded-for': '198.51.100.9, 203.0.113.7',
+        'cf-connecting-ip': '203.0.113.7',
+      }),
       'mainnet',
       ENV,
       send,

@@ -10,7 +10,7 @@
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "wrangler dev -c .output/server/wrangler.json",
     "lint": "eslint --max-warnings 0",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
@@ -52,7 +52,7 @@
     "@tape/venues": "workspace:*",
     "@walletconnect/ethereum-provider": "^2.21.1",
     "lightweight-charts": "^5.2.1",
-    "nitro": "3.0.260610-beta",
+    "nitro": "3.0.261029-rc",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.1.18",
@@ -95,7 +95,8 @@
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.72.1",
     "vite": "^8.0.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "^4.156.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

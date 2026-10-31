@@ -16,7 +16,6 @@
   "framework": "react",
   "chosenAddOns": [
     "tanstack-query",
-    "eslint",
-    "vercel"
+    "eslint"
   ]
 }
