@@ -45,6 +45,12 @@ export function splitMarketKey(key: MarketKey): { venue: VenueId; base: Base } {
   return { venue: key.slice(0, at) as VenueId, base: key.slice(at + 1) as Base }
 }
 
+/** Splits a Hyperliquid HIP-3 name such as `xyz:TSLA` into its dex and symbol. Any other name has dex `''`. */
+export function splitBase(base: Base): { dex: string; symbol: string } {
+  const at = base.indexOf(':')
+  return { dex: base.slice(0, Math.max(0, at)), symbol: base.slice(at + 1) }
+}
+
 export const INTERVALS = ['1m', '5m', '15m', '1h'] as const
 export type Interval = (typeof INTERVALS)[number]
 

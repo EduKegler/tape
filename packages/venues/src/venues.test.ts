@@ -23,13 +23,18 @@ async function specsOf(venue: VenueId) {
 const recording = <T>(name: string): T =>
   JSON.parse(readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), 'utf8')) as T
 
+const hyperliquidDexes = () =>
+  recording<{ universe: { name: string; isDelisted?: boolean }[]; collateralToken: number }[]>(
+    'hyperliquid.allPerpMetas.json',
+  )
+
 const fits = (increment: string) => !/[1-9]/.test((increment.split('.')[1] ?? '').slice(8))
 
 const TRADABLE_IN_RECORDING: Record<VenueId, () => string[]> = {
   hyperliquid: () =>
-    recording<{ universe: { name: string; isDelisted?: boolean }[] }>('hyperliquid.meta.json')
-      .universe.filter((u) => !u.isDelisted)
-      .map((u) => u.name),
+    hyperliquidDexes()
+      .filter((dex) => dex.collateralToken === 0)
+      .flatMap((dex) => dex.universe.filter((u) => !u.isDelisted).map((u) => u.name)),
   dydx: () =>
     Object.values(
       recording<{ markets: Record<string, { ticker: string; status: string; tickSize: string; stepSize: string }> }>(
@@ -109,6 +114,21 @@ describe('a market the venue does not list', () => {
 
   it('still fails on any other error', async () => {
     await expect(VENUES.dydx.fetchMarket(BTC, answering(503, {}))).rejects.toThrow('503')
+  })
+})
+
+describe('hyperliquid adapter', () => {
+  it('lists the main dex unnamed, then each HIP-3 dex with a live market under its full name', async () => {
+    const fullNames = recording<({ fullName: string } | null)[]>('hyperliquid.perpDexs.json')
+    const live = hyperliquidDexes().flatMap((dex, i) =>
+      dex.collateralToken === 0 && dex.universe.some((u) => !u.isDelisted && isBase(u.name))
+        ? [fullNames[i]?.fullName ?? null]
+        : [],
+    )
+    const groups = await VENUES.hyperliquid.fetchMarkets(recordedFetch)
+    expect(groups.map((g) => g.name)).toEqual(live)
+    expect(live[0]).toBeNull()
+    expect(live.length).toBeGreaterThan(1)
   })
 })
 

@@ -136,6 +136,7 @@ describe('hub', () => {
     const { hub, sockets } = setup({
       fetch: (input, init) =>
         lists.test(input instanceof Request ? input.url : input.toString())
+        || /"type":"(?:allPerpMetas|perpDexs)"/.test(typeof init?.body === 'string' ? init.body : '')
           ? Promise.reject(new Error('no list'))
           : recordedFetch(input, init),
     })

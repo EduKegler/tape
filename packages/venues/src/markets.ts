@@ -1,4 +1,4 @@
-import { isBase, marketKey } from '@tape/core/ids'
+import { isBase, marketKey, splitBase } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import { DecimalError, decimalsOf, parsePx, parseQty, plainDecimal } from '@tape/core/fixed'
 import type { Decimals, Scale } from '@tape/core/fixed'
@@ -61,20 +61,48 @@ function hyperliquidSpec(asset: HyperliquidAsset): MarketSpec | null {
   }
 }
 
-const hyperliquidMeta = (fetch: Fetch, info: string, signal?: AbortSignal) =>
-  getJson<{ universe: HyperliquidAsset[] }>(fetch, info, {
+interface HyperliquidMeta {
+  universe: HyperliquidAsset[]
+  collateralToken: number
+}
+
+/** Token 0 in Hyperliquid's spot token list is USDC. A HIP-3 dex settled in another token prices in that token. */
+const HYPERLIQUID_USDC = 0
+
+const hyperliquidMarkets = (meta: HyperliquidMeta) =>
+  meta.collateralToken === HYPERLIQUID_USDC ? specs(meta.universe, hyperliquidSpec) : []
+
+const hyperliquidPost = (fetch: Fetch, info: string, body: unknown, signal?: AbortSignal) =>
+  fetch(info, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ type: 'meta' }),
+    body: JSON.stringify(body),
     signal: signal ?? null,
   })
 
+/** The main dex's markets unnamed, then each HIP-3 dex's markets under the dex's full name. */
 export async function readHyperliquidMarkets(
   fetch: Fetch,
   info: string,
   signal?: AbortSignal,
 ): Promise<readonly MarketGroup[]> {
-  return own(specs((await hyperliquidMeta(fetch, info, signal)).universe, hyperliquidSpec))
+  const read = async <T>(type: string) => {
+    const response = await hyperliquidPost(fetch, info, { type }, signal)
+    if (!response.ok) throw new Error(`${response.status} ${info}`)
+    return (await response.json()) as T
+  }
+  const [metas, dexes] = await Promise.all([
+    read<HyperliquidMeta[]>('allPerpMetas'),
+    read<({ name: string; fullName: string } | null)[]>('perpDexs'),
+  ])
+  const fullNames = new Map(dexes.flatMap((d) => (d ? [[d.name, d.fullName] as const] : [])))
+  return metas.flatMap((meta) => {
+    const markets = hyperliquidMarkets(meta)
+    const first = markets[0]
+    if (!first) return []
+    const { dex } = splitBase(first.base)
+    return [{ name: dex ? (fullNames.get(dex) ?? dex) : null, markets }]
+  })
 }
 
 export async function readHyperliquidMarket(
@@ -83,8 +111,12 @@ export async function readHyperliquidMarket(
   base: Base,
   signal?: AbortSignal,
 ): Promise<MarketSpec | null> {
-  const asset = (await hyperliquidMeta(fetch, info, signal)).universe.find((u) => u.name === base)
-  return asset ? specOf(asset, hyperliquidSpec) : null
+  const response = await hyperliquidPost(fetch, info, { type: 'meta', dex: splitBase(base).dex }, signal)
+  const text = await response.text()
+  // Hyperliquid answers a dex it does not list with a 500 and the body null.
+  if (response.status === 500 && text === 'null') return null
+  if (!response.ok) throw new Error(`${response.status} ${info}`)
+  return hyperliquidMarkets(JSON.parse(text) as HyperliquidMeta).find((m) => m.base === base) ?? null
 }
 
 interface DydxMarket {

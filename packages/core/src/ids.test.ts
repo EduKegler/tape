@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { isBase, isInterval, marketKey, parseMarketKey, parseStreamKey, splitMarketKey, streamKey } from './ids'
+import {
+  isBase,
+  isInterval,
+  marketKey,
+  parseMarketKey,
+  parseStreamKey,
+  splitBase,
+  splitMarketKey,
+  streamKey,
+} from './ids'
 import type { Base } from './ids'
 
 const ETH = 'ETH' as Base
@@ -65,6 +74,11 @@ describe('bases', () => {
     ]
     expect(listed.filter((b) => !isBase(b))).toEqual([])
     expect(refused.filter(isBase)).toEqual([])
+  })
+
+  it('splits a HIP-3 name into its dex and symbol, and gives any other name no dex', () => {
+    expect(splitBase(TSLA)).toEqual({ dex: 'xyz', symbol: 'TSLA' })
+    expect(splitBase(ETH)).toEqual({ dex: '', symbol: 'ETH' })
   })
 })
 
