@@ -7,11 +7,15 @@ export function Input(props: {
   name: string
   value: string
   error: string | undefined
+  warning?: string | null
+  messageLine?: boolean
   hint: ReactNode
   onChange: (v: string) => void
   onBlur: () => void
 }) {
   const id = useId()
+  const message = props.error ? `${id}-error` : props.warning ? `${id}-warning` : undefined
+  const fit = props.messageLine ? 'truncate' : ''
   // The hint can be a button, so it sits beside the label and not inside it.
   return (
     <div className="flex flex-col gap-1 text-sm">
@@ -28,14 +32,23 @@ export function Input(props: {
         onValueChange={(v) => props.onChange(v.trim())}
         onBlur={props.onBlur}
         aria-invalid={Boolean(props.error)}
-        aria-describedby={props.error ? `${id}-error` : undefined}
+        aria-describedby={message}
         className="num h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1 outline-none focus:border-accent aria-invalid:border-warn"
       />
-      {props.error && (
-        <span id={`${id}-error`} className="border-l-2 border-warn pl-2 text-level1">
-          {props.error}
-        </span>
-      )}
+      <div
+        aria-live={props.warning === undefined ? undefined : 'polite'}
+        className={props.messageLine ? 'h-4.5 leading-4.5' : 'contents'}
+      >
+        {props.error ? (
+          <span id={message} title={props.error} className={`block border-l-2 border-warn pl-2 text-level1 ${fit}`}>
+            {props.error}
+          </span>
+        ) : props.warning ? (
+          <span id={message} title={props.warning} className={`block text-warn ${fit}`}>
+            {props.warning}
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }

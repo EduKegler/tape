@@ -34,9 +34,12 @@ test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
 
 test('the ticket refuses a price with more decimals than the market has', async ({ page }) => {
   await openMarket(page, '/binance/BTC?interval=1m')
+  const size = ticketOf(page).getByRole('textbox', { name: 'Size (BTC)' })
+  const before = await size.boundingBox()
   const price = await touchField(page, 'Price (USDT)', '1.234')
   await expect(ticketOf(page).getByText('At most 2 decimals')).toBeVisible()
   await expect(price).toHaveAttribute('aria-invalid', 'true')
+  expect((await size.boundingBox())?.y).toBe(before?.y)
   await expectAccessible(page)
 })
 

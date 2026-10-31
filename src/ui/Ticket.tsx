@@ -322,6 +322,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 onBlur={field.handleBlur}
                 onChange={field.handleChange}
                 error={fieldError(field)}
+                messageLine
                 hint={
                   near ? (
                     <Button look="quiet" onClick={() => field.handleChange(near)}>
