@@ -39,7 +39,7 @@ import { TopicStatus } from './PanelStatus'
 import { Button, Input } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
-import { proposedPrice, slippageBps } from './ticket-store'
+import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market' | 'scale' | 'trailing'
@@ -807,7 +807,6 @@ export function SiteReadOnly() {
 
 function SlippageField() {
   const value = useSelector(slippageBps, (s) => s)
-  const options = [10, 50, 100, 300] as const
   return (
     <div className="flex items-center justify-between text-sm text-level3">
       Max slippage
@@ -815,7 +814,7 @@ function SlippageField() {
         label="Max slippage"
         value={String(value)}
         onChange={(v) => slippageBps.setState(() => Number(v))}
-        options={options.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
+        options={SLIPPAGE_STEPS.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
       />
     </div>
   )

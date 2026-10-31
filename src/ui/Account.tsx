@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
-import type { Base, VenueId } from '@tape/core/ids'
+import type { Base, MarketKey, VenueId } from '@tape/core/ids'
 import { closeIntent } from '@tape/trade/intent'
 import type { AccountRef, Bps, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
+import { useFrame } from '#/client/hooks'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
@@ -14,7 +15,7 @@ import { ConfirmAction } from './ConfirmAction'
 import { Button, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
-import { slippageBps } from './ticket-store'
+import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
 import { OrderNote, TradeNote } from './TradeNote'
 
@@ -61,7 +62,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
   const { view, error } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
-  const slippage = useSelector(slippageBps, (s) => s) as Bps
+  const slippage = useSelector(closeSlippageBps, (s) => s) as Bps
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
   const busy = (c: Command) => inFlight.some((x) => JSON.stringify(x) === JSON.stringify(c))
@@ -99,6 +100,8 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
         {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
           <ConfirmAction
             label={`Cancel all ${base}`}
+            confirm="Confirm cancel all"
+            keep="Keep orders"
             question={cancelAllQuestion(snapshot.orders.filter((o) => o.symbol === symbol).length, base, venue)}
             onConfirm={() => run({ kind: 'cancel-all', symbol })}
           />
@@ -126,6 +129,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
             rows={snapshot.positions}
             busy={last.pending}
             question={(p) => `Close ${p.size} ${specOf(p)?.base ?? p.symbol} ${p.side} on ${venue}?`}
+            market={(p) => specOf(p)?.key ?? null}
             onClose={close}
           />
         )}
@@ -190,11 +194,13 @@ function Positions({
   rows,
   busy,
   question,
+  market,
   onClose,
 }: {
   rows: readonly Position[]
   busy: boolean
   question: (p: Position) => string
+  market: (p: Position) => MarketKey | null
   onClose: (p: Position) => void
 }) {
   const columns: Column<Position>[] = [
@@ -206,10 +212,47 @@ function Positions({
     { header: 'Liq.', cell: (p) => p.liquidation ?? '—' },
     {
       header: '',
-      cell: (p) => <ConfirmAction label="Close" question={question(p)} disabled={busy} onConfirm={() => onClose(p)} />,
+      cell: (p) => (
+        <ConfirmAction
+          label="Close"
+          question={question(p)}
+          confirm="Confirm close"
+          keep="Keep position"
+          disabled={busy}
+          onConfirm={() => onClose(p)}
+        >
+          <CloseTerms position={p} market={market(p)} />
+        </ConfirmAction>
+      ),
     },
   ]
   return <Table rows={rows} rowKey={(p) => p.symbol} columns={columns} empty="No open positions." />
+}
+
+function CloseTerms({ position, market }: { position: Position; market: MarketKey | null }) {
+  const slippage = useSelector(closeSlippageBps, (s) => s)
+  return (
+    <>
+      <span className="num text-level3">
+        Size <span className="text-level1">{position.size.replace(/^-/, '')}</span> · Expected{' '}
+        {market ? <ExpectedPrice market={market} sell={position.side === 'long'} /> : <span>—</span>}
+      </span>
+      <span className="flex items-center gap-2 text-level3">
+        Slippage
+        <Segmented
+          label="Close slippage"
+          value={String(slippage)}
+          onChange={(v) => closeSlippageBps.setState(() => Number(v))}
+          options={SLIPPAGE_STEPS.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
+        />
+      </span>
+    </>
+  )
+}
+
+function ExpectedPrice({ market, sell }: { market: MarketKey; sell: boolean }) {
+  const px = useFrame({ kind: 'book', market, group: '' }, (f) => (sell ? f?.touch.bid : f?.touch.ask) ?? null)
+  return <span className="text-level1">{px ?? '—'}</span>
 }
 
 function Orders({

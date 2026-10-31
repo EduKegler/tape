@@ -89,6 +89,23 @@ test('one click on Close only asks, and Confirm sends one reduce-only close', as
   ])
 })
 
+test('the close step shows its size, the bid it sells into and its own slippage', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page)
+  await account.getByRole('button', { name: 'Close', exact: true }).click()
+  const step = account.getByRole('group', { name: 'Close 0.01 BTC long on Hyperliquid?' })
+  await expect(step).toContainText(/Size 0\.01 · Expected \d{2},\d{3}/)
+  await expect(step.getByRole('radio', { name: '1%', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await step.getByRole('radio', { name: '0.5%', exact: true }).click()
+
+  await step.getByRole('button', { name: 'Confirm close' }).click()
+  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
+  // The bid 79990 less 0.5% is 79590.05, rounded up to the whole dollar five significant figures allow: 79591.
+  expect(writes(hyperliquid.sent).map((body) => body.action.orders?.[0]?.p)).toEqual(['79591'])
+  const ticket = panel(page, 'Order ticket')
+  await ticket.getByRole('radio', { name: 'Market', exact: true }).click()
+  await expect(ticket.getByRole('radio', { name: '1%', exact: true })).toHaveAttribute('aria-checked', 'true')
+})
+
 test('Escape and a click outside put Close back and send nothing', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, account } = await holding(page)
   const close = account.getByRole('button', { name: 'Close', exact: true })
