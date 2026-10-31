@@ -406,6 +406,20 @@ test('a retracement of 0 or 100% stops in the ticket and sends nothing', async (
   expect(trailingStops(hyperliquid.sent)).toEqual([])
 })
 
+test('switching the retracement unit checks the value against the unit picked', async ({ page, wallet: _wallet }) => {
+  const { ticket } = await enable(page)
+  await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const percent = ticket.getByRole('textbox', { name: 'Retracement (%)' })
+  await percent.fill('800')
+  await expect(percent).toHaveAccessibleDescription('Above 0 and below 100%')
+  await expect(buy).toBeDisabled()
+  await ticket.getByRole('radio', { name: 'USDC', exact: true }).click()
+  await expect(ticket.getByRole('textbox', { name: 'Retracement (USDC)' })).toHaveAccessibleDescription('')
+  await expect(buy).toBeEnabled()
+})
+
 test('a trailing stop write that times out shows an unknown outcome and lets the trader send again', async ({
   page,
   wallet: _wallet,

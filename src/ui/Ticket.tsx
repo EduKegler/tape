@@ -217,7 +217,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   name="retracement"
                   validators={{
                     onChangeListenTo: ['retracementUnit'],
-                    onChange: ({ value }) => checkRetracement(spec, unit.state.value, value),
+                    onChange: ({ value }) => checkRetracement(spec, form.getFieldValue('retracementUnit'), value),
                   }}
                 >
                   {(field) => (
