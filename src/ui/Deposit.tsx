@@ -291,11 +291,10 @@ function Issues({
       {issues.map((issue) => (
         <li
           key={issue.kind}
-          role={blocksDeposit(issue) ? 'alert' : 'status'}
           data-deposit-issue={issue.kind}
           className={`rounded-sm border p-2 ${blocksDeposit(issue) ? 'border-ask/40 text-ask' : 'border-rule text-level2'}`}
         >
-          {issueText(issue, route, messenger)}
+          <span role={blocksDeposit(issue) ? 'alert' : 'status'}>{issueText(issue, route, messenger)}</span>
         </li>
       ))}
     </ul>
