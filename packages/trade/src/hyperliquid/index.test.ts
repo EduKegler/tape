@@ -5,6 +5,7 @@ import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
+import { recordedWrite } from '../fixtures'
 import { buildIntent, closeIntent } from '../intent'
 import type { TakeProfitDraft } from '../intent'
 import { TradeFailure } from '../types'
@@ -68,6 +69,16 @@ function memorySlot(initial: StoredKey | null): KeySlot {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 const statuses = (list: unknown[]) => json({ status: 'ok', response: { type: 'order', data: { statuses: list } } })
 
+/** Hyperliquid testnet's reply to the one request of a recorded case. */
+const recorded = (name: string) => recordedWrite('hyperliquid', name).exchanges[0]!.response
+const replied = (name: string) => () => json(recorded(name))
+type OrderStatus = { resting?: { oid: number }; filled?: { totalSz: string; avgPx: string }; error?: string }
+const statusOf = (name: string) =>
+  (recorded(name) as { response: { data: { statuses: OrderStatus[] } } }).response.data.statuses[0]!
+const restingOid = statusOf('rest').resting!.oid
+const recordedFill = statusOf('fill').filled!
+const refusalOf = (name: string) => statusOf(name).error!
+
 interface Sent {
   url: string
   body: Record<string, unknown>
@@ -118,9 +129,7 @@ const failureOf = (p: Promise<unknown>) =>
 describe('hyperliquid sells', () => {
   // Exchange endpoint docs: b is isBuy.
   it('sends a sell as b false, with its take profit and stop loss as buys bounded above the trigger', async () => {
-    const market = venue(() =>
-      statuses([{ filled: { totalSz: '0.001', avgPx: '79990' } }, 'waitingForTrigger', 'waitingForTrigger']),
-    )
+    const market = venue(() => statuses([statusOf('fill'), 'waitingForTrigger', 'waitingForTrigger']))
     await hyperliquid.execute(
       market.ctx,
       place({
@@ -140,11 +149,11 @@ describe('hyperliquid sells', () => {
       ],
     })
 
-    const limit = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const limit = venue(replied('rest'))
     expect(await hyperliquid.execute(limit.ctx, place({ side: 'sell', price: '80100' }))).toEqual({
       kind: 'placed',
       status: 'resting',
-      detail: 'Resting as order 9',
+      detail: `Resting as order ${restingOid}`,
     })
     expect(wiresOf(limit.posts()[0])).toEqual({
       grouping: 'na',
@@ -156,7 +165,7 @@ describe('hyperliquid sells', () => {
 describe('hyperliquid time in force', () => {
   // Order type docs: tif is Alo, Ioc or Gtc, and an order with no TP/SL goes under grouping na.
   it('sends an IOC limit as Ioc, alone under grouping na', async () => {
-    const { ctx, posts } = venue(() => statuses([{ filled: { totalSz: '0.001', avgPx: '80010' } }]))
+    const { ctx, posts } = venue(replied('fill'))
     await hyperliquid.execute(ctx, place({ tif: 'ioc', price: '80010' }))
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80010', false, { limit: { tif: 'Ioc' } }]] })
   })
@@ -170,7 +179,7 @@ describe('hyperliquid nonces', () => {
     const now = Date.now() + 3_600_000
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(now)
-    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const { ctx, posts } = venue(replied('rest'))
     await hyperliquid.execute(ctx, place({}))
     await hyperliquid.execute(ctx, place({}))
     expect(posts().map((p) => p.body.nonce)).toEqual([now, now + 1])
@@ -209,7 +218,7 @@ describe('hyperliquid writes without a readable reply', () => {
 describe('hyperliquid reads that fail', () => {
   it('calls a failed read unreachable, since nothing was sent, and reads the market rules again next time', async () => {
     const metaReplies = [new Response('<html>502 Bad Gateway</html>', { status: 502 }), json(testnetMeta)]
-    const { ctx, sent, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const { ctx, sent, posts } = venue(replied('rest'))
     const fetch = ((url: string, init?: RequestInit) => {
       const body = JSON.parse(init?.body as string) as { type?: string }
       if (body.type !== 'meta') return ctx.fetch(url, init)
@@ -222,7 +231,7 @@ describe('hyperliquid reads that fail', () => {
     expect(await hyperliquid.execute(mainnet, place({}))).toEqual({
       kind: 'placed',
       status: 'resting',
-      detail: 'Resting as order 9',
+      detail: `Resting as order ${restingOid}`,
     })
     expect(sent.filter((s) => s.body.type === 'meta').map((s) => s.url)).toEqual([
       'https://api.hyperliquid.xyz/info',
@@ -232,32 +241,26 @@ describe('hyperliquid reads that fail', () => {
 })
 
 describe('hyperliquid refusals', () => {
-  // Texts from the Hyperliquid error responses docs, and the deposit reply the enable test in trade.test.ts uses.
   it('refuses an order Hyperliquid refuses in its own status, by the venue words', async () => {
-    for (const [text, kind] of [
-      ['Insufficient margin to place order.', 'insufficient-margin'],
-      ['Order must have minimum value of $10.', 'invalid-order'],
-      ['Price must be divisible by tick size.', 'invalid-order'],
-      [`Must deposit before performing actions. User: ${owner}`, 'no-account'],
-      ['Reduce only order would increase position.', 'rejected'],
+    for (const [name, kind] of [
+      ['insufficientMargin', 'insufficient-margin'],
+      ['minimumValue', 'invalid-order'],
+      ['offTick', 'invalid-order'],
+      ['offStep', 'invalid-order'],
+      ['reduceOnly', 'rejected'],
     ] as const) {
-      const { ctx } = venue(() => statuses([{ error: text }]))
-      expect(await failureOf(hyperliquid.execute(ctx, place({})))).toEqual({ kind, detail: text })
+      const { ctx } = venue(replied(name))
+      expect(await failureOf(hyperliquid.execute(ctx, place({})))).toEqual({ kind, detail: refusalOf(name) })
     }
   })
 
   it('refuses a scale order when Hyperliquid refuses every leg', async () => {
-    const { ctx } = venue(() =>
-      statuses([
-        { error: 'Insufficient margin to place order.' },
-        { error: 'Insufficient margin to place order.' },
-        { error: 'Insufficient margin to place order.' },
-      ]),
-    )
+    const refused = statusOf('insufficientMargin')
+    const { ctx } = venue(() => statuses([refused, refused, refused]))
     const scale = place({ kind: 'scale', tif: 'post-only', size: '0.003', start: '80000', end: '79000', count: '3' })
     expect(await failureOf(hyperliquid.execute(ctx, scale))).toEqual({
       kind: 'insufficient-margin',
-      detail: 'Insufficient margin to place order.',
+      detail: refusalOf('insufficientMargin'),
     })
   })
 })
@@ -272,7 +275,7 @@ describe('hyperliquid refusals before signing', () => {
   const sol = { price: '150', bid: '149.9', ask: '150.1' }
 
   it('refuses before signing when this device has no key or the market is not listed', async () => {
-    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const { ctx, posts } = venue(replied('rest'))
     expect(await failureOf(hyperliquid.execute({ ...ctx, keys: memorySlot(null) }, place({})))).toEqual({
       kind: 'needs-setup',
       detail: 'Enable trading on this device first',
@@ -285,7 +288,7 @@ describe('hyperliquid refusals before signing', () => {
   })
 
   it('refuses a size or a scale leg finer than the 2 szDecimals SOL has on this network', async () => {
-    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const { ctx, posts } = venue(replied('rest'))
     expect(await failureOf(hyperliquid.execute(ctx, place({ ...sol, size: '0.001' }, spec('SOL'))))).toMatchObject({
       kind: 'invalid-order',
       detail: expect.stringMatching(/^Size 0\.001: /) as string,
@@ -299,7 +302,7 @@ describe('hyperliquid refusals before signing', () => {
   })
 
   it('refuses a take profit finer than the 2 szDecimals SOL has on this network, naming it', async () => {
-    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const { ctx, posts } = venue(replied('rest'))
     const takeProfits = [
       { price: '160', share: '50' },
       { price: '170', share: '50' },
@@ -313,7 +316,7 @@ describe('hyperliquid refusals before signing', () => {
   })
 
   it('refuses a scale order that carries a take profit or a stop loss', async () => {
-    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const { ctx, posts } = venue(replied('rest'))
     const command = place({ kind: 'scale', size: '0.003', start: '80000', end: '79000', count: '3' })
     if (command.kind !== 'place') throw new Error('place')
     for (const triggers of [
@@ -397,8 +400,8 @@ describe('hyperliquid order outcomes', () => {
   })
 
   it('calls a scale order filled when every leg filled', async () => {
-    const fill = { filled: { totalSz: '0.001', avgPx: '80020' } }
-    const { ctx } = venue(() => statuses([fill, fill, fill]))
+    const filled = statusOf('fill')
+    const { ctx } = venue(() => statuses([filled, filled, filled]))
     const scale = place({ kind: 'scale', size: '0.003', start: '80100', end: '80020', count: '3' })
     expect(await hyperliquid.execute(ctx, scale)).toEqual({
       kind: 'placed',
@@ -408,25 +411,23 @@ describe('hyperliquid order outcomes', () => {
   })
 
   it('calls a scale order filled with the refusals when the legs that stood all filled', async () => {
-    const fill = { filled: { totalSz: '0.001', avgPx: '80020' } }
-    const { ctx } = venue(() => statuses([fill, fill, { error: 'Insufficient margin to place order.' }]))
+    const filled = statusOf('fill')
+    const { ctx } = venue(() => statuses([filled, filled, statusOf('insufficientMargin')]))
     const scale = place({ kind: 'scale', size: '0.003', start: '80100', end: '80020', count: '3' })
     expect(await hyperliquid.execute(ctx, scale)).toEqual({
       kind: 'placed',
       status: 'filled',
-      detail: '2 of 3 orders placed: 0 resting, 2 filled. Order 3 not placed: Insufficient margin to place order.',
+      detail: `2 of 3 orders placed: 0 resting, 2 filled. Order 3 not placed: ${refusalOf('insufficientMargin')}`,
     })
   })
 })
 
 describe('hyperliquid cancels', () => {
   const cancel: Command = { kind: 'cancel', order: '3:42' as OrderRef }
-  // The cancel action shape, `success` and the text for an order that is gone are from the exchange endpoint docs.
-  const gone = 'Order was never placed, already canceled, or filled.'
-
-  it('cancels an order Hyperliquid already filled without an error, but not one it refuses', async () => {
-    for (const reply of [['success'], [{ error: gone }]]) {
-      const { ctx, posts } = venue(() => statuses(reply))
+  // The cancel action shape is from the exchange endpoint docs.
+  it('cancels an order Hyperliquid already canceled or filled without an error, but not one it refuses', async () => {
+    for (const name of ['cancel', 'cancelCanceled', 'cancelFilled']) {
+      const { ctx, posts } = venue(replied(name))
       expect(await hyperliquid.execute(ctx, cancel)).toEqual({ kind: 'done', detail: 'Canceled 1' })
       expect(posts()[0]?.body.action).toEqual({ type: 'cancel', cancels: [{ a: 3, o: 42 }] })
     }
@@ -480,30 +481,28 @@ describe('hyperliquid leverage', () => {
 
 describe('hyperliquid exits', () => {
   const bracket = { kind: 'market', price: '', takeProfits: [{ price: '82000', share: '100' }], stopLoss: '78000' }
-  const filled = { filled: { totalSz: '0.001', avgPx: '80010' } }
+  const filled = statusOf('fill')
 
   it('keeps the order when Hyperliquid refuses its stop loss, and names the leg', async () => {
     const both = venue(() => statuses([filled, 'waitingForTrigger', 'waitingForTrigger']))
     expect(await hyperliquid.execute(both.ctx, place(bracket))).toEqual({
       kind: 'placed',
       status: 'filled',
-      detail: 'Filled 0.001 at 80010',
+      detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
     })
 
     const noStop = venue(() => statuses([filled, 'waitingForTrigger', { error: 'Invalid TP/SL price.' }]))
     expect(await hyperliquid.execute(noStop.ctx, place(bracket))).toEqual({
       kind: 'placed',
       status: 'filled',
-      detail: 'Filled 0.001 at 80010. SL not placed: Invalid TP/SL price.',
+      detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}. SL not placed: Invalid TP/SL price.`,
     })
 
-    const noTarget = venue(() =>
-      statuses([{ resting: { oid: 7 } }, { error: 'Invalid TP/SL price.' }, 'waitingForTrigger']),
-    )
+    const noTarget = venue(() => statuses([statusOf('rest'), { error: 'Invalid TP/SL price.' }, 'waitingForTrigger']))
     expect(await hyperliquid.execute(noTarget.ctx, place({ ...bracket, kind: 'limit', price: '80000' }))).toEqual({
       kind: 'placed',
       status: 'resting',
-      detail: 'Resting as order 7. TP not placed: Invalid TP/SL price.',
+      detail: `Resting as order ${restingOid}. TP not placed: Invalid TP/SL price.`,
     })
   })
 
@@ -570,11 +569,11 @@ describe('hyperliquid market orders without exits', () => {
     } as const
     const intent = closeIntent(btc, short as Parameters<typeof closeIntent>[1], 100 as Bps)
     if (!intent) throw new Error('close')
-    const { ctx, sent, posts } = venue(() => statuses([{ filled: { totalSz: '0.001', avgPx: '80010' } }]))
+    const { ctx, sent, posts } = venue(replied('fill'))
     expect(await hyperliquid.execute(ctx, { kind: 'place', intent })).toEqual({
       kind: 'placed',
       status: 'filled',
-      detail: 'Filled 0.001 at 80010',
+      detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
     })
     expect(sent.find((s) => s.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80810', true, { limit: { tif: 'Ioc' } }]] })

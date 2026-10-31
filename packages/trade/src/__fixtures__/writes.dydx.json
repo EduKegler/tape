@@ -1,0 +1,51 @@
+{
+  "network": "testnet",
+  "recordedAt": "2026-10-31T20:08:46.759Z",
+  "address": "dydx1mkj6uwaeutf67rap2htrnjueerm8r402j7mgw4",
+  "ticker": "BTC-USD",
+  "holdsUsdc": false,
+  "cases": {
+    "unknownAddress": {
+      "chain": [],
+      "exchanges": [
+        {
+          "method": "GET",
+          "url": "https://indexer.v4testnet.dydx.exchange/v4/addresses/dydx1upm0ssk3msfaznmp4pfl0amdfwj5n7uaj4xmak/subaccountNumber/0",
+          "request": null,
+          "status": 404,
+          "response": {
+            "errors": [
+              {
+                "msg": "No subaccount found with address dydx1upm0ssk3msfaznmp4pfl0amdfwj5n7uaj4xmak and subaccountNumber 0"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "lookupUnknown": {
+      "chain": [],
+      "exchanges": [
+        {
+          "method": "GET",
+          "url": "https://indexer.v4testnet.dydx.exchange/v4/orders?address=dydx1mkj6uwaeutf67rap2htrnjueerm8r402j7mgw4&subaccountNumber=0&ticker=BTC-USD&limit=100&returnLatestOrders=true",
+          "request": null,
+          "status": 200,
+          "response": []
+        }
+      ]
+    },
+    "unknownAccount": {
+      "chain": [
+        {
+          "method": "placeOrder",
+          "thrown": {
+            "name": "Error",
+            "message": "Query failed with (22): rpc error: code = NotFound desc = account dydx1upm0ssk3msfaznmp4pfl0amdfwj5n7uaj4xmak not found: key not found"
+          }
+        }
+      ],
+      "exchanges": []
+    }
+  }
+}

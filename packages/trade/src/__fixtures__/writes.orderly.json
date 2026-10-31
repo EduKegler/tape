@@ -1,0 +1,271 @@
+{
+  "network": "testnet",
+  "recordedAt": "2026-10-31T20:24:32.301Z",
+  "owner": "0x18acf5c6f906b181732addc59921a225f88e5640",
+  "brokerId": "demo",
+  "symbol": "PERP_BTC_USDC",
+  "holdsUsdc": false,
+  "cases": {
+    "steps": {
+      "exchanges": [
+        {
+          "method": "GET",
+          "url": "https://testnet-api.orderly.org/v1/get_account?address=0x586ede82e28c5ec885ef6aa725dbfb7fa21e27ef&broker_id=demo",
+          "request": null,
+          "status": 200,
+          "response": {
+            "success": false,
+            "code": -1607,
+            "message": "Account not found."
+          }
+        }
+      ]
+    },
+    "enable": {
+      "exchanges": [
+        {
+          "method": "GET",
+          "url": "https://testnet-api.orderly.org/v1/get_account?address=0x586ede82e28c5ec885ef6aa725dbfb7fa21e27ef&broker_id=demo",
+          "request": null,
+          "status": 200,
+          "response": {
+            "success": false,
+            "code": -1607,
+            "message": "Account not found."
+          }
+        },
+        {
+          "method": "GET",
+          "url": "https://testnet-api.orderly.org/v1/registration_nonce",
+          "request": null,
+          "status": 200,
+          "response": {
+            "success": true,
+            "data": {
+              "registration_nonce": "173250245484"
+            },
+            "timestamp": 1793478183401
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/register_account",
+          "request": {
+            "message": {
+              "brokerId": "demo",
+              "chainId": 421614,
+              "timestamp": 1793478183546,
+              "registrationNonce": "173250245484"
+            },
+            "userAddress": "0x586EDE82E28C5eC885eF6AA725dBFb7fA21e27ef"
+          },
+          "status": 200,
+          "response": {
+            "success": true,
+            "data": {
+              "user_id": 295119,
+              "account_id": "0xd0bfec5cc3b26f584032a19f9154ce8cb5d1992a26a62a3a7f2d712c0f85247b"
+            },
+            "timestamp": 1793478183725
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/orderly_key",
+          "request": {
+            "message": {
+              "brokerId": "demo",
+              "chainId": 421614,
+              "orderlyKey": "ed25519:4Rso1rnezLtoVpsGuAznMszsMygrEVKgvCHQUgmFpdiK",
+              "scope": "read,trading",
+              "timestamp": 1793478183914,
+              "expiration": 1825014183914
+            },
+            "userAddress": "0x586EDE82E28C5eC885eF6AA725dBFb7fA21e27ef"
+          },
+          "status": 200,
+          "response": {
+            "success": true,
+            "data": {
+              "id": 248555,
+              "orderly_key": "ed25519:4Rso1rnezLtoVpsGuAznMszsMygrEVKgvCHQUgmFpdiK"
+            },
+            "timestamp": 1793478184118
+          }
+        }
+      ]
+    },
+    "stepsDone": {
+      "exchanges": [
+        {
+          "method": "GET",
+          "url": "https://testnet-api.orderly.org/v1/get_account?address=0x586ede82e28c5ec885ef6aa725dbfb7fa21e27ef&broker_id=demo",
+          "request": null,
+          "status": 200,
+          "response": {
+            "success": true,
+            "data": {
+              "user_id": 295119,
+              "account_id": "0xd0bfec5cc3b26f584032a19f9154ce8cb5d1992a26a62a3a7f2d712c0f85247b"
+            },
+            "timestamp": 1793478184441
+          }
+        },
+        {
+          "method": "GET",
+          "url": "https://testnet-api.orderly.org/v1/get_orderly_key?account_id=0xd0bfec5cc3b26f584032a19f9154ce8cb5d1992a26a62a3a7f2d712c0f85247b&orderly_key=ed25519%3A4Rso1rnezLtoVpsGuAznMszsMygrEVKgvCHQUgmFpdiK",
+          "request": null,
+          "status": 200,
+          "response": {
+            "success": true,
+            "data": {
+              "orderly_key": "ed25519:4Rso1rnezLtoVpsGuAznMszsMygrEVKgvCHQUgmFpdiK",
+              "scope": "read,trading",
+              "expiration": 1825014183914,
+              "key_status": "ACTIVE"
+            },
+            "timestamp": 1793478184761
+          }
+        }
+      ]
+    },
+    "minimumValue": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/order",
+          "request": {
+            "symbol": "PERP_BTC_USDC",
+            "client_order_id": "0x97e256efecf60e51f1a7a0531a71aa5e",
+            "order_type": "LIMIT",
+            "order_price": 54254.2,
+            "order_quantity": 1e-05,
+            "side": "BUY",
+            "reduce_only": false
+          },
+          "status": 400,
+          "response": {
+            "success": false,
+            "code": -1102,
+            "message": "The order value should be greater or equal to 10.00000000."
+          }
+        }
+      ]
+    },
+    "insufficientMargin": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/order",
+          "request": {
+            "symbol": "PERP_BTC_USDC",
+            "client_order_id": "0xdafbd2ec584d130c22be2f985295f4b4",
+            "order_type": "LIMIT",
+            "order_price": 54254.2,
+            "order_quantity": 5,
+            "side": "BUY",
+            "reduce_only": false
+          },
+          "status": 400,
+          "response": {
+            "success": false,
+            "code": -1101,
+            "message": "The margin will be insufficient after."
+          }
+        }
+      ]
+    },
+    "reduceOnly": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/order",
+          "request": {
+            "symbol": "PERP_BTC_USDC",
+            "client_order_id": "0x7fed397fe788e35d20239478b6b906fa",
+            "order_type": "LIMIT",
+            "order_price": 93007.2,
+            "order_quantity": 0.00023,
+            "side": "SELL",
+            "reduce_only": true
+          },
+          "status": 400,
+          "response": {
+            "success": false,
+            "code": -1012,
+            "message": "Insufficient position for reduce only order."
+          }
+        }
+      ]
+    },
+    "unregistered": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/order",
+          "request": {
+            "symbol": "PERP_BTC_USDC",
+            "client_order_id": "0x3efa07de0a38739d95d74aa80879f361",
+            "order_type": "LIMIT",
+            "order_price": 54254.2,
+            "order_quantity": 0.00023,
+            "side": "BUY",
+            "reduce_only": false
+          },
+          "status": 400,
+          "response": {
+            "success": false,
+            "code": -1004,
+            "message": "account id not exist"
+          }
+        }
+      ]
+    },
+    "offTick": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/order",
+          "request": {
+            "symbol": "PERP_BTC_USDC",
+            "client_order_id": "0xe1bbd1d53fdd6d07b6662091205f3f66",
+            "order_type": "LIMIT",
+            "order_price": 54254.25,
+            "order_quantity": 0.00023,
+            "side": "BUY",
+            "reduce_only": false
+          },
+          "status": 400,
+          "response": {
+            "success": false,
+            "code": -1103,
+            "message": "Order price does not match the tick size."
+          }
+        }
+      ]
+    },
+    "offStep": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://testnet-api.orderly.org/v1/order",
+          "request": {
+            "symbol": "PERP_BTC_USDC",
+            "client_order_id": "0x05a10c96885e93aaeec41d8b2dc09595",
+            "order_type": "LIMIT",
+            "order_price": 54254.2,
+            "order_quantity": 0.000235,
+            "side": "BUY",
+            "reduce_only": false
+          },
+          "status": 400,
+          "response": {
+            "success": false,
+            "code": -1104,
+            "message": "Order quantity does not match the step size."
+          }
+        }
+      ]
+    }
+  }
+}

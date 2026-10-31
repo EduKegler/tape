@@ -11,6 +11,7 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { deriveKey, onboarding, walletOf } from './dydx/client'
+import { recordedWrite } from './fixtures'
 import { classifyMessage as dydxMessage } from './dydx'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
@@ -90,6 +91,9 @@ function venue(answer: (url: string, body: Record<string, unknown>) => unknown) 
   }) as typeof globalThis.fetch
   return { fetch, sent }
 }
+
+/** Hyperliquid testnet's reply to the one request of a case `writes.record.test.ts` recorded. */
+const hlRecorded = (name: string) => recordedWrite('hyperliquid', name).exchanges[0]!.response
 
 const orderlyReply = (name: string) =>
   JSON.parse(readFileSync(new URL(`./__fixtures__/${name}.orderly.json`, import.meta.url), 'utf8')) as {
@@ -368,10 +372,8 @@ describe('failure classification', () => {
         'Transaction with hash [AB] was submitted but was not yet found on the chain. You might want to check later. Query timed out after 60 seconds.',
       ).kind,
     ).toBe('unknown-outcome')
-    expect(
-      dydxMessage('Query failed with (22): rpc error: code = NotFound desc = account dydx1abc not found: key not found')
-        .kind,
-    ).toBe('no-account')
+    const [broadcast] = recordedWrite('dydx', 'unknownAccount').chain
+    expect(broadcast && 'thrown' in broadcast && dydxMessage(broadcast.thrown.message).kind).toBe('no-account')
   })
 
   it('calls the dYdX order rate limits rate limited, though the short-term one mentions collateral', () => {
@@ -487,12 +489,9 @@ describe('hyperliquid module', () => {
   }
 
   it('signs the order with the agent for the testnet asset id', async () => {
+    const resting = hlRecorded('rest')
     const { fetch, sent } = venue((url, body) =>
-      url.endsWith('/info')
-        ? body.type === 'meta'
-          ? testnetMeta
-          : null
-        : { status: 'ok', response: { type: 'order', data: { statuses: [{ resting: { oid: 7 } }] } } },
+      url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : resting,
     )
     const ctx: VenueContext = {
       ref: { venue: 'hyperliquid', network: 'testnet', owner },
@@ -503,7 +502,9 @@ describe('hyperliquid module', () => {
     const built = buildIntent(btc, draft, caps)
     if (!built.ok) throw new Error('intent')
     const outcome = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })
-    expect(outcome).toEqual({ kind: 'placed', status: 'resting', detail: 'Resting as order 7' })
+    const oid = (resting as { response: { data: { statuses: [{ resting: { oid: number } }] } } }).response.data
+      .statuses[0].resting.oid
+    expect(outcome).toEqual({ kind: 'placed', status: 'resting', detail: `Resting as order ${oid}` })
     const post = sent.find((s) => s.url.endsWith('/exchange'))!
     const action = post.body.action as { orders: { a: number; p: string; s: string; c: string }[] }
     expect(action.orders[0]).toMatchObject({ a: 3, p: '80000', s: '0.001', c: built.intent.clientId })
@@ -761,11 +762,7 @@ describe('hyperliquid module', () => {
 
   it('turns an unknown API wallet into needs-setup with the venue words', async () => {
     const { fetch } = venue((url, body) =>
-      url.endsWith('/info')
-        ? body.type === 'meta'
-          ? testnetMeta
-          : null
-        : { status: 'err', response: `User or API Wallet ${agent} does not exist.` },
+      url.endsWith('/info') ? (body.type === 'meta' ? testnetMeta : null) : hlRecorded('unknownSigner'),
     )
     const ctx: VenueContext = {
       ref: { venue: 'hyperliquid', network: 'testnet', owner },
@@ -780,7 +777,7 @@ describe('hyperliquid module', () => {
       .catch((e: unknown) => e)
     expect(error instanceof TradeFailure && error.error).toEqual({
       kind: 'needs-setup',
-      detail: `User or API Wallet ${agent} does not exist.`,
+      detail: (hlRecorded('unknownSigner') as { response: string }).response,
     })
   })
 
@@ -911,11 +908,7 @@ describe('hyperliquid module', () => {
 
   it('writes the agent as draft before the wallet signs, and keeps it when the venue says deposit first', async () => {
     const { fetch } = venue((url, body) =>
-      url.endsWith('/info')
-        ? body.type === 'extraAgents'
-          ? []
-          : null
-        : { status: 'err', response: `Must deposit before performing actions. User: ${owner}` },
+      url.endsWith('/info') ? (body.type === 'extraAgents' ? [] : null) : hlRecorded('approveUnfunded'),
     )
     const keys = memorySlot()
     const ctx: VenueContext = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys, fetch }
@@ -1004,7 +997,7 @@ describe('orderly module', () => {
     }
   })
 
-  it('cancels an order Orderly no longer has, by its code, but not past a key it refuses', async () => {
+  it('cancels an order Orderly no longer has or already filled, by its code, but not past a key it refuses', async () => {
     const cancel = (status: number, reply: unknown) =>
       TRADING.orderly.execute(
         {
@@ -1024,6 +1017,8 @@ describe('orderly module', () => {
     expect(await cancel(400, { success: false, code: -1006, message: 'The data is not found on the server.' })).toEqual(
       { kind: 'done', detail: 'Canceled' },
     )
+    const filled = orderlyReply('cancel-filled')
+    expect(await cancel(filled.status, filled.body)).toEqual({ kind: 'done', detail: 'Canceled' })
     const error = await cancel(401, { success: false, code: -1002, message: 'Orderly key not found' }).catch(
       (e: unknown) => e,
     )
@@ -1082,14 +1077,13 @@ describe('order lookup after an unknown outcome', () => {
   const intent = built.intent
 
   it('asks Hyperliquid for the cloid under the owner and reads found or unknownOid', async () => {
-    for (const [reply, expected] of [
-      [
-        { status: 'order', order: { status: 'filled' } },
-        { kind: 'found', detail: 'Order filled' },
-      ],
-      [{ status: 'unknownOid' }, { kind: 'absent', detail: 'Hyperliquid answered unknownOid' }],
+    for (const [name, expected] of [
+      ['lookupResting', { kind: 'found', detail: 'Order open' }],
+      ['lookupFilled', { kind: 'found', detail: 'Order filled' }],
+      ['lookupCanceled', { kind: 'found', detail: 'Order canceled' }],
+      ['lookupUnknown', { kind: 'absent', detail: 'Hyperliquid answered unknownOid' }],
     ] as const) {
-      const { fetch, sent } = venue(() => reply)
+      const { fetch, sent } = venue(() => hlRecorded(name))
       const result = await TRADING.hyperliquid.lookup(
         { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
         intent,
@@ -1102,7 +1096,7 @@ describe('order lookup after an unknown outcome', () => {
   it('does not ask Hyperliquid for a trailing stop, which carries no cloid to find it by', async () => {
     const stop = buildIntent(btc, trailing, caps)
     if (!stop.ok) throw new Error('intent')
-    const { fetch, sent } = venue(() => ({ status: 'unknownOid' }))
+    const { fetch, sent } = venue(() => hlRecorded('lookupUnknown'))
     const ctx = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch } as const
     await expect(TRADING.hyperliquid.lookup(ctx, stop.intent)).rejects.toMatchObject({
       error: { kind: 'unsupported' },
@@ -1118,9 +1112,7 @@ describe('order lookup after an unknown outcome', () => {
     )
     if (!scale.ok || scale.intent.order.kind !== 'scale') throw new Error('intent')
     const second = scale.intent.order.legs[1]?.clientId
-    const { fetch, sent } = venue((_url, body) =>
-      body.oid === second ? { status: 'order', order: { status: 'open' } } : { status: 'unknownOid' },
-    )
+    const { fetch, sent } = venue((_url, body) => hlRecorded(body.oid === second ? 'lookupResting' : 'lookupUnknown'))
     const result = await TRADING.hyperliquid.lookup(
       { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
       scale.intent,

@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
+import { recordedWrite } from '@tape/trade/fixtures'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
 
@@ -16,10 +17,16 @@ const EMPTY: Record<string, unknown> = {
   '/v1/trades': ok({ rows: [] }),
 }
 
+/** Orderly testnet's recorded replies while a fresh wallet registered, added a key and was read back. */
+const [UNREGISTERED, NONCE, REGISTER, KEY_ADDED] = recordedWrite('orderly', 'enable').exchanges.map((e) => e.response)
+const REGISTERED = recordedWrite('orderly', 'stepsDone').exchanges[0]!.response
+const SETUP_WRITES: Record<string, unknown> = { '/v1/register_account': REGISTER, '/v1/orderly_key': KEY_ADDED }
+
 export async function fakeOrderly(page: Page, network: Network) {
   const sent: OrderlyWrite[] = []
   const registered = { value: false }
-  const venue = { sent, nonce: '194528949540', registered }
+  const nonce = (NONCE as { data: { registration_nonce: string } }).data.registration_nonce
+  const venue = { sent, nonce, registered }
   const reply = (route: Route, json: unknown) =>
     route.fulfill({ json, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } })
   await page.route(`${API[network]}/v1/**`, (route) => {
@@ -29,14 +36,10 @@ export async function fakeOrderly(page: Page, network: Network) {
     if (request.method() === 'POST') {
       sent.push({ path, body: request.postDataJSON() as Record<string, unknown> })
       if (path === '/v1/register_account') registered.value = true
-      return reply(route, ok({ account_id: '0x01', id: 1, order_id: 5 }))
+      return reply(route, SETUP_WRITES[path] ?? ok({ order_id: 5 }))
     }
-    if (path === '/v1/get_account')
-      return reply(
-        route,
-        registered.value ? ok({ account_id: '0x01' }) : { success: false, code: -1003, message: 'account not exist' },
-      )
-    if (path === '/v1/registration_nonce') return reply(route, ok({ registration_nonce: venue.nonce }))
+    if (path === '/v1/get_account') return reply(route, registered.value ? REGISTERED : UNREGISTERED)
+    if (path === '/v1/registration_nonce') return reply(route, NONCE)
     if (path in EMPTY) return reply(route, EMPTY[path])
     return route.fallback()
   })

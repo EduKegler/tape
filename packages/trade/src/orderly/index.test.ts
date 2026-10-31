@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ed25519 } from '@noble/curves/ed25519'
+import fc from 'fast-check'
 import { base58, base64url } from '@scure/base'
 import { hexToBytes, stringToBytes } from 'viem'
 import type { Hex } from 'viem'
@@ -7,7 +8,9 @@ import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
+import { recordedWrite } from '../fixtures'
 import { buildIntent } from '../intent'
+import type { IntentDraft } from '../intent'
 import { TradeFailure } from '../types'
 import type { Bps, Eip712, KeySlot, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { orderly } from '.'
@@ -44,7 +47,20 @@ const draft = {
   activation: '',
 } as const
 
-const INFO = '{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001}}'
+// The tick, step and price range of the recorded api.orderly.org/v1/public/info/PERP_BTC_USDC frame.
+const INFO = '{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001,"price_range":0.0094}}'
+// The example reply on Orderly's public orderbook query page.
+const BOOK =
+  '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":"77338.35","spread":"1.70","asks":[{"price":"77339.20","quantity":"0.45"}],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123},"ts":1779269143700}'
+const futures = (mark: string) => `{"success":true,"data":{"symbol":"PERP_BTC_USDC","mark_price":${mark}}}`
+const MARKET_READS = [
+  {
+    method: 'POST',
+    url: 'https://testnet-api.orderly.org/v1/public/query',
+    body: '{"type":"orderbook","symbol":"PERP_BTC_USDC","max_level":1}',
+  },
+  { method: 'GET', url: 'https://testnet-api.orderly.org/v1/public/futures/PERP_BTC_USDC', body: undefined },
+]
 // The example reply on Orderly's POST /v1/order page.
 const PLACED =
   '{"success":true,"timestamp":1702989203989,"data":{"order_id":13,"client_order_id":"testclientid","order_type":"LIMIT","order_price":100.12,"order_quantity":0.987654,"error_message":"none"}}'
@@ -91,7 +107,7 @@ function orderlyAt(
   return { ctx, sent, reads, headers }
 }
 
-function intentOf(fields: Partial<typeof draft> | Record<string, string>, spec = perp) {
+function intentOf(fields: Partial<IntentDraft>, spec = perp) {
   const built = buildIntent(spec, { ...draft, ...fields }, orderly.capabilities)
   if (!built.ok) throw new Error(JSON.stringify(built.errors))
   return built.intent
@@ -144,30 +160,28 @@ describe('orderly orders', () => {
     }
   })
 
+  const marketAt = (mark: string) =>
+    orderlyAt((s) => ({
+      body: s.url.endsWith('/v1/public/query') ? BOOK : s.url.includes('/v1/public/futures/') ? futures(mark) : PLACED,
+    }))
+
   it('sends a market order as an IOC limit at the far touch moved by the slippage', async () => {
-    // The example reply on Orderly's public orderbook query page.
-    const book =
-      '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":"77338.35","spread":"1.70","asks":[{"price":"77339.20","quantity":"0.45"}],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123},"ts":1779269143700}'
-    // 1% past the far touch, then onto the 0.1 tick inside it: 77339.2 × 1.01 = 78112.592 down to 78112.5,
-    // and 77337.5 × 0.99 = 76564.125 up to 76564.2.
+    // 0.5% past the far touch, then onto the 0.1 tick inside it: 77339.2 × 1.005 = 77725.896 down to 77725.8,
+    // and 77337.5 × 0.995 = 76950.8125 up to 76950.9. Both sit inside 0.94% of a mark at the mid.
     const cases = [
-      ['buy', 'BUY', '78112.5'],
-      ['sell', 'SELL', '76564.2'],
+      ['buy', 'BUY', '77725.8'],
+      ['sell', 'SELL', '76950.9'],
     ] as const
     for (const [side, wire, limit] of cases) {
-      const { ctx, sent } = orderlyAt((s) => ({ body: s.url.endsWith('/v1/public/query') ? book : PLACED }))
-      const intent = intentOf({ side, kind: 'market', price: '' })
+      const { ctx, sent } = marketAt('77338.3')
+      const intent = intentOf({ side, kind: 'market', price: '', slippage: 50 as Bps })
       expect(await orderly.execute(ctx, { kind: 'place', intent })).toEqual({
         kind: 'placed',
         status: 'accepted',
         detail: 'Order 13',
       })
       expect(sent).toEqual([
-        {
-          method: 'POST',
-          url: 'https://testnet-api.orderly.org/v1/public/query',
-          body: '{"type":"orderbook","symbol":"PERP_BTC_USDC","max_level":1}',
-        },
+        ...MARKET_READS,
         {
           method: 'POST',
           url: 'https://testnet-api.orderly.org/v1/order',
@@ -177,9 +191,92 @@ describe('orderly orders', () => {
     }
   })
 
+  it('keeps a market order inside the price range Orderly allows around the mark', async () => {
+    // Orderly's Order Price Limit page: a buy at most mark × (1 + price range), a sell at least mark × (1 - price
+    // range). 1% past the far touch passes 0.94% of a mark at the mid, so the limit stops at the range instead:
+    // 77338.3 × 1.0094 = 78065.28002 down to 78065.2, and 77338.3 × 0.9906 = 76611.31998 up to 76611.4.
+    const cases = [
+      ['buy', 'BUY', '78065.2'],
+      ['sell', 'SELL', '76611.4'],
+    ] as const
+    for (const [side, wire, limit] of cases) {
+      const { ctx, sent } = marketAt('77338.3')
+      const intent = intentOf({ side, kind: 'market', price: '' })
+      expect(await orderly.execute(ctx, { kind: 'place', intent })).toMatchObject({ kind: 'placed' })
+      expect(sent.at(-1)?.body).toBe(
+        `{"symbol":"PERP_BTC_USDC","client_order_id":"${intent.clientId}","order_type":"IOC","order_price":${limit},"order_quantity":0.001,"side":"${wire}","reduce_only":false}`,
+      )
+    }
+  })
+
+  it('never prices a market order past the slippage or past the price range around the mark', async () => {
+    const tenths = (units: number) => `${Math.floor(units / 10)}.${units % 10}`
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom('buy' as const, 'sell' as const),
+        fc.integer({ min: 100_000, max: 2_000_000 }),
+        fc.integer({ min: -20_000, max: 20_000 }),
+        fc.constantFrom(10, 50, 100, 300),
+        async (side, mark, offset, slippage) => {
+          const far = mark + offset
+          const book = `{"success":true,"data":{"asks":[{"price":"${tenths(far)}"}],"bids":[{"price":"${tenths(far)}"}]}}`
+          const { ctx, sent } = orderlyAt((s) => ({
+            body: s.url.endsWith('/v1/public/query')
+              ? book
+              : s.url.includes('/v1/public/futures/')
+                ? futures(tenths(mark))
+                : PLACED,
+          }))
+          const intent = intentOf({ side, kind: 'market', price: '', slippage: slippage as Bps })
+          await orderly.execute(ctx, { kind: 'place', intent })
+          const price = Math.round(Number(/"order_price":([\d.]+)/.exec(sent.at(-1)?.body ?? '')?.[1]) * 10)
+          const sign = side === 'buy' ? 1 : -1
+          const rangeLimit = side === 'buy' ? mark * 10_094 : mark * 9_906
+          const slippageLimit = far * (10_000 + sign * slippage)
+          expect({
+            insideRange: sign * (rangeLimit - price * 10_000) >= 0,
+            insideSlippage: sign * (slippageLimit - price * 10_000) >= 0,
+          }).toEqual({ insideRange: true, insideSlippage: true })
+        },
+      ),
+    )
+  })
+
+  it('refuses a market order with no price range or mark from Orderly, and sends no order', async () => {
+    const doge = {
+      ...perp,
+      key: marketKey('orderly', 'DOGE' as Base),
+      base: 'DOGE' as Base,
+      venueSymbol: 'PERP_DOGE_USDC',
+    }
+    const noRange = orderlyAt(
+      () => ({ body: PLACED }),
+      () => new Response('{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001}}'),
+    )
+    expect(
+      await failureOf(
+        orderly.execute(noRange.ctx, { kind: 'place', intent: intentOf({ kind: 'market', price: '' }, doge) }),
+      ),
+    ).toEqual({ kind: 'unreachable', detail: 'Orderly sent no price range for PERP_DOGE_USDC' })
+    expect(noRange.sent).toEqual([])
+    const noMark = orderlyAt((s) => ({
+      body: s.url.endsWith('/v1/public/query')
+        ? BOOK
+        : s.url.includes('/v1/public/futures/')
+          ? '{"success":true,"data":{}}'
+          : PLACED,
+    }))
+    expect(
+      await failureOf(orderly.execute(noMark.ctx, { kind: 'place', intent: intentOf({ kind: 'market', price: '' }) })),
+    ).toEqual({ kind: 'unreachable', detail: 'Orderly sent no mark price for PERP_BTC_USDC' })
+    expect(noMark.sent).toEqual(MARKET_READS)
+  })
+
   it('refuses a market order against an empty side of the book and sends no order', async () => {
-    const { ctx, sent } = orderlyAt(() => ({
-      body: '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":null,"spread":null,"asks":[],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123}}',
+    const { ctx, sent } = orderlyAt((s) => ({
+      body: s.url.includes('/v1/public/futures/')
+        ? futures('77338.3')
+        : '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":null,"spread":null,"asks":[],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123}}',
     }))
     expect(
       await failureOf(orderly.execute(ctx, { kind: 'place', intent: intentOf({ kind: 'market', price: '' }) })),
@@ -187,7 +284,7 @@ describe('orderly orders', () => {
       kind: 'invalid-order',
       detail: 'The book on this network is empty',
     })
-    expect(sent.map((s) => s.url)).toEqual(['https://testnet-api.orderly.org/v1/public/query'])
+    expect(sent).toEqual(MARKET_READS)
   })
 
   it('refuses an intent carrying a take profit or stop loss and sends nothing', async () => {
@@ -266,8 +363,6 @@ describe('orderly refusals', () => {
         'Risk exposure is too high. This may be caused by a large order size or low leverage. Check current exposure via the client info endpoint.',
         'insufficient-margin',
       ],
-      [400, -1103, 'Order price does not match the tick size.', 'invalid-order'],
-      [400, -1104, 'Order quantity does not match the step size.', 'invalid-order'],
       [429, -1003, 'Rate limit exceeded.', 'rate-limited'],
     ] as const
     for (const [status, code, message, kind] of cases) {
@@ -282,6 +377,24 @@ describe('orderly refusals', () => {
       kind: 'rate-limited',
       detail: 'Too Many Requests',
     })
+  })
+
+  it('classifies the refusals Orderly testnet sent by code and message', async () => {
+    for (const [name, kind] of [
+      ['insufficientMargin', 'insufficient-margin'],
+      ['offTick', 'invalid-order'],
+      ['offStep', 'invalid-order'],
+      ['unregistered', 'needs-setup'],
+      ['reduceOnly', 'rejected'],
+      ['minimumValue', 'invalid-order'],
+    ] as const) {
+      const { status, response } = recordedWrite('orderly', name).exchanges[0]!
+      const { ctx } = orderlyAt(() => ({ status, body: JSON.stringify(response) }))
+      expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent: intentOf({}) }))).toEqual({
+        kind,
+        detail: (response as { message: string }).message,
+      })
+    }
   })
 
   it("refuses an order off this network's tick or step before signing", async () => {
@@ -694,18 +807,18 @@ describe('orderly setup', () => {
   // in packages/trade/src/__fixtures__/history.orderly.json.
   const owner = '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6'
   const account = '0xd96bacbff940748d1215f933fc6c04d6798eb9fbd8926fe2388d02eb31003655'
+  /** Orderly testnet's replies while a fresh wallet registered, added a key and read both back. */
+  const [, nonceReply, registerReply, keyReply] = recordedWrite('orderly', 'enable').exchanges.map((e) => e.response)
+  const keyRead = recordedWrite('orderly', 'stepsDone').exchanges[1]!.response as { data: Record<string, unknown> }
+  const UNREGISTERED = JSON.stringify(recordedWrite('orderly', 'steps').exchanges[0]!.response)
   // Recorded from testnet-api.orderly.org and api.orderly.org on 2026-10-31.
-  const UNREGISTERED = '{"success":false,"code":-1607,"message":"Account not found."}'
   const REGISTERED = `{"success":true,"data":{"user_id":1476258,"account_id":"${account}"},"timestamp":1793452555211}`
-  const NONCE = '{"success":true,"data":{"registration_nonce":"154330517462"},"timestamp":1793452555582}'
   const NO_KEY = '{"success":false,"code":-1617,"message":"orderlyKey is not exist"}'
-  // The example replies of GET /v1/get_orderly_key, POST /v1/register_account and POST /v1/orderly_key in
-  // Orderly's OpenAPI spec. The key example expired in 2023.
-  const keyUntil = (expiration: number) =>
-    `{"success":true,"timestamp":1702989203989,"data":{"orderly_key":"ed25519:7tEoJo5hMBKBrQsqmc8yw1xNfoQCFQBVwQT1eFafRNRf","scope":"read,trading","expiration":${expiration},"tag":"<string>"}}`
-  const REGISTER = `{"success":true,"timestamp":1702989203989,"data":{"account_id":"${account}"}}`
-  const KEY_ADDED =
-    '{"success":true,"timestamp":1702989203989,"data":{"id":123,"orderly_key":"ed25519:FRXntsPJBCy6dzKv9WPw4eYSw3rKU9Npz3T6UmvvJc9Z"}}'
+  const NONCE = JSON.stringify(nonceReply)
+  const nonce = (nonceReply as { data: { registration_nonce: string } }).data.registration_nonce
+  const keyUntil = (expiration: number) => JSON.stringify({ ...keyRead, data: { ...keyRead.data, expiration } })
+  const REGISTER = JSON.stringify(registerReply)
+  const KEY_ADDED = JSON.stringify(keyReply)
   const now = Date.UTC(2026, 9, 31, 12)
   const SIGNATURE: Hex = `0x${'ab'.repeat(65)}`
   const secret: Hex = `0x${'11'.repeat(32)}`
@@ -815,7 +928,7 @@ describe('orderly setup', () => {
       { status: 'linked', public: { key: id }, secret: drafted?.secret },
     ])
     expect(linked?.secret).toMatch(/^0x[0-9a-f]{64}$/)
-    const registration = { brokerId: 'flipper', chainId: 421614, timestamp: now, registrationNonce: '154330517462' }
+    const registration = { brokerId: 'flipper', chainId: 421614, timestamp: now, registrationNonce: nonce }
     const addKey = {
       brokerId: 'flipper',
       chainId: 421614,

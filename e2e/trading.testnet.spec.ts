@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { Locator, Page, Route } from '@playwright/test'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
-import { ACCEPTED, fakeHyperliquid, resting } from './hyperliquid'
+import { ACCEPTED, UNKNOWN_OID, fakeHyperliquid, resting } from './hyperliquid'
 import type { Answer, ExchangeBody } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
 
@@ -488,7 +488,7 @@ test('a trailing stop write that times out shows an unknown outcome and lets the
   const asked: string[] = []
   hyperliquid.orderStatus = (cloid) => {
     asked.push(cloid)
-    return { status: 'unknownOid' }
+    return UNKNOWN_OID
   }
   await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Retracement (%)' }).fill('1')
@@ -568,7 +568,7 @@ test('a write that times out shows an unknown outcome and asks the venue by clie
   const asked: string[] = []
   hyperliquid.orderStatus = (cloid) => {
     asked.push(cloid)
-    return { status: 'unknownOid' }
+    return UNKNOWN_OID
   }
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
@@ -609,7 +609,7 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
   await ticket.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit())
   expect(orders(hyperliquid.sent)).toHaveLength(1)
 
-  status.resolve({ status: 'unknownOid' })
+  status.resolve(UNKNOWN_OID)
   await expect(ticket.getByRole('alert')).toContainText('The venue does not show this order.')
   await expect(ticket.getByRole('button', { name: 'Send again: Buy BTC' })).toBeEnabled()
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
