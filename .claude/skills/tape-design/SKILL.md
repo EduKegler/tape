@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `Search`, `Select` and `Table`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Search`, `Select`, `Table` and `TextLink`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 
@@ -31,7 +31,7 @@ A panel fed by a hub topic passes `<TopicStatus topic={…} />` to `Panel`'s `st
 - Old data stays readable, with its age beside the title.
 - A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text. Outside a hub panel it goes through `ReadNote`, which takes its reason from `readFailure`.
 - Before the first frame the panel says `Loading…` and shows no placeholder number. With the socket down it names the venue it waits for.
-- A legitimately empty result is plain `level3` text in place of the data.
+- A legitimately empty result is plain `level3` text in place of the data, drawn by `NoData`.
 - The panel state speaks through `aria-live="polite"` with no role, because the ticket's order outcome owns `role="status"` and `role="alert"`.
 
 ## Orders and confirmation
@@ -54,6 +54,7 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 - `rounded-full`, shadows, and any class outside the closed scales;
 - a padding, margin or gap off the steps in `SPACING_STEPS` of `eslint.config.js`. Sizes such as `w-` and `h-` stay free;
 - a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
+- an `underline` outside `src/ui/primitives`. A link is `TextLink`, or `Button` with look `link`;
 - a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
 - a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn` or `accent`;
 - an animation without `motion-safe:`.

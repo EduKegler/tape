@@ -57,6 +57,13 @@ const SIDE_CLASSES = {
   message: 'bid and ask mean side. A file that shows a side goes on SIDE_FILES, and a warning or an error uses warn.',
 }
 
+const LINK_CLASSES = {
+  pattern: '^(?:[^:]+:)*!?underline(?:-offset-\\d+)?$',
+  message: 'An underline marks a link. Use TextLink, or Button with look link, from src/ui/primitives.',
+}
+
+const PRIMITIVES = 'src/ui/primitives/**'
+
 const SIDE_FILES = [
   'src/ui/Account.tsx',
   'src/ui/Compare.tsx',
@@ -154,6 +161,23 @@ export default [
     ignores: SIDE_FILES,
     rules: {
       'better-tailwindcss/no-restricted-classes': ['error', { restrict: [...TOKEN_CLASSES, SIDE_CLASSES] }],
+    },
+  },
+  {
+    files: ['src/**/*.tsx'],
+    ignores: [...SIDE_FILES, PRIMITIVES],
+    rules: {
+      'better-tailwindcss/no-restricted-classes': [
+        'error',
+        { restrict: [...TOKEN_CLASSES, SIDE_CLASSES, LINK_CLASSES] },
+      ],
+    },
+  },
+  {
+    files: SIDE_FILES,
+    ignores: [PRIMITIVES],
+    rules: {
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: [...TOKEN_CLASSES, LINK_CLASSES] }],
     },
   },
   {
