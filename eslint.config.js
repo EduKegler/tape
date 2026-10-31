@@ -271,6 +271,10 @@ export default [
     },
   },
   {
+    files: ['**/*.{js,ts,tsx}'],
+    rules: { 'id-length': ['error', { min: 2, properties: 'never', exceptions: ['_'] }] },
+  },
+  {
     rules: {
       'sort-imports': 'off',
       '@typescript-eslint/array-type': 'off',
