@@ -16,7 +16,7 @@ import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
 import { buildIntent, closeIntent, splitSize } from './intent'
 import type { IntentDraft, TakeProfitDraft } from './intent'
-import type { Bps, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
+import type { Bps, Capabilities, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
 import { domainTypes, walletJson } from './wallet'
 import { TRADING } from './index'
@@ -33,6 +33,7 @@ const btc: MarketSpec = {
   step: 1 as Qty,
 }
 const caps = TRADING.hyperliquid.capabilities
+const fourTriggers: Capabilities = { ...caps, triggers: { orders: 4 } }
 const draft = {
   side: 'buy',
   kind: 'limit',
@@ -114,7 +115,7 @@ describe('order intent', () => {
 
   it('splits the size across take profits by whole percent, floored to the step with the rest on the last', () => {
     const three = [tp('82000', '40'), tp('84000', '30'), tp('86000', '30')]
-    const built = buildIntent(btc, { ...draft, takeProfits: three }, caps)
+    const built = buildIntent(btc, { ...draft, takeProfits: three }, fourTriggers)
     expect(built.ok && built.intent.triggers.takeProfits).toEqual([
       { px: 820_000, size: 40 },
       { px: 840_000, size: 30 },
@@ -150,7 +151,7 @@ describe('order intent', () => {
 
   it('refuses take profit sizes that miss the order size and names the size left over', () => {
     const errors = (takeProfits: readonly TakeProfitDraft[], size = '0.001') => {
-      const built = buildIntent(btc, { ...draft, size, takeProfits }, caps)
+      const built = buildIntent(btc, { ...draft, size, takeProfits }, fourTriggers)
       return built.ok ? {} : built.errors
     }
     expect(errors([tp('82000', '40'), tp('84000', '30'), tp('86000', '20')])).toEqual({
@@ -169,23 +170,26 @@ describe('order intent', () => {
   it('names the take profit on the wrong side of the touch', () => {
     const market = { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010' } as const
     const takeProfits = [tp('82000', '50'), tp('80000', '25'), tp('83000', '25')]
-    const built = buildIntent(btc, { ...market, takeProfits }, caps)
+    const built = buildIntent(btc, { ...market, takeProfits }, fourTriggers)
     expect(!built.ok && built.errors).toEqual({ takeProfit2: 'Must be above the ask' })
   })
 
-  it('takes up to four take profits on Hyperliquid and none on Orderly or dYdX', () => {
-    const errors = (takeProfits: readonly TakeProfitDraft[], c = caps) => {
-      const built = buildIntent(btc, { ...draft, takeProfits }, c)
+  it('takes 2 take profits and stop losses together on Hyperliquid and none on Orderly or dYdX', () => {
+    const errors = (takeProfits: readonly TakeProfitDraft[], stopLoss = '', c = caps) => {
+      const built = buildIntent(btc, { ...draft, takeProfits, stopLoss }, c)
       return built.ok ? {} : built.errors
     }
-    const quarter = (price: string) => tp(price, '25')
-    expect(errors(['81000', '82000', '83000', '84000'].map(quarter))).toEqual({})
-    expect(errors(['81000', '82000', '83000', '84000', '85000'].map((p) => tp(p, '20')))).toEqual({
-      takeProfits: 'At most 4 on this venue',
+    const halves = [tp('81000', '50'), tp('82000', '50')]
+    expect(errors(halves)).toEqual({})
+    expect(errors([tp('81000')], '79000')).toEqual({})
+    expect(errors([], '79000')).toEqual({})
+    expect(errors([tp('81000', '40'), tp('82000', '30'), tp('83000', '30')])).toEqual({
+      takeProfits: 'At most 2 on this venue',
     })
+    expect(errors(halves, '79000')).toEqual({ takeProfits: 'At most 1 with a stop loss on this venue' })
     for (const other of [TRADING.orderly, TRADING.dydx]) {
-      expect(errors([tp('82000')], other.capabilities)).toEqual({ takeProfits: 'Not offered on this venue' })
-      expect(errors([tp('82000', '50'), tp('84000', '50')], other.capabilities)).toEqual({
+      expect(errors([tp('82000')], '', other.capabilities)).toEqual({ takeProfits: 'Not offered on this venue' })
+      expect(errors([tp('82000', '50'), tp('84000', '50')], '', other.capabilities)).toEqual({
         takeProfits: 'Not offered on this venue',
       })
     }
@@ -552,8 +556,6 @@ describe('hyperliquid module', () => {
                   { resting: { oid: 7 } },
                   'waitingForFill',
                   { error: 'Order must have minimum value of $10.' },
-                  'waitingForFill',
-                  'waitingForFill',
                 ],
               },
             },
@@ -565,8 +567,7 @@ describe('hyperliquid module', () => {
         ...draft,
         bid: '79990',
         ask: '80010',
-        takeProfits: [tp('82000', '40'), tp('84000', '30'), tp('86000', '30')],
-        stopLoss: '78000',
+        takeProfits: [tp('82000', '60'), tp('84000', '40')],
       },
       caps,
     )
@@ -595,10 +596,8 @@ describe('hyperliquid module', () => {
       type: 'order',
       orders: [
         { a: 3, b: true, p: '80000', s: '0.001', r: false, t: { limit: { tif: 'Gtc' } }, c: built.intent.clientId },
-        exit('tp', '82000', '73800', '0.0004'),
-        exit('tp', '84000', '75600', '0.0003'),
-        exit('tp', '86000', '77400', '0.0003'),
-        exit('sl', '78000', '70200', '0.001'),
+        exit('tp', '82000', '73800', '0.0006'),
+        exit('tp', '84000', '75600', '0.0004'),
       ],
       grouping: 'normalTpsl',
     })

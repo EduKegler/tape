@@ -469,18 +469,22 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                       )}
                     </div>
                   ))}
-                  {count < (caps.triggers?.takeProfits ?? 0) && (
-                    <Button
-                      look="quiet"
-                      className="self-start"
-                      onClick={() => {
-                        rows.pushValue({ price: '', share: '' })
-                        reshare(count + 1)
-                      }}
-                    >
-                      Add take profit
-                    </Button>
-                  )}
+                  <form.Subscribe selector={(s) => s.values.stopLoss !== ''}>
+                    {(withStop) =>
+                      count + (withStop ? 1 : 0) < (caps.triggers?.orders ?? 0) && (
+                        <Button
+                          look="quiet"
+                          className="self-start"
+                          onClick={() => {
+                            rows.pushValue({ price: '', share: '' })
+                            reshare(count + 1)
+                          }}
+                        >
+                          Add take profit
+                        </Button>
+                      )
+                    }
+                  </form.Subscribe>
                 </>
               )
             }}

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address } from 'viem'
-import type { Qty } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
@@ -417,6 +417,26 @@ describe('hyperliquid exits', () => {
       detail: 'Stop loss: Must be below the bid on this network',
     })
     expect(posts()).toEqual([])
+  })
+
+  it('refuses more than 2 triggers on one order and sends nothing', async () => {
+    const { ctx, sent } = venue(() => statuses([]))
+    const command = place({})
+    if (command.kind !== 'place') throw new Error('place')
+    const triggers = {
+      takeProfits: [
+        { px: 820_000 as Px, size: 50 as Qty },
+        { px: 840_000 as Px, size: 50 as Qty },
+      ],
+      stopLoss: 780_000 as Px,
+    }
+    expect(
+      await failureOf(hyperliquid.execute(ctx, { kind: 'place', intent: { ...command.intent, triggers } })),
+    ).toEqual({
+      kind: 'invalid-order',
+      detail: 'At most 2 take profits and stop losses on one order',
+    })
+    expect(sent).toEqual([])
   })
 })
 

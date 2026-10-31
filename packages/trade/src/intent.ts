@@ -247,9 +247,10 @@ function takeProfitsOf(
   errors: Errors,
 ): readonly TakeProfit[] {
   const rows = draft.takeProfits
-  const most = caps.triggers?.takeProfits ?? 0
+  const withStop = draft.stopLoss !== ''
+  const most = (caps.triggers?.orders ?? 0) - (withStop ? 1 : 0)
   if (rows.length > most) {
-    errors.takeProfits = `At most ${most} on this venue`
+    errors.takeProfits = withStop ? `At most ${most} with a stop loss on this venue` : `At most ${most} on this venue`
     return []
   }
   rows.forEach((row, i) => {
