@@ -29,3 +29,21 @@ export function describeError(error: TradeError): { readonly title: string; read
       return { title: 'Something went wrong in Tape.', detail: error.detail }
   }
 }
+
+const ORDER_RESULT: Record<TradeError['kind'], string> = {
+  'wallet-rejected': 'Not sent',
+  'needs-setup': 'Not sent',
+  'no-account': 'Rejected',
+  'insufficient-margin': 'Rejected',
+  'invalid-order': 'Rejected',
+  rejected: 'Rejected',
+  'rate-limited': 'Rejected',
+  unsupported: 'Rejected',
+  unreachable: 'Not sent',
+  'unknown-outcome': 'No answer',
+  unexpected: 'Failed',
+}
+
+export function orderResult(error: TradeError): string {
+  return ORDER_RESULT[error.kind]
+}
