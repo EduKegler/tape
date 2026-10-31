@@ -4,7 +4,7 @@ import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
-import { Panel } from './Panel'
+import { Panel, useRowKeys } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
@@ -29,6 +29,7 @@ export function OrderBook({
     (f) => ({ group: f?.group ?? group, options: f?.groupOptions.join('|') ?? '', status: f?.status ?? 'syncing' }),
     shallow,
   )
+  const keys = useRowKeys()
   return (
     <Panel
       title="Order book"
@@ -56,16 +57,18 @@ export function OrderBook({
           <span className="text-right">Size</span>
           <span className="text-right">Total</span>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">
-          {ASK_SLOTS.map((i) => (
-            <Row key={`a${i}`} topic={topic} side="asks" index={i} />
-          ))}
-        </div>
-        <Spread topic={topic} />
-        <div className="flex min-h-0 flex-1 flex-col">
-          {BID_SLOTS.map((i) => (
-            <Row key={`b${i}`} topic={topic} side="bids" index={i} />
-          ))}
+        <div role="group" aria-label="Price levels" {...keys} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
+            {ASK_SLOTS.map((i) => (
+              <Row key={`a${i}`} topic={topic} side="asks" index={i} />
+            ))}
+          </div>
+          <Spread topic={topic} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            {BID_SLOTS.map((i) => (
+              <Row key={`b${i}`} topic={topic} side="bids" index={i} />
+            ))}
+          </div>
         </div>
       </div>
     </Panel>
@@ -78,7 +81,8 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
   return (
     <Button
       look="row"
-      tabIndex={row.px ? 0 : -1}
+      data-row
+      tabIndex={-1}
       aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
       className="relative grid min-h-0 w-full flex-1 grid-cols-3 items-center px-3"

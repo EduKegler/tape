@@ -3,7 +3,7 @@ import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import type { CompareRow } from '#/core/topics'
 import { VENUES } from '#/site'
-import { Panel } from './Panel'
+import { Panel, useRowKeys } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Table } from './primitives'
 import type { Column } from './primitives'
@@ -29,21 +29,24 @@ const NO_ROWS: CompareRow[] = []
 export function Compare({ base, current }: { base: Base; current: VenueId }) {
   const rows = useFrame({ kind: 'compare', base }, (f) => (f?.rows as CompareRow[] | undefined) ?? NO_ROWS)
   const navigate = useNavigate()
+  const keys = useRowKeys()
   return (
     <Panel
       title="Venues"
       status={<TopicStatus topic={{ kind: 'compare', base }} />}
       aside={<span className="text-xs text-level3">{base} · basis in bps</span>}
     >
-      <Table
-        rows={rows}
-        rowKey={(r) => r.venue}
-        columns={columns}
-        isCurrent={(r) => r.venue === current}
-        onRowClick={(r) =>
-          listed(r) && void navigate({ to: '/$venue/$base', params: { venue: r.venue, base }, search: (s) => s })
-        }
-      />
+      <div role="group" aria-label="Venue list" {...keys}>
+        <Table
+          rows={rows}
+          rowKey={(r) => r.venue}
+          columns={columns}
+          isCurrent={(r) => r.venue === current}
+          onRowClick={(r) =>
+            listed(r) && void navigate({ to: '/$venue/$base', params: { venue: r.venue, base }, search: (s) => s })
+          }
+        />
+      </div>
     </Panel>
   )
 }
