@@ -259,6 +259,20 @@ describe('orderly cancels', () => {
       { method: 'DELETE', url: 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC', body: undefined },
     ])
   })
+
+  it('sets the leverage of the whole account with the request Orderly documents', async () => {
+    // The example reply of POST /v1/client/leverage in Orderly's OpenAPI spec.
+    const { ctx, sent } = orderlyAt(() => ({
+      body: '{"success":true,"timestamp":1702989203989,"data":{"symbol":"PERP_BTC_USDC","margin_mode":"ISOLATED","leverage":19}}',
+    }))
+    expect(await orderly.execute(ctx, { kind: 'leverage', symbol: 'PERP_BTC_USDC', leverage: 5 })).toEqual({
+      kind: 'done',
+      detail: 'Account leverage 5x',
+    })
+    expect(sent).toEqual([
+      { method: 'POST', url: 'https://testnet-api.orderly.org/v1/client/leverage', body: '{"leverage":5}' },
+    ])
+  })
 })
 
 describe('orderly reads', () => {
