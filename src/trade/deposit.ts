@@ -16,6 +16,7 @@ import { addDeposit, depositsSnapshot, parseDeposits, subscribeVault, updateDepo
 import type { DepositRecord } from './vault'
 
 const PROGRESS_POLL_MS = 4_000
+const watchEnded = (p: DepositProgress | undefined) => p?.stage === 'unresolved'
 
 type ChainId = (typeof wagmiConfig.chains)[number]['id']
 const wagmiChain = (id: number) => id as ChainId
@@ -310,7 +311,8 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
               return p
             }
           : skipToken,
-      refetchInterval: PROGRESS_POLL_MS,
+      refetchInterval: (q) => (watchEnded(q.state.data) ? false : PROGRESS_POLL_MS),
+      staleTime: (q) => (watchEnded(q.state.data) ? Infinity : 0),
     }),
   )
   const late = usePassed(route ? record.sentAt + route.eta.worst * 1000 : Infinity)

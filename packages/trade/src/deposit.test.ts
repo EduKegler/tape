@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Address, Hex } from 'viem'
 import { burnToHyperCore } from './cctp'
 import { depositIssues, parseUsdc } from './deposit'
@@ -192,60 +193,6 @@ describe('Hyperliquid CCTP deposit', () => {
     expect(asked).toEqual(['https://iris-api.circle.com/v2/burn/USDC/fees/6/19?forward=true&hyperCoreDeposit=true'])
   })
 
-  it('follows the burn through Circle to the send Hyperliquid books from the CoreDepositWallet', async () => {
-    const recipient: Address = '0xefc1aaf1ced837a170c2cad8d0551a49b31a2458'
-    const sent: SentDeposit = {
-      ref: { venue: 'hyperliquid', network: 'mainnet', owner: recipient },
-      chainId: 8453,
-      amount: 10_000_000_000n,
-      hash: '0x984cf110c222b69d4d4f6b9b281957afb58327de519ffc457365f6be24ef46d7',
-      sentAt: 1_793_320_800_000,
-      claimed: new Set(),
-    }
-    const credit = {
-      time: 1_793_320_818_376,
-      hash: '0x85e38878870112a1875d0447a7792800001ea05e2204317329ac33cb4604ec8c',
-      delta: {
-        type: 'send',
-        user: '0x6b9e773128f453f5c2c60935ee2de2cbc5390a24',
-        destination: recipient,
-        sourceDex: 'spot',
-        destinationDex: '',
-        token: 'USDC',
-        amount: '9999.8',
-      },
-    }
-    const answer = (circle: unknown, ledger: unknown[]) =>
-      (async (url: string) =>
-        url.includes('circle')
-          ? new Response(JSON.stringify(circle), { status: circle ? 200 : 404 })
-          : new Response(JSON.stringify(ledger))) as typeof globalThis.fetch
-    const forwarded = {
-      messages: [
-        {
-          status: 'complete',
-          forwardState: 'COMPLETE',
-          forwardTxHash: '0xe7517ef6e8d20dcc5baa413981d377935d544f1379c907e2139477fc3e85ac84',
-          decodedMessage: { decodedMessageBody: { feeExecuted: '200000' } },
-        },
-      ],
-    }
-    expect(await base.progress(answer(null, []), sent)).toMatchObject({ stage: 'relaying' })
-    expect(await base.progress(answer({ messages: [{ status: 'pending_confirmations' }] }, []), sent)).toMatchObject({
-      stage: 'relaying',
-      detail: 'Waiting for Circle to attest the burn',
-    })
-    expect(
-      await base.progress(answer(forwarded, [{ ...credit, delta: { ...credit.delta, amount: '9999.7' } }]), sent),
-    ).toMatchObject({ stage: 'relaying' })
-    expect(await base.progress(answer(forwarded, [credit]), sent)).toEqual({
-      stage: 'credited',
-      amount: 9_999_800_000n,
-      at: credit.time,
-      receipt: credit.hash,
-    })
-  })
-
   it('takes the first matching CCTP credit after the send that no other deposit claimed', async () => {
     const wallet: Address = '0xefc1aaf1ced837a170c2cad8d0551a49b31a2458'
     const sentAt = 1_793_320_800_000
@@ -291,5 +238,104 @@ describe('Hyperliquid CCTP deposit', () => {
     })
     expect(await base.progress(fetch, sent([]))).toMatchObject({ receipt: own.hash })
     expect(await base.progress(fetch, sent([own.hash]))).toMatchObject({ receipt: later.hash })
+  })
+})
+
+interface CctpRecording {
+  readonly burn: { chainId: number; domain: number; owner: Address; amount: string; hash: Hex; sentAt: number }
+  readonly iris: Record<'unindexed' | 'unattested' | 'PENDING' | 'SENT' | 'COMPLETE', IrisReply>
+  readonly ledger: unknown[]
+}
+
+interface IrisReply {
+  readonly status: number
+  readonly body: unknown
+}
+
+describe('Circle forward to HyperCore', () => {
+  const recorded = JSON.parse(
+    readFileSync(new URL('./__fixtures__/cctp.hypercore.json', import.meta.url), 'utf8'),
+  ) as CctpRecording
+  const { burn, iris, ledger } = recorded
+  const route = routeFrom(burn.chainId)
+  const sent: SentDeposit = {
+    ref: { venue: 'hyperliquid', network: 'mainnet', owner: burn.owner },
+    chainId: burn.chainId,
+    amount: BigInt(burn.amount),
+    hash: burn.hash,
+    sentAt: burn.sentAt,
+    claimed: new Set(),
+  }
+  const message = `https://iris-api.circle.com/v2/messages/${burn.domain}?transactionHash=${burn.hash}`
+  /** Hyperliquid's send from the CoreDepositWallet: 663.093537 USDC less the 0.348633 Circle executed. */
+  const credit = {
+    stage: 'credited',
+    amount: 662_744_904n,
+    at: 1_793_408_914_355,
+    receipt: '0xfdced985e182eb01ff480447ba6bf0000009f16b7c8609d4a19784d8a086c4ec',
+  }
+  /** Circle sent no CONFIRMED, FAILED or new value while this was recorded, so those are its COMPLETE reply with the state swapped. */
+  const reporting = (forwardState: string): IrisReply => {
+    const { messages } = iris.COMPLETE.body as { messages: Record<string, unknown>[] }
+    const { destinationMintTxHash: _, ...rest } = messages[0]!
+    return { status: 200, body: { messages: [{ ...rest, forwardState }] } }
+  }
+  const answer = (reply: IrisReply, entries = ledger) => {
+    const asked: string[] = []
+    const fetch = (async (url: string) => {
+      asked.push(url)
+      return url.includes('circle')
+        ? new Response(JSON.stringify(reply.body), { status: reply.status })
+        : new Response(JSON.stringify(entries))
+    }) as typeof globalThis.fetch
+    return { fetch, asked }
+  }
+  const at = (ms: number) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(ms)
+  }
+  afterEach(() => vi.useRealTimers())
+
+  it('keeps relaying while Circle forwards, even with the credit already in the ledger', async () => {
+    at(burn.sentAt + 60_000)
+    for (const reply of [iris.unindexed, iris.unattested, iris.PENDING, iris.SENT, reporting('CONFIRMED')]) {
+      const { fetch, asked } = answer(reply)
+      expect(await route.progress(fetch, sent)).toMatchObject({ stage: 'relaying' })
+      expect(asked).toEqual([message])
+    }
+  })
+
+  it('credits what Hyperliquid booked once Circle reports the forward COMPLETE, and only that amount', async () => {
+    at(burn.sentAt + 60_000)
+    expect(await route.progress(answer(iris.COMPLETE).fetch, sent)).toEqual(credit)
+    const [booked] = ledger as { delta: Record<string, unknown> }[]
+    const other = [{ ...booked, delta: { ...booked!.delta, amount: '662.744903' } }]
+    expect(await route.progress(answer(iris.COMPLETE, other).fetch, sent)).toMatchObject({ stage: 'relaying' })
+  })
+
+  it('ends the watch for a check by hand when Circle reports FAILED or a state it does not document', async () => {
+    at(burn.sentAt + 60_000)
+    for (const state of ['FAILED', 'SOMETHING_NEW']) {
+      const { fetch, asked } = answer(reporting(state))
+      expect(await route.progress(fetch, sent)).toEqual({
+        stage: 'unresolved',
+        detail: `Circle reports the forward as ${state}, a state Tape does not know`,
+        check: { label: 'Circle message', url: message },
+      })
+      expect(asked).toEqual([message])
+    }
+  })
+
+  it('ends the watch 30 min after the send without COMPLETE, and still credits a COMPLETE after that', async () => {
+    at(burn.sentAt + 30 * 60_000)
+    expect(await route.progress(answer(iris.PENDING).fetch, sent)).toMatchObject({ stage: 'relaying' })
+    at(burn.sentAt + 30 * 60_000 + 1)
+    expect(await route.progress(answer(iris.PENDING).fetch, sent)).toEqual({
+      stage: 'unresolved',
+      detail: 'Circle has not completed the forward after 30 min',
+      check: { label: 'Circle message', url: message },
+    })
+    expect(await route.progress(answer(iris.unindexed).fetch, sent)).toMatchObject({ stage: 'unresolved' })
+    expect(await route.progress(answer(iris.COMPLETE).fetch, sent)).toEqual(credit)
   })
 })

@@ -322,8 +322,9 @@ const stageText = (status: DepositStatus, chain: string, destination: string) =>
     case 'replaced':
       return `The wallet replaced this transaction on ${chain}. Nothing was deposited`
     case 'relaying':
-    case 'stuck':
       return status.detail
+    case 'unresolved':
+      return `Check manually. ${status.detail}`
     case 'credited':
       return `Credited to ${destination} at ${clock(status.at)}`
   }
@@ -335,6 +336,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   const chain = chainName(record.chainId)
   const credited = status.stage === 'credited' ? status : null
   const failed = status.stage === 'reverted' || status.stage === 'replaced'
+  const ended = credited !== null || failed || status.stage === 'unresolved'
   const rows: [string, React.ReactNode][] = [
     ['Sent', `${usdc(record.amount)} USDC from ${chain} at ${clock(record.sentAt)}`],
     ['Transaction', <TxLink key="tx" chainId={record.chainId} hash={sentHash(record)} />],
@@ -349,12 +351,13 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   return (
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
       <p
-        role={failed || status.stage === 'stuck' ? 'alert' : 'status'}
+        role={failed || status.stage === 'unresolved' ? 'alert' : 'status'}
         className={status.stage === 'credited' ? 'text-bid' : failed ? 'text-ask' : 'text-level1'}
       >
         {stageText(status, chain, venue.destination)}
       </p>
-      {late && route && status.stage !== 'credited' && !failed && (
+      {status.stage === 'unresolved' && <CheckManually check={status.check} hash={sentHash(record)} />}
+      {late && route && !ended && (
         <p role="alert" data-deposit-late className="rounded-sm border border-ask/40 p-2 text-level2">
           Not credited after {minutes(route.eta.worst)} min, longer than this route takes.{' '}
           {status.stage === 'confirming'
@@ -371,6 +374,21 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
         ))}
       </dl>
     </section>
+  )
+}
+
+function CheckManually({ check, hash }: { check: { label: string; url: string }; hash: string }) {
+  return (
+    <div className="rounded-sm border border-ask/40 p-2 text-level2">
+      <p>
+        Open the{' '}
+        <a href={check.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+          {check.label}
+        </a>
+        , or give support the source transaction hash:
+      </p>
+      <p className="num mt-1 text-xs break-all text-level1">{hash}</p>
+    </div>
   )
 }
 
@@ -416,9 +434,11 @@ function RecentRow({
         ? 'Reverted'
         : status.stage === 'replaced'
           ? 'Replaced'
-          : late || status.stage === 'stuck'
-            ? 'Late'
-            : 'In progress'
+          : status.stage === 'unresolved'
+            ? 'Check manually'
+            : late
+              ? 'Late'
+              : 'In progress'
   return (
     <li>
       <Button

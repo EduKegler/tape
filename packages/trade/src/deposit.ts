@@ -54,7 +54,12 @@ export interface SentDeposit {
 export type DepositProgress =
   | { readonly stage: 'relaying'; readonly detail: string }
   | { readonly stage: 'credited'; readonly amount: bigint; readonly at: number; readonly receipt: string }
-  | { readonly stage: 'stuck'; readonly detail: string }
+  /** The watch ended without an outcome Tape can trust. `check` is where a person can look it up. */
+  | {
+      readonly stage: 'unresolved'
+      readonly detail: string
+      readonly check: { readonly label: string; readonly url: string }
+    }
 
 export interface DepositVenue {
   /** Where the USDC lands, in the venue's words. */

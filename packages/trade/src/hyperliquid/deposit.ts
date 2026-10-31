@@ -1,7 +1,14 @@
 import { z } from 'zod'
 import type { Address } from 'viem'
 import type { Network } from '@tape/core/ids'
-import { CORE_DEPOSIT_WALLET, TOKEN_MESSENGER_V2, burnMessage, burnToHyperCore, hyperCoreFee } from '../cctp'
+import {
+  CORE_DEPOSIT_WALLET,
+  FORWARD_WORST,
+  TOKEN_MESSENGER_V2,
+  burnToHyperCore,
+  followForward,
+  hyperCoreFee,
+} from '../cctp'
 import { approveCall, parseUsdc, transferCall } from '../deposit'
 import type { DepositProgress, DepositRoute, DepositVenue, SentDeposit } from '../deposit'
 import { post, send } from '../send'
@@ -51,8 +58,7 @@ const cctpRoute = ({ chainId, domain, token }: (typeof CCTP_SOURCES)[number]): D
   spender: TOKEN_MESSENGER_V2,
   hops: ['Circle CCTP', 'HyperEVM'],
   minimum: null,
-  // Circle can turn a Fast Transfer into a standard one, which waits 15 to 19 min for Ethereum finality.
-  eta: { typical: 60, worst: 1800 },
+  eta: { typical: 60, worst: FORWARD_WORST },
   fee: (fetch, amount) => hyperCoreFee('hyperliquid', fetch, domain, amount),
   calls: (owner, amount, fee, allowance) => [
     ...(allowance < amount ? [approveCall(token, TOKEN_MESSENGER_V2, amount)] : []),
@@ -116,16 +122,9 @@ async function cctpProgress(
   sent: SentDeposit,
   domain: number,
 ): Promise<DepositProgress> {
-  const message = await burnMessage('hyperliquid', fetch, domain, sent.hash)
-  if (!message?.attested) return { stage: 'relaying', detail: 'Waiting for Circle to attest the burn' }
-  if (message.forward === 'failed')
-    return {
-      stage: 'stuck',
-      detail:
-        'Circle reports that forwarding to Hyperliquid failed. Keep the transaction hash for Circle and Hyperliquid support',
-    }
-  if (message.forward === 'pending') return { stage: 'relaying', detail: 'Circle is forwarding it to Hyperliquid' }
-  const expected = message.feeExecuted === null ? null : sent.amount - message.feeExecuted
+  const forward = await followForward('hyperliquid', fetch, domain, sent)
+  if (forward.stage !== 'forwarded') return forward
+  const expected = forward.feeExecuted === null ? null : sent.amount - forward.feeExecuted
   const credits = (await ledger(fetch, sent)).filter(
     (e) =>
       e.delta.type === 'send'
