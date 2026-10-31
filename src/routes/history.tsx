@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { NETWORK } from '#/site'
 import { Brand } from '#/ui/Header'
 import { History, historySearch } from '#/ui/History'
@@ -15,9 +15,12 @@ function HistoryRoute() {
   const navigate = Route.useNavigate()
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule px-4 py-2">
+      <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule px-4 py-2">
         <Brand />
-        <h1 className="text-lg text-level1">History</h1>
+        <h1 className="text-base text-level1">History</h1>
+        <Link to="/" className="text-level3 hover:text-level1">
+          Back to trading
+        </Link>
         <div className="ml-auto">
           <WalletButton />
         </div>

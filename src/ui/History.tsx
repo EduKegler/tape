@@ -196,7 +196,7 @@ function Addresses({
           placeholder={fallback.wallet ?? '0x…'}
           spellCheck={false}
           aria-invalid={!walletOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
+          className="num h-7 rounded-sm border border-edge bg-inset px-2 text-sm text-level1"
         />
       </label>
       <label className="flex flex-col gap-1 text-level3">
@@ -207,10 +207,10 @@ function Addresses({
           placeholder={fallback.dydx ?? 'dydx1…'}
           spellCheck={false}
           aria-invalid={!dydxOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
+          className="num h-7 rounded-sm border border-edge bg-inset px-2 text-sm text-level1"
         />
       </label>
-      <Button look="secondary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
+      <Button look="primary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
         Read history
       </Button>
     </form>
@@ -317,7 +317,7 @@ function Filters({
         <select
           value={search.market ?? ''}
           onChange={(e) => set({ market: e.target.value || undefined })}
-          className="rounded-sm border border-rule bg-surface px-1 text-level1"
+          className="h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         >
           <option value="">All</option>
           {markets.map((m) => (
@@ -343,14 +343,14 @@ function Filters({
           aria-label="From"
           value={search.from ?? ''}
           onChange={(e) => set({ from: e.target.value || undefined })}
-          className="num rounded-sm border border-rule bg-surface px-1 text-level1"
+          className="num h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         />
         <input
           type="date"
           aria-label="To"
           value={search.to ?? ''}
           onChange={(e) => set({ to: e.target.value || undefined })}
-          className="num rounded-sm border border-rule bg-surface px-1 text-level1"
+          className="num h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         />
       </div>
     </div>
@@ -386,8 +386,7 @@ function TotalsTable({ rows, first, empty }: { rows: Totals[]; first: string; em
 
 function Signed({ value, exact = false }: { value: string; exact?: boolean }) {
   const shown = exact ? value : money(value)
-  const tone = Number(value) > 0 ? 'text-bid' : Number(value) < 0 ? 'text-ask' : ''
-  return <span className={tone}>{shown}</span>
+  return <span className={Number(value) === 0 ? 'text-level3' : 'text-level1'}>{shown}</span>
 }
 
 const COLUMNS = 'grid-cols-[11rem_6rem_minmax(6rem,1fr)_4rem_4rem_1fr_1fr_1fr_1fr_1fr]'
@@ -409,12 +408,12 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
       role="table"
       aria-label="Fills and funding"
       aria-rowcount={rows.length + 1}
-      className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-xs"
+      className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-sm"
     >
       <div
         role="row"
         aria-rowindex={1}
-        className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-level3`}
+        className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-xs text-level3`}
       >
         <span role="columnheader">Time (UTC)</span>
         <span role="columnheader">Venue</span>
@@ -487,7 +486,7 @@ function FillCells({ fill }: { fill: RealizedFill }) {
     <>
       <span role="cell">{fill.liquidation ? 'Liquidation' : 'Fill'}</span>
       <span role="cell" className={fill.side === 'buy' ? 'text-bid' : 'text-ask'}>
-        {fill.side}
+        {fill.side === 'buy' ? 'Buy' : 'Sell'}
       </span>
       <span role="cell" className="text-right">
         {fill.size}
