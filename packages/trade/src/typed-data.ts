@@ -1,4 +1,4 @@
-import { concat, encodeAbiParameters, keccak256, stringToBytes } from 'viem'
+import { InvalidAddressError, concat, encodeAbiParameters, isAddress, isHex, keccak256, stringToBytes } from 'viem'
 import type { Address, Hex } from 'viem'
 
 /**
@@ -42,8 +42,15 @@ function structHash(name: string, fields: readonly Field[], value: Readonly<Reco
   const encoded = fields.map((field) => {
     const fieldValue = value[field.name]
     if (field.type === 'string') return keccak256(stringToBytes(String(fieldValue)))
-    if (field.type === 'address') return encodeAbiParameters([{ type: 'address' }], [fieldValue as Address])
-    if (field.type === 'bytes32') return fieldValue as Hex
+    if (field.type === 'address') {
+      if (typeof fieldValue !== 'string' || !isAddress(fieldValue))
+        throw new InvalidAddressError({ address: String(fieldValue) })
+      return encodeAbiParameters([{ type: 'address' }], [fieldValue])
+    }
+    if (field.type === 'bytes32') {
+      if (!isHex(fieldValue)) throw new Error(`EIP-712 field ${field.name} is not hex`)
+      return fieldValue
+    }
     return encodeAbiParameters([{ type: 'uint256' }], [BigInt(fieldValue as number | string)])
   })
   return keccak256(concat([keccak256(stringToBytes(signature)), ...encoded]))

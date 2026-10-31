@@ -1,5 +1,5 @@
 import { encodeFunctionData, erc20Abi, hexToBytes, keccak256, parseAbi, stringToBytes } from 'viem'
-import type { Address, Hex } from 'viem'
+import type { Address } from 'viem'
 import { z } from 'zod'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
@@ -15,6 +15,7 @@ import type {
 } from '../deposit'
 import { readReply, send } from '../send'
 import type { Classify } from '../send'
+import { secretHex } from '../types'
 import { accountId, orderlyKey, signRequest } from './sign'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
@@ -123,7 +124,7 @@ async function progress(
     return { stage: 'unwatched', detail: 'Enable trading on Orderly to follow the credit here' }
   const path = `/v1/asset/history?side=DEPOSIT&start_t=${sent.sentAt - HISTORY_SLACK_MS}`
   const account = accountId(sent.ref.owner, brokerId)
-  const headers = signRequest(orderlyKey(hexToBytes(key.secret as Hex)), account, Date.now(), 'GET', path)
+  const headers = signRequest(orderlyKey(hexToBytes(secretHex(key.secret))), account, Date.now(), 'GET', path)
   const body = await send('orderly', fetch, `${API[network]}${path}`, { headers, mutates: false }, unsuccessful)
   const row = History.parse(body).data.rows.find((entry) => entry.tx_id.toLowerCase() === sent.hash.toLowerCase())
   if (!row) return { stage: 'relaying', detail: 'Waiting for Orderly to see the deposit' }

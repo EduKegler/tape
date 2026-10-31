@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { hexToBytes } from 'viem'
+import { hexToBytes, isHex } from 'viem'
 import { z } from 'zod'
-import type { Hex } from 'viem'
 import type { TradeVenueId } from './types'
 
 /** One request Tape sent while recording, and the venue's answer. */
@@ -58,7 +57,7 @@ type Recording = z.infer<typeof Recording>
 const revive = (_key: string, value: unknown) => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const tagged = value as { bytes?: unknown; bigint?: unknown }
-    if (typeof tagged.bytes === 'string' && Object.keys(tagged).length === 1) return hexToBytes(tagged.bytes as Hex)
+    if (isHex(tagged.bytes) && Object.keys(tagged).length === 1) return hexToBytes(tagged.bytes)
     if (typeof tagged.bigint === 'string' && Object.keys(tagged).length === 1) return BigInt(tagged.bigint)
   }
   return value

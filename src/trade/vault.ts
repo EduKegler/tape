@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isHex } from 'viem'
 import type { Hex } from 'viem'
 import type { DepositFee, DepositTerms } from '@tape/trade/deposit'
 import { accountKey } from '@tape/trade/types'
@@ -72,7 +73,7 @@ const units = z
 const txHash = z
   .string()
   .regex(/^0x[0-9a-fA-F]{64}$/)
-  .transform((hash) => hash as Hex)
+  .refine(isHex)
 const depositRecord = z.object({
   chainId: z.number().int(),
   amount: units,

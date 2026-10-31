@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBalance, useBytecode, useConnection, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
 import { estimateGas, getPublicClient, waitForTransactionReceipt } from 'wagmi/actions'
-import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
+import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, isHex, numberToHex } from 'viem'
 import type { Address, Chain, Client, Hex, Transport } from 'viem'
 import { estimateL1Fee } from 'viem/op-stack'
 import { isRecord } from '@tape/core/json'
@@ -201,7 +201,7 @@ export function useSendDeposit(ref: AccountRef) {
       const provider = (await connector.getProvider()) as Eip1193
       const send = async (call: DepositCall) => {
         await onChain(provider, route.chainId)
-        return (await provider.request({
+        const hash = await provider.request({
           method: 'eth_sendTransaction',
           params: [
             {
@@ -212,7 +212,9 @@ export function useSendDeposit(ref: AccountRef) {
               chainId: numberToHex(route.chainId),
             },
           ],
-        })) as Hex
+        })
+        if (!isHex(hash)) throw new Error('The wallet returned a transaction hash that is not hex')
+        return hash
       }
       let approved = false
       for (const call of calls) {

@@ -1,3 +1,4 @@
+import { isHex } from 'viem'
 import type { Address, Hex } from 'viem'
 import type { Brand, Network, VenueId } from '@tape/core/ids'
 import type { Px, Qty } from '@tape/core/fixed'
@@ -239,6 +240,12 @@ export interface StoredKey {
   readonly status: 'draft' | 'linked'
   readonly public: Readonly<Record<string, string>>
   readonly secret: string | null
+}
+
+/** A stored secret as the hex it was written as. Throws on one that is not hex. */
+export function secretHex(secret: string): Hex {
+  if (!isHex(secret)) throw new Error('The stored secret is not hex')
+  return secret
 }
 
 export interface KeySlot {

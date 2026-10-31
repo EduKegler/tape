@@ -9,7 +9,7 @@ import { isRecord } from '@tape/core/json'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
-import { TradeFailure, orderRef, toDecimal } from '../types'
+import { TradeFailure, orderRef, secretHex, toDecimal } from '../types'
 import type {
   AccountView,
   Command,
@@ -105,7 +105,7 @@ const SOME_DATA = z.unknown().refine((data) => data != null)
 
 function keyOf(ctx: VenueContext): OrderlyKey | null {
   const secret = ctx.keys.read()?.secret
-  return secret ? orderlyKey(hexToBytes(secret as Hex)) : null
+  return secret ? orderlyKey(hexToBytes(secretHex(secret))) : null
 }
 
 function brokerFor(ctx: VenueContext): string {
@@ -505,7 +505,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
     }
     if (step.id === 'add-key') {
       const existing = ctx.keys.read()
-      const key = existing?.secret ? orderlyKey(hexToBytes(existing.secret as Hex)) : orderlyKey()
+      const key = existing?.secret ? orderlyKey(hexToBytes(secretHex(existing.secret))) : orderlyKey()
       if (!existing?.secret)
         ctx.keys.write({ status: 'draft', public: { key: key.id }, secret: bytesToHex(key.secret) })
       const now = Date.now()

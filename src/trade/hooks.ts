@@ -1,8 +1,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useConnection } from 'wagmi'
-import { UserRejectedRequestError } from 'viem'
-import type { Address } from 'viem'
+import { UserRejectedRequestError, isAddress } from 'viem'
 import type { VenueId } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { claim, release } from '@tape/trade/in-flight'
@@ -88,10 +87,8 @@ export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Prom
 }
 
 function useRef(venue: VenueId): AccountRef | null {
-  const { address } = useConnection()
-  return address && isTradeVenue(venue) && !SITE_READ_ONLY
-    ? { venue, network: NETWORK, owner: address.toLowerCase() as Address }
-    : null
+  const owner = useConnection().address?.toLowerCase()
+  return owner && isAddress(owner) && isTradeVenue(venue) && !SITE_READ_ONLY ? { venue, network: NETWORK, owner } : null
 }
 
 function useSlot(ref: AccountRef | null): SlotState | null {

@@ -1,6 +1,6 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { z } from 'zod'
-import type { Address, Hex } from 'viem'
+import type { Address } from 'viem'
 import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
 import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
@@ -12,7 +12,7 @@ import type { MarginState, MarginTier } from '../liquidation'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
-import { TradeFailure, orderRef, toDecimal } from '../types'
+import { TradeFailure, orderRef, secretHex, toDecimal } from '../types'
 import type {
   AccountView,
   Bps,
@@ -245,7 +245,7 @@ const nextNonce = () => (lastNonce = Math.max(Date.now(), lastNonce + 1))
 function agentOf(ctx: VenueContext) {
   const secret = ctx.keys.read()?.secret
   return secret
-    ? privateKeyToAccount(secret as Hex)
+    ? privateKeyToAccount(secretHex(secret))
     : fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
 }
 
@@ -637,7 +637,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
     onStep(step.id)
     if (step.id === 'approve-agent') {
       const existing = ctx.keys.read()
-      const secret = (existing?.secret as Hex | null) ?? generatePrivateKey()
+      const secret = existing?.secret ? secretHex(existing.secret) : generatePrivateKey()
       const agent = privateKeyToAccount(secret).address
       if (!existing?.secret) ctx.keys.write({ status: 'draft', public: { agent }, secret })
       await user(

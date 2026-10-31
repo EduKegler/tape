@@ -3,7 +3,7 @@ import { useQueries } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useConnection } from 'wagmi'
 import { z } from 'zod'
-import type { Address } from 'viem'
+import { isAddress } from 'viem'
 import { selectHistory, summarize, toCsv } from '@tape/trade/history'
 import type { FundingPayment, RealizedFill, Totals } from '@tape/trade/history'
 import { amount, format } from '@tape/trade/money'
@@ -62,7 +62,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   useEffect(() => lastHistorySearch.setState(() => search), [search])
   const { address: connected } = useConnection()
   const wallet = (search.address ?? connected ?? null)?.toLowerCase() ?? null
-  const owned = wallet !== null && wallet === connected?.toLowerCase() ? (wallet as Address) : null
+  const owned = wallet !== null && wallet === connected?.toLowerCase() && isAddress(wallet) ? wallet : null
   const derived = useDydxAddress(owned)
   const dydx = search.dydx ?? derived
   const addressOf = (venue: TradeVenueId) => (venue === 'dydx' ? dydx : wallet)

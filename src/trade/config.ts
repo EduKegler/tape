@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Address } from 'viem'
+import { isAddress } from 'viem'
 import type { TradeConfig } from '@tape/trade/types'
 import { NETWORK } from '#/site'
 
@@ -8,7 +8,8 @@ const ORDERLY_PUBLIC_TESTNET_BROKER = 'demo'
 const address = z
   .string()
   .regex(/^0x[0-9a-fA-F]{40}$/)
-  .transform((hex) => hex.toLowerCase() as Address)
+  .transform((hex) => hex.toLowerCase())
+  .refine(isAddress)
 const env = z.object({
   VITE_TRADE_MAINNET: z.enum(['0', '1']).default('0'),
   VITE_HL_BUILDER_ADDRESS: address.optional(),

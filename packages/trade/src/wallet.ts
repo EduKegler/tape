@@ -1,4 +1,5 @@
-import type { Address, Hex } from 'viem'
+import { isHex } from 'viem'
+import type { Address } from 'viem'
 import { isRecord } from '@tape/core/json'
 import type { Eip712, WalletSigner } from './types'
 
@@ -35,8 +36,11 @@ export function walletSigner(
     address,
     chainId: async () => Number(await provider.request({ method: 'eth_chainId' })),
     switchChain,
-    signTypedData: async (data) =>
-      (await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })) as Hex,
+    signTypedData: async (data) => {
+      const signature = await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })
+      if (!isHex(signature)) throw new Error('The wallet returned a signature that is not hex')
+      return signature
+    },
   }
 }
 
