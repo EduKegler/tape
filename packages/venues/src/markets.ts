@@ -1,6 +1,7 @@
 import { isBase, marketKey, splitBase } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import { DecimalError, decimalsOf, parsePx, parseQty, plainDecimal } from '@tape/core/fixed'
+import { parseExactJson } from '@tape/core/json'
 import type { Decimals, Scale } from '@tape/core/fixed'
 import type { MarketGroup, MarketSpec } from '@tape/core/market'
 import { getExactJson, getJson } from './types'
@@ -30,12 +31,20 @@ const baseOf = (name: string): Base | null => (isBase(name) ? name : null)
 
 const isHip3 = (base: Base) => splitBase(base).dex !== ''
 
-/** The reply, or null for a 400, which dYdX's indexer and Binance send for a market they do not list. */
-async function listedJson<T>(fetch: Fetch, url: string, signal?: AbortSignal): Promise<T | null> {
+/**
+ * The reply, or null for a 400, which dYdX's indexer and Binance send for a market they do not list, and Orderly
+ * for a symbol it cannot parse.
+ */
+async function listedJson<T>(
+  fetch: Fetch,
+  url: string,
+  signal?: AbortSignal,
+  parse: (text: string) => T = (text) => JSON.parse(text) as T,
+): Promise<T | null> {
   const response = await fetch(url, { signal: signal ?? null })
   if (response.status === 400) return null
   if (!response.ok) throw new Error(`${response.status} ${url}`)
-  return (await response.json()) as T
+  return parse(await response.text())
 }
 
 interface HyperliquidAsset {
@@ -234,12 +243,13 @@ export async function readOrderlyMarket(
   signal?: AbortSignal,
 ): Promise<MarketSpec | null> {
   if (isHip3(base)) return null
-  const json = await getExactJson<{ data?: OrderlyMarket }>(
+  const json = await listedJson(
     fetch,
     `${rest}/public/info/${encodeURIComponent(`PERP_${base}_USDC`)}`,
-    { signal: signal ?? null },
+    signal,
+    parseExactJson<{ data?: OrderlyMarket }>,
   )
-  return json.data ? specOf(json.data, orderlySpec) : null
+  return json?.data ? specOf(json.data, orderlySpec) : null
 }
 
 interface BinanceSymbol {

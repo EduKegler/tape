@@ -112,6 +112,11 @@ describe('a market the venue does not list', () => {
     expect(await VENUES.binance.fetchMarket('NOTAMARKET' as Base, binance)).toBeNull()
   })
 
+  it('reads as null a symbol Orderly cannot parse', async () => {
+    const orderly = answering(400, { success: false, code: -1000, message: 'error path format' })
+    expect(await VENUES.orderly.fetchMarket('币安人生' as Base, orderly)).toBeNull()
+  })
+
   it('still fails on any other error', async () => {
     await expect(VENUES.dydx.fetchMarket(BTC, answering(503, {}))).rejects.toThrow('503')
   })
