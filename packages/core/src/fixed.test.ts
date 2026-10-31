@@ -93,6 +93,26 @@ describe('decimal properties', () => {
       }),
     )
   })
+
+  it('rescales a price on a coarser scale to its exact steps there', () => {
+    fc.assert(
+      fc.property(units, decimals, decimals, (seed, from, to) => {
+        fc.pre(to < from)
+        const step = 10n ** BigInt(from - to)
+        const steps = BigInt(seed) / step
+        expect(rescalePx(Number(steps * step) as Px, from, to)).toBe(Number(steps))
+      }),
+    )
+  })
+
+  it('refuses to rescale to a coarser scale a price between its steps', () => {
+    fc.assert(
+      fc.property(units, decimals, decimals, (value, from, to) => {
+        fc.pre(to < from && BigInt(value) % 10n ** BigInt(from - to) !== 0n)
+        expect(() => rescalePx(value as Px, from, to)).toThrow(new DecimalError(String(value), 'precision'))
+      }),
+    )
+  })
 })
 
 describe('parsePx', () => {
@@ -148,6 +168,10 @@ describe('cross-scale math', () => {
   it('rescales to a finer scale', () => {
     expect(rescalePx(parsePx('80999', { px: 0, qty: 4 }), 0, 2)).toBe(8099900)
     expect(() => rescalePx(parsePx('100000000', { px: 0, qty: 4 }), 0, 8)).toThrow(DecimalError)
+  })
+
+  it('rescales to a coarser scale without a float remainder', () => {
+    expect(rescalePx(parsePx('823678.362', { px: 8, qty: 0 }), 8, 3)).toBe(823678362)
   })
 
   it('computes spread in basis points', () => {

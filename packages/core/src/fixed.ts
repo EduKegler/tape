@@ -112,8 +112,8 @@ export function formatNotional(value: bigint, scale: Scale, decimals = 2): strin
 }
 
 export function rescalePx(px: Px, from: Decimals, to: Decimals): Px {
-  const units = px * 10 ** (to - from)
-  if (!Number.isSafeInteger(units)) throw new DecimalError(String(px), 'unsafe')
+  const units = to >= from ? px * 10 ** (to - from) : px / 10 ** (from - to)
+  if (!Number.isSafeInteger(units)) throw new DecimalError(String(px), Number.isInteger(units) ? 'unsafe' : 'precision')
   return units as Px
 }
 
