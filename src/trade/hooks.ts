@@ -25,6 +25,7 @@ import { rejectionMessage, walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
+import { switchOrAddChain } from '#/wallet/config'
 import { keySlot, subscribeVault } from './vault'
 import { SITE_READ_ONLY, TRADE_CONFIG } from './config'
 
@@ -133,7 +134,9 @@ export function useTradeSession(venue: VenueId): TradeSession {
         track({ event: 'trading_enable_step', venue: r.venue, step })
       }
       const run = () =>
-        guard(r.venue, () => TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner), onStep))
+        guard(r.venue, () =>
+          TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner, switchOrAddChain), onStep),
+        )
       await (typeof navigator !== 'undefined' && 'locks' in navigator
         ? navigator.locks.request(`tape:enable:${accountKey(r)}`, run)
         : run())

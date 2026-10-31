@@ -13,7 +13,7 @@ import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
 import { rejectionMessage } from '@tape/trade/wallet'
 import { track } from '#/analytics/track'
-import { wagmiConfig } from '#/wallet/config'
+import { switchOrAddChain, wagmiConfig } from '#/wallet/config'
 import { TRADE_CONFIG } from './config'
 import { addDeposit, depositsSnapshot, keySlot, parseDeposits, subscribeVault, updateDeposit } from './vault'
 import type { DepositRecord } from './vault'
@@ -166,7 +166,7 @@ class FailedAfterApproval extends Error {}
 async function onChain(provider: Eip1193, chainId: number) {
   const current = () => provider.request({ method: 'eth_chainId' }).then(Number)
   if ((await current()) === chainId) return
-  await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: numberToHex(chainId) }] })
+  await switchOrAddChain(chainId)
   if ((await current()) !== chainId) throw new Error(`The wallet did not switch to chain ${chainId}`)
 }
 

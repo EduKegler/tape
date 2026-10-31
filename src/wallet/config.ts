@@ -1,5 +1,6 @@
 import { createConfig, http } from 'wagmi'
 import type { Transport } from 'wagmi'
+import { switchChain } from 'wagmi/actions'
 import { arbitrum, base, mainnet, optimism } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 import { z } from 'zod'
@@ -44,6 +45,10 @@ export const wagmiConfig = createConfig({
   ssr: true,
   transports: Object.fromEntries(chains.map((c) => [c.id, http()])) as Record<(typeof chains)[number]['id'], Transport>,
 })
+
+export async function switchOrAddChain(chainId: number): Promise<void> {
+  await switchChain(wagmiConfig, { chainId: chainId as (typeof chains)[number]['id'] })
+}
 
 declare module 'wagmi' {
   interface Register {

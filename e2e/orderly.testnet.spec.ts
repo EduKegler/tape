@@ -35,7 +35,7 @@ test('enabling Orderly registers the account and adds a key that cannot withdraw
   expect(more).toEqual([])
   expect([connect, toArbitrum]).toEqual([
     { kind: 'connect', account: 'alice' },
-    { kind: 'switch-chain', from: 1, to: ARBITRUM_SEPOLIA },
+    { kind: 'add-chain', from: 1, to: ARBITRUM_SEPOLIA },
   ])
   expect(registration).toEqual({
     kind: 'sign',

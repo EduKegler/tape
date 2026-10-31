@@ -65,7 +65,7 @@ test('a wallet that refuses the deposit gets the bridge transfer and nothing is 
   await expectAccessible(page)
   expect(wallet.asked()).toEqual([
     { kind: 'connect', account: 'alice' },
-    { kind: 'switch-chain', from: 1, to: ARBITRUM_SEPOLIA },
+    { kind: 'add-chain', from: 1, to: ARBITRUM_SEPOLIA },
     {
       kind: 'send',
       from: 'alice',
