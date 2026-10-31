@@ -78,6 +78,8 @@ const ignoreVerdict = (p: Promise<unknown>) =>
     },
   )
 
+const leftNothing = { orders: [], positions: [] }
+
 const draft: IntentDraft = {
   side: 'buy',
   kind: 'limit',
@@ -323,19 +325,21 @@ async function recordDydx() {
   const evm = privateKeyToAccount(throwaway('dydx-evm', generatePrivateKey) as Hex)
   const { mnemonic, address } = await deriveKey(await evm.signTypedData(onboarding('testnet')))
   const subaccount0 = `${DYDX}/addresses/${address}/subaccountNumber/0`
-  if (!(await fetch(subaccount0)).ok) {
-    const funded = await fetch(DYDX_FAUCET, {
+  const funded = async () => {
+    if ((await fetch(subaccount0)).ok) return true
+    const faucet = await fetch(DYDX_FAUCET, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ address, subaccountNumber: 0, amount: 1000 }),
     })
-    if (!funded.ok) throw new Error(`faucet answered ${funded.status}: ${await funded.text()}`)
+    if (!faucet.ok) return false
+    for (let i = 0; !(await fetch(subaccount0)).ok; i++) {
+      if (i === 60) throw new Error(`the indexer never showed a funded subaccount for ${address}`)
+      await sleep(10_000)
+    }
+    return true
   }
-  for (let i = 0; ; i++) {
-    if ((await fetch(subaccount0)).ok) break
-    if (i === 60) throw new Error(`the indexer never showed a funded subaccount for ${address}`)
-    await sleep(10_000)
-  }
+  const holdsUsdc = await funded()
 
   const ticker = 'BTC-USD'
   type M = {
@@ -387,7 +391,9 @@ async function recordDydx() {
       }
     }
   }
-  const { fetch: indexer, take } = recorder((url) => url.startsWith(`${DYDX}/orders?`))
+  const { fetch: indexer, take } = recorder(
+    (url) => url.startsWith(`${DYDX}/orders?`) || url.startsWith(`${DYDX}/addresses/`),
+  )
   const ctx = (secret: string, dydxAddress: string): VenueContext => ({
     ref: { venue: 'dydx', network: 'testnet', owner: evm.address.toLowerCase() as Address },
     config: {
@@ -425,68 +431,74 @@ async function recordDydx() {
   const refOf = (intent: OrderIntent, flags: 0 | 64) =>
     `${ticker}:${clientIdOf(intent.clientId)}:${flags}:${m.clobPairId}` as OrderRef
 
-  const rest = intentOf(dydx, spec, { price: far, size })
-  await run('rest', () => dydx.execute(account, place(rest)))
-  await run('lookupResting', lookupUntil(rest, 'Order open'))
-  await run('cancel', () => dydx.execute(account, { kind: 'cancel', order: refOf(rest, 64) }))
-  await run('lookupCanceled', lookupUntil(rest, 'Order canceled'))
-  await run('cancelCanceled', () => dydx.execute(account, { kind: 'cancel', order: refOf(rest, 64) }))
-  await run('lookupUnknown', () => dydx.lookup(account, intentOf(dydx, spec, { price: far, size })))
-
-  const taker = intentOf(dydx, spec, { price: atTick(ask * 1.02), size })
-  await run('fill', () => dydx.execute(account, place(taker)))
-  await run('lookupFilled', lookupUntil(taker, 'Order filled'))
-  await run('cancelFilled', () => dydx.execute(account, { kind: 'cancel', order: refOf(taker, 64) }))
-  const close = intentOf(dydx, spec, { kind: 'market', side: 'sell', size, reduceOnly: true })
-  await run('close', () => dydx.execute(account, place(close)))
-  await run('cancelShortTermFilled', () => dydx.execute(account, { kind: 'cancel', order: refOf(close, 0) }))
-
-  await run('insufficientMargin', () => dydx.execute(account, place(intentOf(dydx, spec, { price: far, size: '10' }))))
   const stranger = await deriveKey(await privateKeyToAccount(generatePrivateKey()).signTypedData(onboarding('testnet')))
-  await run('unknownAccount', () =>
-    dydx.execute(ctx(stranger.mnemonic, stranger.address), place(intentOf(dydx, spec, { price: far, size }))),
-  )
+  const strangerCtx = ctx(stranger.mnemonic, stranger.address)
+  await run('unknownAddress', () => dydx.account(strangerCtx))
+  await run('lookupUnknown', () => dydx.lookup(account, intentOf(dydx, spec, { price: far, size })))
+  await run('unknownAccount', () => dydx.execute(strangerCtx, place(intentOf(dydx, spec, { price: far, size }))))
 
-  const { default: Long } = await import('long')
-  const { SubaccountInfo } = await sdk()
-  const subaccount = SubaccountInfo.forLocalWallet(await walletOf(mnemonic), 0)
-  const clob = {
-    clobPairId: Number(m.clobPairId),
-    atomicResolution: m.atomicResolution,
-    quantumConversionExponent: m.quantumConversionExponent,
-    stepBaseQuantums: m.stepBaseQuantums,
-    subticksPerTick: m.subticksPerTick,
-  }
-  const q = quantums(parseQty(size, scale), scale, clob)
-  const s = subticks(parsePx(far, scale), scale, clob)
-  const pastTapeChecks = (name: string, rawQuantums: bigint, rawSubticks: bigint) =>
-    run(name, () =>
-      validator.post.placeOrder(
-        subaccount,
-        clientIdOf(newClientId()),
-        clob.clobPairId,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- Order_Side lives in @dydxprotocol/v4-proto, which trade does not depend on
-        1,
-        Long.fromString(rawQuantums.toString(), true),
-        Long.fromString(rawSubticks.toString(), true),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- Order_TimeInForce lives in @dydxprotocol/v4-proto, which trade does not depend on
-        0,
-        64,
-        false,
-        undefined,
-        Math.floor(Date.now() / 1000) + 3600,
-      ),
+  if (holdsUsdc) {
+    const rest = intentOf(dydx, spec, { price: far, size })
+    await run('rest', () => dydx.execute(account, place(rest)))
+    await run('lookupResting', lookupUntil(rest, 'Order open'))
+    await run('cancel', () => dydx.execute(account, { kind: 'cancel', order: refOf(rest, 64) }))
+    await run('lookupCanceled', lookupUntil(rest, 'Order canceled'))
+    await run('cancelCanceled', () => dydx.execute(account, { kind: 'cancel', order: refOf(rest, 64) }))
+
+    const taker = intentOf(dydx, spec, { price: atTick(ask * 1.02), size })
+    await run('fill', () => dydx.execute(account, place(taker)))
+    await run('lookupFilled', lookupUntil(taker, 'Order filled'))
+    await run('cancelFilled', () => dydx.execute(account, { kind: 'cancel', order: refOf(taker, 64) }))
+    const close = intentOf(dydx, spec, { kind: 'market', side: 'sell', size, reduceOnly: true })
+    await run('close', () => dydx.execute(account, place(close)))
+    await run('cancelShortTermFilled', () => dydx.execute(account, { kind: 'cancel', order: refOf(close, 0) }))
+
+    await run('insufficientMargin', () =>
+      dydx.execute(account, place(intentOf(dydx, spec, { price: far, size: '10' }))),
     )
-  await pastTapeChecks('offTick', q, s + BigInt(m.subticksPerTick) / 2n)
-  await pastTapeChecks('offStep', q + BigInt(m.stepBaseQuantums) / 2n, s)
 
+    const { default: Long } = await import('long')
+    const { SubaccountInfo } = await sdk()
+    const subaccount = SubaccountInfo.forLocalWallet(await walletOf(mnemonic), 0)
+    const clob = {
+      clobPairId: Number(m.clobPairId),
+      atomicResolution: m.atomicResolution,
+      quantumConversionExponent: m.quantumConversionExponent,
+      stepBaseQuantums: m.stepBaseQuantums,
+      subticksPerTick: m.subticksPerTick,
+    }
+    const q = quantums(parseQty(size, scale), scale, clob)
+    const s = subticks(parsePx(far, scale), scale, clob)
+    const pastTapeChecks = (name: string, rawQuantums: bigint, rawSubticks: bigint) =>
+      run(name, () =>
+        validator.post.placeOrder(
+          subaccount,
+          clientIdOf(newClientId()),
+          clob.clobPairId,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- Order_Side lives in @dydxprotocol/v4-proto, which trade does not depend on
+          1,
+          Long.fromString(rawQuantums.toString(), true),
+          Long.fromString(rawSubticks.toString(), true),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- Order_TimeInForce lives in @dydxprotocol/v4-proto, which trade does not depend on
+          0,
+          64,
+          false,
+          undefined,
+          Math.floor(Date.now() / 1000) + 3600,
+        ),
+      )
+    await pastTapeChecks('offTick', q, s + BigInt(m.subticksPerTick) / 2n)
+    await pastTapeChecks('offStep', q + BigInt(m.stepBaseQuantums) / 2n, s)
+  }
+
+  write('dydx', { network: 'testnet', recordedAt: new Date().toISOString(), address, ticker, holdsUsdc, cases })
+  if (!holdsUsdc) return leftNothing
   const open = (await (
     await fetch(`${DYDX}/orders?address=${address}&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED&limit=50`)
   ).json()) as unknown[]
   const sub = (await (await fetch(subaccount0)).json()) as {
     subaccount: { openPerpetualPositions: Record<string, unknown> }
   }
-  write('dydx', { network: 'testnet', recordedAt: new Date().toISOString(), address, ticker, cases })
   return { orders: open, positions: Object.keys(sub.subaccount.openPerpetualPositions) }
 }
 
@@ -544,25 +556,30 @@ async function recordOrderly() {
   if ((await orderly.steps(ctx)).some((step) => !step.done))
     await orderly.enable(ctx, walletFor(evm, 421_614), () => {})
   const available = async () => {
-    const view = await orderly.account(ctx)
+    const view = await orderly.account(ctx).catch((e: unknown) => {
+      if (e instanceof TradeFailure && e.error.kind === 'unreachable') return null
+      throw e
+    })
     take()
-    return view.kind === 'live' ? Number(view.snapshot.available) : 0
+    return view?.kind === 'live' ? Number(view.snapshot.available) : 0
   }
-  if ((await available()) === 0) {
+  const funded = async () => {
+    if ((await available()) > 0) return true
     const faucet = await globalThis.fetch(ORDERLY_FAUCET, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ chain_id: '421614', user_address: evm.address, broker_id: ORDERLY_BROKER }),
     })
     const granted = await faucet.text()
-    if (!faucet.ok || !(JSON.parse(granted) as { success: boolean }).success)
-      throw new Error(`faucet answered ${faucet.status}: ${granted.slice(0, 200)}`)
+    if (!faucet.ok || !(JSON.parse(granted) as { success: boolean }).success) return false
+    // The faucet credits the account some time after it answers.
+    for (let i = 0; (await available()) === 0; i++) {
+      if (i === 60) throw new Error(`the faucet USDC never reached ${evm.address}`)
+      await sleep(10_000)
+    }
+    return true
   }
-  // The faucet credits the account some time after it answers.
-  for (let i = 0; (await available()) === 0; i++) {
-    if (i === 60) throw new Error(`the faucet USDC never reached ${evm.address}`)
-    await sleep(10_000)
-  }
+  const holdsUsdc = await funded()
   take()
 
   type Info = { quote_tick: number; base_tick: number; price_scope: number }
@@ -596,22 +613,25 @@ async function recordOrderly() {
   const cancel = (id: number): Command => ({ kind: 'cancel', order: `${symbol}:${id}` as OrderRef })
 
   const rest = intentOf(orderly, spec, { price: far, size })
-  await run('rest', () => orderly.execute(ctx, place(rest)))
-  await run('lookupResting', () => orderly.lookup(ctx, rest))
-  await run('cancel', () => orderly.execute(ctx, cancel(orderIdOf('rest'))))
-  await sleep(1000)
-  await run('cancelCanceled', () => orderly.execute(ctx, cancel(orderIdOf('rest'))))
-  await run('lookupCanceled', () => orderly.lookup(ctx, rest))
-  await run('lookupUnknown', () => orderly.lookup(ctx, intentOf(orderly, spec, { price: far, size })))
+  if (holdsUsdc) {
+    await run('rest', () => orderly.execute(ctx, place(rest)))
+    await run('lookupResting', () => orderly.lookup(ctx, rest))
+    await run('cancel', () => orderly.execute(ctx, cancel(orderIdOf('rest'))))
+    await sleep(1000)
+    await run('cancelCanceled', () => orderly.execute(ctx, cancel(orderIdOf('rest'))))
+    await run('lookupCanceled', () => orderly.lookup(ctx, rest))
 
-  const buy = intentOf(orderly, spec, { kind: 'market', size })
-  await run('fill', () => orderly.execute(ctx, place(buy)))
-  await sleep(2000)
-  await run('lookupFilled', () => orderly.lookup(ctx, buy))
-  await run('cancelFilled', () => orderly.execute(ctx, cancel(orderIdOf('fill'))))
-  await run('close', () =>
-    orderly.execute(ctx, place(intentOf(orderly, spec, { kind: 'market', side: 'sell', size, reduceOnly: true }))),
-  )
+    const buy = intentOf(orderly, spec, { kind: 'market', size })
+    await run('fill', () => orderly.execute(ctx, place(buy)))
+    await sleep(2000)
+    await run('lookupFilled', () => orderly.lookup(ctx, buy))
+    await run('cancelFilled', () => orderly.execute(ctx, cancel(orderIdOf('fill'))))
+    await run('close', () =>
+      orderly.execute(ctx, place(intentOf(orderly, spec, { kind: 'market', side: 'sell', size, reduceOnly: true }))),
+    )
+  }
+  await run('lookupUnknown', () => orderly.lookup(ctx, intentOf(orderly, spec, { price: far, size })))
+  await run('cancelUnknown', () => orderly.execute(ctx, cancel(1)))
 
   await run('minimumValue', () =>
     orderly.execute(
@@ -658,20 +678,21 @@ async function recordOrderly() {
   await pastTapeChecks('offStep', far, (Number(size) + 10 ** -scale.qty / 2).toFixed(scale.qty + 1))
 
   const view = await orderly.account(ctx)
-  if (view.kind !== 'live') throw new Error(`account reads ${view.kind}`)
   write('orderly', {
     network: 'testnet',
     recordedAt: new Date().toISOString(),
     owner: ctx.ref.owner,
     brokerId: ORDERLY_BROKER,
     symbol,
+    holdsUsdc,
     cases,
   })
-  return { orders: view.snapshot.orders, positions: view.snapshot.positions }
+  if (view.kind === 'live') return { orders: view.snapshot.orders, positions: view.snapshot.positions }
+  if (view.kind === 'empty') return leftNothing
+  throw new Error(`account reads ${view.kind}`)
 }
 
 const only = process.env.RECORD_WRITES
-const leftNothing = { orders: [], positions: [] }
 
 describe.runIf(only)('record write fixtures', () => {
   it.runIf(only === 'hyperliquid')('records hyperliquid on testnet', { timeout: 120_000 }, async () => {

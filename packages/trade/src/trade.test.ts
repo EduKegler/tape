@@ -372,10 +372,8 @@ describe('failure classification', () => {
         'Transaction with hash [AB] was submitted but was not yet found on the chain. You might want to check later. Query timed out after 60 seconds.',
       ).kind,
     ).toBe('unknown-outcome')
-    expect(
-      dydxMessage('Query failed with (22): rpc error: code = NotFound desc = account dydx1abc not found: key not found')
-        .kind,
-    ).toBe('no-account')
+    const [broadcast] = recordedWrite('dydx', 'unknownAccount').chain
+    expect(broadcast && 'thrown' in broadcast && dydxMessage(broadcast.thrown.message).kind).toBe('no-account')
   })
 
   it('calls the dYdX order rate limits rate limited, though the short-term one mentions collateral', () => {
