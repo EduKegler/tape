@@ -43,6 +43,8 @@ const venues = {
     rest: {},
     post: {
       meta: { type: 'meta' },
+      allPerpMetas: { type: 'allPerpMetas' },
+      perpDexs: { type: 'perpDexs' },
       metaAndAssetCtxs: { type: 'metaAndAssetCtxs' },
       candleSnapshot: {
         type: 'candleSnapshot',
