@@ -449,3 +449,178 @@ describe('dydx builder fee', () => {
     expect(chain.placeOrder.mock.calls[0]?.[15]).toEqual(builder)
   })
 })
+
+describe('dydx account', () => {
+  // The SubaccountResponseObject, OrderResponseObject and FillResponseObject fields in the indexer's
+  // api-documentation.md in dydxprotocol/v4-chain. The indexer passes the position size through signed:
+  // getUnrealizedPnl in indexer/packages/postgres takes size times oracle minus entry, so a short is negative.
+  const sub = {
+    subaccount: {
+      address: 'dydx1test',
+      subaccountNumber: 0,
+      equity: '1500.25',
+      freeCollateral: '1200.5',
+      openPerpetualPositions: {
+        'BTC-USD': {
+          market: 'BTC-USD',
+          status: 'OPEN',
+          side: 'SHORT',
+          size: '-0.002',
+          entryPrice: '80000',
+          unrealizedPnl: '3.5',
+        },
+        'ETH-USD': {
+          market: 'ETH-USD',
+          status: 'OPEN',
+          side: 'LONG',
+          size: '0.5',
+          entryPrice: '2330.5',
+          unrealizedPnl: '-1.25',
+        },
+      },
+    },
+  }
+  const orders = [
+    {
+      id: 'a',
+      clientId: '11',
+      clobPairId: '0',
+      ticker: 'BTC-USD',
+      side: 'SELL',
+      size: '0.001',
+      price: '81000',
+      type: 'LIMIT',
+      reduceOnly: true,
+      orderFlags: '64',
+      updatedAt: '2026-10-30T12:00:00.000Z',
+    },
+    {
+      id: 'b',
+      clientId: '12',
+      clobPairId: '1',
+      ticker: 'ETH-USD',
+      side: 'BUY',
+      size: '0.01',
+      price: '2300',
+      type: 'LIMIT',
+      reduceOnly: false,
+      orderFlags: '0',
+    },
+  ]
+  const fills = {
+    fills: [
+      {
+        id: 'f1',
+        market: 'BTC-USD',
+        side: 'SELL',
+        price: '80000',
+        size: '0.002',
+        fee: '0.08',
+        createdAt: '2026-10-30T11:00:00.000Z',
+      },
+      {
+        id: 'f2',
+        market: 'ETH-USD',
+        side: 'BUY',
+        price: '2330.5',
+        size: '0.5',
+        fee: '0.58',
+        createdAt: '2026-10-30T11:30:00.000Z',
+      },
+    ],
+  }
+  const replies = (url: string) =>
+    url.includes('/addresses/') ? sub : url.includes('/orders?') ? orders : url.includes('/fills?') ? fills : null
+
+  it('shows a dYdX short position as short with an unsigned size, and open orders with refs that cancel', async () => {
+    const { urls, ctx: live } = indexer(replies)
+    expect(await dydx.account(live)).toEqual({
+      kind: 'live',
+      snapshot: {
+        equity: '1500.25',
+        available: '1200.5',
+        positions: [
+          {
+            symbol: 'BTC-USD',
+            side: 'short',
+            size: '0.002',
+            entry: '80000',
+            unrealizedPnl: '3.5',
+            liquidation: null,
+            leverage: null,
+          },
+          {
+            symbol: 'ETH-USD',
+            side: 'long',
+            size: '0.5',
+            entry: '2330.5',
+            unrealizedPnl: '-1.25',
+            liquidation: null,
+            leverage: null,
+          },
+        ],
+        orders: [
+          {
+            ref: 'BTC-USD:11:64:0',
+            symbol: 'BTC-USD',
+            side: 'sell',
+            kind: 'LIMIT',
+            px: '81000',
+            size: '0.001',
+            reduceOnly: true,
+            placedAt: Date.UTC(2026, 9, 30, 12),
+          },
+          {
+            ref: 'ETH-USD:12:0:1',
+            symbol: 'ETH-USD',
+            side: 'buy',
+            kind: 'LIMIT',
+            px: '2300',
+            size: '0.01',
+            reduceOnly: false,
+            placedAt: 0,
+          },
+        ],
+        fills: [
+          {
+            id: 'f1',
+            symbol: 'BTC-USD',
+            side: 'sell',
+            px: '80000',
+            size: '0.002',
+            fee: '0.08',
+            time: Date.UTC(2026, 9, 30, 11),
+          },
+          {
+            id: 'f2',
+            symbol: 'ETH-USD',
+            side: 'buy',
+            px: '2330.5',
+            size: '0.5',
+            fee: '0.58',
+            time: Date.UTC(2026, 9, 30, 11, 30),
+          },
+        ],
+      },
+    })
+    expect(urls).toEqual([
+      'https://indexer.v4testnet.dydx.exchange/v4/addresses/dydx1test/subaccountNumber/0',
+      'https://indexer.v4testnet.dydx.exchange/v4/orders?address=dydx1test&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50',
+      'https://indexer.v4testnet.dydx.exchange/v4/fills?address=dydx1test&subaccountNumber=0&limit=20',
+    ])
+  })
+
+  it('calls an address the indexer has no subaccount for empty, a failed read unreachable, and no key unknown', async () => {
+    // Recorded from indexer.v4testnet.dydx.exchange on 2026-10-31.
+    const missing = {
+      errors: [{ msg: 'No subaccount found with address dydx1test and subaccountNumber 0' }],
+    }
+    const { ctx: none } = indexer(() => new Response(JSON.stringify(missing), { status: 404 }))
+    expect(await dydx.account(none)).toEqual({ kind: 'empty' })
+    const { ctx: down } = indexer(() => new Response('Bad Gateway', { status: 502 }))
+    expect(await failure(dydx.account(down))).toMatchObject({ kind: 'unreachable' })
+    const { urls, ctx: open } = indexer(replies)
+    expect(await dydx.account({ ...open, keys: locked.keys })).toEqual({ kind: 'unknown' })
+    expect(urls).toEqual([])
+  })
+})
