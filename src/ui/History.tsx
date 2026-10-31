@@ -12,7 +12,7 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { Button, InlineInput, Select, Table } from './primitives'
+import { Button, InlineInput, NoData, Select, Table } from './primitives'
 import type { Column } from './primitives'
 import { ReadNote } from './TradeNote'
 
@@ -335,7 +335,7 @@ function Filters({
 const TOTALS_HEIGHT = 'h-36'
 
 function TotalsTable({ rows, first, empty }: { rows: Totals[]; first: string; empty: string }) {
-  if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>{empty}</p>
+  if (rows.length === 0) return <NoData className={TOTALS_HEIGHT}>{empty}</NoData>
   const columns: Column<Totals>[] = [
     {
       header: first,

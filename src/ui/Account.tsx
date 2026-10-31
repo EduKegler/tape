@@ -12,7 +12,7 @@ import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { ConfirmAction } from './ConfirmAction'
-import { Button, InlineInput, Table } from './primitives'
+import { Button, InlineInput, NoData, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
@@ -45,7 +45,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           forget={session.status === 'ready' ? session.forget : null}
         />
       ) : (
-        <div className="p-3 text-sm text-level3">{message(session)}</div>
+        <NoData>{message(session)}</NoData>
       )}
     </Panel>
   )
@@ -143,11 +143,9 @@ function AccountBody({
             <ReadNote what="the account" error={error} onRetry={retry} busy={isFetching} />
           </div>
         )}
-        {!view && !error && <p className="p-3 text-sm text-level3">Loading account…</p>}
-        {view?.kind === 'unknown' && <p className="p-3 text-sm text-level3">Enable trading to read this account.</p>}
-        {view?.kind === 'empty' && (
-          <p className="p-3 text-sm text-level3">No account on this venue yet. Deposit to start.</p>
-        )}
+        {!view && !error && <NoData>Loading account…</NoData>}
+        {view?.kind === 'unknown' && <NoData>Enable trading to read this account.</NoData>}
+        {view?.kind === 'empty' && <NoData>No account on this venue yet. Deposit to start.</NoData>}
         {closeError && (
           <div className="p-2">
             <TradeNote error={{ kind: 'invalid-order', detail: closeError }} />
