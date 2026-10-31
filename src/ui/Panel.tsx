@@ -33,7 +33,13 @@ export function useRowKeys() {
       const step = STEPS[event.key]
       if (!step) return
       const rows = rowsIn(event.currentTarget)
-      const to = rows[step(rows.indexOf(document.activeElement as HTMLElement), rows.length - 1)]
+      const to =
+        rows[
+          step(
+            rows.findIndex((row) => row === document.activeElement),
+            rows.length - 1,
+          )
+        ]
       if (!to) return
       event.preventDefault()
       to.focus()

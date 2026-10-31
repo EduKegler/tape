@@ -29,7 +29,7 @@ export function ConfirmAction({
     if (open) {
       confirmButton.current?.focus()
       const outside = (event: PointerEvent) => {
-        if (!step.current?.contains(event.target as Node)) setOpen(false)
+        if (!(event.target instanceof Node && step.current?.contains(event.target))) setOpen(false)
       }
       const escape = (event: KeyboardEvent) => {
         if (event.key !== 'Escape') return

@@ -10,6 +10,8 @@ import { Panel, Segmented } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { candlesQuery, marketQuery } from './queries'
 
+const chartTime = (seconds: number) => seconds as UTCTimestamp
+
 const MARKS = {
   [TickMarkType.Year]: 'year',
   [TickMarkType.Month]: 'month',
@@ -91,7 +93,7 @@ export function CandleChart({
     if (!plot || !history.data) return
     plot.candles.setData(
       history.data.map((bar) => ({
-        time: bar.time as UTCTimestamp,
+        time: chartTime(bar.time),
         open: bar.open,
         high: bar.high,
         low: bar.low,
@@ -100,7 +102,7 @@ export function CandleChart({
     )
     plot.volume.setData(
       history.data.map((bar) => ({
-        time: bar.time as UTCTimestamp,
+        time: chartTime(bar.time),
         value: bar.volume,
         color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
       })),
@@ -129,14 +131,14 @@ export function CandleChart({
     for (const bar of frame.bars) {
       if (bar.time < plot.lastTime) continue
       plot.candles.update({
-        time: bar.time as UTCTimestamp,
+        time: chartTime(bar.time),
         open: bar.open,
         high: bar.high,
         low: bar.low,
         close: bar.close,
       })
       plot.volume.update({
-        time: bar.time as UTCTimestamp,
+        time: chartTime(bar.time),
         value: bar.volume,
         color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
       })
