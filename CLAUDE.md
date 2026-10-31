@@ -16,7 +16,7 @@ Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. N
 
 One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. Size a commit by the work, not by the edit: a feature with its tests, a fix with its test, a batch of new tests for one package. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits, because a reviewer can revert each fix alone. Split: #36 has 36 commits, one per test, and is two, one `test(trade)` for the dYdX gaps the mutation run found and one `test(core)` for the core ones. The same edit at many sites is also one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol.
 
-Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it, and a fix shares a commit with its Vitest test, because a red test fails `pnpm verify`. `pnpm verify:commits` runs it on each commit since `origin/main`, in the pre-push hook and in CI, so each commit adds a full `pnpm verify` to the PR's CI run. Never push with `--no-verify`.
+Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it, and a fix shares a commit with its Vitest test, because a red test fails `pnpm verify`. `pnpm verify:commits` runs it on each commit since `origin/main`, in the pre-push hook and in CI, so each commit adds a full `pnpm verify` to the PR's CI run. A commit that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run and the deploy. `scripts/change-kind.mjs` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
 
 ## Pull requests
 
@@ -68,7 +68,7 @@ Before a venue ships, its tests prove these:
 | --- | --- |
 | Conventional Commits | commitlint in the lefthook `commit-msg` hook |
 | No AI attribution in commits or PRs | the `commit-msg` hook, `attribution` in `.claude/settings.json` |
-| Every commit passes `pnpm verify` on its own | `scripts/verify-commits.mjs`, in the `pre-push` hook and `.github/workflows/verify.yml` |
+| Every commit passes `pnpm verify` on its own, or `pnpm verify --docs` if it changes only `.md` files | `scripts/verify-commits.mjs` with `scripts/change-kind.mjs`, in the `pre-push` hook and `.github/workflows/verify.yml` |
 | No research, competitor notes or decision logs in the repo | `scripts/check-public.mjs` in `pnpm verify` |
 | Packages import no React, no `#/` and nothing undeclared | `scripts/check-packages.mjs` in `pnpm verify` |
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
