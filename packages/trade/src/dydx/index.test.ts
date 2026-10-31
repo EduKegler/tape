@@ -698,3 +698,18 @@ describe('dydx setup', () => {
     expect(fresh.writes).toHaveLength(1)
   })
 })
+
+describe('dydx history', () => {
+  it('fails a history read the indexer cannot answer instead of calling it empty', async () => {
+    const down = [
+      async () => new Response('Bad Gateway', { status: 502 }),
+      async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    ]
+    for (const fetch of down)
+      expect(await failure(dydx.history({ network: 'testnet', address: 'dydx1test', fetch }))).toMatchObject({
+        kind: 'unreachable',
+      })
+  })
+})
