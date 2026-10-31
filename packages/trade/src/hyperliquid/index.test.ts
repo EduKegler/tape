@@ -54,8 +54,8 @@ const draft = {
   activation: '',
 }
 
-function place(over: Partial<typeof draft>): Command {
-  const built = buildIntent(btc, { ...draft, ...over } as Parameters<typeof buildIntent>[1], hyperliquid.capabilities)
+function place(over: Partial<typeof draft>, spec = btc): Command {
+  const built = buildIntent(spec, { ...draft, ...over } as Parameters<typeof buildIntent>[1], hyperliquid.capabilities)
   if (!built.ok) throw new Error(JSON.stringify(built))
   return { kind: 'place', intent: built.intent }
 }
@@ -210,6 +210,43 @@ describe('hyperliquid refusals', () => {
       kind: 'insufficient-margin',
       detail: 'Insufficient margin to place order.',
     })
+  })
+})
+
+describe('hyperliquid refusals before signing', () => {
+  const spec = (venueSymbol: string): MarketSpec => ({
+    ...btc,
+    key: marketKey('hyperliquid', venueSymbol as Base),
+    base: venueSymbol as Base,
+    venueSymbol,
+  })
+  const sol = { price: '150', bid: '149.9', ask: '150.1' }
+
+  it('refuses before signing when this device has no key or the market is not listed', async () => {
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    expect(await failureOf(hyperliquid.execute({ ...ctx, keys: memorySlot(null) }, place({})))).toEqual({
+      kind: 'needs-setup',
+      detail: 'Enable trading on this device first',
+    })
+    expect(await failureOf(hyperliquid.execute(ctx, place({}, spec('DOGE'))))).toEqual({
+      kind: 'invalid-order',
+      detail: 'DOGE is not listed on Hyperliquid testnet',
+    })
+    expect(posts()).toEqual([])
+  })
+
+  it('refuses a size or a scale leg finer than the 2 szDecimals SOL has on this network', async () => {
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    expect(await failureOf(hyperliquid.execute(ctx, place({ ...sol, size: '0.001' }, spec('SOL'))))).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Size 0\.001: /) as string,
+    })
+    const scale = place({ ...sol, kind: 'scale', size: '0.05', start: '150', end: '149', count: '3' }, spec('SOL'))
+    expect(await failureOf(hyperliquid.execute(ctx, scale))).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Order 1 size 0\.0\d+: /) as string,
+    })
+    expect(posts()).toEqual([])
   })
 })
 
