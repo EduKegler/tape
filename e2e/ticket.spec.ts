@@ -121,6 +121,23 @@ test('a book row from a stale book warns under the price without blocking', asyn
   await expect(price).toHaveAccessibleDescription('')
 })
 
+test('a book row from a market opened after its venue dropped warns under the price', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?interval=1m')
+  await expect(panel(page, 'Venues').getByRole('row', { name: /^Hyperliquid .*\d/ })).toBeVisible()
+  await replay(page, { drop: 'hyperliquid' })
+  await page
+    .getByRole('navigation', { name: 'Venue' })
+    .getByRole('link', { name: /Hyperliquid/ })
+    .click()
+  const book = panel(page, 'Order book')
+  await expect(book.getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
+  await page.clock.fastForward(20_000)
+  await book.getByRole('button', { name: /^Bid / }).first().click()
+  const price = ticketOf(page).getByRole('textbox', { name: 'Price (USDC)' })
+  await expect(price).not.toHaveValue('')
+  await expect(price).toHaveAccessibleDescription(/^From a book 2\d s old\. Check it against the market\.$/)
+})
+
 test('a market buy hides the price, offers slippage and prices the notional at the ask', async ({ page }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)

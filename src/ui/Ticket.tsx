@@ -221,7 +221,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
 
   const book = useRef<{ readonly live: boolean; readonly at: number | null }>({ live: false, at: null })
   useFrameEffect({ kind: 'book', market: spec.key, group }, (f) => {
-    book.current = f.status === 'live' ? { live: true, at: Date.now() } : { live: false, at: book.current.at }
+    book.current = { live: f.status === 'live', at: f.liveAt }
   })
   const [priceNote, setPriceNote] = useState<string | null>(null)
   useEffect(() => {
