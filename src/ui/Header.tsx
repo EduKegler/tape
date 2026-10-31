@@ -6,7 +6,7 @@ import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import { NETWORK, VENUES } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
-import { formatCompact, formatPct } from './format'
+import { SIDE_MARK, formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
 import { MarketSearch } from './MarketSearch'
 import { TopicStatus } from './PanelStatus'
@@ -78,8 +78,16 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
         <div>
           <dt className="sr-only">Last price</dt>
           <dd
-            className={`text-lg ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+            className={`text-xl leading-none ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
           >
+            {last.side && (
+              <>
+                <span aria-hidden className="mr-1 text-base">
+                  {SIDE_MARK[last.side]}
+                </span>
+                <span className="sr-only">{last.side === 'buy' ? 'Buy' : 'Sell'} </span>
+              </>
+            )}
             {last.px || '—'}
           </dd>
         </div>

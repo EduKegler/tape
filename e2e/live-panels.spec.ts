@@ -14,7 +14,7 @@ test('the ticker shows the last trade and the perp stats Hyperliquid recorded', 
     'Funding 1h',
     'Index',
   ])
-  await expect(ticker(page)).toHaveText(['80,589', '-0.40%', '2.11B', '+0.0013%', '80,641.2'])
+  await expect(ticker(page)).toHaveText(['▲Buy 80,589', '-0.40%', '2.11B', '+0.0013%', '80,641.2'])
   await expectAccessible(page)
 })
 
