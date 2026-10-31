@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import type { Route } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
@@ -117,4 +118,19 @@ test('the search lists each dex once when two dexes share a full name', async ({
   expect(new Set(options).size).toBe(options.length)
   const dexesShown = new Set(options.map((o) => (o.includes(':') ? o.split(':')[0] : '')))
   await expect(page.getByRole('group')).toHaveCount(dexesShown.size)
+})
+
+const failMarketList = (route: Route) =>
+  route.request().postData()?.includes('"allPerpMetas"') ? route.fulfill({ status: 503, body: '' }) : route.fallback()
+
+test('the search says when the market list fails and tries again when it opens', async ({ page }) => {
+  await page.route('**/info', failMarketList)
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const search = page.getByRole('combobox', { name: 'Search markets' })
+  await search.click()
+  await expect(page.getByText('Could not load markets.')).toBeVisible({ timeout: 15_000 })
+  await page.unroute('**/info', failMarketList)
+  await page.keyboard.press('Escape')
+  await search.click()
+  await expect(page.getByRole('option', { name: 'BTC', exact: true })).toBeVisible()
 })
