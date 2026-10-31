@@ -1,8 +1,11 @@
 import { Input as BaseInput } from '@base-ui/react/input'
 import { useId } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 
-export function Input(props: {
+export function Input({
+  inputRef,
+  ...props
+}: {
   label: string
   name: string
   value: string
@@ -11,7 +14,9 @@ export function Input(props: {
   messageLine?: boolean
   hint: ReactNode
   onChange: (v: string) => void
-  onBlur: () => void
+  onBlur?: () => void
+  disabled?: boolean
+  inputRef?: Ref<HTMLInputElement>
 }) {
   const id = useId()
   const message = props.error ? `${id}-error` : props.warning ? `${id}-warning` : undefined
@@ -24,6 +29,7 @@ export function Input(props: {
         {props.hint}
       </div>
       <BaseInput
+        ref={inputRef}
         id={id}
         name={props.name}
         inputMode="decimal"
@@ -31,6 +37,7 @@ export function Input(props: {
         value={props.value}
         onValueChange={(v) => props.onChange(v.trim())}
         onBlur={props.onBlur}
+        disabled={props.disabled}
         aria-invalid={Boolean(props.error)}
         aria-describedby={message}
         className="num h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1 outline-none focus:border-accent aria-invalid:border-warn"

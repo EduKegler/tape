@@ -997,7 +997,7 @@ describe('orderly module', () => {
     }
   })
 
-  it('cancels an order Orderly no longer has, by its code, but not past a key it refuses', async () => {
+  it('cancels an order Orderly no longer has or already filled, by its code, but not past a key it refuses', async () => {
     const cancel = (status: number, reply: unknown) =>
       TRADING.orderly.execute(
         {
@@ -1017,6 +1017,8 @@ describe('orderly module', () => {
     expect(await cancel(400, { success: false, code: -1006, message: 'The data is not found on the server.' })).toEqual(
       { kind: 'done', detail: 'Canceled' },
     )
+    const filled = orderlyReply('cancel-filled')
+    expect(await cancel(filled.status, filled.body)).toEqual({ kind: 'done', detail: 'Canceled' })
     const error = await cancel(401, { success: false, code: -1002, message: 'Orderly key not found' }).catch(
       (e: unknown) => e,
     )

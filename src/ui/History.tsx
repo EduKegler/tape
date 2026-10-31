@@ -7,14 +7,13 @@ import type { Address } from 'viem'
 import { selectHistory, summarize, toCsv } from '@tape/trade/history'
 import type { FundingPayment, RealizedFill, Totals } from '@tape/trade/history'
 import { amount, format } from '@tape/trade/money'
-import type { TradeVenueId } from '@tape/trade/types'
+import type { TradeError, TradeVenueId } from '@tape/trade/types'
 import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { Button, Table } from './primitives'
 import type { Column } from './primitives'
-import { TradeNote } from './TradeNote'
 
 const WALLET = /^0x[0-9a-fA-F]{40}$/
 const DYDX_ADDRESS = /^dydx1[0-9a-z]{38}$/
@@ -77,6 +76,8 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
       to: search.to ?? null,
     },
   )
+  const failed = HISTORY_VENUES.filter((_, i) => results[i]!.error).map((v) => VENUES[v].label)
+  const unread = failed.length > 0 ? new Intl.ListFormat('en').format(failed) : null
   const totals = summarize(selected.fills, selected.funding, (e) =>
     search.totals === 'venue' ? VENUES[e.venue].label : new Date(e.time).toISOString().slice(0, 7),
   )
@@ -134,7 +135,16 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
             />
           }
         >
-          <TotalsTable rows={[...totals, ...all]} first={search.totals === 'venue' ? 'Venue' : 'Month'} />
+          {unread && (
+            <p className="mx-3 my-1.5 border-l-2 border-warn pl-2 text-sm text-level1">
+              Could not read {unread}. These totals leave {failed.length > 1 ? 'them' : 'it'} out.
+            </p>
+          )}
+          <TotalsTable
+            rows={[...totals, ...all]}
+            first={search.totals === 'venue' ? 'Venue' : 'Month'}
+            empty={unread ? `No totals to show. ${unread} could not be read.` : 'Nothing in this period.'}
+          />
         </Panel>
         <Panel
           title="Fills and funding"
@@ -146,7 +156,11 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
         >
           <div className="flex h-full min-h-80 flex-col">
             <Filters search={search} markets={selected.markets} now={now} set={set} />
-            <Rows fills={fills} payments={payments} />
+            <Rows
+              fills={fills}
+              payments={payments}
+              empty={unread ? `Nothing to show. ${unread} could not be read.` : 'No fills or funding in this period.'}
+            />
           </div>
         </Panel>
       </div>
@@ -182,7 +196,7 @@ function Addresses({
           placeholder={fallback.wallet ?? '0x…'}
           spellCheck={false}
           aria-invalid={!walletOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
+          className="num h-7 rounded-sm border border-edge bg-inset px-2 text-sm text-level1"
         />
       </label>
       <label className="flex flex-col gap-1 text-level3">
@@ -193,10 +207,10 @@ function Addresses({
           placeholder={fallback.dydx ?? 'dydx1…'}
           spellCheck={false}
           aria-invalid={!dydxOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
+          className="num h-7 rounded-sm border border-edge bg-inset px-2 text-sm text-level1"
         />
       </label>
-      <Button look="secondary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
+      <Button look="primary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
         Read history
       </Button>
     </form>
@@ -234,7 +248,19 @@ function VenueStatus({
         </p>
       )}
       {address && <p className="num text-xs break-all text-level3">{address}</p>}
-      {result.error && <TradeNote error={result.error.error} />}
+      {result.error && (
+        <p role="alert" className="border-l-2 border-warn pl-2 text-level1">
+          Could not read {label} history. {readFailure(result.error.error)}{' '}
+          <Button
+            look="quiet"
+            onClick={onRefresh}
+            disabled={result.isFetching}
+            className="underline underline-offset-2"
+          >
+            Retry
+          </Button>
+        </p>
+      )}
       {h && (
         <p className="num text-level2">
           {h.fills.length} fills · {h.funding.length} funding payments
@@ -248,6 +274,14 @@ function VenueStatus({
     </li>
   )
 }
+
+const READ_FAILURES: Partial<Record<TradeError['kind'], string>> = {
+  unreachable: 'The venue did not answer.',
+  'rate-limited': 'The venue is limiting requests. Retry in a few seconds.',
+  rejected: 'The venue refused the request.',
+}
+
+const readFailure = (error: TradeError) => READ_FAILURES[error.kind] ?? 'Tape could not read the answer.'
 
 function Filters({
   search,
@@ -283,7 +317,7 @@ function Filters({
         <select
           value={search.market ?? ''}
           onChange={(e) => set({ market: e.target.value || undefined })}
-          className="rounded-sm border border-rule bg-surface px-1 text-level1"
+          className="h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         >
           <option value="">All</option>
           {markets.map((m) => (
@@ -309,14 +343,14 @@ function Filters({
           aria-label="From"
           value={search.from ?? ''}
           onChange={(e) => set({ from: e.target.value || undefined })}
-          className="num rounded-sm border border-rule bg-surface px-1 text-level1"
+          className="num h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         />
         <input
           type="date"
           aria-label="To"
           value={search.to ?? ''}
           onChange={(e) => set({ to: e.target.value || undefined })}
-          className="num rounded-sm border border-rule bg-surface px-1 text-level1"
+          className="num h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         />
       </div>
     </div>
@@ -325,8 +359,8 @@ function Filters({
 
 const TOTALS_HEIGHT = 'h-36'
 
-function TotalsTable({ rows, first }: { rows: Totals[]; first: string }) {
-  if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>Nothing in this period.</p>
+function TotalsTable({ rows, first, empty }: { rows: Totals[]; first: string; empty: string }) {
+  if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>{empty}</p>
   const columns: Column<Totals>[] = [
     {
       header: first,
@@ -352,13 +386,12 @@ function TotalsTable({ rows, first }: { rows: Totals[]; first: string }) {
 
 function Signed({ value, exact = false }: { value: string; exact?: boolean }) {
   const shown = exact ? value : money(value)
-  const tone = Number(value) > 0 ? 'text-bid' : Number(value) < 0 ? 'text-ask' : ''
-  return <span className={tone}>{shown}</span>
+  return <span className={Number(value) === 0 ? 'text-level3' : 'text-level1'}>{shown}</span>
 }
 
 const COLUMNS = 'grid-cols-[11rem_6rem_minmax(6rem,1fr)_4rem_4rem_1fr_1fr_1fr_1fr_1fr]'
 
-function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPayment[] }) {
+function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: FundingPayment[]; empty: string }) {
   const rows = [
     ...fills.map((fill): Row => ({ kind: 'fill', time: fill.time, fill })),
     ...payments.map((payment): Row => ({ kind: 'funding', time: payment.time, payment })),
@@ -371,8 +404,17 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
     overscan: 12,
   })
   return (
-    <div className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-xs">
-      <div role="row" className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-level3`}>
+    <div
+      role="table"
+      aria-label="Fills and funding"
+      aria-rowcount={rows.length + 1}
+      className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-sm"
+    >
+      <div
+        role="row"
+        aria-rowindex={1}
+        className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-xs text-level3`}
+      >
         <span role="columnheader">Time (UTC)</span>
         <span role="columnheader">Venue</span>
         <span role="columnheader">Market</span>
@@ -398,9 +440,17 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
         ref={scroller}
         role="rowgroup"
         aria-label="History rows"
+        // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- axe's scrollable-region-focusable: the keyboard scrolls the rows from here
+        tabIndex={0}
         className="min-h-0 min-w-240 flex-1 overflow-y-auto"
       >
-        {rows.length === 0 && <p className="px-3 py-2 text-sm text-level3">No fills or funding here.</p>}
+        {rows.length === 0 && (
+          <div role="row">
+            <span role="cell" className="block px-3 py-2 text-sm text-level3">
+              {empty}
+            </span>
+          </div>
+        )}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
             const r = rows[item.index]
@@ -410,6 +460,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
               <div
                 key={item.key}
                 role="row"
+                aria-rowindex={item.index + 2}
                 className={`absolute inset-x-0 grid h-6 ${COLUMNS} items-center gap-2 border-t border-rule px-3 text-level2`}
                 style={{ transform: `translateY(${item.start}px)` }}
               >
@@ -435,7 +486,7 @@ function FillCells({ fill }: { fill: RealizedFill }) {
     <>
       <span role="cell">{fill.liquidation ? 'Liquidation' : 'Fill'}</span>
       <span role="cell" className={fill.side === 'buy' ? 'text-bid' : 'text-ask'}>
-        {fill.side}
+        {fill.side === 'buy' ? 'Buy' : 'Sell'}
       </span>
       <span role="cell" className="text-right">
         {fill.size}

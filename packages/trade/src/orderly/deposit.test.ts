@@ -276,7 +276,7 @@ describe('Orderly deposit credit', () => {
     for (const stored of [null, { ...linked, status: 'draft' as const }]) {
       const { fetch, asked } = orderlyAnswering(history([]))
       expect(await arbitrum().progress({ fetch, keys: keys(stored) }, sent)).toEqual({
-        stage: 'relaying',
+        stage: 'unwatched',
         detail: 'Enable trading on Orderly to follow the credit here',
       })
       expect(asked).toEqual([])

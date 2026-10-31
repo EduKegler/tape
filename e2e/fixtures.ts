@@ -61,9 +61,12 @@ export const test = base.extend<{ network: Network; escaped: string[]; consoleEr
 export const panel = (page: Page, title: string) =>
   page.locator('section').filter({ has: page.getByRole('heading', { name: title, exact: true }) })
 
+const tickerPlaceholders = (page: Page) => page.getByRole('banner').getByRole('definition').filter({ hasText: /^—$/ })
+
 export async function openMarket(page: Page, path: string) {
   await page.goto(path)
   await expect(panel(page, 'Order book').getByText(/^Spread .* bps$/)).toBeVisible()
+  await expect(tickerPlaceholders(page)).toHaveCount(0)
 }
 
 const BLOCKING_IMPACT = new Set(['serious', 'critical'])
