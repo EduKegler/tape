@@ -42,9 +42,10 @@ A test goes in the one layer that can catch its kind of mistake. A test that rep
 | Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
 | Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
 | History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
-| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production build over the recorded replay, with no network | What the user reads on screen |
+| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the testnet and mainnet production builds, with no network. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
 | Each venue still serves the book the testnet build reads | Playwright in `e2e/live.smoke.ts`, run only by the nightly, against the live venues | A live book on screen |
 | Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
+| The Node tests catch a broken rule in `packages/core` and `packages/trade` | StrykerJS with the Vitest runner, run by hand once per batch of new tests | Each surviving mutant is judged a missing test, which gets one, or an equivalent mutant |
 
 The `verify-tape` skill explores and reproduces bugs against live data. Regressions belong to `pnpm e2e`. A spec finds elements by role and accessible name, and a `data-testid` goes in only where neither is reliable.
 
@@ -57,6 +58,8 @@ Before a venue ships, its tests prove these:
 - The recorded replay yields a live, uncrossed book, a reconnect resyncs it, and a stale snapshot is ignored.
 - A 5xx, a timeout or an unreadable reply on a write is an unknown outcome, and the order is then found by client id.
 - A missing order is told apart from a missing key, and cancelling a filled order is not an error.
+- A cancel the venue says it already holds, such as dYdX's `already exists` codes 9 and 32, is a done cancel, not a refused one.
+- A 5xx, a timeout or an unreadable reply on a read means the venue is unreachable, never a missing order or account.
 - Trading stays off on mainnet unless the build turns it on.
 
 ## Rules and what enforces them
@@ -84,6 +87,7 @@ Before a venue ships, its tests prove these:
 | A PR carries a whole ticket or plan block | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |
+| StrykerJS runs only in its own worktree, with `.claude/worktrees/**` in `ignorePatterns`, and the mode of `.claude/skills/verify-tape/scripts/verify-tape.mjs` is restored after each `inPlace` run | review only |
 
 When the operator corrects a mistake, fix it and add its row. A rule enforced by review only that breaks again gets a check in the same change, unless no check can tell the mistake apart. Drop a row once its mistake can no longer be written.
 
