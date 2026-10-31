@@ -400,6 +400,15 @@ describe('commands in flight', () => {
     release(ref, a)
     release(ref, b)
   })
+
+  it('lets one deposit out per account at a time, apart from its orders', () => {
+    const deposit = { kind: 'deposit' } as const
+    expect([claim(ref, deposit), claim(ref, place), claim(ref, deposit)]).toEqual([true, true, false])
+    release(ref, deposit)
+    expect(claim(ref, deposit)).toBe(true)
+    release(ref, deposit)
+    release(ref, place)
+  })
 })
 
 describe('dydx key', () => {

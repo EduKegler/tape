@@ -106,7 +106,7 @@ function DepositForm({
   const [text, setText] = useState('')
   const amount = parseUsdc(text)
   const quote = useDepositQuote(account, route, amount)
-  const send = useSendDeposit(account)
+  const deposit = useSendDeposit(account)
   const fromId = useId()
   const amountId = useId()
   return (
@@ -114,8 +114,8 @@ function DepositForm({
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!amount || !quote.ready || !quote.terms || !quote.calls || send.isPending) return
-        send.mutate({ route, amount, terms: quote.terms, calls: quote.calls }, { onSuccess: onSent })
+        if (!amount || !quote.ready || !quote.terms || !quote.calls) return
+        deposit.send({ route, amount, terms: quote.terms, calls: quote.calls }, onSent)
       }}
     >
       <div className="flex flex-col gap-1">
@@ -126,7 +126,7 @@ function DepositForm({
           id={fromId}
           value={chainId}
           onChange={(e) => {
-            send.reset()
+            deposit.reset()
             setChainId(Number(e.target.value))
           }}
           className="rounded-sm border border-rule bg-surface px-2 py-1.5 text-level1"
@@ -152,7 +152,7 @@ function DepositForm({
             <Button
               look="quiet"
               onClick={() => {
-                send.reset()
+                deposit.reset()
                 setText(usdc(balance))
               }}
             >
@@ -166,7 +166,7 @@ function DepositForm({
           autoComplete="off"
           value={text}
           onChange={(e) => {
-            send.reset()
+            deposit.reset()
             setText(e.target.value.trim())
           }}
           aria-invalid={text !== '' && amount === null}
@@ -176,14 +176,14 @@ function DepositForm({
       </div>
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
       {amount !== null && <Issues issues={quote.issues} route={route} messenger={quote.terms?.message?.via ?? null} />}
-      <Button look="primary" size="lg" type="submit" disabled={!quote.ready || send.isPending}>
-        {send.isPending
+      <Button look="primary" size="lg" type="submit" disabled={!quote.ready || deposit.pending}>
+        {deposit.pending
           ? 'Confirm in your wallet…'
           : amount
             ? `Deposit ${usdc(amount)} USDC from ${chainName(route.chainId)}`
             : 'Deposit'}
       </Button>
-      {send.error && <SendError error={send.error} />}
+      {deposit.error && <SendError error={deposit.error} />}
     </form>
   )
 }

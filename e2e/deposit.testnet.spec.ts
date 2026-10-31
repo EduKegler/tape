@@ -95,3 +95,18 @@ test('a deposit clicked offline goes to the wallet at once, not when the network
   await expect(dialog.getByRole('alert')).toHaveText('You declined in the wallet. Nothing was sent.')
   expect(wallet.askedFor('send')).toHaveLength(1)
 })
+
+test('three clicks in one tick ask the wallet for one deposit', async ({ page, wallet }) => {
+  const { dialog, amount } = await openDeposit(page)
+  await amount.fill('10')
+  const deposit = dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' })
+  await expect(deposit).toBeEnabled()
+  await deposit.evaluate((button: HTMLButtonElement) => {
+    button.click()
+    button.click()
+    button.click()
+  })
+
+  await expect(dialog.getByRole('alert')).toHaveText('You declined in the wallet. Nothing was sent.')
+  expect(wallet.askedFor('send')).toHaveLength(1)
+})
