@@ -11,7 +11,7 @@ import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
 
-const BID_SLOTS = Array.from({ length: BOOK_ROWS }, (_, i) => i)
+const BID_SLOTS = Array.from({ length: BOOK_ROWS }, (_, slot) => slot)
 const ASK_SLOTS = [...BID_SLOTS].reverse()
 
 export function OrderBook({
@@ -26,7 +26,11 @@ export function OrderBook({
   const topic: BookTopic = { kind: 'book', market, group }
   const head = useFrame(
     topic,
-    (f) => ({ group: f?.group ?? group, options: f?.groupOptions.join('|') ?? '', status: f?.status ?? 'syncing' }),
+    (frame) => ({
+      group: frame?.group ?? group,
+      options: frame?.groupOptions.join('|') ?? '',
+      status: frame?.status ?? 'syncing',
+    }),
     shallow,
   )
   const keys = useRowKeys()
@@ -39,12 +43,12 @@ export function OrderBook({
           <span className="sr-only">Group</span>
           <select
             value={head.group}
-            onChange={(e) => onGroup(e.target.value)}
+            onChange={(event) => onGroup(event.target.value)}
             className="num rounded-sm border border-rule bg-inset py-0.5 pl-1 text-level2"
           >
-            {(head.options ? head.options.split('|') : [head.group]).map((o) => (
-              <option key={o} value={o.replaceAll(',', '')}>
-                {o}
+            {(head.options ? head.options.split('|') : [head.group]).map((step) => (
+              <option key={step} value={step.replaceAll(',', '')}>
+                {step}
               </option>
             ))}
           </select>
@@ -59,14 +63,14 @@ export function OrderBook({
         </div>
         <div role="group" aria-label="Price levels" {...keys} className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 flex-col">
-            {ASK_SLOTS.map((i) => (
-              <Row key={`a${i}`} topic={topic} side="asks" index={i} />
+            {ASK_SLOTS.map((slot) => (
+              <Row key={`a${slot}`} topic={topic} side="asks" index={slot} />
             ))}
           </div>
           <Spread topic={topic} />
           <div className="flex min-h-0 flex-1 flex-col">
-            {BID_SLOTS.map((i) => (
-              <Row key={`b${i}`} topic={topic} side="bids" index={i} />
+            {BID_SLOTS.map((slot) => (
+              <Row key={`b${slot}`} topic={topic} side="bids" index={slot} />
             ))}
           </div>
         </div>
@@ -76,7 +80,7 @@ export function OrderBook({
 }
 
 const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; side: 'asks' | 'bids'; index: number }) {
-  const row = useFrame(topic, (f: BookFrame | null) => f?.[side][index] ?? EMPTY_ROW, shallow)
+  const row = useFrame(topic, (frame: BookFrame | null) => frame?.[side][index] ?? EMPTY_ROW, shallow)
   const ask = side === 'asks'
   return (
     <Button
@@ -109,16 +113,22 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
 })
 
 function Spread({ topic }: { topic: BookTopic }) {
-  const s = useFrame(
+  const summary = useFrame(
     topic,
-    (f) => ({ mid: f?.mid ?? '', spread: f?.spread ?? '', bps: f?.spreadBps ?? '', status: f?.status ?? 'syncing' }),
+    (frame) => ({
+      mid: frame?.mid ?? '',
+      spread: frame?.spread ?? '',
+      bps: frame?.spreadBps ?? '',
+      status: frame?.status ?? 'syncing',
+    }),
     shallow,
   )
   return (
     <div className="flex h-9 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="text-xl leading-none text-level1">{s.mid || '—'}</span>
+      <span className="text-xl leading-none text-level1">{summary.mid || '—'}</span>
       <span className="text-xs whitespace-nowrap text-level3">
-        {s.status === 'live' && `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`}
+        {summary.status === 'live'
+          && `Spread ${summary.spread} · ${summary.bps === '0.00' ? '<0.01' : summary.bps} bps`}
       </span>
     </div>
   )

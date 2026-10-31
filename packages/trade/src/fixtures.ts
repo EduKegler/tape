@@ -29,9 +29,9 @@ interface Recording {
 
 const revive = (_key: string, value: unknown) => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const v = value as { bytes?: unknown; bigint?: unknown }
-    if (typeof v.bytes === 'string' && Object.keys(v).length === 1) return hexToBytes(v.bytes as Hex)
-    if (typeof v.bigint === 'string' && Object.keys(v).length === 1) return BigInt(v.bigint)
+    const tagged = value as { bytes?: unknown; bigint?: unknown }
+    if (typeof tagged.bytes === 'string' && Object.keys(tagged).length === 1) return hexToBytes(tagged.bytes as Hex)
+    if (typeof tagged.bigint === 'string' && Object.keys(tagged).length === 1) return BigInt(tagged.bigint)
   }
   return value
 }

@@ -35,7 +35,7 @@ export function Input({
         inputMode="decimal"
         autoComplete="off"
         value={props.value}
-        onValueChange={(v) => props.onChange(v.trim())}
+        onValueChange={(value) => props.onChange(value.trim())}
         onBlur={props.onBlur}
         disabled={props.disabled}
         aria-invalid={Boolean(props.error)}

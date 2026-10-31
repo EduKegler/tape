@@ -18,32 +18,32 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
     <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule px-4 py-2 xl:flex-nowrap">
       <Brand />
       <nav aria-label="Market" className="flex shrink-0 items-center gap-1">
-        {bases.map((b) => (
+        {bases.map((marketBase) => (
           <Link
-            key={b}
+            key={marketBase}
             to="/$venue/$base"
-            params={{ venue, base: b }}
-            search={(s) => s}
-            aria-current={b === base ? 'page' : undefined}
+            params={{ venue, base: marketBase }}
+            search={(search) => search}
+            aria-current={marketBase === base ? 'page' : undefined}
             className="px-2.5 py-1 text-base text-level3 hover:text-level1 aria-[current=page]:text-level1 aria-[current=page]:inset-shadow-selected"
           >
-            {b}
+            {marketBase}
           </Link>
         ))}
       </nav>
       <MarketSearch venue={venue} />
       <nav aria-label="Venue" className="flex shrink-0 items-center gap-1">
-        {VENUE_IDS.map((v) => (
+        {VENUE_IDS.map((venueId) => (
           <Link
-            key={v}
+            key={venueId}
             to="/$venue/$base"
-            params={{ venue: v, base }}
-            search={(s) => s}
-            aria-current={v === venue ? 'page' : undefined}
+            params={{ venue: venueId, base }}
+            search={(search) => search}
+            aria-current={venueId === venue ? 'page' : undefined}
             className="flex flex-col px-2 py-0.5 leading-tight text-level3 hover:text-level1 aria-[current=page]:text-level1 aria-[current=page]:inset-shadow-selected"
           >
-            <span className="text-base">{VENUES[v].label}</span>
-            <span className="text-xs text-level3">{VENUES[v].chain}</span>
+            <span className="text-base">{VENUES[venueId].label}</span>
+            <span className="text-xs text-level3">{VENUES[venueId].chain}</span>
           </Link>
         ))}
       </nav>
@@ -71,9 +71,9 @@ export function Brand() {
 
 function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
   const topic = { kind: 'trades', market: marketKey(venue, base) } as const
-  const last = useFrame(topic, (f) => ({ px: f?.last ?? '', side: f?.lastSide ?? null }), shallow)
+  const last = useFrame(topic, (frame) => ({ px: frame?.last ?? '', side: frame?.lastSide ?? null }), shallow)
   const stats = useQuery(statsQuery(venue, base))
-  const s = stats.data
+  const daily = stats.data
   return (
     <div className="flex min-w-0 items-baseline gap-3">
       <dl className="num flex h-11.5 min-w-0 flex-wrap items-baseline gap-5 overflow-hidden text-sm">
@@ -95,12 +95,12 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
         </div>
         <Stat
           label="24h"
-          value={s ? formatPct(s.changePct) : '—'}
-          tone={s ? (s.changePct >= 0 ? 'text-bid' : 'text-ask') : ''}
+          value={daily ? formatPct(daily.changePct) : '—'}
+          tone={daily ? (daily.changePct >= 0 ? 'text-bid' : 'text-ask') : ''}
         />
-        <Stat label="Volume" value={s ? formatCompact(s.volumeQuote) : '—'} />
-        {s?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(s.fundingRate * 100, 4)} />}
-        {s?.indexPrice != null && <Stat label="Index" value={s.indexPrice.toLocaleString('en-US')} />}
+        <Stat label="Volume" value={daily ? formatCompact(daily.volumeQuote) : '—'} />
+        {daily?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(daily.fundingRate * 100, 4)} />}
+        {daily?.indexPrice != null && <Stat label="Index" value={daily.indexPrice.toLocaleString('en-US')} />}
       </dl>
       <div className="shrink-0">
         <TopicStatus

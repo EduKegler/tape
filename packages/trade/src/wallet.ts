@@ -16,7 +16,7 @@ const DOMAIN_TYPES = {
 /** The domain's own keys, in EIP-712 order, as viem and MetaMask derive them. */
 export function domainTypes(domain: Eip712['domain']) {
   return (Object.keys(DOMAIN_TYPES) as (keyof typeof DOMAIN_TYPES)[])
-    .filter((k) => k in domain)
+    .filter((key) => key in domain)
     .map((name) => ({ name, type: DOMAIN_TYPES[name] }))
 }
 

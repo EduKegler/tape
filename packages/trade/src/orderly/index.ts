@@ -72,11 +72,11 @@ const KIND_OF_CODE: Readonly<Record<string, 'needs-setup' | 'rejected' | 'invali
 }
 
 const classify: Classify = (status, body, text) => {
-  const b = body as { success?: boolean; code?: string; message?: string } | null
-  if (status === 429) return { kind: 'rate-limited', detail: b?.message ?? text }
-  if (b?.success !== false) return null
-  const kind = b.code === undefined ? undefined : KIND_OF_CODE[b.code]
-  return kind ? { kind, detail: b.message ?? text } : classifyMessage(b.message ?? text)
+  const reply = body as { success?: boolean; code?: string; message?: string } | null
+  if (status === 429) return { kind: 'rate-limited', detail: reply?.message ?? text }
+  if (reply?.success !== false) return null
+  const kind = reply.code === undefined ? undefined : KIND_OF_CODE[reply.code]
+  return kind ? { kind, detail: reply.message ?? text } : classifyMessage(reply.message ?? text)
 }
 
 /**
@@ -90,8 +90,8 @@ const classifyOrder: Classify = (status, body, text) =>
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
 const unsuccessful: Classify = (_s, body, text) => {
-  const b = body as { success?: boolean; message?: string } | null
-  return b?.success === false ? { kind: 'rejected', detail: b.message ?? text } : null
+  const reply = body as { success?: boolean; message?: string } | null
+  return reply?.success === false ? { kind: 'rejected', detail: reply.message ?? text } : null
 }
 
 const publicGet = <T>(ctx: VenueContext, path: string) =>
@@ -179,10 +179,13 @@ function exactDecimal(decimal: string): { units: bigint; scale: bigint } {
 
 /** Orderly's Order Price Limit page: a buy at most mark × (1 + price range), a sell at least mark × (1 − price range). */
 function insidePriceRange(spec: MarketSpec, side: Side, price: Px, mark: string, priceRange: string): Px {
-  const m = exactDecimal(mark)
-  const r = exactDecimal(priceRange)
-  const numerator = m.units * (side === 'buy' ? r.scale + r.units : r.scale - r.units) * 10n ** BigInt(spec.scale.px)
-  const denominator = m.scale * r.scale
+  const exactMark = exactDecimal(mark)
+  const exactRange = exactDecimal(priceRange)
+  const numerator =
+    exactMark.units
+    * (side === 'buy' ? exactRange.scale + exactRange.units : exactRange.scale - exactRange.units)
+    * 10n ** BigInt(spec.scale.px)
+  const denominator = exactMark.scale * exactRange.scale
   const units = side === 'buy' ? numerator / denominator : (numerator + denominator - 1n) / denominator
   const bound = toTick(spec, side, Number(units))
   return (side === 'buy' ? Math.min(price, bound) : Math.max(price, bound)) as Px
@@ -206,10 +209,10 @@ async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLook
   try {
     const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${clientId}`, '', classifyOrder)
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error === notFound)
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error === notFound)
       return { kind: 'absent', detail: 'Orderly has no order with this client id' }
-    throw e
+    throw error
   }
 }
 
@@ -225,11 +228,11 @@ async function placeScale(
   order: Extract<OrderIntent['order'], { kind: 'scale' }>,
   spec: MarketSpec,
 ): Promise<CommandOutcome> {
-  const legs = order.legs.map((leg, i) => {
+  const legs = order.legs.map((leg, index) => {
     const quantity = wireDecimal(leg.size, intent.spec.scale.qty)
     const price = wireDecimal(leg.px, intent.spec.scale.px)
     const issue = checkSize(spec, quantity) ?? checkPrice(spec, price)
-    if (issue) fail({ kind: 'invalid-order', detail: `Order ${i + 1} at ${price}: ${issue} on this network` })
+    if (issue) fail({ kind: 'invalid-order', detail: `Order ${index + 1} at ${price}: ${issue} on this network` })
     return {
       symbol: intent.spec.venueSymbol,
       clientOrderId: leg.clientId,
@@ -251,7 +254,7 @@ async function placeScale(
     fail({ kind: 'unknown-outcome', detail: `No order rows in the reply: ${JSON.stringify(data)}` })
   // Orderly writes "none" in error_message on a placed row, so a row stands by its order_id.
   return scaleOutcome(
-    rows.map((r) => (r.order_id == null ? (r.error_message ?? 'Refused without a reason') : undefined)),
+    rows.map((row) => (row.order_id == null ? (row.error_message ?? 'Refused without a reason') : undefined)),
     'resting',
     (error) => fail(classifyMessage(error)),
   )
@@ -303,8 +306,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       const [symbol, id] = command.order.split(':') as [string, string]
       try {
         await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)), '', classifyOrder)
-      } catch (e) {
-        if (!(e instanceof TradeFailure && e.error === notFound)) throw e
+      } catch (error) {
+        if (!(error instanceof TradeFailure && error.error === notFound)) throw error
       }
       return { kind: 'done', detail: 'Canceled' }
     }
@@ -317,7 +320,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   }
 }
 
-const d = (n: string) => plainDecimal(n) as Decimal
+const toDecimal = (text: string) => plainDecimal(text) as Decimal
 
 async function account(ctx: VenueContext): Promise<AccountView> {
   if (!keyOf(ctx) || ctx.keys.read()?.status !== 'linked') return { kind: 'unknown' }
@@ -360,7 +363,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
     signed<Orders>(ctx, 'GET', '/v1/orders?status=INCOMPLETE'),
     signed<Trades>(ctx, 'GET', '/v1/trades?size=20'),
   ])
-  const live = positions.rows.filter((p) => Number(p.position_qty) !== 0)
+  const live = positions.rows.filter((position) => Number(position.position_qty) !== 0)
   if (
     Number(positions.total_collateral_value) === 0
     && live.length === 0
@@ -371,36 +374,36 @@ async function account(ctx: VenueContext): Promise<AccountView> {
   return {
     kind: 'live',
     snapshot: {
-      equity: d(positions.total_collateral_value),
-      available: d(positions.free_collateral),
-      positions: live.map((p) => ({
-        symbol: p.symbol,
-        side: p.position_qty.startsWith('-') ? 'short' : 'long',
-        size: d(p.position_qty.replace(/^-/, '')),
-        entry: d(p.average_open_price),
-        unrealizedPnl: d(p.unsettled_pnl),
-        liquidation: Number(p.est_liq_price) > 0 ? d(p.est_liq_price) : null,
+      equity: toDecimal(positions.total_collateral_value),
+      available: toDecimal(positions.free_collateral),
+      positions: live.map((position) => ({
+        symbol: position.symbol,
+        side: position.position_qty.startsWith('-') ? 'short' : 'long',
+        size: toDecimal(position.position_qty.replace(/^-/, '')),
+        entry: toDecimal(position.average_open_price),
+        unrealizedPnl: toDecimal(position.unsettled_pnl),
+        liquidation: Number(position.est_liq_price) > 0 ? toDecimal(position.est_liq_price) : null,
         leverage: null,
       })),
-      orders: orders.rows.map((o) => ({
-        ref: `${o.symbol}:${o.order_id}` as OrderRef,
-        symbol: o.symbol,
-        side: o.side === 'BUY' ? 'buy' : 'sell',
-        kind: o.type,
-        px: o.price === null ? null : d(o.price),
-        size: d(o.quantity),
-        reduceOnly: o.reduce_only,
-        placedAt: Number(o.created_time),
+      orders: orders.rows.map((order) => ({
+        ref: `${order.symbol}:${order.order_id}` as OrderRef,
+        symbol: order.symbol,
+        side: order.side === 'BUY' ? 'buy' : 'sell',
+        kind: order.type,
+        px: order.price === null ? null : toDecimal(order.price),
+        size: toDecimal(order.quantity),
+        reduceOnly: order.reduce_only,
+        placedAt: Number(order.created_time),
         cancelable: true,
       })),
-      fills: trades.rows.map((t) => ({
-        id: t.id,
-        symbol: t.symbol,
-        side: t.side === 'BUY' ? 'buy' : 'sell',
-        px: d(t.executed_price),
-        size: d(t.executed_quantity),
-        fee: d(t.fee),
-        time: Number(t.executed_timestamp),
+      fills: trades.rows.map((trade) => ({
+        id: trade.id,
+        symbol: trade.symbol,
+        side: trade.side === 'BUY' ? 'buy' : 'sell',
+        px: toDecimal(trade.executed_price),
+        size: toDecimal(trade.executed_quantity),
+        fee: toDecimal(trade.fee),
+        time: Number(trade.executed_timestamp),
       })),
     },
   }
@@ -410,9 +413,9 @@ async function registered(ctx: VenueContext): Promise<boolean> {
   try {
     await publicGet(ctx, `/v1/get_account?address=${ctx.ref.owner}&broker_id=${brokerFor(ctx)}`)
     return true
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected') return false
-    throw e
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error.kind === 'rejected') return false
+    throw error
   }
 }
 
@@ -425,9 +428,9 @@ async function keyValid(ctx: VenueContext): Promise<boolean> {
       `/v1/get_orderly_key?account_id=${accountId(ctx.ref.owner, brokerFor(ctx))}&orderly_key=${encodeURIComponent(key.id)}`,
     )
     return Number(data.expiration ?? 0) > Date.now()
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected') return false
-    throw e
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error.kind === 'rejected') return false
+    throw error
   }
 }
 
@@ -457,7 +460,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
       },
       classify,
     )
-  for (const step of (await steps(ctx)).filter((s) => !s.done)) {
+  for (const step of (await steps(ctx)).filter((entry) => !entry.done)) {
     onStep(step.id)
     if (step.id === 'register-account') {
       // The nonce is short-lived, so it is fetched right before the signature.
@@ -525,7 +528,7 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
       `${API[network]}/v1/public/query`,
       { ...post(body), mutates: false },
       unsuccessful,
-    ).then((r) => r.data)
+    ).then((reply) => reply.data)
   const follow = async <T>(body: Record<string, unknown>): Promise<T[]> => {
     const rows: T[] = []
     let cursor: string | null = null
@@ -539,9 +542,9 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   let accounts: { account_id: string }[]
   try {
     accounts = (await query<{ accounts: { account_id: string }[] }>({ type: 'accountState', address })).accounts
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
-    throw e
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
+    throw error
   }
   const read = await Promise.all(
     accounts.map(async ({ account_id }) => {
@@ -556,34 +559,34 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   )
   return {
     fills: read.flatMap(({ id, trades }) =>
-      trades.map((t): HistoryFill => ({
+      trades.map((trade): HistoryFill => ({
         venue: 'orderly',
         account: id,
-        id: t.id,
-        symbol: t.symbol,
-        side: t.side === 'BUY' ? 'buy' : 'sell',
-        px: d(t.executed_price),
-        size: d(t.executed_quantity),
-        fee: d(t.fee),
-        asset: t.fee_asset,
-        time: Number(t.executed_timestamp),
-        liquidation: t.order_id === null,
-        venuePnl: t.realized_pnl === null ? null : d(t.realized_pnl),
+        id: trade.id,
+        symbol: trade.symbol,
+        side: trade.side === 'BUY' ? 'buy' : 'sell',
+        px: toDecimal(trade.executed_price),
+        size: toDecimal(trade.executed_quantity),
+        fee: toDecimal(trade.fee),
+        asset: trade.fee_asset,
+        time: Number(trade.executed_timestamp),
+        liquidation: trade.order_id === null,
+        venuePnl: trade.realized_pnl === null ? null : toDecimal(trade.realized_pnl),
       })),
     ),
     // Accrued payments are not settled yet and can still change.
     funding: read.flatMap(({ id, payments }) =>
       payments
-        .filter((p) => p.funding_status === 'Settled')
-        .map((p): FundingPayment => ({
+        .filter((payment) => payment.funding_status === 'Settled')
+        .map((payment): FundingPayment => ({
           venue: 'orderly',
           account: id,
-          symbol: p.symbol,
-          time: Number(p.funding_rate_timestamp),
-          amount: plain(negate(amount(p.funding_fee))) as Decimal,
+          symbol: payment.symbol,
+          time: Number(payment.funding_rate_timestamp),
+          amount: plain(negate(amount(payment.funding_fee))) as Decimal,
           asset: 'USDC',
-          rate: d(p.funding_rate),
-          position: d(p.position_qty),
+          rate: toDecimal(payment.funding_rate),
+          position: toDecimal(payment.position_qty),
         })),
     ),
     gaps: [],

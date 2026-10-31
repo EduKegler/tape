@@ -18,7 +18,7 @@ export function HubProvider({ children }: { readonly children: ReactNode }) {
   return <HubContext value={client}>{children}</HubContext>
 }
 
-const identity = <T,>(x: T) => x
+const identity = <T,>(value: T) => value
 
 export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
   topic: T,
@@ -43,7 +43,7 @@ export function useFrameEffect<T extends Topic>(topic: T, onFrame: (frame: Frame
     const store = client.store(topic)
     const current = store.get()
     if (current) emit(current)
-    const sub = store.subscribe((f) => f && emit(f))
+    const sub = store.subscribe((frame) => frame && emit(frame))
     return () => {
       sub.unsubscribe()
       release()

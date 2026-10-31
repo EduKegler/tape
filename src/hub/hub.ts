@@ -97,7 +97,7 @@ export function createHub(deps: HubDeps): Hub {
   const tabs = new Map<TabId, TabState>()
   const markets = new Map<MarketKey, MarketState>()
   const topics = new Map<TopicKey, { frame: Frame; signature: string }>()
-  const venueState = (id: VenueId): VenueState => ({
+  const initialVenue = (id: VenueId): VenueState => ({
     adapter: deps.venues[id],
     conn: { s: 'idle' },
     socket: null,
@@ -107,7 +107,7 @@ export function createHub(deps: HubDeps): Hub {
     bySymbol: new Map(),
     specReads: new Map(),
   })
-  const venues = Object.fromEntries(VENUE_IDS.map((id) => [id, venueState(id)])) as Record<VenueId, VenueState>
+  const venues = Object.fromEntries(VENUE_IDS.map((id) => [id, initialVenue(id)])) as Record<VenueId, VenueState>
   let lastWanted: ReadonlyMap<StreamKey, number> = new Map()
   let streams: ReadonlySet<StreamKey> = new Set()
   let messages = 0
@@ -116,10 +116,10 @@ export function createHub(deps: HubDeps): Hub {
   const unreported: ExceptionEvent[] = []
 
   const market = (key: MarketKey): MarketState => {
-    let m = markets.get(key)
-    if (!m) {
+    let state = markets.get(key)
+    if (!state) {
       const { venue } = splitMarketKey(key)
-      m = {
+      state = {
         key,
         venue,
         sync: initialSync(venues[venue].adapter.book.protocol).sync,
@@ -127,33 +127,33 @@ export function createHub(deps: HubDeps): Hub {
         candles: new Map(),
         version: 0,
       }
-      markets.set(key, m)
+      markets.set(key, state)
     }
-    return m
+    return state
   }
 
   const specOf = (key: MarketKey) => venues[splitMarketKey(key).venue].specs.get(key) ?? null
   const unlisted = (key: MarketKey) => venues[splitMarketKey(key).venue].specs.get(key) === null
 
-  function statusOf(m: MarketState): FrameStatus {
-    const v = venues[m.venue]
-    if (v.conn.s !== 'open') return 'stale'
-    return m.sync.phase === 'live' ? 'live' : 'syncing'
+  function statusOf(state: MarketState): FrameStatus {
+    const venueState = venues[state.venue]
+    if (venueState.conn.s !== 'open') return 'stale'
+    return state.sync.phase === 'live' ? 'live' : 'syncing'
   }
 
   function project(topic: Topic, key: TopicKey): Frame | null {
     const keys = marketsFor(topic)
-    const views = keys.flatMap((k) => {
-      const spec = specOf(k)
-      const m = markets.get(k)
-      return spec && m
+    const views = keys.flatMap((marketKey) => {
+      const spec = specOf(marketKey)
+      const state = markets.get(marketKey)
+      return spec && state
         ? [
             {
               spec,
-              sync: m.sync,
-              trades: m.trades,
-              candles: m.candles,
-              status: statusOf(m),
+              sync: state.sync,
+              trades: state.trades,
+              candles: state.candles,
+              status: statusOf(state),
             } satisfies MarketView,
           ]
         : []
@@ -161,7 +161,10 @@ export function createHub(deps: HubDeps): Hub {
     const missing = keys.filter(unlisted)
     if (views.length === 0 && (topic.kind !== 'compare' || missing.length === 0)) return null
     const signature = keys
-      .map((k) => `${markets.get(k)?.version ?? -1}:${markets.get(k) ? statusOf(markets.get(k)!) : unlisted(k)}`)
+      .map(
+        (marketKey) =>
+          `${markets.get(marketKey)?.version ?? -1}:${markets.get(marketKey) ? statusOf(markets.get(marketKey)!) : unlisted(marketKey)}`,
+      )
       .join('|')
     const cached = topics.get(key)
     if (cached?.signature === signature) return cached.frame
@@ -184,8 +187,8 @@ export function createHub(deps: HubDeps): Hub {
       case 'compare':
         frame = projectCompare(
           key,
-          Object.fromEntries(views.map((v) => [v.spec.venue, v])),
-          new Set(missing.map((k) => splitMarketKey(k).venue)),
+          Object.fromEntries(views.map((marketView) => [marketView.spec.venue, marketView])),
+          new Set(missing.map((marketKey) => splitMarketKey(marketKey).venue)),
           version,
         )
         break
@@ -214,43 +217,43 @@ export function createHub(deps: HubDeps): Hub {
 
   const flush = throttle(flushNow, { wait: FLUSH_MS, leading: true, trailing: true })
 
-  const touch = (m: MarketState) => {
-    m.version++
+  const touch = (state: MarketState) => {
+    state.version++
     flush()
   }
 
-  function followsBook(m: MarketState): boolean {
-    const conn = venues[m.venue].conn
-    return conn.s === 'open' && conn.subscribed.has(streamKey(m.key, 'book'))
+  function followsBook(state: MarketState): boolean {
+    const conn = venues[state.venue].conn
+    return conn.s === 'open' && conn.subscribed.has(streamKey(state.key, 'book'))
   }
 
   function stopBooks(keys: readonly StreamKey[]): void {
-    for (const k of keys) {
-      const { market: m, channel } = parseStreamKey(k)
-      if (channel === 'book') feedBook(market(m), { kind: 'reset', reason: 'stopped' })
+    for (const stream of keys) {
+      const { market: marketKey, channel } = parseStreamKey(stream)
+      if (channel === 'book') feedBook(market(marketKey), { kind: 'reset', reason: 'stopped' })
     }
   }
 
-  function feedBook(m: MarketState, input: BookInput): void {
-    const v = venues[m.venue]
-    const before = m.sync.phase
-    const step = stepBook(v.adapter.book.protocol, m.sync, input)
-    m.sync = step.sync
-    if (step.changed || step.sync.phase !== before) touch(m)
-    if (step.effect.kind === 'fetch-snapshot') fetchSnapshot(m, step.effect.epoch)
+  function feedBook(state: MarketState, input: BookInput): void {
+    const venueState = venues[state.venue]
+    const before = state.sync.phase
+    const step = stepBook(venueState.adapter.book.protocol, state.sync, input)
+    state.sync = step.sync
+    if (step.changed || step.sync.phase !== before) touch(state)
+    if (step.effect.kind === 'fetch-snapshot') fetchSnapshot(state, step.effect.epoch)
     if (step.effect.kind === 'resubscribe')
-      stepVenue(m.venue, { e: 'resubscribe', streams: [streamKey(m.key, 'book')] })
+      stepVenue(state.venue, { e: 'resubscribe', streams: [streamKey(state.key, 'book')] })
   }
 
-  function fetchSnapshot(m: MarketState, epoch: number): void {
-    const v = venues[m.venue]
-    const spec = specOf(m.key)
-    if (!spec || v.adapter.book.protocol !== 'rest-snapshot-sequenced') return
-    const waiting = () => m.sync.phase === 'awaiting-snapshot' && m.sync.epoch === epoch
-    v.adapter.book
+  function fetchSnapshot(state: MarketState, epoch: number): void {
+    const venueState = venues[state.venue]
+    const spec = specOf(state.key)
+    if (!spec || venueState.adapter.book.protocol !== 'rest-snapshot-sequenced') return
+    const waiting = () => state.sync.phase === 'awaiting-snapshot' && state.sync.epoch === epoch
+    venueState.adapter.book
       .fetchSnapshot(spec, deps.fetch, AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS))
       .then((snap) =>
-        feedBook(m, {
+        feedBook(state, {
           kind: 'rest-snapshot',
           epoch,
           lastUpdateId: snap.lastUpdateId,
@@ -259,165 +262,175 @@ export function createHub(deps: HubDeps): Hub {
         }),
       )
       .catch(() => {
-        if (waiting()) setTimeout(() => waiting() && feedBook(m, { kind: 'reset', reason: 'corrupt' }), 2000)
+        if (waiting()) setTimeout(() => waiting() && feedBook(state, { kind: 'reset', reason: 'corrupt' }), 2000)
       })
   }
 
-  function apply(e: VenueEvent, spec: MarketSpec): void {
-    const m = market(e.market)
+  function apply(event: VenueEvent, spec: MarketSpec): void {
+    const state = market(event.market)
     try {
-      switch (e.kind) {
+      switch (event.kind) {
         case 'book-snapshot':
-          if (!followsBook(m)) return
-          feedBook(m, { kind: 'snapshot', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), time: e.time })
+          if (!followsBook(state)) return
+          feedBook(state, {
+            kind: 'snapshot',
+            bids: toLevels(event.bids, spec),
+            asks: toLevels(event.asks, spec),
+            time: event.time,
+          })
           return
         case 'book-delta':
-          if (!followsBook(m)) return
-          feedBook(m, {
+          if (!followsBook(state)) return
+          feedBook(state, {
             kind: 'delta',
-            bids: toLevels(e.bids, spec),
-            asks: toLevels(e.asks, spec),
-            seq: e.seq,
-            time: e.time,
+            bids: toLevels(event.bids, spec),
+            asks: toLevels(event.asks, spec),
+            seq: event.seq,
+            time: event.time,
           })
           return
         case 'trades':
-          if (pushTrades(m.trades, toTrades(e.trades, spec))) touch(m)
+          if (pushTrades(state.trades, toTrades(event.trades, spec))) touch(state)
           return
         case 'candle': {
-          let bars = m.candles.get(e.interval) ?? []
-          for (const c of e.candles) bars = upsertCandle(bars, toCandle(c, spec))
-          m.candles.set(e.interval, bars)
-          touch(m)
+          let bars = state.candles.get(event.interval) ?? []
+          for (const candle of event.candles) bars = upsertCandle(bars, toCandle(candle, spec))
+          state.candles.set(event.interval, bars)
+          touch(state)
           return
         }
       }
     } catch (error) {
       if (!(error instanceof DecimalError)) throw error
-      if (e.kind === 'book-snapshot' || e.kind === 'book-delta') feedBook(m, { kind: 'reset', reason: 'corrupt' })
+      if (event.kind === 'book-snapshot' || event.kind === 'book-delta')
+        feedBook(state, { kind: 'reset', reason: 'corrupt' })
     }
   }
 
   function ingest(venue: VenueId, raw: string): void {
-    const v = venues[venue]
+    const venueState = venues[venue]
     messages++
-    v.lastMessageAt = deps.now()
+    venueState.lastMessageAt = deps.now()
     let events: readonly VenueEvent[]
     try {
-      events = v.adapter.parse(raw, (symbol) => v.bySymbol.get(symbol) ?? null)
+      events = venueState.adapter.parse(raw, (symbol) => venueState.bySymbol.get(symbol) ?? null)
     } catch (error) {
       if (error instanceof VenueParseError && error.market)
         feedBook(market(error.market), { kind: 'reset', reason: 'corrupt' })
       return
     }
-    for (const e of events) {
-      const spec = specOf(e.market)
-      if (spec) apply(e, spec)
+    for (const event of events) {
+      const spec = specOf(event.market)
+      if (spec) apply(event, spec)
     }
   }
 
   function targets(venue: VenueId, keys: readonly StreamKey[]): StreamTarget[] {
-    return keys.flatMap((k) => {
-      const { market: m, channel, interval } = parseStreamKey(k)
-      const spec = venues[venue].specs.get(m)
+    return keys.flatMap((stream) => {
+      const { market: marketKey, channel, interval } = parseStreamKey(stream)
+      const spec = venues[venue].specs.get(marketKey)
       return spec ? [{ spec, channel, interval }] : []
     })
   }
 
   function run(venue: VenueId, effect: ConnEffect): void {
-    const v = venues[venue]
+    const venueState = venues[venue]
     switch (effect.fx) {
       case 'open': {
-        const socket = deps.openSocket(v.adapter.url)
-        v.socket = socket
-        v.opened++
-        socket.onopen = () => v.socket === socket && stepVenue(venue, { e: 'opened' })
-        socket.onmessage = (data) => v.socket === socket && ingest(venue, data)
+        const socket = deps.openSocket(venueState.adapter.url)
+        venueState.socket = socket
+        venueState.opened++
+        socket.onopen = () => venueState.socket === socket && stepVenue(venue, { e: 'opened' })
+        socket.onmessage = (data) => venueState.socket === socket && ingest(venue, data)
         socket.onclose = () => {
-          if (v.socket !== socket) return
-          v.socket = null
+          if (venueState.socket !== socket) return
+          venueState.socket = null
           stepVenue(venue, { e: 'closed' })
         }
         return
       }
       case 'close': {
-        const socket = v.socket
-        v.socket = null
+        const socket = venueState.socket
+        venueState.socket = null
         socket?.close()
-        for (const m of markets.values()) if (m.venue === venue) feedBook(m, { kind: 'reset', reason: 'stopped' })
+        for (const state of markets.values())
+          if (state.venue === venue) feedBook(state, { kind: 'reset', reason: 'stopped' })
         return
       }
       case 'subscribe':
-        for (const frame of v.adapter.subscribeFrames(targets(venue, effect.streams))) v.socket?.send(frame)
+        for (const frame of venueState.adapter.subscribeFrames(targets(venue, effect.streams)))
+          venueState.socket?.send(frame)
         return
       case 'unsubscribe':
-        for (const frame of v.adapter.unsubscribeFrames(targets(venue, effect.streams))) v.socket?.send(frame)
+        for (const frame of venueState.adapter.unsubscribeFrames(targets(venue, effect.streams)))
+          venueState.socket?.send(frame)
         stopBooks(effect.streams)
         return
       case 'keepalive':
-        if (v.adapter.keepalive) v.socket?.send(v.adapter.keepalive.frame)
+        if (venueState.adapter.keepalive) venueState.socket?.send(venueState.adapter.keepalive.frame)
         return
       case 'streams-stale':
         stopBooks(effect.streams)
-        for (const k of effect.streams) touch(market(parseStreamKey(k).market))
+        for (const stream of effect.streams) touch(market(parseStreamKey(stream).market))
         return
     }
   }
 
   function desiredFor(venue: VenueId): ReadonlySet<StreamKey> {
-    const v = venues[venue]
-    return new Set([...streams].filter((k) => v.specs.get(parseStreamKey(k).market)))
+    const venueState = venues[venue]
+    return new Set([...streams].filter((stream) => venueState.specs.get(parseStreamKey(stream).market)))
   }
 
   function stepVenue(venue: VenueId, event: ConnEvent): void {
-    const v = venues[venue]
+    const venueState = venues[venue]
     const now = deps.now()
-    const before = v.conn.s
+    const before = venueState.conn.s
     const { state, effects } = stepConnection(
-      v.conn,
+      venueState.conn,
       event,
-      { desired: desiredFor(venue), now, lastMessageAt: v.lastMessageAt, rand: deps.random() },
+      { desired: desiredFor(venue), now, lastMessageAt: venueState.lastMessageAt, rand: deps.random() },
       {
-        silenceMs: v.adapter.silenceMs,
-        keepaliveMs: v.adapter.keepalive?.everyMs ?? null,
+        silenceMs: venueState.adapter.silenceMs,
+        keepaliveMs: venueState.adapter.keepalive?.everyMs ?? null,
       },
     )
-    v.conn = state
-    if (state.s === 'open' && event.e === 'opened') v.lastMessageAt = now
+    venueState.conn = state
+    if (state.s === 'open' && event.e === 'opened') venueState.lastMessageAt = now
     for (const effect of effects) run(venue, effect)
-    if (before !== state.s) for (const m of markets.values()) if (m.venue === venue) touch(m)
+    if (before !== state.s)
+      for (const marketState of markets.values()) if (marketState.venue === venue) touch(marketState)
   }
 
   function ensureSpec(key: MarketKey): void {
     const { venue, base } = splitMarketKey(key)
-    const v = venues[venue]
-    const read = v.specReads.get(key)
-    if (v.specs.has(key) || read === 'loading' || deps.now() < (read ?? 0)) return
-    v.specReads.set(key, 'loading')
-    v.adapter
+    const venueState = venues[venue]
+    const read = venueState.specReads.get(key)
+    if (venueState.specs.has(key) || read === 'loading' || deps.now() < (read ?? 0)) return
+    venueState.specReads.set(key, 'loading')
+    venueState.adapter
       .fetchMarket(base, deps.fetch)
       .then((spec) => {
-        v.specs.set(key, spec)
-        if (spec) v.bySymbol.set(spec.venueSymbol, key)
-        v.specReads.delete(key)
+        venueState.specs.set(key, spec)
+        if (spec) venueState.bySymbol.set(spec.venueSymbol, key)
+        venueState.specReads.delete(key)
         reconcile()
       })
       .catch(() => {
-        v.specReads.set(key, deps.now() + SPEC_RETRY_MS)
+        venueState.specReads.set(key, deps.now() + SPEC_RETRY_MS)
         flush()
       })
   }
 
   function reconcile(): void {
     const derived = deriveStreams(
-      [...tabs.values()].map((t) => t.wants),
+      [...tabs.values()].map((tab) => tab.wants),
       lastWanted,
       deps.now(),
     )
     streams = derived.streams
     lastWanted = derived.lastWanted
-    for (const key of topics.keys()) if (![...tabs.values()].some((t) => t.wants.has(key))) topics.delete(key)
-    for (const k of streams) ensureSpec(parseStreamKey(k).market)
+    for (const key of topics.keys()) if (![...tabs.values()].some((tab) => tab.wants.has(key))) topics.delete(key)
+    for (const stream of streams) ensureSpec(parseStreamKey(stream).market)
     for (const venue of VENUE_IDS) stepVenue(venue, { e: 'tick' })
     flush()
   }
@@ -440,7 +453,7 @@ export function createHub(deps: HubDeps): Hub {
   }
 
   function sendReports(): void {
-    const tab = [...tabs.values()].find((t) => t.visible) ?? tabs.values().next().value
+    const tab = [...tabs.values()].find((candidate) => candidate.visible) ?? tabs.values().next().value
     if (!tab) return
     for (const event of unreported.splice(0)) tab.port.post({ t: 'exception', event })
   }
@@ -481,7 +494,7 @@ export function createHub(deps: HubDeps): Hub {
         if (!tab || !id) return
         switch (msg.t) {
           case 'want': {
-            tab.wants = new Map(msg.topics.map((t) => [topicKey(t), t]))
+            tab.wants = new Map(msg.topics.map((topic) => [topicKey(topic), topic]))
             for (const key of tab.sent.keys()) if (!tab.wants.has(key)) tab.sent.delete(key)
             queueReconcile()
             return
@@ -510,7 +523,7 @@ export function createHub(deps: HubDeps): Hub {
           ConnState['s']
         >,
         socketsOpened: Object.fromEntries(VENUE_IDS.map((id) => [id, venues[id].opened])) as Record<VenueId, number>,
-        phases: Object.fromEntries([...markets.values()].map((m) => [m.key, m.sync.phase])),
+        phases: Object.fromEntries([...markets.values()].map((state) => [state.key, state.sync.phase])),
       }
     },
     dispose() {

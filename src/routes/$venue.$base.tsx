@@ -22,11 +22,11 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/$venue/$base')({
   params: {
-    parse: (p): { venue: VenueId; base: Base } => {
-      if (!isVenueId(p.venue) || !isBase(p.base)) throw notFound()
-      return { venue: p.venue, base: p.base }
+    parse: (params): { venue: VenueId; base: Base } => {
+      if (!isVenueId(params.venue) || !isBase(params.base)) throw notFound()
+      return { venue: params.venue, base: params.base }
     },
-    stringify: (p) => p,
+    stringify: (params) => params,
   },
   validateSearch: searchSchema,
   head: ({ params }) => marketHead(params),
@@ -63,14 +63,18 @@ function Market() {
               venue={venue}
               base={base}
               interval={search.interval}
-              onInterval={(i) => void navigate({ search: (s) => ({ ...s, interval: i }), replace: true })}
+              onInterval={(interval) =>
+                void navigate({ search: (current) => ({ ...current, interval }), replace: true })
+              }
             />
           </div>
           <div className="h-[660px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-auto lg:min-h-0">
             <OrderBook
               market={market}
               group={group}
-              onGroup={(g) => void navigate({ search: (s) => ({ ...s, group: Number(g) }), replace: true })}
+              onGroup={(picked) =>
+                void navigate({ search: (current) => ({ ...current, group: Number(picked) }), replace: true })
+              }
             />
           </div>
           <div className="h-80 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:h-auto lg:min-h-0">

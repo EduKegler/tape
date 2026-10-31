@@ -30,15 +30,17 @@ const hlFill = (coin: string, time: number, tid: number, startPosition = '0') =>
 
 describe('hyperliquid history paging', () => {
   it('walks past a full page from the time of its last fill', async () => {
-    const first = Array.from({ length: 2000 }, (_, i) => hlFill('BTC', 1000 + Math.floor(i / 2), i))
+    const first = Array.from({ length: 2000 }, (_, index) => hlFill('BTC', 1000 + Math.floor(index / 2), index))
     const last = first.at(-1)!
     const { fetch, sent } = stub((_url, body) => {
       if (body?.type === 'userFunding') return []
       return body?.startTime === 0 ? first : [last, hlFill('BTC', last.time + 1, 5000)]
     })
-    const h = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
-    expect(h.fills).toHaveLength(2001)
-    expect(sent.filter((s) => s.body?.type === 'userFillsByTime').map((s) => s.body?.startTime)).toEqual([0, last.time])
+    const history = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
+    expect(history.fills).toHaveLength(2001)
+    expect(
+      sent.filter((request) => request.body?.type === 'userFillsByTime').map((request) => request.body?.startTime),
+    ).toEqual([0, last.time])
   })
 
   it('says when the first fill of a coin joins a position already open, and leaves spot out', async () => {
@@ -47,22 +49,22 @@ describe('hyperliquid history paging', () => {
         ? []
         : [hlFill('BTC', 1, 1, '0.5'), hlFill('@107', 2, 2), hlFill('PURR/USDC', 3, 3), hlFill('xyz:SP500', 4, 4)],
     )
-    const h = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
-    expect(h.fills.map((f) => f.symbol)).toEqual(['BTC', 'xyz:SP500'])
-    expect(h.gaps).toHaveLength(2)
-    expect(h.gaps[0]).toMatch(/position already open/)
-    expect(h.gaps[1]).toBe('Spot fills are left out.')
+    const history = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
+    expect(history.fills.map((fill) => fill.symbol)).toEqual(['BTC', 'xyz:SP500'])
+    expect(history.gaps).toHaveLength(2)
+    expect(history.gaps[0]).toMatch(/position already open/)
+    expect(history.gaps[1]).toBe('Spot fills are left out.')
   })
 
   it('says when the history reaches the most recent fills Hyperliquid serves', async () => {
-    const all = Array.from({ length: 10000 }, (_, i) => hlFill('BTC', i + 1, i, i === 0 ? '0.5' : '0'))
+    const all = Array.from({ length: 10000 }, (_, index) => hlFill('BTC', index + 1, index, index === 0 ? '0.5' : '0'))
     const { fetch } = stub((_url, body) => {
       if (body?.type === 'userFunding') return []
       const start = body?.startTime as number
-      return all.filter((f) => f.time >= start).slice(0, 2000)
+      return all.filter((fill) => fill.time >= start).slice(0, 2000)
     })
-    const h = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
-    expect(h.gaps).toEqual(['Hyperliquid serves only its 10000 most recent fills, so earlier fills are missing.'])
+    const history = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
+    expect(history.gaps).toEqual(['Hyperliquid serves only its 10000 most recent fills, so earlier fills are missing.'])
   })
 
   it('marks only fills that liquidated this user, and pays funding in the collateral its fills paid fees in', async () => {
@@ -79,9 +81,9 @@ describe('hyperliquid history paging', () => {
           ]
         : [liquidated('0xa'), { ...liquidated('0xb'), tid: 2 }],
     )
-    const h = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
-    expect(h.fills.map((f) => f.liquidation)).toEqual([true, false])
-    expect(h.funding.map((p) => p.asset)).toEqual(['USDH', 'USDC'])
+    const history = await TRADING.hyperliquid.history({ network: 'mainnet', address: '0xA', fetch })
+    expect(history.fills.map((fill) => fill.liquidation)).toEqual([true, false])
+    expect(history.funding.map((payment) => payment.asset)).toEqual(['USDH', 'USDC'])
   })
 
   it('looks only at the first fill of each coin for an open start', async () => {
@@ -105,24 +107,26 @@ const dydxFill = (id: string, type = 'LIMIT', marketType = 'PERPETUAL') => ({
 })
 
 describe('dydx history paging', () => {
-  const page = (n: number) => Array.from({ length: n }, (_, i) => dydxFill(String(i)))
+  const page = (count: number) => Array.from({ length: count }, (_, index) => dydxFill(String(index)))
 
   it('reads pages until one comes back short', async () => {
     const { fetch, sent } = stub((url) =>
       url.includes('/fills') ? { fills: page(url.endsWith('page=1') ? 1000 : 3) } : { fundingPayments: [] },
     )
-    const h = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
-    expect(h.fills).toHaveLength(1003)
-    expect(sent.filter((s) => s.url.includes('/fills')).map((s) => s.url.split('page=')[1])).toEqual(['1', '2'])
-    expect(h.gaps.some((g) => g.includes('25000'))).toBe(false)
-    expect(h.gaps).toContain('Only subaccount 0 is read. Isolated positions on dYdX live in other subaccounts.')
+    const history = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
+    expect(history.fills).toHaveLength(1003)
+    expect(
+      sent.filter((request) => request.url.includes('/fills')).map((request) => request.url.split('page=')[1]),
+    ).toEqual(['1', '2'])
+    expect(history.gaps.some((gap) => gap.includes('25000'))).toBe(false)
+    expect(history.gaps).toContain('Only subaccount 0 is read. Isolated positions on dYdX live in other subaccounts.')
   })
 
   it('stops at the last page the indexer serves and says so', async () => {
     const { fetch, sent } = stub((url) => (url.includes('/fills') ? { fills: page(1000) } : { fundingPayments: [] }))
-    const h = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
-    expect(sent.filter((s) => s.url.includes('/fills')).at(-1)?.url).toMatch(/page=25$/)
-    expect(h.gaps).toContain("dYdX's indexer pages through 25000 fills at most, so some fills are missing.")
+    const history = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
+    expect(sent.filter((request) => request.url.includes('/fills')).at(-1)?.url).toMatch(/page=25$/)
+    expect(history.gaps).toContain("dYdX's indexer pages through 25000 fills at most, so some fills are missing.")
   })
 
   it('marks fills the protocol forced and keeps perps only', async () => {
@@ -138,8 +142,8 @@ describe('dydx history paging', () => {
           }
         : { fundingPayments: [] },
     )
-    const h = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
-    expect(h.fills.map((f) => [f.id, f.liquidation])).toEqual([
+    const history = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
+    expect(history.fills.map((fill) => [fill.id, fill.liquidation])).toEqual([
       ['a', true],
       ['b', true],
       ['c', false],
@@ -157,9 +161,9 @@ describe('dydx history paging', () => {
     const { fetch } = stub((url) =>
       url.includes('/fills') ? { fills: [] } : { fundingPayments: Array.from({ length: 1000 }, () => payment) },
     )
-    const h = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
-    expect(h.funding).toHaveLength(25_000)
-    expect(h.gaps).toContain(
+    const history = await TRADING.dydx.history({ network: 'mainnet', address: 'dydx1a', fetch })
+    expect(history.funding).toHaveLength(25_000)
+    expect(history.gaps).toContain(
       "dYdX's indexer pages through 25000 funding payments at most, so some payments are missing.",
     )
   })
@@ -214,15 +218,15 @@ describe('orderly history paging', () => {
         },
       }
     })
-    const h = await TRADING.orderly.history({ network: 'mainnet', address: '0xA', fetch })
-    expect(h.fills.map((f) => [f.account, f.id])).toEqual([
+    const history = await TRADING.orderly.history({ network: 'mainnet', address: '0xA', fetch })
+    expect(history.fills.map((fill) => [fill.account, fill.id])).toEqual([
       ['A', 'a1'],
       ['A', 'a2'],
       ['A', 'a3'],
       ['B', 'b1'],
     ])
-    expect(h.funding.map((p) => [p.account, p.amount])).toEqual([['A', '-0.5']])
-    expect(sent.every((s) => s.body?.type === 'accountState' || s.body?.start_time === 1)).toBe(true)
+    expect(history.funding.map((row) => [row.account, row.amount])).toEqual([['A', '-0.5']])
+    expect(sent.every((request) => request.body?.type === 'accountState' || request.body?.start_time === 1)).toBe(true)
   })
 
   it('reads an address Orderly does not know as empty', async () => {

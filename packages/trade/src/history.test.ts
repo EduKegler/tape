@@ -20,7 +20,7 @@ const fill = (side: Side, size: string, px: string, extra: Partial<HistoryFill> 
   ...extra,
 })
 
-const pnls = (fills: HistoryFill[]) => realize(fills).map((f) => f.pnl)
+const pnls = (fills: HistoryFill[]) => realize(fills).map((realized) => realized.pnl)
 
 describe('realized pnl', () => {
   it('realizes a long against its entry on each partial close', () => {
@@ -80,7 +80,7 @@ describe('realized pnl', () => {
       realize([
         { ...late, time: 2 },
         { ...early, time: 1 },
-      ]).map((f) => [f.id, f.pnl]),
+      ]).map((realized) => [realized.id, realized.pnl]),
     ).toEqual([
       [early.id, '0'],
       [late.id, '10'],
@@ -92,7 +92,7 @@ describe('realized pnl', () => {
       fill('buy', '1', '100', { venuePnl: '0' as Decimal }),
       fill('sell', '1', '110', { venuePnl: '9.999' as Decimal }),
     ])
-    expect(out.map((f) => [f.pnl, f.pnlSource])).toEqual([
+    expect(out.map((realized) => [realized.pnl, realized.pnlSource])).toEqual([
       ['0', 'venue'],
       ['9.999', 'venue'],
     ])
@@ -135,7 +135,7 @@ describe('history totals', () => {
   })
 
   it('totals each group on its own', () => {
-    expect(summarize(fills, payments, (e) => e.venue).map((t) => [t.group, t.net])).toEqual([
+    expect(summarize(fills, payments, (entry) => entry.venue).map((totals) => [totals.group, totals.net])).toEqual([
       ['dydx', '9.4'],
       ['hyperliquid', '1.1'],
     ])
@@ -147,7 +147,7 @@ describe('history totals', () => {
       fill('buy', '1', '1', { venue: 'hyperliquid', time: 2 }),
       fill('buy', '1', '1', { time: 3 }),
     ])
-    expect(summarize(late, [], (e) => e.venue).map((t) => [t.group, t.asset])).toEqual([
+    expect(summarize(late, [], (entry) => entry.venue).map((totals) => [totals.group, totals.asset])).toEqual([
       ['dydx', 'USDC'],
       ['hyperliquid', 'USDC'],
       ['hyperliquid', 'USDH'],
@@ -156,7 +156,7 @@ describe('history totals', () => {
 
   it('never adds amounts settled in different assets', () => {
     const other = realize([fill('buy', '1', '1', { fee: '2' as Decimal, asset: 'USDH', time: 1 })])
-    expect(summarize([...fills, ...other], [], () => 'all').map((t) => [t.asset, t.fees])).toEqual([
+    expect(summarize([...fills, ...other], [], () => 'all').map((totals) => [totals.asset, totals.fees])).toEqual([
       ['USDC', '0.65'],
       ['USDH', '2'],
     ])
@@ -176,7 +176,8 @@ describe('history csv', () => {
       fill('sell', '0.5', '110', { time: Date.UTC(2026, 0, 4), id: 'f2', liquidation: true }),
     ])
     const lines = toCsv(rows, [funding('-0.3', Date.UTC(2026, 0, 3))], 'mainnet').split('\r\n')
-    const record = (line: string) => Object.fromEntries(CSV_COLUMNS.map((c, i) => [c, line.split(',')[i]]))
+    const record = (line: string) =>
+      Object.fromEntries(CSV_COLUMNS.map((column, index) => [column, line.split(',')[index]]))
     expect(lines).toHaveLength(4)
     expect(record(lines[1]!)).toMatchObject({
       time_utc: '2026-01-02T00:00:00.000Z',
@@ -215,7 +216,7 @@ describe('history csv', () => {
   it('leaves the fill columns empty on a funding row, and the rate and size when the venue gave none', () => {
     const time = Date.UTC(2026, 0, 3)
     const [, line] = toCsv([], [funding('-0.3', time, { rate: null, position: null })], 'mainnet').split('\r\n')
-    expect(Object.fromEntries(CSV_COLUMNS.map((c, i) => [c, line!.split(',')[i]]))).toEqual({
+    expect(Object.fromEntries(CSV_COLUMNS.map((column, index) => [column, line!.split(',')[index]]))).toEqual({
       time_utc: '2026-01-03T00:00:00.000Z',
       timestamp_ms: String(time),
       venue: 'dydx',
@@ -249,19 +250,19 @@ describe('history csv', () => {
 describe('walk by time', () => {
   type Row = { id: string; time: number }
   const venue = (times: number[], size: number) => {
-    const rows: Row[] = times.map((time, i) => ({ id: String.fromCharCode(97 + i), time }))
+    const rows: Row[] = times.map((time, index) => ({ id: String.fromCharCode(97 + index), time }))
     const starts: number[] = []
     const page = async (start: number) => {
       starts.push(start)
-      return rows.filter((r) => r.time >= start).slice(0, size)
+      return rows.filter((row) => row.time >= start).slice(0, size)
     }
-    return { page, starts, walk: { size, timeOf: (r: Row) => r.time, keyOf: (r: Row) => r.id } }
+    return { page, starts, walk: { size, timeOf: (row: Row) => row.time, keyOf: (row: Row) => row.id } }
   }
 
   it('restarts at the last time it saw and drops the repeats', async () => {
     const { page, starts, walk } = venue([1, 2, 2, 3, 3, 4, 5], 3)
     const { rows, stalled } = await walkByTime(page, walk)
-    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g'])
+    expect(rows.map((row) => row.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g'])
     expect(starts).toEqual([0, 2, 3, 4])
     expect(stalled).toBe(false)
   })
@@ -269,7 +270,7 @@ describe('walk by time', () => {
   it('says so when a full page is all one moment it already read', async () => {
     const { page, walk } = venue([1, 2, 2, 2, 3], 2)
     const { rows, stalled } = await walkByTime(page, walk)
-    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
+    expect(rows.map((row) => row.id)).toEqual(['a', 'b', 'c'])
     expect(stalled).toBe(true)
   })
 })
@@ -289,7 +290,7 @@ describe('history selection', () => {
 
   it('keeps both ends of the period whole, in UTC', () => {
     const december = selectHistory([history], { ...all, from: '2025-12-01', to: '2025-12-31' })
-    expect(december.fills.map((f) => f.id)).toEqual(['close', 'last'])
+    expect(december.fills.map((kept) => kept.id)).toEqual(['close', 'last'])
     expect(december.funding).toHaveLength(1)
   })
 
@@ -310,7 +311,7 @@ describe('history selection', () => {
       gaps: [],
     }
     const december = { ...all, venue: 'dydx', market: 'Z', from: '2025-12-01', to: '2025-12-31' } as const
-    expect(selectHistory([payments], december).funding.map((p) => p.symbol)).toEqual(['Z'])
+    expect(selectHistory([payments], december).funding.map((payment) => payment.symbol)).toEqual(['Z'])
   })
 
   it("lists only the chosen venue's markets, sorted", () => {
@@ -328,7 +329,7 @@ describe('history selection', () => {
 
   it('filters by venue and market, and lists the markets of the venue', () => {
     const dydx = selectHistory([history], { ...all, venue: 'dydx', market: 'BTC-USD' })
-    expect(dydx.fills.map((f) => f.id)).toEqual(['open', 'close'])
+    expect(dydx.fills.map((kept) => kept.id)).toEqual(['open', 'close'])
     expect(dydx.funding).toHaveLength(1)
     expect(dydx.markets).toEqual(['BTC-USD', 'ETH-USD'])
   })

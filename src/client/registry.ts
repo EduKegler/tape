@@ -61,11 +61,11 @@ export function createRegistry(
   const sendWantClearingUnwanted = () => {
     wantScheduled = false
     const wanted: Topic[] = []
-    for (const [key, e] of entries) {
-      if (e.refs > 0) wanted.push(e.topic)
-      else if (e.store.get() !== null) {
+    for (const [key, entry] of entries) {
+      if (entry.refs > 0) wanted.push(entry.topic)
+      else if (entry.store.get() !== null) {
         pending.delete(key)
-        e.store.setState(() => null)
+        entry.store.setState(() => null)
       }
     }
     port.post({ t: 'want', topics: wanted })
@@ -79,11 +79,11 @@ export function createRegistry(
 
   const start = () => {
     const tab = life.newTabId()
-    port.listen((m) => {
-      if (m.t === 'stats') stats.setState(() => m.stats)
-      if (m.t === 'exception') report(m.event)
-      if (m.t !== 'frames') return
-      for (const f of m.frames) if (entries.get(f.key)?.refs) pending.set(f.key, f)
+    port.listen((message) => {
+      if (message.t === 'stats') stats.setState(() => message.stats)
+      if (message.t === 'exception') report(message.event)
+      if (message.t !== 'frames') return
+      for (const frame of message.frames) if (entries.get(frame.key)?.refs) pending.set(frame.key, frame)
       if (!rafScheduled && pending.size) {
         rafScheduled = true
         life.requestFrame(flushInbox)
@@ -104,14 +104,14 @@ export function createRegistry(
     start()
   })
 
-  const entry = (topic: Topic): Entry => {
+  const entryFor = (topic: Topic): Entry => {
     const key = topicKey(topic)
-    let e = entries.get(key)
-    if (!e) {
-      e = { topic, store: createStore<Frame | null>(null), refs: 0 }
-      entries.set(key, e)
+    let entry = entries.get(key)
+    if (!entry) {
+      entry = { topic, store: createStore<Frame | null>(null), refs: 0 }
+      entries.set(key, entry)
     }
-    return e
+    return entry
   }
 
   return {
@@ -119,13 +119,13 @@ export function createRegistry(
       return port.mode
     },
     stats,
-    store: <T extends Topic>(topic: T) => entry(topic).store as unknown as ReadStore<FrameOf<T> | null>,
+    store: <T extends Topic>(topic: T) => entryFor(topic).store as unknown as ReadStore<FrameOf<T> | null>,
     retain(topic) {
-      const e = entry(topic)
-      e.refs++
+      const retained = entryFor(topic)
+      retained.refs++
       scheduleWant()
       return () => {
-        e.refs--
+        retained.refs--
         scheduleWant()
       }
     },

@@ -37,23 +37,23 @@ export async function deriveKey(signature: string): Promise<{ mnemonic: string; 
 
 const wallets = new Map<string, Promise<LocalWallet>>()
 export function walletOf(mnemonic: string): Promise<LocalWallet> {
-  let w = wallets.get(mnemonic)
-  if (!w) {
-    w = sdk().then(({ LocalWallet }) => LocalWallet.fromMnemonic(mnemonic, 'dydx'))
-    wallets.set(mnemonic, w)
+  let wallet = wallets.get(mnemonic)
+  if (!wallet) {
+    wallet = sdk().then(({ LocalWallet }) => LocalWallet.fromMnemonic(mnemonic, 'dydx'))
+    wallets.set(mnemonic, wallet)
   }
-  return w
+  return wallet
 }
 
 const validators = new Map<Network, Promise<Validator>>()
 export function validatorOf(network: Network): Promise<Validator> {
-  let v = validators.get(network)
-  if (!v) {
-    v = sdk().then(({ Network: Net, ValidatorClient }) =>
+  let validator = validators.get(network)
+  if (!validator) {
+    validator = sdk().then(({ Network: Net, ValidatorClient }) =>
       ValidatorClient.connect((network === 'mainnet' ? Net.mainnet() : Net.testnet()).validatorConfig),
     )
-    v.catch(() => validators.delete(network))
-    validators.set(network, v)
+    validator.catch(() => validators.delete(network))
+    validators.set(network, validator)
   }
-  return v
+  return validator
 }

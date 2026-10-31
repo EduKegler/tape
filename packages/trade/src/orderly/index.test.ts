@@ -116,7 +116,7 @@ function intentOf(fields: Partial<IntentDraft>, spec = perp) {
 const failureOf = (run: Promise<unknown>) =>
   run.then(
     () => undefined,
-    (e: unknown) => (e instanceof TradeFailure ? e.error : e),
+    (error: unknown) => (error instanceof TradeFailure ? error.error : error),
   )
 
 const BAD_GATEWAY = () => new Response('<html>502 Bad Gateway</html>', { status: 502 })
@@ -161,8 +161,12 @@ describe('orderly orders', () => {
   })
 
   const marketAt = (mark: string) =>
-    orderlyAt((s) => ({
-      body: s.url.endsWith('/v1/public/query') ? BOOK : s.url.includes('/v1/public/futures/') ? futures(mark) : PLACED,
+    orderlyAt((request) => ({
+      body: request.url.endsWith('/v1/public/query')
+        ? BOOK
+        : request.url.includes('/v1/public/futures/')
+          ? futures(mark)
+          : PLACED,
     }))
 
   it('sends a market order as an IOC limit at the far touch moved by the slippage', async () => {
@@ -220,10 +224,10 @@ describe('orderly orders', () => {
         async (side, mark, offset, slippage) => {
           const far = mark + offset
           const book = `{"success":true,"data":{"asks":[{"price":"${tenths(far)}"}],"bids":[{"price":"${tenths(far)}"}]}}`
-          const { ctx, sent } = orderlyAt((s) => ({
-            body: s.url.endsWith('/v1/public/query')
+          const { ctx, sent } = orderlyAt((request) => ({
+            body: request.url.endsWith('/v1/public/query')
               ? book
-              : s.url.includes('/v1/public/futures/')
+              : request.url.includes('/v1/public/futures/')
                 ? futures(tenths(mark))
                 : PLACED,
           }))
@@ -259,10 +263,10 @@ describe('orderly orders', () => {
       ),
     ).toEqual({ kind: 'unreachable', detail: 'Orderly sent no price range for PERP_DOGE_USDC' })
     expect(noRange.sent).toEqual([])
-    const noMark = orderlyAt((s) => ({
-      body: s.url.endsWith('/v1/public/query')
+    const noMark = orderlyAt((request) => ({
+      body: request.url.endsWith('/v1/public/query')
         ? BOOK
-        : s.url.includes('/v1/public/futures/')
+        : request.url.includes('/v1/public/futures/')
           ? '{"success":true,"data":{}}'
           : PLACED,
     }))
@@ -273,8 +277,8 @@ describe('orderly orders', () => {
   })
 
   it('refuses a market order against an empty side of the book and sends no order', async () => {
-    const { ctx, sent } = orderlyAt((s) => ({
-      body: s.url.includes('/v1/public/futures/')
+    const { ctx, sent } = orderlyAt((request) => ({
+      body: request.url.includes('/v1/public/futures/')
         ? futures('77338.3')
         : '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":null,"spread":null,"asks":[],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123}}',
     }))
@@ -441,8 +445,8 @@ describe('orderly lookup', () => {
     const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
     if (intent.order.kind !== 'scale') throw new Error('scale')
     await orderly.lookup(ctx, intent)
-    expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual(
-      intent.order.legs.map((l) => `GET https://testnet-api.orderly.org/v1/client/order/${l.clientId}`),
+    expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual(
+      intent.order.legs.map((leg) => `GET https://testnet-api.orderly.org/v1/client/order/${leg.clientId}`),
     )
   })
 })
@@ -483,14 +487,20 @@ describe('orderly signing', () => {
     await orderly.execute(flipper, { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef })
     const pub = ed25519.getPublicKey(hexToBytes(`0x${'11'.repeat(32)}`))
     const types = ['application/json', 'application/x-www-form-urlencoded']
-    expect(headers.map((h) => [h['orderly-account-id'], h['orderly-key'], h['content-type']])).toEqual(
-      types.map((type) => [account, `ed25519:${base58.encode(pub)}`, type]),
-    )
-    sent.forEach(({ method, url, body }, i) => {
-      const h = headers[i] ?? {}
+    expect(
+      headers.map((requestHeaders) => [
+        requestHeaders['orderly-account-id'],
+        requestHeaders['orderly-key'],
+        requestHeaders['content-type'],
+      ]),
+    ).toEqual(types.map((type) => [account, `ed25519:${base58.encode(pub)}`, type]))
+    sent.forEach(({ method, url, body }, index) => {
+      const requestHeaders = headers[index] ?? {}
       const { pathname, search } = new URL(url)
-      const message = `${h['orderly-timestamp']}${method}${pathname}${search}${body ?? ''}`
-      expect(ed25519.verify(base64url.decode(h['orderly-signature'] ?? ''), stringToBytes(message), pub)).toBe(true)
+      const message = `${requestHeaders['orderly-timestamp']}${method}${pathname}${search}${body ?? ''}`
+      expect(
+        ed25519.verify(base64url.decode(requestHeaders['orderly-signature'] ?? ''), stringToBytes(message), pub),
+      ).toBe(true)
     })
   })
 })
@@ -562,7 +572,7 @@ describe('orderly reads', () => {
       'https://testnet-api.orderly.org/v1/public/info/PERP_ETH_USDC',
       'https://testnet-api.orderly.org/v1/public/info/PERP_SOL_USDC',
     ])
-    expect(sent.map((s) => s.url)).toEqual([
+    expect(sent.map((request) => request.url)).toEqual([
       'https://testnet-api.orderly.org/v1/order',
       'https://testnet-api.orderly.org/v1/order',
     ])
@@ -685,9 +695,9 @@ describe('orderly account', () => {
       },
     ],
   }
-  const replies = (p: unknown, o: unknown, t: unknown) => (sent: Sent) => {
+  const replies = (positionsReply: unknown, ordersReply: unknown, tradesReply: unknown) => (sent: Sent) => {
     const { pathname } = new URL(sent.url)
-    const data = pathname === '/v1/positions' ? p : pathname === '/v1/orders' ? o : t
+    const data = pathname === '/v1/positions' ? positionsReply : pathname === '/v1/orders' ? ordersReply : tradesReply
     return { body: JSON.stringify({ success: true, timestamp: 1702989203989, data }) }
   }
 
@@ -764,7 +774,7 @@ describe('orderly account', () => {
         ],
       },
     })
-    expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual([
+    expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual([
       'GET https://testnet-api.orderly.org/v1/positions',
       'GET https://testnet-api.orderly.org/v1/orders?status=INCOMPLETE',
       'GET https://testnet-api.orderly.org/v1/trades?size=20',
@@ -783,8 +793,8 @@ describe('orderly account', () => {
       [flat, [order], [], 'live'],
       [flat, [], [fill], 'live'],
     ] as const
-    for (const [p, o, t, kind] of cases) {
-      const { ctx } = orderlyAt(replies(p, { rows: o }, { rows: t }))
+    for (const [positionsReply, ordersReply, tradesReply, kind] of cases) {
+      const { ctx } = orderlyAt(replies(positionsReply, { rows: ordersReply }, { rows: tradesReply }))
       expect((await orderly.account(ctx)).kind).toBe(kind)
     }
   })
@@ -808,7 +818,9 @@ describe('orderly setup', () => {
   const owner = '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6'
   const account = '0xd96bacbff940748d1215f933fc6c04d6798eb9fbd8926fe2388d02eb31003655'
   /** Orderly testnet's replies while a fresh wallet registered, added a key and read both back. */
-  const [, nonceReply, registerReply, keyReply] = recordedWrite('orderly', 'enable').exchanges.map((e) => e.response)
+  const [, nonceReply, registerReply, keyReply] = recordedWrite('orderly', 'enable').exchanges.map(
+    (exchange) => exchange.response,
+  )
   const keyRead = recordedWrite('orderly', 'stepsDone').exchanges[1]!.response as { data: Record<string, unknown> }
   const UNREGISTERED = JSON.stringify(recordedWrite('orderly', 'steps').exchanges[0]!.response)
   // Recorded from testnet-api.orderly.org and api.orderly.org on 2026-10-31.
@@ -838,9 +850,9 @@ describe('orderly setup', () => {
     return {
       writes,
       read: () => key,
-      write: (k) => {
-        key = k
-        writes.push(k)
+      write: (next) => {
+        key = next
+        writes.push(next)
       },
       clear: () => {
         key = null
@@ -897,7 +909,7 @@ describe('orderly setup', () => {
     }
     const { ctx, sent } = setup({ '/v1/get_account': REGISTERED, '/v1/get_orderly_key': NO_KEY }, linked)
     await orderly.steps(ctx)
-    expect(sent.map((s) => s.url)).toEqual([
+    expect(sent.map((request) => request.url)).toEqual([
       `https://testnet-api.orderly.org/v1/get_account?address=${owner}&broker_id=flipper`,
       `https://testnet-api.orderly.org/v1/get_orderly_key?account_id=${account}&orderly_key=${encodeURIComponent(keyId)}`,
     ])
@@ -937,21 +949,24 @@ describe('orderly setup', () => {
       timestamp: now,
       expiration: now + 365 * 86_400_000,
     }
-    expect(signed.map((s) => [s.typed.primaryType, s.typed.message, s.slot])).toEqual([
+    expect(signed.map((signing) => [signing.typed.primaryType, signing.typed.message, signing.slot])).toEqual([
       ['Registration', registration, undefined],
       ['AddOrderlyKey', addKey, 'draft'],
     ])
-    expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual([
+    expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual([
       `GET https://testnet-api.orderly.org/v1/get_account?address=${owner}&broker_id=flipper`,
       'GET https://testnet-api.orderly.org/v1/registration_nonce',
       'POST https://testnet-api.orderly.org/v1/register_account',
       'POST https://testnet-api.orderly.org/v1/orderly_key',
     ])
-    expect(sent.slice(2).map((s) => JSON.parse(s.body ?? '') as unknown)).toEqual([
+    expect(sent.slice(2).map((request) => JSON.parse(request.body ?? '') as unknown)).toEqual([
       { message: registration, signature: SIGNATURE, userAddress: owner },
       { message: addKey, signature: SIGNATURE, userAddress: owner },
     ])
-    expect(headers.slice(2).map((h) => h['content-type'])).toEqual(['application/json', 'application/json'])
+    expect(headers.slice(2).map((requestHeaders) => requestHeaders['content-type'])).toEqual([
+      'application/json',
+      'application/json',
+    ])
   })
 
   it('adds the key this device already holds to a registered account, and calls a lost reply unknown', async () => {
@@ -961,9 +976,12 @@ describe('orderly setup', () => {
       unlinked,
     )
     await orderly.enable(ctx, wallet, () => {})
-    expect(signed.map((s) => [s.typed.primaryType, (s.typed.message as { orderlyKey?: string }).orderlyKey])).toEqual([
-      ['AddOrderlyKey', keyId],
-    ])
+    expect(
+      signed.map((signing) => [
+        signing.typed.primaryType,
+        (signing.typed.message as { orderlyKey?: string }).orderlyKey,
+      ]),
+    ).toEqual([['AddOrderlyKey', keyId]])
     expect(keys.writes).toEqual([{ ...unlinked, status: 'linked' }])
 
     const lost = setup(

@@ -16,7 +16,7 @@ const io = (fetch: typeof globalThis.fetch): ProgressIo => ({
   keys: { read: () => null, write: () => {}, clear: () => {} },
 })
 const routeFrom = (chainId: number): DepositRoute => {
-  const found = hyperliquidDeposit.routes('mainnet', config).find((r) => r.chainId === chainId)
+  const found = hyperliquidDeposit.routes('mainnet', config).find((route) => route.chainId === chainId)
   if (!found) throw new Error(`no route from ${chainId}`)
   return found
 }

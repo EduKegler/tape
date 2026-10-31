@@ -43,18 +43,23 @@ type Wire =
   | { channel: 'subscriptionResponse' | 'pong' | 'error'; data: unknown }
 
 const isSide = (side: unknown): side is WireLevel[] =>
-  Array.isArray(side) && side.every((l: Partial<WireLevel> | null) => isText(l?.px) && isText(l.sz))
+  Array.isArray(side) && side.every((level: Partial<WireLevel> | null) => isText(level?.px) && isText(level.sz))
 const isBook = (book: Partial<WireBook>) =>
   isNumber(book.time) && Array.isArray(book.levels) && isSide(book.levels[0]) && isSide(book.levels[1])
-const isTrade = (t: Partial<WireTrade>) =>
-  (t.side === 'B' || t.side === 'A') && isText(t.px) && isText(t.sz) && isNumber(t.time) && isNumber(t.tid)
-const isCandle = (c: Partial<WireCandle>) => isNumber(c.t) && [c.i, c.o, c.c, c.h, c.l, c.v].every(isText)
+const isTrade = (trade: Partial<WireTrade>) =>
+  (trade.side === 'B' || trade.side === 'A')
+  && isText(trade.px)
+  && isText(trade.sz)
+  && isNumber(trade.time)
+  && isNumber(trade.tid)
+const isCandle = (candle: Partial<WireCandle>) =>
+  isNumber(candle.t) && [candle.i, candle.o, candle.c, candle.h, candle.l, candle.v].every(isText)
 
-const levels = (side: WireLevel[]): RawLevel[] => side.map((l) => [l.px, l.sz] as const)
+const levels = (side: WireLevel[]): RawLevel[] => side.map((level) => [level.px, level.sz] as const)
 
 function layOver(snapshot: WireLevel[], fast: WireLevel[], beyond: (px: number, edge: number) => boolean) {
   const edge = fast.at(-1)
-  return edge ? [...fast, ...snapshot.filter((l) => beyond(Number(l.px), Number(edge.px)))] : fast
+  return edge ? [...fast, ...snapshot.filter((level) => beyond(Number(level.px), Number(edge.px)))] : fast
 }
 
 function withFastTop(snapshot: WireBook, fast: WireBook | null): WireBook {
@@ -92,7 +97,7 @@ export function hyperliquid(network: Network): VenueAdapter {
   const books = new Map<string, { snapshot: WireBook; fast: WireBook | null }>()
 
   function frames(method: 'subscribe' | 'unsubscribe', targets: readonly StreamTarget[]) {
-    for (const t of targets) if (t.channel === 'book') books.delete(t.spec.venueSymbol)
+    for (const target of targets) if (target.channel === 'book') books.delete(target.spec.venueSymbol)
     return targets.flatMap(subscriptions).map((subscription) => JSON.stringify({ method, subscription }))
   }
 
@@ -124,16 +129,16 @@ export function hyperliquid(network: Network): VenueAdapter {
     unsubscribeFrames: (targets) => frames('unsubscribe', targets),
 
     parse(raw, symbols) {
-      const m = JSON.parse(raw) as Wire
-      switch (m.channel) {
+      const frame = JSON.parse(raw) as Wire
+      switch (frame.channel) {
         case 'subscriptionResponse':
         case 'pong':
           return []
         case 'l2Book': {
-          const market = symbols(m.data.coin)
+          const market = symbols(frame.data.coin)
           if (!market) return []
-          if (!isBook(m.data)) throw new VenueParseError('hyperliquid', market, raw)
-          const shown = follow(m.data)
+          if (!isBook(frame.data)) throw new VenueParseError('hyperliquid', market, raw)
+          const shown = follow(frame.data)
           if (!shown) return []
           return [
             {
@@ -146,23 +151,23 @@ export function hyperliquid(network: Network): VenueAdapter {
           ]
         }
         case 'trades': {
-          const market = m.data[0] && symbols(m.data[0].coin)
+          const market = frame.data[0] && symbols(frame.data[0].coin)
           if (!market) return []
-          if (!m.data.every(isTrade)) throw new VenueParseError('hyperliquid', market, raw)
-          const trades = m.data.map((t) => ({
-            id: String(t.tid),
-            px: t.px,
-            qty: t.sz,
-            side: t.side === 'B' ? ('buy' as const) : ('sell' as const),
-            time: t.time,
+          if (!frame.data.every(isTrade)) throw new VenueParseError('hyperliquid', market, raw)
+          const trades = frame.data.map((trade) => ({
+            id: String(trade.tid),
+            px: trade.px,
+            qty: trade.sz,
+            side: trade.side === 'B' ? ('buy' as const) : ('sell' as const),
+            time: trade.time,
           }))
           return [{ kind: 'trades', market, trades }]
         }
         case 'candle': {
-          const market = symbols(m.data.s)
+          const market = symbols(frame.data.s)
           if (!market) return []
-          if (!isCandle(m.data)) throw new VenueParseError('hyperliquid', market, raw)
-          const { t, o, h, l, c, v, i } = m.data
+          if (!isCandle(frame.data)) throw new VenueParseError('hyperliquid', market, raw)
+          const { t, o, h, l, c, v, i } = frame.data
           return [{ kind: 'candle', market, interval: i, candles: [{ open: t, o, h, l, c, v }] }]
         }
         case 'error':
@@ -178,7 +183,7 @@ export function hyperliquid(network: Network): VenueAdapter {
         INFO,
         post({ type: 'metaAndAssetCtxs', dex: splitBase(base).dex }, signal),
       )
-      const ctx = ctxs[meta.universe.findIndex((u) => u.name === base)]
+      const ctx = ctxs[meta.universe.findIndex((asset) => asset.name === base)]
       if (!ctx) throw new Error(`no ${base} on hyperliquid`)
       const prev = Number(ctx.prevDayPx)
       return {
@@ -197,7 +202,7 @@ export function hyperliquid(network: Network): VenueAdapter {
         INFO,
         post({ type: 'candleSnapshot', req }, signal),
       )
-      return rows.map((r) => chartBar(r.t, r.o, r.h, r.l, r.c, r.v))
+      return rows.map((row) => chartBar(row.t, row.o, row.h, row.l, row.c, row.v))
     },
   }
 }

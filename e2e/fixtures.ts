@@ -38,9 +38,10 @@ export const test = base.extend<{ network: Network; escaped: string[]; consoleEr
   consoleErrors: [
     async ({ page }, use) => {
       const errors: string[] = []
-      page.on('pageerror', (e) => errors.push(e.message))
-      page.on('console', (m) => {
-        if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push(m.text())
+      page.on('pageerror', (error) => errors.push(error.message))
+      page.on('console', (message) => {
+        if (message.type() === 'error' && !message.text().startsWith('Failed to load resource'))
+          errors.push(message.text())
       })
       await use(errors)
       expect(errors, 'console errors').toEqual([])
@@ -74,8 +75,8 @@ const BLOCKING_IMPACT = new Set(['serious', 'critical'])
 export async function expectAccessible(page: Page) {
   const { violations } = await new AxeBuilder({ page }).exclude('canvas').analyze()
   const blocking = violations
-    .filter((v) => BLOCKING_IMPACT.has(v.impact ?? ''))
-    .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+    .filter((violation) => BLOCKING_IMPACT.has(violation.impact ?? ''))
+    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`)
   expect(blocking, 'serious and critical axe violations').toEqual([])
 }
 

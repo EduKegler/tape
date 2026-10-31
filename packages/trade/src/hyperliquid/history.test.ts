@@ -30,17 +30,17 @@ function history(answer: (type: string, startTime: number) => unknown[]) {
 // Info endpoint docs: userFunding pages hold 500 rows and userFillsByTime pages 2000, each from startTime on.
 describe('hyperliquid history pages', () => {
   it('walks funding past a full page of 500 without dropping or repeating payments', async () => {
-    const all = Array.from({ length: 501 }, (_, i) => payment(1000 + i))
+    const all = Array.from({ length: 501 }, (_, index) => payment(1000 + index))
     const { read, starts } = history((type, start) =>
-      type === 'userFunding' ? all.filter((p) => p.time >= start).slice(0, 500) : [],
+      type === 'userFunding' ? all.filter((entry) => entry.time >= start).slice(0, 500) : [],
     )
     const { funding } = await read
-    expect(funding.map((p) => [p.venue, p.time])).toEqual(all.map((p) => ['hyperliquid', p.time]))
+    expect(funding.map((entry) => [entry.venue, entry.time])).toEqual(all.map((entry) => ['hyperliquid', entry.time]))
     expect(starts.filter(([type]) => type === 'userFunding').map(([, start]) => start)).toEqual([0, 1499])
   })
 
   it('says when one moment holds more fills than a page', async () => {
-    const crowded = Array.from({ length: 2000 }, (_, i) => fill(1000, i))
+    const crowded = Array.from({ length: 2000 }, (_, index) => fill(1000, index))
     const { read } = history((type) => (type === 'userFillsByTime' ? crowded : []))
     expect((await read).gaps).toEqual([
       'Hyperliquid sent more rows for one moment than a page holds, so later rows are missing.',
@@ -50,6 +50,6 @@ describe('hyperliquid history pages', () => {
   // The recorded history.hyperliquid.json has side A fills as Close Long, which are sells.
   it('reads a fill on the ask side as a sell on Hyperliquid', async () => {
     const { read } = history((type) => (type === 'userFillsByTime' ? [fill(1000, 1, 'A')] : []))
-    expect((await read).fills.map((f) => [f.venue, f.side])).toEqual([['hyperliquid', 'sell']])
+    expect((await read).fills.map((entry) => [entry.venue, entry.side])).toEqual([['hyperliquid', 'sell']])
   })
 })

@@ -50,32 +50,32 @@ function setup({ openAtOnce = true, fetch = recordedFetch } = {}) {
   return { hub, sockets, gone }
 }
 
-function tab(hub: Hub, id: string, visible = true) {
+function openTab(hub: Hub, id: string, visible = true) {
   const frames = new Map<string, Frame>()
   const posted: Frame[] = []
   const exceptions: ExceptionEvent[] = []
   let deliver: (data: unknown) => void = () => {}
   hub.connect({
-    post: (m: HubToTab) => {
-      if (m.t === 'frames')
-        for (const f of structuredClone(m.frames)) {
-          frames.set(f.key, f)
-          posted.push(f)
+    post: (message: HubToTab) => {
+      if (message.t === 'frames')
+        for (const frame of structuredClone(message.frames)) {
+          frames.set(frame.key, frame)
+          posted.push(frame)
         }
-      if (m.t === 'exception') exceptions.push(structuredClone(m.event))
+      if (message.t === 'exception') exceptions.push(structuredClone(message.event))
     },
     listen: (fn) => (deliver = fn),
     close: () => {},
   })
-  const send = (m: TabToHub) => deliver(structuredClone(m))
+  const send = (message: TabToHub) => deliver(structuredClone(message))
   send({ t: 'hello', tab: id as TabId, visible })
   return { frames, posted, exceptions, want: (topics: Topic[]) => send({ t: 'want', topics }), send }
 }
 
 function replay(sockets: FakeSocket[]) {
-  for (const s of sockets.filter((x) => !x.closed)) {
-    const venue = Object.values(VENUES).find((v) => v.url === s.url)!.id
-    for (const raw of wsFrames(venue)) s.onmessage?.(raw)
+  for (const socket of sockets.filter((candidate) => !candidate.closed)) {
+    const venue = Object.values(VENUES).find((adapter) => adapter.url === socket.url)!.id
+    for (const raw of wsFrames(venue)) socket.onmessage?.(raw)
   }
 }
 
@@ -83,19 +83,19 @@ const btc = (venue: 'binance' | 'hyperliquid' | 'dydx') => marketKey(venue, 'BTC
 
 const hyperliquidBook = (coin: 'BTC' | 'ETH') =>
   wsFrames('hyperliquid')
-    .find((r) => r.includes('"l2Book"') && r.includes('"levels"'))!
+    .find((raw) => raw.includes('"l2Book"') && raw.includes('"levels"'))!
     .replaceAll('"coin":"BTC"', `"coin":"${coin}"`)
     .replace(/"sz":"[0-9.]+"/g, '"sz":"1.0"')
-const dydxBook = wsFrames('dydx').find((r) => r.includes('"subscribed"') && r.includes('v4_orderbook'))!
+const dydxBook = wsFrames('dydx').find((raw) => raw.includes('"subscribed"') && raw.includes('v4_orderbook'))!
 const dydxCorrupt = wsFrames('dydx')
-  .find((r) => r.includes('channel_data') && r.includes('v4_orderbook'))!
+  .find((raw) => raw.includes('channel_data') && raw.includes('v4_orderbook'))!
   .replace(/\["\d+"/, '["8x"')
 const binanceDiffWithoutBids = wsFrames('binance')
-  .find((r) => r.includes('depthUpdate'))!
+  .find((raw) => raw.includes('depthUpdate'))!
   .replace('"b":[', '"bids":[')
 const bookTopic = (market: ReturnType<typeof btc>) => ({ kind: 'book', market, group: '1' }) as const
 const liveSince = (posted: readonly Frame[], from: number) =>
-  posted.slice(from).filter((f) => f.kind === 'book' && f.status === 'live')
+  posted.slice(from).filter((frame) => frame.kind === 'book' && frame.status === 'live')
 
 describe('hub', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -103,14 +103,14 @@ describe('hub', () => {
 
   it('serves two tabs from one socket per venue and sends render-ready books', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    const b = tab(hub, 'b')
-    a.want([
+    const first = openTab(hub, 'a')
+    const second = openTab(hub, 'b')
+    first.want([
       { kind: 'book', market: btc('binance'), group: '1' },
       { kind: 'book', market: btc('binance'), group: '100' },
       { kind: 'trades', market: btc('dydx') },
     ])
-    b.want([
+    second.want([
       { kind: 'book', market: btc('binance'), group: '1' },
       { kind: 'compare', base: 'BTC' as Base },
     ])
@@ -118,19 +118,19 @@ describe('hub', () => {
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    expect(sockets.map((s) => s.url).sort()).toEqual(
+    expect(sockets.map((socket) => socket.url).sort()).toEqual(
       Object.values(VENUES)
-        .map((v) => v.url)
+        .map((adapter) => adapter.url)
         .sort(),
     )
-    const book = a.frames.get(`book|${btc('binance')}|1`) as BookFrame
+    const book = first.frames.get(`book|${btc('binance')}|1`) as BookFrame
     expect(book.status).toBe('live')
     expect(book.bids).toHaveLength(14)
-    expect(book.bids.every((r) => r.px !== '')).toBe(true)
+    expect(book.bids.every((row) => row.px !== '')).toBe(true)
     expect(Number(book.bids[0]!.px.replaceAll(',', ''))).toBeLessThan(Number(book.asks[0]!.px.replaceAll(',', '')))
-    expect(b.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
-    const compare = b.frames.get('compare|BTC')
-    expect(compare?.kind === 'compare' && compare.rows.filter((r) => r.bid !== '').length).toBe(4)
+    expect(second.frames.get(`book|${btc('binance')}|1`)).toEqual(book)
+    const compare = second.frames.get('compare|BTC')
+    expect(compare?.kind === 'compare' && compare.rows.filter((row) => row.bid !== '').length).toBe(4)
     hub.dispose()
   })
 
@@ -143,26 +143,31 @@ describe('hub', () => {
           ? Promise.reject(new Error('no list'))
           : recordedFetch(input, init),
     })
-    const a = tab(hub, 'a')
-    a.want([{ kind: 'compare', base: 'BTC' as Base }])
+    const tab = openTab(hub, 'a')
+    tab.want([{ kind: 'compare', base: 'BTC' as Base }])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    const compare = a.frames.get('compare|BTC')
-    expect(compare?.kind === 'compare' && compare.rows.map((r) => r.status)).toEqual(['live', 'live', 'live', 'live'])
+    const compare = tab.frames.get('compare|BTC')
+    expect(compare?.kind === 'compare' && compare.rows.map((row) => row.status)).toEqual([
+      'live',
+      'live',
+      'live',
+      'live',
+    ])
     hub.dispose()
   })
 
   it('marks the venues that do not list a market as unlisted in the venues table', async () => {
     const { hub } = setup()
-    const a = tab(hub, 'a')
-    a.want([{ kind: 'compare', base: 'kPEPE' as Base }])
+    const tab = openTab(hub, 'a')
+    tab.want([{ kind: 'compare', base: 'kPEPE' as Base }])
     await vi.advanceTimersByTimeAsync(1500)
 
-    const compare = a.frames.get('compare|kPEPE')
+    const compare = tab.frames.get('compare|kPEPE')
     const rows = compare?.kind === 'compare' ? compare.rows : []
-    expect(Object.fromEntries(rows.map((r) => [r.venue, r.status === 'unlisted']))).toEqual({
+    expect(Object.fromEntries(rows.map((row) => [row.venue, row.status === 'unlisted']))).toEqual({
       binance: true,
       hyperliquid: false,
       dydx: true,
@@ -173,8 +178,8 @@ describe('hub', () => {
 
   it('sends the exact touch in a book grouped wider than the spread', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([
+    const tab = openTab(hub, 'a')
+    tab.want([
       { kind: 'book', market: btc('binance'), group: '100' },
       { kind: 'compare', base: 'BTC' as Base },
     ])
@@ -182,9 +187,9 @@ describe('hub', () => {
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    const wide = a.frames.get(`book|${btc('binance')}|100`) as BookFrame
-    const compare = a.frames.get('compare|BTC')
-    const venue = compare?.kind === 'compare' ? compare.rows.find((r) => r.venue === 'binance') : undefined
+    const wide = tab.frames.get(`book|${btc('binance')}|100`) as BookFrame
+    const compare = tab.frames.get('compare|BTC')
+    const venue = compare?.kind === 'compare' ? compare.rows.find((row) => row.venue === 'binance') : undefined
     expect(wide.touch.bid).not.toBe('')
     expect(wide.touch).toEqual({ bid: venue?.bid, ask: venue?.ask })
     hub.dispose()
@@ -192,13 +197,13 @@ describe('hub', () => {
 
   it('sends depth as prices and running totals from the mid outward', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([{ kind: 'depth', market: btc('binance') }])
+    const tab = openTab(hub, 'a')
+    tab.want([{ kind: 'depth', market: btc('binance') }])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
 
-    const depth = a.frames.get(`depth|${btc('binance')}`) as DepthFrame
+    const depth = tab.frames.get(`depth|${btc('binance')}`) as DepthFrame
     for (const [side, away] of [
       [depth.bids, -1],
       [depth.asks, 1],
@@ -206,9 +211,9 @@ describe('hub', () => {
       expect(side.px.length).toBeGreaterThan(1)
       expect(side.cum).toHaveLength(side.px.length)
       expect((side.px[0]! - depth.mid) * away).toBeGreaterThan(0)
-      for (let i = 1; i < side.px.length; i++) {
-        expect((side.px[i]! - side.px[i - 1]!) * away).toBeGreaterThan(0)
-        expect(side.cum[i]!).toBeGreaterThan(side.cum[i - 1]!)
+      for (let index = 1; index < side.px.length; index++) {
+        expect((side.px[index]! - side.px[index - 1]!) * away).toBeGreaterThan(0)
+        expect(side.cum[index]!).toBeGreaterThan(side.cum[index - 1]!)
       }
     }
     hub.dispose()
@@ -216,10 +221,10 @@ describe('hub', () => {
 
   it('unsubscribes a stream only after its last tab dies and the linger passes', async () => {
     const { hub, sockets, gone } = setup()
-    const a = tab(hub, 'a')
-    const b = tab(hub, 'b')
-    a.want([{ kind: 'trades', market: btc('hyperliquid') }])
-    b.want([
+    const first = openTab(hub, 'a')
+    const second = openTab(hub, 'b')
+    first.want([{ kind: 'trades', market: btc('hyperliquid') }])
+    second.want([
       { kind: 'trades', market: btc('hyperliquid') },
       { kind: 'book', market: btc('hyperliquid'), group: '1' },
     ])
@@ -227,9 +232,9 @@ describe('hub', () => {
     const socket = sockets[0]!
     gone.get('b' as TabId)!()
     await vi.advanceTimersByTimeAsync(2000)
-    expect(socket.sent.some((s) => s.includes('unsubscribe'))).toBe(false)
+    expect(socket.sent.some((message) => message.includes('unsubscribe'))).toBe(false)
     await vi.advanceTimersByTimeAsync(10_000)
-    const unsubs = socket.sent.filter((s) => s.includes('unsubscribe'))
+    const unsubs = socket.sent.filter((message) => message.includes('unsubscribe'))
     expect(unsubs).toEqual([
       '{"method":"unsubscribe","subscription":{"type":"l2Book","coin":"BTC"}}',
       '{"method":"unsubscribe","subscription":{"type":"l2Book","coin":"BTC","fast":true}}',
@@ -240,8 +245,8 @@ describe('hub', () => {
 
   it('reconnects a dropped socket, resubscribes and resyncs the Binance book', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([{ kind: 'book', market: btc('binance'), group: '1' }])
+    const tab = openTab(hub, 'a')
+    tab.want([{ kind: 'book', market: btc('binance'), group: '1' }])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(200)
@@ -250,88 +255,88 @@ describe('hub', () => {
     sockets[0]!.closed = true
     sockets[0]!.onclose?.()
     await vi.advanceTimersByTimeAsync(300)
-    expect((a.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('stale')
+    expect((tab.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('stale')
 
     await vi.advanceTimersByTimeAsync(3000)
     expect(sockets).toHaveLength(2)
     expect(sockets[1]!.sent.join()).toContain('btcusdt@depth@100ms')
     replay(sockets)
     await vi.advanceTimersByTimeAsync(200)
-    expect((a.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('live')
+    expect((tab.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('live')
     hub.dispose()
   })
 
   it('resyncs a Binance book after a diff that comes without its bids', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([bookTopic(btc('binance'))])
+    const tab = openTab(hub, 'a')
+    tab.want([bookTopic(btc('binance'))])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(200)
     expect(hub.inspect().phases[btc('binance')]).toBe('live')
 
-    sockets.find((s) => s.url.includes('binance'))!.onmessage!(binanceDiffWithoutBids)
+    sockets.find((socket) => socket.url.includes('binance'))!.onmessage!(binanceDiffWithoutBids)
     expect(hub.inspect().phases[btc('binance')]).toBe('awaiting-snapshot')
     replay(sockets)
     await vi.advanceTimersByTimeAsync(200)
-    expect((a.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('live')
+    expect((tab.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('live')
     hub.dispose()
   })
 
   it('marks the venue comparison stale once every venue socket drops', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([{ kind: 'compare', base: 'BTC' as Base }])
+    const tab = openTab(hub, 'a')
+    tab.want([{ kind: 'compare', base: 'BTC' as Base }])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(1500)
-    expect(a.frames.get('compare|BTC')?.status).toBe('live')
+    expect(tab.frames.get('compare|BTC')?.status).toBe('live')
 
     sockets[0]!.closed = true
     sockets[0]!.onclose?.()
     await vi.advanceTimersByTimeAsync(300)
-    expect(a.frames.get('compare|BTC')?.status).toBe('live')
+    expect(tab.frames.get('compare|BTC')?.status).toBe('live')
 
-    for (const s of sockets.slice(1)) {
-      s.closed = true
-      s.onclose?.()
+    for (const socket of sockets.slice(1)) {
+      socket.closed = true
+      socket.onclose?.()
     }
     await vi.advanceTimersByTimeAsync(300)
-    expect(a.frames.get('compare|BTC')?.status).toBe('stale')
+    expect(tab.frames.get('compare|BTC')?.status).toBe('stale')
     hub.dispose()
   })
 
   it('stops sending frames to a hidden tab and catches it up when it returns', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([{ kind: 'book', market: btc('hyperliquid'), group: '1' }])
-    a.send({ t: 'visible', visible: false })
+    const tab = openTab(hub, 'a')
+    tab.want([{ kind: 'book', market: btc('hyperliquid'), group: '1' }])
+    tab.send({ t: 'visible', visible: false })
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(500)
-    expect(a.frames.size).toBe(0)
-    a.send({ t: 'visible', visible: true })
+    expect(tab.frames.size).toBe(0)
+    tab.send({ t: 'visible', visible: true })
     await vi.advanceTimersByTimeAsync(200)
-    expect(a.frames.size).toBe(1)
+    expect(tab.frames.size).toBe(1)
     hub.dispose()
   })
 
   it('sends nothing to a tab that opens in the background', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a', false)
-    a.want([{ kind: 'book', market: btc('hyperliquid'), group: '1' }])
+    const tab = openTab(hub, 'a', false)
+    tab.want([{ kind: 'book', market: btc('hyperliquid'), group: '1' }])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
     await vi.advanceTimersByTimeAsync(500)
-    expect(a.frames.size).toBe(0)
+    expect(tab.frames.size).toBe(0)
     hub.dispose()
   })
 
   it('posts no pre-drop book as live while a new socket resets its books', async () => {
     const { hub, sockets } = setup({ openAtOnce: false })
-    const a = tab(hub, 'a')
+    const tab = openTab(hub, 'a')
     const eth = marketKey('hyperliquid', 'ETH' as Base)
-    a.want([bookTopic(eth), bookTopic(btc('hyperliquid'))])
+    tab.want([bookTopic(eth), bookTopic(btc('hyperliquid'))])
     await vi.advanceTimersByTimeAsync(1100)
     sockets[0]!.onopen!()
     sockets[0]!.onmessage!(hyperliquidBook('BTC'))
@@ -343,49 +348,49 @@ describe('hub', () => {
     await vi.advanceTimersByTimeAsync(2000)
     expect(sockets).toHaveLength(2)
     await vi.advanceTimersByTimeAsync(150)
-    const from = a.posted.length
+    const from = tab.posted.length
     sockets[1]!.onopen!()
     await vi.advanceTimersByTimeAsync(300)
-    expect(liveSince(a.posted, from)).toEqual([])
+    expect(liveSince(tab.posted, from)).toEqual([])
     hub.dispose()
   })
 
   it('keeps a dYdX book off live when its snapshot lands after a held resubscribe', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([bookTopic(btc('dydx'))])
+    const tab = openTab(hub, 'a')
+    tab.want([bookTopic(btc('dydx'))])
     await vi.advanceTimersByTimeAsync(1100)
-    const socket = sockets.find((s) => s.url.includes('dydx'))!
+    const socket = sockets.find((candidate) => candidate.url.includes('dydx'))!
     socket.onmessage!(dydxBook)
     await vi.advanceTimersByTimeAsync(200)
     socket.onmessage!(dydxCorrupt)
     socket.onmessage!(dydxCorrupt)
     expect(socket.sent.at(-1)).toContain('unsubscribe')
-    const from = a.posted.length
+    const from = tab.posted.length
     socket.onmessage!(dydxBook)
     await vi.advanceTimersByTimeAsync(1000)
-    expect(liveSince(a.posted, from)).toEqual([])
+    expect(liveSince(tab.posted, from)).toEqual([])
     hub.dispose()
   })
 
   it('keeps a dYdX book off live when a tab wants it back during its hold', async () => {
     const { hub, sockets } = setup()
-    const a = tab(hub, 'a')
-    a.want([bookTopic(btc('dydx'))])
+    const tab = openTab(hub, 'a')
+    tab.want([bookTopic(btc('dydx'))])
     await vi.advanceTimersByTimeAsync(1100)
-    const socket = sockets.find((s) => s.url.includes('dydx'))!
+    const socket = sockets.find((candidate) => candidate.url.includes('dydx'))!
     socket.onmessage!(dydxBook)
     await vi.advanceTimersByTimeAsync(200)
-    a.want([bookTopic(marketKey('dydx', 'ETH' as Base))])
+    tab.want([bookTopic(marketKey('dydx', 'ETH' as Base))])
     await vi.advanceTimersByTimeAsync(9000)
     socket.onmessage!(dydxCorrupt)
     socket.onmessage!(dydxBook)
     await vi.advanceTimersByTimeAsync(1200)
     expect(socket.sent.at(-1)).toContain('unsubscribe')
-    const from = a.posted.length
-    a.want([bookTopic(btc('dydx'))])
+    const from = tab.posted.length
+    tab.want([bookTopic(btc('dydx'))])
     await vi.advanceTimersByTimeAsync(500)
-    expect(liveSince(a.posted, from)).toEqual([])
+    expect(liveSince(tab.posted, from)).toEqual([])
     hub.dispose()
   })
 
@@ -400,12 +405,12 @@ describe('hub', () => {
       frames: [{ file: 'https://tape.kegler.dev/assets/worker-abc.js', fn: 'apply', line: 1, col: 10 }],
     })
     hub.report(error('before any tab'))
-    const a = tab(hub, 'a', false)
-    const b = tab(hub, 'b')
+    const hidden = openTab(hub, 'a', false)
+    const visible = openTab(hub, 'b')
     hub.report(error('with two tabs'))
     await vi.advanceTimersByTimeAsync(50)
-    expect(a.exceptions.map((e) => e.value)).toEqual(['before any tab'])
-    expect(b.exceptions.map((e) => e.value)).toEqual(['with two tabs'])
+    expect(hidden.exceptions.map((exception) => exception.value)).toEqual(['before any tab'])
+    expect(visible.exceptions.map((exception) => exception.value)).toEqual(['with two tabs'])
     hub.dispose()
   })
 })

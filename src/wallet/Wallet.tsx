@@ -18,8 +18,10 @@ import { PairingQr } from './PairingQr'
 
 const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
 
-const kindOf = (c: Connector | CreateConnectorFn) =>
-  'type' in c && (c.type === 'injected' || c.type === 'walletConnect') ? c.type : 'other'
+const kindOf = (connector: Connector | CreateConnectorFn) =>
+  'type' in connector && (connector.type === 'injected' || connector.type === 'walletConnect')
+    ? connector.type
+    : 'other'
 
 export function WalletButton() {
   const { address, chainId, isConnected } = useConnection()
@@ -33,14 +35,14 @@ export function WalletButton() {
   } = useConnect({
     mutation: {
       onSuccess: (_data, { connector }) => track({ event: 'wallet_connected', connector: kindOf(connector) }),
-      onError: (e, { connector }) =>
+      onError: (failure, { connector }) =>
         track({
           event: 'wallet_connect_failed',
           connector: kindOf(connector),
           reason:
-            e instanceof ProviderNotFoundError
+            failure instanceof ProviderNotFoundError
               ? 'no-wallet'
-              : (e as { code?: number }).code === UserRejectedRequestError.code
+              : (failure as { code?: number }).code === UserRejectedRequestError.code
                 ? 'rejected'
                 : 'other',
         }),
@@ -88,12 +90,12 @@ export function WalletButton() {
       <select
         id="chain"
         value={chainId}
-        onChange={(e) => switchChain({ chainId: Number(e.target.value) as (typeof chains)[number]['id'] })}
+        onChange={(event) => switchChain({ chainId: Number(event.target.value) as (typeof chains)[number]['id'] })}
         className="rounded-sm border border-rule bg-inset px-2 py-1 text-sm text-level2"
       >
-        {chains.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
+        {chains.map((chain) => (
+          <option key={chain.id} value={chain.id}>
+            {chain.name}
           </option>
         ))}
       </select>

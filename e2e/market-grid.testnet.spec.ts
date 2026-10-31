@@ -30,7 +30,7 @@ test('Tab walks the header, the ticket, the account, the market panels and the s
   await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
   await expect(panel(page, 'Account').getByRole('button', { name: 'Deposit', exact: true })).toBeVisible()
   const stops = await regionsFromHeaderToStatusBar(page)
-  expect(stops.filter((region, i) => region !== stops[i - 1])).toEqual([
+  expect(stops.filter((region, index) => region !== stops[index - 1])).toEqual([
     'header',
     'Order ticket',
     'Account',

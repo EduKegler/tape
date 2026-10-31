@@ -38,16 +38,16 @@ export interface Entry {
 function maintenanceSteps(tiers: readonly MarginTier[]) {
   let deduction = 0
   let previous = 0
-  return tiers.map((tier, i) => {
+  return tiers.map((tier, index) => {
     const rate = 1 / (2 * tier.maxLeverage)
-    if (i > 0) deduction += tier.lowerBound * (rate - previous)
+    if (index > 0) deduction += tier.lowerBound * (rate - previous)
     previous = rate
-    return { lowerBound: tier.lowerBound, upperBound: tiers[i + 1]?.lowerBound ?? Infinity, rate, deduction }
+    return { lowerBound: tier.lowerBound, upperBound: tiers[index + 1]?.lowerBound ?? Infinity, rate, deduction }
   })
 }
 
 export function maintenanceMargin(tiers: readonly MarginTier[], notional: number): number {
-  const step = maintenanceSteps(tiers).findLast((s) => notional >= s.lowerBound)
+  const step = maintenanceSteps(tiers).findLast((band) => notional >= band.lowerBound)
   return step ? notional * step.rate - step.deduction : 0
 }
 

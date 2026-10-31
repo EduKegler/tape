@@ -13,8 +13,8 @@ function sharedPort(): TabPort {
   worker.port.start()
   return {
     mode: 'shared',
-    post: (m: TabToHub) => worker.port.postMessage(m),
-    listen: (fn) => (worker.port.onmessage = (e: MessageEvent<HubToTab>) => fn(e.data)),
+    post: (message: TabToHub) => worker.port.postMessage(message),
+    listen: (fn) => (worker.port.onmessage = (event: MessageEvent<HubToTab>) => fn(event.data)),
     close: () => worker.port.close(),
   }
 }
@@ -26,8 +26,8 @@ function dedicatedPort(): TabPort {
   })
   return {
     mode: 'dedicated',
-    post: (m: TabToHub) => worker.postMessage(m),
-    listen: (fn) => (worker.onmessage = (e: MessageEvent<HubToTab>) => fn(e.data)),
+    post: (message: TabToHub) => worker.postMessage(message),
+    listen: (fn) => (worker.onmessage = (event: MessageEvent<HubToTab>) => fn(event.data)),
     close: () => worker.terminate(),
   }
 }
@@ -50,7 +50,7 @@ const browserLifecycle: Lifecycle = {
   },
   onVisibility: (fn) => document.addEventListener('visibilitychange', () => fn(document.visibilityState === 'visible')),
   onPageHide: (fn) => window.addEventListener('pagehide', fn),
-  onPageRestore: (fn) => window.addEventListener('pageshow', (e) => e.persisted && fn()),
+  onPageRestore: (fn) => window.addEventListener('pageshow', (event) => event.persisted && fn()),
 }
 
 export function connectHub(): HubClient {

@@ -24,7 +24,7 @@ import { shortAddress } from './format'
 import { Button, Dialog, Input } from './primitives'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
-const chainOf = (id: number) => wagmiConfig.chains.find((c) => c.id === id)
+const chainOf = (id: number) => wagmiConfig.chains.find((chain) => chain.id === id)
 const chainName = (id: number) => chainOf(id)?.name ?? `chain ${id}`
 const gasText = (wei: bigint, chainId: number) =>
   `${Number(formatEther(wei)).toLocaleString('en-US', { maximumSignificantDigits: 2 })} ${chainOf(chainId)?.nativeCurrency.symbol ?? 'ETH'}`
@@ -97,7 +97,7 @@ function DepositBody({
   amountRef: RefObject<HTMLInputElement | null>
 }) {
   const deposits = useDeposits(account)
-  const record = deposits.find((d) => d.hash === draft.shown)
+  const record = deposits.find((entry) => entry.hash === draft.shown)
   return (
     <>
       {record ? (
@@ -134,7 +134,9 @@ function DepositForm({
   const balances = useRouteBalances(account, routes)
   const { chainId: walletChain } = useConnection()
   const route =
-    routes.find((r) => r.chainId === draft.chainId) ?? routes.find((r) => r.chainId === walletChain) ?? routes[0]!
+    routes.find((candidate) => candidate.chainId === draft.chainId)
+    ?? routes.find((candidate) => candidate.chainId === walletChain)
+    ?? routes[0]!
   const balance = balances[routes.indexOf(route)] ?? null
   const amount = parseUsdc(draft.text)
   const quote = useDepositQuote(account, route, amount)
@@ -146,8 +148,8 @@ function DepositForm({
   return (
     <form
       className="flex flex-col gap-3"
-      onSubmit={(e) => {
-        e.preventDefault()
+      onSubmit={(event) => {
+        event.preventDefault()
         if (!amount || !quote.ready || !quote.terms || !quote.calls) return
         deposit.send({ route, amount, terms: quote.terms, calls: quote.calls }, (hash) => {
           draft.setText('')
@@ -163,16 +165,16 @@ function DepositForm({
           id={fromId}
           value={route.chainId}
           disabled={deposit.pending}
-          onChange={(e) => {
+          onChange={(event) => {
             deposit.reset()
-            draft.setChainId(Number(e.target.value))
+            draft.setChainId(Number(event.target.value))
           }}
           className="h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1"
         >
-          {routes.map((r, i) => (
-            <option key={r.chainId} value={r.chainId}>
-              {chainName(r.chainId)}
-              {balances[i] !== null && balances[i] !== undefined ? ` · ${usdc(balances[i])} USDC` : ''}
+          {routes.map((choice, index) => (
+            <option key={choice.chainId} value={choice.chainId}>
+              {chainName(choice.chainId)}
+              {balances[index] !== null && balances[index] !== undefined ? ` · ${usdc(balances[index])} USDC` : ''}
             </option>
           ))}
         </select>
@@ -249,7 +251,7 @@ function Summary({
     ],
     [
       'You receive',
-      quote.issues.some((i) => i.kind === 'below-minimum' && i.lost)
+      quote.issues.some((issue) => issue.kind === 'below-minimum' && issue.lost)
         ? 'Nothing, under the minimum'
         : amount && fee
           ? fee.expected === fee.max
@@ -273,10 +275,10 @@ function Summary({
   ]
   return (
     <dl aria-label="Deposit summary" className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-      {rows.map(([k, v]) => (
-        <div key={k} className="contents">
-          <dt className="text-level3">{k}</dt>
-          <dd className="num text-right text-level1">{v}</dd>
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-level3">{label}</dt>
+          <dd className="num text-right text-level1">{value}</dd>
         </div>
       ))}
     </dl>
@@ -381,7 +383,7 @@ const stageText = (status: DepositStatus, chain: string, destination: string): s
 
 function Receipt({ account, venue, record }: { account: AccountRef; venue: DepositVenue; record: DepositRecord }) {
   const { status, late } = useDepositStatus(account, record)
-  const route = depositRoutes(account).find((r) => r.chainId === record.chainId)
+  const route = depositRoutes(account).find((candidate) => candidate.chainId === record.chainId)
   const chain = chainName(record.chainId)
   const credited = status.stage === 'credited' ? status : null
   const failed = status.stage === 'reverted' || status.stage === 'replaced'
@@ -413,10 +415,10 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
         </p>
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-        {rows.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-level3">{k}</dt>
-            <dd className="num text-right text-level1">{v}</dd>
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-level3">{label}</dt>
+            <dd className="num text-right text-level1">{value}</dd>
           </div>
         ))}
       </dl>
@@ -454,8 +456,14 @@ function Recent({
     <section aria-label="Recent deposits" className="flex flex-col gap-1 border-t border-rule pt-2">
       <h3 className="text-level3">Recent deposits</h3>
       <ul className="flex flex-col">
-        {deposits.slice(0, 5).map((d) => (
-          <RecentRow key={d.hash} account={account} record={d} current={d.hash === shown} onShow={onShow} />
+        {deposits.slice(0, 5).map((deposit) => (
+          <RecentRow
+            key={deposit.hash}
+            account={account}
+            record={deposit}
+            current={deposit.hash === shown}
+            onShow={onShow}
+          />
         ))}
       </ul>
     </section>

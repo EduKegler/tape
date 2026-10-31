@@ -31,7 +31,7 @@ const config = (mainnet: string | null): TradeConfig => ({
 })
 const routes = (network: 'mainnet' | 'testnet', broker: string | null = 'woofi_pro') =>
   DEPOSITS.orderly!.routes(network, config(broker))
-const arbitrum = (): DepositRoute => routes('mainnet').find((r) => r.chainId === 42161)!
+const arbitrum = (): DepositRoute => routes('mainnet').find((route) => route.chainId === 42161)!
 
 /** Deposit 0x6f865b3d…7ff6 on Arbitrum: 33,049.576128 USDC to the sender's woofi_pro account. */
 const recorded = {
@@ -115,22 +115,22 @@ describe('Orderly Vault deposit', () => {
   })
 
   it('leaves from Arbitrum, Base and OP on mainnet and from Arbitrum Sepolia on testnet', () => {
-    expect(routes('mainnet').map((r) => [r.chainId, r.spender])).toEqual([
+    expect(routes('mainnet').map((route) => [route.chainId, route.spender])).toEqual([
       [42161, VAULT],
       [8453, VAULT],
       [10, VAULT],
     ])
-    expect(routes('testnet').map((r) => r.chainId)).toEqual([421614])
+    expect(routes('testnet').map((route) => route.chainId)).toEqual([421614])
   })
 
   it('takes the USDC and Vault Orderly lists for each chain', () => {
     // Orderly's smart contract addresses page, build-on-omnichain/addresses.
-    expect(routes('mainnet').map((r) => [r.chainId, r.token, r.spender])).toEqual([
+    expect(routes('mainnet').map((route) => [route.chainId, route.token, route.spender])).toEqual([
       [42161, ARBITRUM_USDC, VAULT],
       [8453, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', VAULT],
       [10, '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', VAULT],
     ])
-    expect(routes('testnet').map((r) => [r.chainId, r.token, r.spender])).toEqual([
+    expect(routes('testnet').map((route) => [route.chainId, route.token, route.spender])).toEqual([
       [421614, '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', '0x0EaC556c0C2321BA25b9DC01e4e3c95aD5CDCd2f'],
     ])
   })
@@ -147,10 +147,10 @@ describe('Orderly Vault deposit', () => {
       message: { via: 'LayerZero', wei: 108_553_163_301_856n },
       refusal: null,
     } satisfies DepositTerms)
-    expect(orderly.asked.map((a) => a.url)).toEqual([
+    expect(orderly.asked.map((request) => request.url)).toEqual([
       `https://api.orderly.org/v1/get_account?address=${recorded.owner}&broker_id=woofi_pro`,
     ])
-    const feeCall = asked.find((c) => c.data.startsWith(GET_DEPOSIT_FEE))!
+    const feeCall = asked.find((call) => call.data.startsWith(GET_DEPOSIT_FEE))!
     expect(feeCall.to).toBe(VAULT)
     const [deposited] = decodeFunctionData({ abi: VAULT_ABI, data: recorded.input }).args
     expect(decodeFunctionData({ abi: VAULT_ABI, data: feeCall.data }).args).toEqual([
@@ -170,7 +170,7 @@ describe('Orderly Vault deposit', () => {
     const { fetch, asked } = orderlyAnswering(ACCOUNT.registered)
     const { chain } = chainAnswering(VAULT_READS)
     await routes('testnet')[0]!.terms({ fetch, chain }, recorded.owner, recorded.amount)
-    expect(asked.map((a) => a.url)).toEqual([
+    expect(asked.map((request) => request.url)).toEqual([
       `https://testnet-api.orderly.org/v1/get_account?address=${recorded.owner}&broker_id=demo`,
     ])
   })
@@ -180,7 +180,7 @@ describe('Orderly Vault deposit', () => {
     const { chain } = chainAnswering(VAULT_READS)
     const error = await arbitrum()
       .terms({ fetch, chain }, recorded.owner, recorded.amount)
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'unreachable', detail: '502 Bad Gateway' })
   })
 
@@ -190,7 +190,7 @@ describe('Orderly Vault deposit', () => {
       const fetch = (async () => new Response(text)) as typeof globalThis.fetch
       const error = await arbitrum()
         .terms({ fetch, chain }, recorded.owner, recorded.amount)
-        .catch((e: unknown) => e)
+        .catch((thrown: unknown) => thrown)
       expect(error instanceof TradeFailure && error.error).toEqual({
         kind: 'unreachable',
         detail: `Unreadable reply: ${text}`,
@@ -226,12 +226,14 @@ describe('Orderly Vault deposit', () => {
     }
     const route = arbitrum()
     const short = route.calls(recorded.owner, recorded.amount, terms, recorded.amount - 1n)
-    expect(short.map((c) => [c.kind, c.to, c.value])).toEqual([
+    expect(short.map((call) => [call.kind, call.to, call.value])).toEqual([
       ['approve', ARBITRUM_USDC, 0n],
       ['deposit', VAULT, recorded.value],
     ])
     expect(short[1]!.data).toBe(recorded.input)
-    expect(route.calls(recorded.owner, recorded.amount, terms, recorded.amount).map((c) => c.kind)).toEqual(['deposit'])
+    expect(route.calls(recorded.owner, recorded.amount, terms, recorded.amount).map((call) => call.kind)).toEqual([
+      'deposit',
+    ])
   })
 })
 
@@ -302,12 +304,12 @@ describe('Orderly deposit credit', () => {
     const refused = orderlyAnswering({ success: false, code: -1002, message: 'Orderly key not found' })
     const error = await arbitrum()
       .progress({ fetch: refused.fetch, keys: keys(linked) }, sent)
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error.kind).toBe('rejected')
     const down = (async () => new Response('Bad Gateway', { status: 502 })) as typeof globalThis.fetch
     const unreachable = await arbitrum()
       .progress({ fetch: down, keys: keys(linked) }, sent)
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(unreachable instanceof TradeFailure && unreachable.error).toEqual({
       kind: 'unreachable',
       detail: '502 Bad Gateway',

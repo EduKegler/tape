@@ -7,21 +7,21 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
   return (
     <div className="flex flex-col gap-2 rounded-sm border border-rule p-2 text-sm">
       <ol className="flex flex-col gap-1">
-        {(session.steps ?? []).map((s) => (
-          <li key={s.id} className={`flex items-center gap-2 ${s.done ? 'text-level3' : 'text-level1'}`}>
-            {s.done ? (
+        {(session.steps ?? []).map((step) => (
+          <li key={step.id} className={`flex items-center gap-2 ${step.done ? 'text-level3' : 'text-level1'}`}>
+            {step.done ? (
               <span aria-hidden className="w-2 text-level2">
                 ✓
               </span>
             ) : (
               <span aria-hidden className="flex w-2 justify-center">
                 <span
-                  className={`inline-block size-1.5 rounded-sm ${s.id === session.progress ? 'bg-ink' : 'bg-level3'}`}
+                  className={`inline-block size-1.5 rounded-sm ${step.id === session.progress ? 'bg-ink' : 'bg-level3'}`}
                 />
               </span>
             )}
-            {s.label}
-            {s.done && <span className="sr-only">, done</span>}
+            {step.label}
+            {step.done && <span className="sr-only">, done</span>}
           </li>
         ))}
         {!session.steps && <li className="text-level3">Checking the venue…</li>}

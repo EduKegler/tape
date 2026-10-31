@@ -36,15 +36,15 @@ function streamsFor(topic: Topic): readonly StreamKey[] {
     case 'candle':
       return [streamKey(topic.market, 'candle', topic.interval)]
     case 'compare':
-      return VENUE_IDS.flatMap((v) => [
-        streamKey(marketKey(v, topic.base), 'book'),
-        streamKey(marketKey(v, topic.base), 'trades'),
+      return VENUE_IDS.flatMap((venue) => [
+        streamKey(marketKey(venue, topic.base), 'book'),
+        streamKey(marketKey(venue, topic.base), 'trades'),
       ])
   }
 }
 
 export function marketsFor(topic: Topic): readonly MarketKey[] {
-  return topic.kind === 'compare' ? VENUE_IDS.map((v) => marketKey(v, topic.base)) : [topic.market]
+  return topic.kind === 'compare' ? VENUE_IDS.map((venue) => marketKey(venue, topic.base)) : [topic.market]
 }
 
 export type FrameStatus = 'live' | 'syncing' | 'stale'
@@ -155,12 +155,13 @@ export function deriveStreams(
 ): { readonly streams: ReadonlySet<StreamKey>; readonly lastWanted: ReadonlyMap<StreamKey, number> } {
   const streams = new Set<StreamKey>()
   const next = new Map<StreamKey, number>()
-  for (const wants of wantSets) for (const topic of wants.values()) for (const s of streamsFor(topic)) streams.add(s)
-  for (const s of streams) next.set(s, now)
-  for (const [s, at] of lastWanted) {
-    if (!streams.has(s) && now - at < LINGER_MS) {
-      streams.add(s)
-      next.set(s, at)
+  for (const wants of wantSets)
+    for (const topic of wants.values()) for (const stream of streamsFor(topic)) streams.add(stream)
+  for (const stream of streams) next.set(stream, now)
+  for (const [stream, at] of lastWanted) {
+    if (!streams.has(stream) && now - at < LINGER_MS) {
+      streams.add(stream)
+      next.set(stream, at)
     }
   }
   return { streams, lastWanted: next }

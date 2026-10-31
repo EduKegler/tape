@@ -54,10 +54,10 @@ export function TopicStatus({
   ageLimit?: boolean
 }) {
   const key = topicKey(topic)
-  const status = useFrame(topic, (f) => f?.status ?? null)
+  const status = useFrame(topic, (frame) => frame?.status ?? null)
   const [live, setLive] = useState<{ key: string; at: number } | null>(null)
-  useFrameEffect(topic, (f) => {
-    if (f.status !== 'live') return
+  useFrameEffect(topic, (frame) => {
+    if (frame.status !== 'live') return
     const at = Date.now()
     setLive((prev) => (prev?.key === key && at - prev.at < 1000 ? prev : { key, at }))
   })

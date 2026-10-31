@@ -73,19 +73,23 @@ function AccountBody({
   const { view, error } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
-  const slippage = useSelector(closeSlippageBps, (s) => s) as Bps
+  const slippage = useSelector(closeSlippageBps, (state) => state) as Bps
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
-  const held = /^\d+/.exec(snapshot?.positions.find((p) => p.symbol === symbol)?.leverage ?? '')?.[0] ?? null
-  const busy = (c: Command) => inFlight.some((x) => JSON.stringify(x) === JSON.stringify(c))
+  const held =
+    /^\d+/.exec(snapshot?.positions.find((position) => position.symbol === symbol)?.leverage ?? '')?.[0] ?? null
+  const busy = (command: Command) => inFlight.some((pending) => JSON.stringify(pending) === JSON.stringify(command))
   const [closeError, setCloseError] = useState<string | null>(null)
   const venue = VENUES[account.venue].label
-  const specOf = (p: Position) => [...(specs.data?.values() ?? [])].find((s) => s.venueSymbol === p.symbol)
-  const close = (p: Position) => {
-    const spec = specOf(p)
-    const intent = spec ? closeIntent(spec, p, slippage) : null
+  const specOf = (position: Position) =>
+    [...(specs.data?.values() ?? [])].find((spec) => spec.venueSymbol === position.symbol)
+  const close = (position: Position) => {
+    const spec = specOf(position)
+    const intent = spec ? closeIntent(spec, position, slippage) : null
     setCloseError(
-      intent ? null : `${p.symbol} ${p.size} does not fit the size step Tape knows for it. Close it on the venue.`,
+      intent
+        ? null
+        : `${position.symbol} ${position.size} does not fit the size step Tape knows for it. Close it on the venue.`,
     )
     if (intent) run({ kind: 'place', intent })
   }
@@ -109,12 +113,12 @@ function AccountBody({
             <span className="text-level1">{snapshot.available}</span>
           </span>
         )}
-        {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
+        {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
           <ConfirmAction
             label={`Cancel all ${base}`}
             confirm="Confirm cancel all"
             keep="Keep orders"
-            question={cancelAllQuestion(snapshot.orders.filter((o) => o.symbol === symbol).length, base, venue)}
+            question={cancelAllQuestion(snapshot.orders.filter((order) => order.symbol === symbol).length, base, venue)}
             onConfirm={() => run({ kind: 'cancel-all', symbol })}
           />
         )}
@@ -122,7 +126,7 @@ function AccountBody({
           <LeverageControl
             key={held ?? ''}
             current={held ?? ''}
-            onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })}
+            onSet={(multiplier) => run({ kind: 'leverage', symbol, leverage: multiplier })}
           />
         )}
         {forget && (
@@ -157,16 +161,18 @@ function AccountBody({
           <Positions
             rows={snapshot.positions}
             busy={last.pending}
-            question={(p) => `Close ${p.size} ${specOf(p)?.base ?? p.symbol} ${p.side} on ${venue}?`}
-            market={(p) => specOf(p)?.key ?? null}
+            question={(position) =>
+              `Close ${position.size} ${specOf(position)?.base ?? position.symbol} ${position.side} on ${venue}?`
+            }
+            market={(position) => specOf(position)?.key ?? null}
             onClose={close}
           />
         )}
         {snapshot && tab === 'orders' && (
           <Orders
             rows={snapshot.orders}
-            busy={(o) => busy({ kind: 'cancel', order: o.ref })}
-            onCancel={(o) => run({ kind: 'cancel', order: o.ref })}
+            busy={(order) => busy({ kind: 'cancel', order: order.ref })}
+            onCancel={(order) => run({ kind: 'cancel', order: order.ref })}
           />
         )}
         {snapshot && tab === 'fills' && <Fills rows={snapshot.fills} />}
@@ -192,8 +198,8 @@ function cancelAllQuestion(count: number, base: Base, venue: string) {
 const LEVERAGE_RANGE = { min: 1, max: 50 }
 
 function leverageError(value: string): string | undefined {
-  const n = Number(value)
-  return value && !(Number.isInteger(n) && n >= LEVERAGE_RANGE.min && n <= LEVERAGE_RANGE.max)
+  const leverage = Number(value)
+  return value && !(Number.isInteger(leverage) && leverage >= LEVERAGE_RANGE.min && leverage <= LEVERAGE_RANGE.max)
     ? `Whole number from ${LEVERAGE_RANGE.min} to ${LEVERAGE_RANGE.max}`
     : undefined
 }
@@ -205,8 +211,8 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
   return (
     <form
       className="flex items-center gap-1.5 text-level3"
-      onSubmit={(e) => {
-        e.preventDefault()
+      onSubmit={(event) => {
+        event.preventDefault()
         if (value && !error) onSet(Number(value))
       }}
     >
@@ -217,7 +223,7 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
         autoComplete="off"
         placeholder="—"
         value={value}
-        onChange={(e) => setValue(e.target.value.trim())}
+        onChange={(event) => setValue(event.target.value.trim())}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
         className="num h-6 w-10 rounded-sm border border-edge bg-inset px-1 text-level1 outline-none focus:border-accent aria-invalid:border-warn"
@@ -236,8 +242,8 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
 
 const SIDE_WORD = { long: 'Long', short: 'Short', buy: 'Buy', sell: 'Sell' } as const
 
-const side = (s: keyof typeof SIDE_WORD) => (
-  <span className={s === 'long' || s === 'buy' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[s]}</span>
+const side = (direction: keyof typeof SIDE_WORD) => (
+  <span className={direction === 'long' || direction === 'buy' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[direction]}</span>
 )
 
 function Positions({
@@ -254,33 +260,33 @@ function Positions({
   onClose: (p: Position) => void
 }) {
   const columns: Column<Position>[] = [
-    { header: 'Market', cell: (p) => p.symbol },
-    { header: 'Side', cell: (p) => side(p.side) },
-    { header: 'Size', cell: (p) => p.size },
-    { header: 'Entry', cell: (p) => p.entry },
-    { header: 'PnL', cell: (p) => p.unrealizedPnl },
-    { header: 'Liq.', cell: (p) => p.liquidation ?? '—' },
+    { header: 'Market', cell: (position) => position.symbol },
+    { header: 'Side', cell: (position) => side(position.side) },
+    { header: 'Size', cell: (position) => position.size },
+    { header: 'Entry', cell: (position) => position.entry },
+    { header: 'PnL', cell: (position) => position.unrealizedPnl },
+    { header: 'Liq.', cell: (position) => position.liquidation ?? '—' },
     {
       header: '',
-      cell: (p) => (
+      cell: (position) => (
         <ConfirmAction
           label="Close"
-          question={question(p)}
+          question={question(position)}
           confirm="Confirm close"
           keep="Keep position"
           disabled={busy}
-          onConfirm={() => onClose(p)}
+          onConfirm={() => onClose(position)}
         >
-          <CloseTerms position={p} market={market(p)} />
+          <CloseTerms position={position} market={market(position)} />
         </ConfirmAction>
       ),
     },
   ]
-  return <Table rows={rows} rowKey={(p) => p.symbol} columns={columns} empty="No open positions." />
+  return <Table rows={rows} rowKey={(position) => position.symbol} columns={columns} empty="No open positions." />
 }
 
 function CloseTerms({ position, market }: { position: Position; market: MarketKey | null }) {
-  const slippage = useSelector(closeSlippageBps, (s) => s)
+  const slippage = useSelector(closeSlippageBps, (state) => state)
   return (
     <>
       <span className="num text-level3">
@@ -292,8 +298,8 @@ function CloseTerms({ position, market }: { position: Position; market: MarketKe
         <Segmented
           label="Close slippage"
           value={String(slippage)}
-          onChange={(v) => closeSlippageBps.setState(() => Number(v))}
-          options={SLIPPAGE_STEPS.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
+          onChange={(value) => closeSlippageBps.setState(() => Number(value))}
+          options={SLIPPAGE_STEPS.map((step) => ({ value: String(step), label: `${step / 100}%` }))}
         />
       </span>
     </>
@@ -301,7 +307,10 @@ function CloseTerms({ position, market }: { position: Position; market: MarketKe
 }
 
 function ExpectedPrice({ market, sell }: { market: MarketKey; sell: boolean }) {
-  const px = useFrame({ kind: 'book', market, group: '' }, (f) => (sell ? f?.touch.bid : f?.touch.ask) ?? null)
+  const px = useFrame(
+    { kind: 'book', market, group: '' },
+    (frame) => (sell ? frame?.touch.bid : frame?.touch.ask) ?? null,
+  )
   return <span className="text-level1">{px ?? '—'}</span>
 }
 
@@ -315,33 +324,33 @@ function Orders({
   onCancel: (o: OpenOrder) => void
 }) {
   const columns: Column<OpenOrder>[] = [
-    { header: 'Market', cell: (o) => o.symbol },
-    { header: 'Side', cell: (o) => side(o.side) },
-    { header: 'Type', cell: (o) => o.kind },
-    { header: 'Price', cell: (o) => o.px ?? 'market' },
-    { header: 'Size', cell: (o) => o.size },
-    { header: 'Reduce', cell: (o) => (o.reduceOnly ? 'yes' : '') },
+    { header: 'Market', cell: (order) => order.symbol },
+    { header: 'Side', cell: (order) => side(order.side) },
+    { header: 'Type', cell: (order) => order.kind },
+    { header: 'Price', cell: (order) => order.px ?? 'market' },
+    { header: 'Size', cell: (order) => order.size },
+    { header: 'Reduce', cell: (order) => (order.reduceOnly ? 'yes' : '') },
     {
       header: '',
-      cell: (o) =>
-        o.cancelable && (
-          <Button look="quiet" disabled={busy(o)} onClick={() => onCancel(o)}>
+      cell: (order) =>
+        order.cancelable && (
+          <Button look="quiet" disabled={busy(order)} onClick={() => onCancel(order)}>
             Cancel
           </Button>
         ),
     },
   ]
-  return <Table rows={rows} rowKey={(o) => o.ref} columns={columns} empty="No open orders." />
+  return <Table rows={rows} rowKey={(order) => order.ref} columns={columns} empty="No open orders." />
 }
 
 function Fills({ rows }: { rows: readonly Fill[] }) {
   const columns: Column<Fill>[] = [
-    { header: 'Market', cell: (f) => f.symbol },
-    { header: 'Side', cell: (f) => side(f.side) },
-    { header: 'Price', cell: (f) => f.px },
-    { header: 'Size', cell: (f) => f.size },
-    { header: 'Fee', cell: (f) => f.fee },
-    { header: 'Time', cell: (f) => new Date(f.time).toLocaleTimeString('en-GB') },
+    { header: 'Market', cell: (fill) => fill.symbol },
+    { header: 'Side', cell: (fill) => side(fill.side) },
+    { header: 'Price', cell: (fill) => fill.px },
+    { header: 'Size', cell: (fill) => fill.size },
+    { header: 'Fee', cell: (fill) => fill.fee },
+    { header: 'Time', cell: (fill) => new Date(fill.time).toLocaleTimeString('en-GB') },
   ]
-  return <Table rows={rows} rowKey={(f) => f.id} columns={columns} empty="No fills yet." />
+  return <Table rows={rows} rowKey={(fill) => fill.id} columns={columns} empty="No fills yet." />
 }

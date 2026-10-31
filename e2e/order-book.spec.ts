@@ -2,8 +2,8 @@ import type { Locator } from '@playwright/test'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 const rowPrices = async (book: Locator) =>
-  [...(await book.ariaSnapshot()).matchAll(/button "(?:Bid|Ask) ([\d,.]+) /g)].map((m) =>
-    Number(m[1]?.replaceAll(',', '')),
+  [...(await book.ariaSnapshot()).matchAll(/button "(?:Bid|Ask) ([\d,.]+) /g)].map((match) =>
+    Number(match[1]?.replaceAll(',', '')),
   )
 
 test.describe('without JavaScript', () => {

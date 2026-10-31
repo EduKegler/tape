@@ -52,7 +52,7 @@ const OPTION_COUNT = 6
 
 function stepsAt(spec: MarketSpec, mid: Px): GroupStep[] {
   const tick = effectiveTick(spec, mid)
-  return MULTIPLES.map((m) => (tick * m) as GroupStep)
+  return MULTIPLES.map((multiple) => (tick * multiple) as GroupStep)
 }
 
 /** The allowed step closest to `requested` (a decimal string from the URL), or the tick when it does not parse. */
@@ -109,13 +109,13 @@ export function emptyTape(): TradeTape {
 }
 
 export function pushTrades(tape: TradeTape, trades: readonly Trade[]): boolean {
-  const fresh = trades.filter((t) => !tape.seen.has(t.id))
+  const fresh = trades.filter((trade) => !tape.seen.has(trade.id))
   if (fresh.length === 0) return false
-  for (const t of fresh) tape.seen.add(t.id)
-  const items = [...fresh, ...tape.items].sort((a, b) => b.time - a.time).slice(0, TRADE_LIMIT)
+  for (const trade of fresh) tape.seen.add(trade.id)
+  const items = [...fresh, ...tape.items].sort((left, right) => right.time - left.time).slice(0, TRADE_LIMIT)
   if (tape.seen.size > TRADE_LIMIT * 4) {
     tape.seen.clear()
-    for (const t of items) tape.seen.add(t.id)
+    for (const trade of items) tape.seen.add(trade.id)
   }
   tape.items = items
   return true

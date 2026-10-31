@@ -35,11 +35,11 @@ export function orderWire(
   type: OrderType,
   cloid?: Hex,
 ): OrderWire {
-  const t =
+  const orderType =
     'limit' in type
       ? { limit: { tif: type.limit.tif } }
       : { trigger: { isMarket: type.trigger.isMarket, triggerPx: type.trigger.triggerPx, tpsl: type.trigger.tpsl } }
-  return { a: asset, b: isBuy, p: px, s: sz, r: reduceOnly, t, ...(cloid ? { c: cloid } : {}) }
+  return { a: asset, b: isBuy, p: px, s: sz, r: reduceOnly, t: orderType, ...(cloid ? { c: cloid } : {}) }
 }
 
 export function orderAction(
@@ -56,7 +56,7 @@ export function orderAction(
 }
 
 export function cancelAction(cancels: readonly { readonly asset: number; readonly oid: number }[]) {
-  return { type: 'cancel', cancels: cancels.map((c) => ({ a: c.asset, o: c.oid })) }
+  return { type: 'cancel', cancels: cancels.map((cancel) => ({ a: cancel.asset, o: cancel.oid })) }
 }
 
 export function leverageAction(asset: number, isCross: boolean, leverage: number) {

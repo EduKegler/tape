@@ -102,7 +102,7 @@ test('the search lists each dex once when two dexes share a full name', async ({
   await page.route('**/info', (route) =>
     route.request().postData()?.includes('"perpDexs"')
       ? route.fulfill({
-          json: dexes.map((d) => d && { ...d, fullName: 'Same' }),
+          json: dexes.map((dex) => dex && { ...dex, fullName: 'Same' }),
           headers: { 'access-control-allow-origin': '*' },
         })
       : route.fallback(),
@@ -114,9 +114,9 @@ test('the search lists each dex once when two dexes share a full name', async ({
   await search.pressSequentially('r')
   await expect(page.getByRole('option').first()).toContainText(/TR/i)
   const options = await page.getByRole('option').allInnerTexts()
-  expect(options.every((o) => /TR/i.test(o))).toBe(true)
+  expect(options.every((option) => /TR/i.test(option))).toBe(true)
   expect(new Set(options).size).toBe(options.length)
-  const dexesShown = new Set(options.map((o) => (o.includes(':') ? o.split(':')[0] : '')))
+  const dexesShown = new Set(options.map((option) => (option.includes(':') ? option.split(':')[0] : '')))
   await expect(page.getByRole('listbox').getByRole('group')).toHaveCount(dexesShown.size)
 })
 

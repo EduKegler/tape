@@ -17,7 +17,7 @@ export type Base = Brand<string, 'Base'>
 const BASE = /^(?:[A-Za-z0-9]+:)?[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?$/u
 const BASE_MAX = 64
 
-export const PINNED_BASES: readonly Base[] = ['BTC', 'ETH', 'SOL'].map((b) => b as Base)
+export const PINNED_BASES: readonly Base[] = ['BTC', 'ETH', 'SOL'].map((base) => base as Base)
 
 export function isBase(value: string): value is Base {
   return value.length <= BASE_MAX && BASE.test(value)

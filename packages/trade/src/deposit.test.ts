@@ -45,7 +45,7 @@ const [mainnetBridge] = DEPOSITS.hyperliquid!.routes('mainnet', config)
 const bridge = mainnetBridge!
 
 const routeFrom = (chainId: number): DepositRoute => {
-  const found = DEPOSITS.hyperliquid!.routes('mainnet', config).find((r) => r.chainId === chainId)
+  const found = DEPOSITS.hyperliquid!.routes('mainnet', config).find((route) => route.chainId === chainId)
   if (!found) throw new Error(`no route from ${chainId}`)
   return found
 }
@@ -228,8 +228,8 @@ describe('Hyperliquid CCTP deposit', () => {
   const fee = feeOnly({ expected: 280_927n, max: 280_927n })
 
   it('leaves from Base, Optimism and Ethereum on mainnet only', () => {
-    expect(DEPOSITS.hyperliquid!.routes('mainnet', config).map((r) => r.chainId)).toEqual([42161, 8453, 10, 1])
-    expect(DEPOSITS.hyperliquid!.routes('testnet', config).map((r) => r.chainId)).toEqual([421614])
+    expect(DEPOSITS.hyperliquid!.routes('mainnet', config).map((route) => route.chainId)).toEqual([42161, 8453, 10, 1])
+    expect(DEPOSITS.hyperliquid!.routes('testnet', config).map((route) => route.chainId)).toEqual([421614])
   })
 
   it('burns to the HyperCore forwarder exactly as a deposit Circle already forwarded', () => {
@@ -247,11 +247,11 @@ describe('Hyperliquid CCTP deposit', () => {
   })
 
   it('approves exactly the amount first when the allowance falls short', () => {
-    expect(base.calls(owner, 100_000_000n, fee, 0n).map((c) => [c.kind, c.to])).toEqual([
+    expect(base.calls(owner, 100_000_000n, fee, 0n).map((call) => [call.kind, call.to])).toEqual([
       ['approve', '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'],
       ['deposit', '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d'],
     ])
-    expect(base.calls(owner, 100_000_000n, fee, 100_000_000n).map((c) => c.kind)).toEqual(['deposit'])
+    expect(base.calls(owner, 100_000_000n, fee, 100_000_000n).map((call) => call.kind)).toEqual(['deposit'])
   })
 
   it('quotes the padded Fast Transfer fee plus the high forwarding fee, which Circle takes whole', async () => {
@@ -284,7 +284,7 @@ describe('Hyperliquid CCTP deposit', () => {
     const failure = (fetch: typeof globalThis.fetch) =>
       base.terms({ fetch, chain: noChain }, owner, 100_000_000n).then(
         () => null,
-        (e: unknown): TradeError | null => (e instanceof TradeFailure ? e.error : null),
+        (thrown: unknown): TradeError | null => (thrown instanceof TradeFailure ? thrown.error : null),
       )
     const replying = (body: unknown, status = 200) =>
       (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof globalThis.fetch

@@ -16,9 +16,9 @@ const HYPERLIQUID_PX_DECIMALS = 6
 function specOf<T>(row: T, spec: (row: T) => MarketSpec | null): MarketSpec | null {
   try {
     return spec(row)
-  } catch (e) {
-    if (e instanceof DecimalError) return null
-    throw e
+  } catch (error) {
+    if (error instanceof DecimalError) return null
+    throw error
   }
 }
 
@@ -106,7 +106,7 @@ export async function readHyperliquidMarkets(
     read<HyperliquidMeta[]>('allPerpMetas'),
     read<({ name: string; fullName: string } | null)[]>('perpDexs'),
   ])
-  const fullNames = new Map(dexes.flatMap((d) => (d ? [[d.name, d.fullName] as const] : [])))
+  const fullNames = new Map(dexes.flatMap((perpDex) => (perpDex ? [[perpDex.name, perpDex.fullName] as const] : [])))
   return metas.flatMap((meta) => {
     const markets = hyperliquidMarkets(meta)
     const first = markets[0]
@@ -127,7 +127,7 @@ export async function readHyperliquidMarket(
   // Hyperliquid answers a dex it does not list with a 500 and the body null.
   if (response.status === 500 && text === 'null') return null
   if (!response.ok) throw new Error(`${response.status} ${info}`)
-  return hyperliquidMarkets(JSON.parse(text) as HyperliquidMeta).find((m) => m.base === base) ?? null
+  return hyperliquidMarkets(JSON.parse(text) as HyperliquidMeta).find((market) => market.base === base) ?? null
 }
 
 interface DydxMarket {
@@ -139,20 +139,20 @@ interface DydxMarket {
 
 const DYDX_TICKER = /^(.+)-USD$/
 
-function dydxSpec(m: DydxMarket): MarketSpec | null {
-  const base = baseOf(DYDX_TICKER.exec(m.ticker)?.[1] ?? '')
-  if (!base || m.status !== 'ACTIVE') return null
-  const scale = { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) }
+function dydxSpec(market: DydxMarket): MarketSpec | null {
+  const base = baseOf(DYDX_TICKER.exec(market.ticker)?.[1] ?? '')
+  if (!base || market.status !== 'ACTIVE') return null
+  const scale = { px: decimalsOf(market.tickSize), qty: decimalsOf(market.stepSize) }
   return {
     key: marketKey('dydx', base),
     venue: 'dydx',
     base,
     quote: 'USD',
     kind: 'perp',
-    venueSymbol: m.ticker,
+    venueSymbol: market.ticker,
     scale,
-    tick: { kind: 'fixed', tick: parsePx(m.tickSize, scale) },
-    step: parseQty(m.stepSize, scale),
+    tick: { kind: 'fixed', tick: parsePx(market.tickSize, scale) },
+    step: parseQty(market.stepSize, scale),
   }
 }
 
@@ -188,9 +188,9 @@ function minNotionalOf(value: string | undefined, scale: Scale): Pick<MarketSpec
   if (!value) return {}
   try {
     return { minNotional: parsePx(plainDecimal(value), scale) }
-  } catch (e) {
-    if (e instanceof DecimalError) return {}
-    throw e
+  } catch (error) {
+    if (error instanceof DecimalError) return {}
+    throw error
   }
 }
 
@@ -205,22 +205,22 @@ interface OrderlyMarket {
 
 const ORDERLY_SYMBOL = /^PERP_(.+)_USDC$/
 
-function orderlySpec(m: OrderlyMarket): MarketSpec | null {
-  const base = baseOf(ORDERLY_SYMBOL.exec(m.symbol)?.[1] ?? '')
+function orderlySpec(market: OrderlyMarket): MarketSpec | null {
+  const base = baseOf(ORDERLY_SYMBOL.exec(market.symbol)?.[1] ?? '')
   // A row with a broker_id is a Community Listed market that a Builder runs and Orderly does not vet.
-  if (!base || m.status !== 'ACTIVE' || m.broker_id !== null) return null
-  const scale = { px: decimalsOf(m.quote_tick), qty: decimalsOf(m.base_tick) }
+  if (!base || market.status !== 'ACTIVE' || market.broker_id !== null) return null
+  const scale = { px: decimalsOf(market.quote_tick), qty: decimalsOf(market.base_tick) }
   return {
     key: marketKey('orderly', base),
     venue: 'orderly',
     base,
     quote: 'USDC',
     kind: 'perp',
-    venueSymbol: m.symbol,
+    venueSymbol: market.symbol,
     scale,
-    tick: { kind: 'fixed', tick: parsePx(m.quote_tick, scale) },
-    step: parseQty(m.base_tick, scale),
-    ...minNotionalOf(m.min_notional, scale),
+    tick: { kind: 'fixed', tick: parsePx(market.quote_tick, scale) },
+    step: parseQty(market.base_tick, scale),
+    ...minNotionalOf(market.min_notional, scale),
   }
 }
 
@@ -260,11 +260,18 @@ interface BinanceSymbol {
   filters: { filterType: string; tickSize?: string; stepSize?: string }[]
 }
 
-function binanceSpec(s: BinanceSymbol): MarketSpec | null {
-  const base = baseOf(s.baseAsset)
-  const tick = s.filters.find((f) => f.filterType === 'PRICE_FILTER')?.tickSize
-  const step = s.filters.find((f) => f.filterType === 'LOT_SIZE')?.stepSize
-  if (!base || s.status !== 'TRADING' || s.quoteAsset !== 'USDT' || s.symbol !== `${base}USDT` || !tick || !step)
+function binanceSpec(listing: BinanceSymbol): MarketSpec | null {
+  const base = baseOf(listing.baseAsset)
+  const tick = listing.filters.find((filter) => filter.filterType === 'PRICE_FILTER')?.tickSize
+  const step = listing.filters.find((filter) => filter.filterType === 'LOT_SIZE')?.stepSize
+  if (
+    !base
+    || listing.status !== 'TRADING'
+    || listing.quoteAsset !== 'USDT'
+    || listing.symbol !== `${base}USDT`
+    || !tick
+    || !step
+  )
     return null
   const scale = { px: decimalsOf(tick), qty: decimalsOf(step) }
   return {
@@ -273,7 +280,7 @@ function binanceSpec(s: BinanceSymbol): MarketSpec | null {
     base,
     quote: 'USDT',
     kind: 'spot',
-    venueSymbol: s.symbol,
+    venueSymbol: listing.symbol,
     scale,
     tick: { kind: 'fixed', tick: parsePx(tick, scale) },
     step: parseQty(step, scale),
@@ -311,13 +318,13 @@ export async function readBinanceMarket(
       `${rest}/exchangeInfo?symbol=${encodeURIComponent(symbol)}&showPermissionSets=false`,
       signal,
     )
-  } catch (e) {
+  } catch (error) {
     // Binance sends the 400 for a symbol it does not list without CORS headers, so a browser fetch rejects
     // with a TypeError, as it does offline. Its whole list tells the two apart.
-    if (!(e instanceof TypeError)) throw e
+    if (!(error instanceof TypeError)) throw error
     const [all] = await readBinanceMarkets(fetch, rest, signal)
-    return all?.markets.find((m) => m.base === base) ?? null
+    return all?.markets.find((market) => market.base === base) ?? null
   }
-  const row = info?.symbols.find((s) => s.symbol === symbol)
+  const row = info?.symbols.find((listing) => listing.symbol === symbol)
   return row ? specOf(row, binanceSpec) : null
 }

@@ -8,7 +8,7 @@ const ORDERLY_PUBLIC_TESTNET_BROKER = 'demo'
 const address = z
   .string()
   .regex(/^0x[0-9a-fA-F]{40}$/)
-  .transform((a) => a.toLowerCase() as Address)
+  .transform((hex) => hex.toLowerCase() as Address)
 const env = z.object({
   VITE_TRADE_MAINNET: z.enum(['0', '1']).default('0'),
   VITE_HL_BUILDER_ADDRESS: address.optional(),
@@ -22,18 +22,22 @@ const env = z.object({
   VITE_ORDERLY_BROKER_ID_TESTNET: z.string().min(1).default(ORDERLY_PUBLIC_TESTNET_BROKER),
 })
 
-function toConfig(e: z.infer<typeof env>): TradeConfig {
+function toConfig(vars: z.infer<typeof env>): TradeConfig {
   return {
-    mainnet: e.VITE_TRADE_MAINNET === '1',
+    mainnet: vars.VITE_TRADE_MAINNET === '1',
     hyperliquid: {
-      builder: e.VITE_HL_BUILDER_ADDRESS ? { b: e.VITE_HL_BUILDER_ADDRESS, f: e.VITE_HL_BUILDER_FEE_TENTHS_BP } : null,
-    },
-    dydx: {
-      builder: e.VITE_DYDX_BUILDER_ADDRESS
-        ? { builderAddress: e.VITE_DYDX_BUILDER_ADDRESS, feePpm: e.VITE_DYDX_BUILDER_FEE_PPM }
+      builder: vars.VITE_HL_BUILDER_ADDRESS
+        ? { b: vars.VITE_HL_BUILDER_ADDRESS, f: vars.VITE_HL_BUILDER_FEE_TENTHS_BP }
         : null,
     },
-    orderly: { brokerId: { mainnet: e.VITE_ORDERLY_BROKER_ID ?? null, testnet: e.VITE_ORDERLY_BROKER_ID_TESTNET } },
+    dydx: {
+      builder: vars.VITE_DYDX_BUILDER_ADDRESS
+        ? { builderAddress: vars.VITE_DYDX_BUILDER_ADDRESS, feePpm: vars.VITE_DYDX_BUILDER_FEE_PPM }
+        : null,
+    },
+    orderly: {
+      brokerId: { mainnet: vars.VITE_ORDERLY_BROKER_ID ?? null, testnet: vars.VITE_ORDERLY_BROKER_ID_TESTNET },
+    },
   }
 }
 

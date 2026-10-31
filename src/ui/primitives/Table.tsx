@@ -26,9 +26,9 @@ export function Table<T>({
     <table className="num w-full text-sm">
       <thead>
         <tr className="h-6 text-xs text-level3">
-          {columns.map((c, i) => (
-            <th key={c.header} className={`font-normal ${i === 0 ? 'pl-3 text-left' : 'pr-3 text-right'}`}>
-              {c.header}
+          {columns.map((column, index) => (
+            <th key={column.header} className={`font-normal ${index === 0 ? 'pl-3 text-left' : 'pr-3 text-right'}`}>
+              {column.header}
             </th>
           ))}
         </tr>
@@ -43,18 +43,18 @@ export function Table<T>({
               data-row={onRowClick ? true : undefined}
               tabIndex={onRowClick ? -1 : undefined}
               onClick={onRowClick && (() => onRowClick(row))}
-              onKeyDown={onRowClick && ((e) => e.key === 'Enter' && onRowClick(row))}
+              onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
               className={
                 isCurrent
                   ? 'h-7.5 cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:text-level1'
                   : 'h-7.5 border-t border-rule text-level2'
               }
             >
-              {columns.map((c, i) => (
+              {columns.map((column, index) => (
                 <td
-                  key={c.header}
+                  key={column.header}
                   className={
-                    i > 0
+                    index > 0
                       ? 'pr-3 text-right'
                       : current
                         ? 'pl-3 inset-shadow-current'
@@ -63,7 +63,7 @@ export function Table<T>({
                           : 'pl-3 text-level1'
                   }
                 >
-                  {c.cell(row)}
+                  {column.cell(row)}
                 </td>
               ))}
             </tr>

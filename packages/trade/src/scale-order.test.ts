@@ -28,7 +28,7 @@ const sigfig: MarketSpec = {
   scale: { px: 1, qty: 5 },
   tick: { kind: 'sigfig', figures: 5 },
 }
-const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0)
+const sum = (xs: readonly number[]) => xs.reduce((total, value) => total + value, 0)
 
 describe('apportion', () => {
   it('hands out every unit, the remainder to the largest fractions first', () => {
@@ -56,16 +56,16 @@ describe('scale order', () => {
   it('grows the size toward the end by the skew and keeps the sum exact', () => {
     const built = scaleLegs(fixed, 'buy', { start: 30_000 as Px, end: 28_000 as Px, count: 3, skew: 3 }, 1_001 as Qty)
     if (!built.ok) throw new Error(built.message)
-    expect(built.legs.map((l) => l.size)).toEqual([167, 334, 500])
-    expect(sum(built.legs.map((l) => l.size))).toBe(1_001)
+    expect(built.legs.map((leg) => leg.size)).toEqual([167, 334, 500])
+    expect(sum(built.legs.map((leg) => leg.size))).toBe(1_001)
   })
 
   it('rounds a buy down and a sell up onto the tick, so no leg is worse than the line', () => {
     const range = { start: 30_000 as Px, end: 29_990 as Px, count: 4, skew: 1 }
     const buy = scaleLegs(fixed, 'buy', range, 4_000 as Qty)
     const sell = scaleLegs(fixed, 'sell', { ...range, start: 29_990 as Px, end: 30_000 as Px }, 4_000 as Qty)
-    expect(buy.ok && buy.legs.map((l) => l.px)).toEqual([30_000, 29_996, 29_993, 29_990])
-    expect(sell.ok && sell.legs.map((l) => l.px)).toEqual([29_990, 29_994, 29_997, 30_000])
+    expect(buy.ok && buy.legs.map((leg) => leg.px)).toEqual([30_000, 29_996, 29_993, 29_990])
+    expect(sell.ok && sell.legs.map((leg) => leg.px)).toEqual([29_990, 29_994, 29_997, 30_000])
   })
 
   it('keeps every leg on a Hyperliquid tick when the tick changes inside the range', () => {
@@ -77,7 +77,7 @@ describe('scale order', () => {
     )
     if (!built.ok) throw new Error(built.message)
     for (const leg of built.legs) expect(checkPrice(sigfig, String(leg.px / 10))).toBeUndefined()
-    expect(built.legs.map((l) => l.px / 10)).toEqual([10_020, 10_006, 9_993.3, 9_980])
+    expect(built.legs.map((leg) => leg.px / 10)).toEqual([10_020, 10_006, 9_993.3, 9_980])
   })
 
   it('refuses a range too narrow for the count instead of stacking legs on one price', () => {
@@ -139,10 +139,11 @@ describe('scale order properties', () => {
         steps: fc.oneof(fc.integer({ min: 1, max: 30 }), fc.integer({ min: 1, max: 100_000 })),
       }),
     )
-  const linear = (start: number, end: number, count: number, i: number) => start + ((end - start) * i) / (count - 1)
+  const linear = (start: number, end: number, count: number, index: number) =>
+    start + ((end - start) * index) / (count - 1)
   const shares = (steps: number, count: number, skew: number) => {
-    const weights = Array.from({ length: count }, (_, i) => 1 + ((skew - 1) * i) / (count - 1))
-    return weights.map((w) => (steps * w) / sum(weights))
+    const weights = Array.from({ length: count }, (_, index) => 1 + ((skew - 1) * index) / (count - 1))
+    return weights.map((weight) => (steps * weight) / sum(weights))
   }
 
   it('splits an accepted order into legs on the nearest passive tick to the line, sized by the skew', () => {
@@ -159,20 +160,20 @@ describe('scale order properties', () => {
         const passive = side === 'buy' ? 1 : -1
         const exact = shares(steps, count, skew)
         expect(legs).toHaveLength(count)
-        expect(new Set(legs.map((l) => l.px)).size).toBe(count)
-        expect(sum(legs.map((l) => l.size))).toBe(steps * spec.step)
+        expect(new Set(legs.map((leg) => leg.px)).size).toBe(count)
+        expect(sum(legs.map((leg) => leg.size))).toBe(steps * spec.step)
         expect([legs[0]?.px, legs.at(-1)?.px]).toEqual([start, end])
         const first = legs[0]?.size ?? 0
         const last = legs.at(-1)?.size ?? 0
         expect(Math.abs(last - skew * first) / spec.step).toBeLessThan(1 + skew + 1e-9)
-        legs.forEach((leg, i) => {
+        legs.forEach((leg, index) => {
           expect(checkPrice(spec, wireDecimal(leg.px, spec.scale.px))).toBeUndefined()
-          const line = linear(start, end, count, i)
+          const line = linear(start, end, count, index)
           expect(passive * (leg.px - line)).toBeLessThanOrEqual(0)
           expect(Math.abs(leg.px - line)).toBeLessThan(priceTick(spec, Math.ceil(line) as Px))
           expect(leg.size % spec.step).toBe(0)
           expect(leg.size).toBeGreaterThanOrEqual(spec.step)
-          expect(Math.abs(leg.size / spec.step - (exact[i] ?? 0))).toBeLessThan(1 + 1e-9)
+          expect(Math.abs(leg.size / spec.step - (exact[index] ?? 0))).toBeLessThan(1 + 1e-9)
         })
       }),
     )

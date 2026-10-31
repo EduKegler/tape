@@ -70,11 +70,11 @@ function recorder(keep: (url: string, body: unknown) => boolean) {
   return { fetch, take }
 }
 
-const ignoreVerdict = (p: Promise<unknown>) =>
-  p.then(
+const ignoreVerdict = (promise: Promise<unknown>) =>
+  promise.then(
     () => {},
-    (e: unknown) => {
-      if (!(e instanceof TradeFailure)) throw e
+    (error: unknown) => {
+      if (!(error instanceof TradeFailure)) throw error
     },
   )
 
@@ -156,17 +156,19 @@ async function recordHyperliquid(keyFile: string) {
     Promise.all([
       hlInfo<State>({ type: 'clearinghouseState', user: owner }),
       hlInfo<{ coin: string; oid: number }[]>({ type: 'frontendOpenOrders', user: owner }),
-    ]).then(([s, orders]) => ({
-      equity: s.marginSummary.accountValue,
-      positions: s.assetPositions.map((p) => `${p.position.coin} ${p.position.szi}`),
-      orders: orders.map((o) => `${o.coin} ${o.oid}`),
+    ]).then(([clearinghouse, orders]) => ({
+      equity: clearinghouse.marginSummary.accountValue,
+      positions: clearinghouse.assetPositions.map(
+        (assetPosition) => `${assetPosition.position.coin} ${assetPosition.position.szi}`,
+      ),
+      orders: orders.map((order) => `${order.coin} ${order.oid}`),
     }))
   const before = await state()
-  if (before.positions.some((p) => p.startsWith(`${coin} `)))
+  if (before.positions.some((position) => position.startsWith(`${coin} `)))
     throw new Error(`${coin} already has a position; pick another coin with RECORD_WRITES_HL_COIN`)
 
   const meta = await hlInfo<Meta>({ type: 'meta' })
-  const index = meta.universe.findIndex((u) => u.name === coin)
+  const index = meta.universe.findIndex((asset) => asset.name === coin)
   const qty = meta.universe[index]!.szDecimals
   const spec = {
     key: marketKey('hyperliquid', coin as Base),
@@ -290,7 +292,7 @@ async function recordHyperliquid(keyFile: string) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action, nonce, signature }),
-      }).then((r) => r.status),
+      }).then((response) => response.status),
     )
   }
   // A sixth significant figure inside the market's price decimals, and a size one decimal finer than szDecimals.
@@ -303,8 +305,8 @@ async function recordHyperliquid(keyFile: string) {
   const after = await state()
   const ours = ['rest', 'fill'].map(oidOf)
   return {
-    orders: after.orders.filter((o) => ours.some((oid) => o.endsWith(` ${oid}`))),
-    positions: after.positions.filter((p) => p.startsWith(`${coin} `)),
+    orders: after.orders.filter((order) => ours.some((oid) => order.endsWith(` ${oid}`))),
+    positions: after.positions.filter((position) => position.startsWith(`${coin} `)),
   }
 }
 
@@ -315,8 +317,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 /** What v4-client-js resolves or throws, with its byte arrays and bigints written so JSON keeps them. */
 function chainReply(value: unknown): unknown {
   return JSON.parse(
-    JSON.stringify(value, (_k, v: unknown) =>
-      v instanceof Uint8Array ? { bytes: bytesToHex(v) } : typeof v === 'bigint' ? { bigint: v.toString() } : v,
+    JSON.stringify(value, (_k, node: unknown) =>
+      node instanceof Uint8Array
+        ? { bytes: bytesToHex(node) }
+        : typeof node === 'bigint'
+          ? { bigint: node.toString() }
+          : node,
     ),
   )
 }
@@ -333,8 +339,8 @@ async function recordDydx() {
       body: JSON.stringify({ address, subaccountNumber: 0, amount: 1000 }),
     })
     if (!faucet.ok) return false
-    for (let i = 0; !(await fetch(subaccount0)).ok; i++) {
-      if (i === 60) throw new Error(`the indexer never showed a funded subaccount for ${address}`)
+    for (let attempt = 0; !(await fetch(subaccount0)).ok; attempt++) {
+      if (attempt === 60) throw new Error(`the indexer never showed a funded subaccount for ${address}`)
       await sleep(10_000)
     }
     return true
@@ -352,10 +358,10 @@ async function recordDydx() {
     tickSize: string
     stepSize: string
   }
-  const m = (
+  const market = (
     (await (await fetch(`${DYDX}/perpetualMarkets?ticker=${ticker}`)).json()) as { markets: Record<string, M> }
   ).markets[ticker]!
-  const scale = { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) }
+  const scale = { px: decimalsOf(market.tickSize), qty: decimalsOf(market.stepSize) }
   const spec = {
     key: marketKey('dydx', 'BTC' as Base),
     venue: 'dydx',
@@ -364,16 +370,16 @@ async function recordDydx() {
     kind: 'perp',
     venueSymbol: ticker,
     scale,
-    tick: { kind: 'fixed', tick: parsePx(m.tickSize, scale) },
-    step: parseQty(m.stepSize, scale),
+    tick: { kind: 'fixed', tick: parsePx(market.tickSize, scale) },
+    step: parseQty(market.stepSize, scale),
   } as MarketSpec
   const book = (await (await fetch(`${DYDX}/orderbooks/perpetualMarket/${ticker}`)).json()) as {
     asks: { price: string }[]
   }
   const ask = Number(book.asks[0]!.price)
-  const tick = Number(m.tickSize)
+  const tick = Number(market.tickSize)
   const atTick = (px: number) => (Math.floor(px / tick) * tick).toFixed(scale.px)
-  const far = atTick(Number(m.oraclePrice) * 0.6)
+  const far = atTick(Number(market.oraclePrice) * 0.6)
   const size = '0.001'
 
   const validator = await validatorOf('testnet')
@@ -385,9 +391,9 @@ async function recordDydx() {
         const reply = await real(...args)
         calls.push({ method, reply: chainReply(reply) })
         return reply
-      } catch (e) {
-        calls.push({ method, thrown: { name: (e as Error).name, message: (e as Error).message } })
-        throw e
+      } catch (error) {
+        calls.push({ method, thrown: { name: (error as Error).name, message: (error as Error).message } })
+        throw error
       }
     }
   }
@@ -420,16 +426,16 @@ async function recordDydx() {
   }
   /** The indexer trails the chain by a few blocks, so a lookup waits until it shows the status asked for. */
   const lookupUntil = (intent: OrderIntent, detail: string) => async () => {
-    for (let i = 0; ; i++) {
+    for (let attempt = 0; ; attempt++) {
       const found = await dydx.lookup(account, intent)
-      if (found.detail === detail || i === 20) return found
+      if (found.detail === detail || attempt === 20) return found
       take()
       await sleep(2000)
     }
   }
   const place = (intent: OrderIntent): Command => ({ kind: 'place', intent })
   const refOf = (intent: OrderIntent, flags: 0 | 64) =>
-    `${ticker}:${clientIdOf(intent.clientId)}:${flags}:${m.clobPairId}` as OrderRef
+    `${ticker}:${clientIdOf(intent.clientId)}:${flags}:${market.clobPairId}` as OrderRef
 
   const stranger = await deriveKey(await privateKeyToAccount(generatePrivateKey()).signTypedData(onboarding('testnet')))
   const strangerCtx = ctx(stranger.mnemonic, stranger.address)
@@ -461,14 +467,14 @@ async function recordDydx() {
     const { SubaccountInfo } = await sdk()
     const subaccount = SubaccountInfo.forLocalWallet(await walletOf(mnemonic), 0)
     const clob = {
-      clobPairId: Number(m.clobPairId),
-      atomicResolution: m.atomicResolution,
-      quantumConversionExponent: m.quantumConversionExponent,
-      stepBaseQuantums: m.stepBaseQuantums,
-      subticksPerTick: m.subticksPerTick,
+      clobPairId: Number(market.clobPairId),
+      atomicResolution: market.atomicResolution,
+      quantumConversionExponent: market.quantumConversionExponent,
+      stepBaseQuantums: market.stepBaseQuantums,
+      subticksPerTick: market.subticksPerTick,
     }
-    const q = quantums(parseQty(size, scale), scale, clob)
-    const s = subticks(parsePx(far, scale), scale, clob)
+    const orderQuantums = quantums(parseQty(size, scale), scale, clob)
+    const orderSubticks = subticks(parsePx(far, scale), scale, clob)
     const pastTapeChecks = (name: string, rawQuantums: bigint, rawSubticks: bigint) =>
       run(name, () =>
         validator.post.placeOrder(
@@ -487,8 +493,8 @@ async function recordDydx() {
           Math.floor(Date.now() / 1000) + 3600,
         ),
       )
-    await pastTapeChecks('offTick', q, s + BigInt(m.subticksPerTick) / 2n)
-    await pastTapeChecks('offStep', q + BigInt(m.stepBaseQuantums) / 2n, s)
+    await pastTapeChecks('offTick', orderQuantums, orderSubticks + BigInt(market.subticksPerTick) / 2n)
+    await pastTapeChecks('offStep', orderQuantums + BigInt(market.stepBaseQuantums) / 2n, orderSubticks)
   }
 
   write('dydx', { network: 'testnet', recordedAt: new Date().toISOString(), address, ticker, holdsUsdc, cases })
@@ -508,7 +514,7 @@ const ORDERLY_BROKER = 'demo'
 
 function memoryKeys(): KeySlot {
   let key: StoredKey | null = null
-  return { read: () => key, write: (k) => void (key = k), clear: () => void (key = null) }
+  return { read: () => key, write: (next) => void (key = next), clear: () => void (key = null) }
 }
 
 function walletFor(account: ReturnType<typeof privateKeyToAccount>, chainId: number): WalletSigner {
@@ -556,9 +562,9 @@ async function recordOrderly() {
   if ((await orderly.steps(ctx)).some((step) => !step.done))
     await orderly.enable(ctx, walletFor(evm, 421_614), () => {})
   const available = async () => {
-    const view = await orderly.account(ctx).catch((e: unknown) => {
-      if (e instanceof TradeFailure && e.error.kind === 'unreachable') return null
-      throw e
+    const view = await orderly.account(ctx).catch((error: unknown) => {
+      if (error instanceof TradeFailure && error.error.kind === 'unreachable') return null
+      throw error
     })
     take()
     return view?.kind === 'live' ? Number(view.snapshot.available) : 0
@@ -573,8 +579,8 @@ async function recordOrderly() {
     const granted = await faucet.text()
     if (!faucet.ok || !(JSON.parse(granted) as { success: boolean }).success) return false
     // The faucet has answered success and still left the holding empty, so the wait is short.
-    for (let i = 0; (await available()) === 0; i++) {
-      if (i === 6) return false
+    for (let attempt = 0; (await available()) === 0; attempt++) {
+      if (attempt === 6) return false
       await sleep(10_000)
     }
     return true

@@ -79,7 +79,7 @@ const config: TradeConfig = {
 
 function memorySlot(initial: StoredKey | null = null): KeySlot {
   let key = initial
-  return { read: () => key, write: (k) => void (key = k), clear: () => void (key = null) }
+  return { read: () => key, write: (next) => void (key = next), clear: () => void (key = null) }
 }
 
 function venue(answer: (url: string, body: Record<string, unknown>) => unknown) {
@@ -142,17 +142,17 @@ describe('order intent', () => {
       .chain(({ step, steps }) =>
         fc
           .array(fc.integer({ min: 1, max: 97 }), { minLength: 1, maxLength: 3 })
-          .filter((head) => head.reduce((a, b) => a + b, 0) < 100)
-          .map((head) => ({ step, steps, shares: [...head, 100 - head.reduce((a, b) => a + b, 0)] })),
+          .filter((head) => head.reduce((sum, share) => sum + share, 0) < 100)
+          .map((head) => ({ step, steps, shares: [...head, 100 - head.reduce((sum, share) => sum + share, 0)] })),
       )
     fc.assert(
       fc.property(split, ({ step, steps, shares }) => {
         const size = step * steps
         const parts = splitSize({ ...btc, step: step as Qty }, size as Qty, shares)
-        expect(parts.reduce((a, b) => a + b, 0)).toBe(size)
+        expect(parts.reduce((sum, part) => sum + part, 0)).toBe(size)
         for (const part of parts) expect(part % step).toBe(0)
-        parts.slice(0, -1).forEach((part, i) => {
-          const exact = (size * shares[i]!) / 100
+        parts.slice(0, -1).forEach((part, index) => {
+          const exact = (size * shares[index]!) / 100
           expect(part).toBeLessThanOrEqual(exact)
           expect(part).toBeGreaterThan(exact - step)
         })
@@ -204,8 +204,8 @@ describe('order intent', () => {
   })
 
   it('takes 2 take profits and stop losses together on Hyperliquid and none on Orderly or dYdX', () => {
-    const errors = (takeProfits: readonly TakeProfitDraft[], stopLoss = '', c = caps) => {
-      const built = buildIntent(btc, { ...draft, takeProfits, stopLoss }, c)
+    const errors = (takeProfits: readonly TakeProfitDraft[], stopLoss = '', capabilities = caps) => {
+      const built = buildIntent(btc, { ...draft, takeProfits, stopLoss }, capabilities)
       return built.ok ? {} : built.errors
     }
     const halves = [tp('81000', '50'), tp('82000', '50')]
@@ -298,7 +298,7 @@ describe('order intent', () => {
     if (!built.ok) throw new Error(JSON.stringify(built.errors))
     if (built.intent.order.kind !== 'scale') throw new Error(built.intent.order.kind)
     const legs = built.intent.order.legs
-    expect(legs.map((l) => [l.px, l.size])).toEqual([
+    expect(legs.map((leg) => [leg.px, leg.size])).toEqual([
       [800_000, 200],
       [797_500, 200],
       [795_000, 200],
@@ -306,7 +306,7 @@ describe('order intent', () => {
       [790_000, 200],
     ])
     expect(legs[0]?.clientId).toBe(built.intent.clientId)
-    expect(new Set(legs.map((l) => l.clientId)).size).toBe(5)
+    expect(new Set(legs.map((leg) => leg.clientId)).size).toBe(5)
   })
 
   it('refuses a scale order the venue cannot send or the legs cannot carry', () => {
@@ -319,8 +319,8 @@ describe('order intent', () => {
       end: '79000',
       count: '5',
     } as const
-    const errors = (d: Parameters<typeof buildIntent>[1], c = caps, spec = btc) => {
-      const built = buildIntent(spec, d, c)
+    const errors = (intentDraft: Parameters<typeof buildIntent>[1], capabilities = caps, spec = btc) => {
+      const built = buildIntent(spec, intentDraft, capabilities)
       return built.ok ? {} : built.errors
     }
     expect(errors(scale, TRADING.dydx.capabilities)).toEqual({ count: 'Not offered on this venue' })
@@ -340,9 +340,9 @@ describe('order intent', () => {
   })
 
   it('gives every build a fresh client id', () => {
-    const a = buildIntent(btc, draft, caps)
-    const b = buildIntent(btc, draft, caps)
-    expect(a.ok && b.ok && a.intent.clientId !== b.intent.clientId).toBe(true)
+    const first = buildIntent(btc, draft, caps)
+    const second = buildIntent(btc, draft, caps)
+    expect(first.ok && second.ok && first.intent.clientId !== second.intent.clientId).toBe(true)
   })
 
   it('closes a short with a reduce-only market buy of the whole size', () => {
@@ -403,11 +403,11 @@ describe('commands in flight', () => {
   })
 
   it('lets two different cancels out together but not the same cancel twice', () => {
-    const a = { kind: 'cancel', order: '3:1' as never } as const
-    const b = { kind: 'cancel', order: '3:2' as never } as const
-    expect([claim(ref, a), claim(ref, b), claim(ref, a)]).toEqual([true, true, false])
-    release(ref, a)
-    release(ref, b)
+    const first = { kind: 'cancel', order: '3:1' as never } as const
+    const second = { kind: 'cancel', order: '3:2' as never } as const
+    expect([claim(ref, first), claim(ref, second), claim(ref, first)]).toEqual([true, true, false])
+    release(ref, first)
+    release(ref, second)
   })
 
   it('lets one deposit out per account at a time, apart from its orders', () => {
@@ -505,7 +505,7 @@ describe('hyperliquid module', () => {
     const oid = (resting as { response: { data: { statuses: [{ resting: { oid: number } }] } } }).response.data
       .statuses[0].resting.oid
     expect(outcome).toEqual({ kind: 'placed', status: 'resting', detail: `Resting as order ${oid}` })
-    const post = sent.find((s) => s.url.endsWith('/exchange'))!
+    const post = sent.find((request) => request.url.endsWith('/exchange'))!
     const action = post.body.action as { orders: { a: number; p: string; s: string; c: string }[] }
     expect(action.orders[0]).toMatchObject({ a: 3, p: '80000', s: '0.001', c: built.intent.clientId })
     const signature = post.body.signature as { r: Hex; s: Hex; v: number }
@@ -555,12 +555,12 @@ describe('hyperliquid module', () => {
     expect(await TRADING.hyperliquid.execute(ctx(live.fetch), { kind: 'place', intent: built.intent })).toMatchObject({
       status: 'filled',
     })
-    const action = live.sent.find((s) => s.url.endsWith('/exchange'))!.body.action as {
+    const action = live.sent.find((request) => request.url.endsWith('/exchange'))!.body.action as {
       grouping: string
       orders: { b: boolean; p: string; r: boolean; t: unknown }[]
     }
     expect(action.grouping).toBe('normalTpsl')
-    expect(action.orders.map((o) => [o.b, o.p, o.r, o.t])).toEqual([
+    expect(action.orders.map((order) => [order.b, order.p, order.r, order.t])).toEqual([
       [true, '80810', false, { limit: { tif: 'Ioc' } }],
       [false, '73800', true, { trigger: { isMarket: true, triggerPx: '82000', tpsl: 'tp' } }],
       [false, '70200', true, { trigger: { isMarket: true, triggerPx: '78000', tpsl: 'sl' } }],
@@ -568,12 +568,12 @@ describe('hyperliquid module', () => {
     const moved = venue(answer('81990', '82010'))
     const error = await TRADING.hyperliquid
       .execute(ctx(moved.fetch), { kind: 'place', intent: built.intent })
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error).toEqual({
       kind: 'invalid-order',
       detail: 'Take profit: Must be above the ask on this network',
     })
-    expect(moved.sent.some((s) => s.url.endsWith('/exchange'))).toBe(false)
+    expect(moved.sent.some((request) => request.url.endsWith('/exchange'))).toBe(false)
   })
 
   it('sends each take profit as its own reduce-only tp child of the size it closes, and names the one refused', async () => {
@@ -618,11 +618,11 @@ describe('hyperliquid module', () => {
       status: 'resting',
       detail: 'Resting as order 7. TP 2 not placed: Order must have minimum value of $10.',
     })
-    const action = sent.find((x) => x.url.endsWith('/exchange'))!.body.action
-    const exit = (tpsl: 'tp' | 'sl', triggerPx: string, p: string, size: string) => ({
+    const action = sent.find((request) => request.url.endsWith('/exchange'))!.body.action
+    const exit = (tpsl: 'tp' | 'sl', triggerPx: string, price: string, size: string) => ({
       a: 3,
       b: false,
-      p,
+      p: price,
       s: size,
       r: true,
       t: { trigger: { isMarket: true, triggerPx, tpsl } },
@@ -662,7 +662,7 @@ describe('hyperliquid module', () => {
       if (!built.ok) throw new Error('intent')
       const outcome = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })
       expect(outcome).toEqual({ kind: 'placed', status: 'resting', detail: 'Resting as order 77738308' })
-      const post = sent.find((s) => s.url.endsWith('/exchange'))!
+      const post = sent.find((request) => request.url.endsWith('/exchange'))!
       const action = post.body.action as Record<string, unknown>
       expect(action).toEqual({
         type: 'trailingStop',
@@ -701,7 +701,7 @@ describe('hyperliquid module', () => {
       }
       const error = await TRADING.hyperliquid
         .execute(ctx, { kind: 'place', intent: built.intent })
-        .catch((e: unknown) => e)
+        .catch((thrown: unknown) => thrown)
       expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
     }
   })
@@ -745,17 +745,17 @@ describe('hyperliquid module', () => {
       detail:
         '2 of 3 orders placed: 2 resting, 0 filled. Order 2 not placed: Post only order would have immediately matched',
     })
-    const action = sent.find((s) => s.url.endsWith('/exchange'))!.body.action as {
+    const action = sent.find((request) => request.url.endsWith('/exchange'))!.body.action as {
       grouping: string
       orders: { p: string; s: string; t: unknown; c: string }[]
     }
     expect(action.grouping).toBe('na')
-    expect(action.orders.map((o) => [o.p, o.s, o.t, o.c])).toEqual(
-      built.intent.order.legs.map((l, i) => [
-        ['80000', '79500', '79000'][i],
+    expect(action.orders.map((order) => [order.p, order.s, order.t, order.c])).toEqual(
+      built.intent.order.legs.map((leg, index) => [
+        ['80000', '79500', '79000'][index],
         '0.001',
         { limit: { tif: 'Alo' } },
-        l.clientId,
+        leg.clientId,
       ]),
     )
   })
@@ -774,7 +774,7 @@ describe('hyperliquid module', () => {
     if (!built.ok) throw new Error('intent')
     const error = await TRADING.hyperliquid
       .execute(ctx, { kind: 'place', intent: built.intent })
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error).toEqual({
       kind: 'needs-setup',
       detail: (hlRecorded('unknownSigner') as { response: string }).response,
@@ -796,7 +796,7 @@ describe('hyperliquid module', () => {
       if (!built.ok) throw new Error('intent')
       const error = await TRADING.hyperliquid
         .execute(ctx, { kind: 'place', intent: built.intent })
-        .catch((e: unknown) => e)
+        .catch((thrown: unknown) => thrown)
       expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
     }
   })
@@ -819,7 +819,7 @@ describe('hyperliquid module', () => {
     if (!built.ok) throw new Error('intent')
     const error = await TRADING.hyperliquid
       .execute(ctx, { kind: 'place', intent: built.intent })
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error.kind).toBe('invalid-order')
   })
 
@@ -918,7 +918,7 @@ describe('hyperliquid module', () => {
       switchChain: async () => {},
       signTypedData: async () => `0x${'11'.repeat(32)}${'22'.repeat(32)}1b` as Hex,
     }
-    const error = await TRADING.hyperliquid.enable(ctx, wallet, () => {}).catch((e: unknown) => e)
+    const error = await TRADING.hyperliquid.enable(ctx, wallet, () => {}).catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error.kind).toBe('no-account')
     expect(keys.read()).toMatchObject({ status: 'draft', public: { agent: expect.stringMatching(/^0x/) } })
   })
@@ -986,7 +986,7 @@ describe('orderly module', () => {
     const kindOf = (run: Promise<unknown>) =>
       run.then(
         () => 'settled',
-        (e: unknown) => e instanceof TradeFailure && e.error.kind,
+        (thrown: unknown) => thrown instanceof TradeFailure && thrown.error.kind,
       )
     for (const reply of ['<html>502 Bad Gateway</html>', '{"success":true,"timestamp":1702989203989}']) {
       const place = TRADING.orderly.execute(ctx(reply), { kind: 'place', intent: built.intent })
@@ -1020,7 +1020,7 @@ describe('orderly module', () => {
     const filled = orderlyReply('cancel-filled')
     expect(await cancel(filled.status, filled.body)).toEqual({ kind: 'done', detail: 'Canceled' })
     const error = await cancel(401, { success: false, code: -1002, message: 'Orderly key not found' }).catch(
-      (e: unknown) => e,
+      (thrown: unknown) => thrown,
     )
     expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
   })
@@ -1044,7 +1044,9 @@ describe('orderly module', () => {
                 status: 401,
               })) as typeof globalThis.fetch,
       }
-      const error = await TRADING.orderly.execute(ctx, { kind: 'place', intent: built.intent }).catch((e: unknown) => e)
+      const error = await TRADING.orderly
+        .execute(ctx, { kind: 'place', intent: built.intent })
+        .catch((thrown: unknown) => thrown)
       expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'needs-setup', detail: message })
     }
   })
@@ -1118,7 +1120,7 @@ describe('order lookup after an unknown outcome', () => {
       scale.intent,
     )
     expect(result).toEqual({ kind: 'found', detail: '1 of 3 orders on the venue' })
-    expect(sent.map((s) => s.body.oid)).toEqual(scale.intent.order.legs.map((l) => l.clientId))
+    expect(sent.map((request) => request.body.oid)).toEqual(scale.intent.order.legs.map((leg) => leg.clientId))
   })
 
   it('finds a dYdX order by the uint32 client id among the latest on the market', async () => {
@@ -1157,7 +1159,7 @@ describe('order lookup after an unknown outcome', () => {
     })
     const error = await TRADING.orderly
       .lookup(ctx({ success: false, message: 'Orderly key not registered' }), intent)
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
   })
 })

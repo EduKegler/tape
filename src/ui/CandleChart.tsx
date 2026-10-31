@@ -63,7 +63,7 @@ export function CandleChart({
         secondsVisible: false,
         tickMarkFormatter: (time: UTCTimestamp, mark: TickMarkType) => formatChartTick(time, MARKS[mark]),
       },
-      localization: { timeFormatter: (t: UTCTimestamp) => formatChartTime(t) },
+      localization: { timeFormatter: (time: UTCTimestamp) => formatChartTime(time) },
       crosshair: { vertLine: { color: css('--level3') }, horzLine: { color: css('--level3') } },
     })
     const candles = chart.addSeries(CandlestickSeries, {
@@ -87,26 +87,26 @@ export function CandleChart({
   }, [])
 
   useEffect(() => {
-    const s = series.current
-    if (!s || !history.data) return
-    s.candles.setData(
-      history.data.map((b) => ({
-        time: b.time as UTCTimestamp,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
+    const plot = series.current
+    if (!plot || !history.data) return
+    plot.candles.setData(
+      history.data.map((bar) => ({
+        time: bar.time as UTCTimestamp,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
       })),
     )
-    s.volume.setData(
-      history.data.map((b) => ({
-        time: b.time as UTCTimestamp,
-        value: b.volume,
-        color: b.close >= b.open ? css('--bid-wash') : css('--ask-wash'),
+    plot.volume.setData(
+      history.data.map((bar) => ({
+        time: bar.time as UTCTimestamp,
+        value: bar.volume,
+        color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
       })),
     )
-    s.lastTime = history.data.at(-1)?.time ?? 0
-    s.chart.timeScale().scrollToRealTime()
+    plot.lastTime = history.data.at(-1)?.time ?? 0
+    plot.chart.timeScale().scrollToRealTime()
   }, [history.data])
 
   useEffect(() => {
@@ -114,8 +114,8 @@ export function CandleChart({
     const format = new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     series.current?.chart.applyOptions({
       localization: {
-        priceFormatter: (p: number) => format.format(p),
-        timeFormatter: (t: UTCTimestamp) => formatChartTime(t),
+        priceFormatter: (price: number) => format.format(price),
+        timeFormatter: (time: UTCTimestamp) => formatChartTime(time),
       },
     })
     series.current?.candles.applyOptions({
@@ -123,24 +123,24 @@ export function CandleChart({
     })
   }, [decimals])
 
-  useFrameEffect({ kind: 'candle', market: marketKey(venue, base), interval }, (f) => {
-    const s = series.current
-    if (!s?.lastTime) return
-    for (const bar of f.bars) {
-      if (bar.time < s.lastTime) continue
-      s.candles.update({
+  useFrameEffect({ kind: 'candle', market: marketKey(venue, base), interval }, (frame) => {
+    const plot = series.current
+    if (!plot?.lastTime) return
+    for (const bar of frame.bars) {
+      if (bar.time < plot.lastTime) continue
+      plot.candles.update({
         time: bar.time as UTCTimestamp,
         open: bar.open,
         high: bar.high,
         low: bar.low,
         close: bar.close,
       })
-      s.volume.update({
+      plot.volume.update({
         time: bar.time as UTCTimestamp,
         value: bar.volume,
         color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
       })
-      s.lastTime = bar.time
+      plot.lastTime = bar.time
     }
   })
 
@@ -159,7 +159,7 @@ export function CandleChart({
           label="Interval"
           value={interval}
           onChange={onInterval}
-          options={INTERVALS.map((i) => ({ value: i, label: i }))}
+          options={INTERVALS.map((option) => ({ value: option, label: option }))}
         />
       }
     >

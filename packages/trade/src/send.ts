@@ -16,15 +16,15 @@ export async function send<T>(
   let response: Response
   try {
     response = await fetch(url, { ...init, signal: AbortSignal.timeout(REPLY_TIMEOUT_MS) })
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
     throw new TradeFailure(venue, init.mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
   }
   let text: string
   try {
     text = await response.text()
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
     throw new TradeFailure(venue, init.mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
   }
   if (init.mutates && response.status >= 500)

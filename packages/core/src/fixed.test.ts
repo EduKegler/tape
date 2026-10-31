@@ -20,7 +20,7 @@ import type { Decimals, Px } from './fixed'
 
 const btc = { px: 2, qty: 5 } as const
 
-const decimals = fc.integer({ min: 0, max: 8 }).map((d) => d as Decimals)
+const decimals = fc.integer({ min: 0, max: 8 }).map((digits) => digits as Decimals)
 const units = fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER })
 
 function venueString(value: number, scale: number, padding: number, trimmed: boolean): string {

@@ -101,7 +101,7 @@ describe('analytics ingest', () => {
     }
     await ingest(beacon(batch), 'testnet', ENV, send)
     const events = sent[0]!.body.batch
-    expect(events.map((e) => e.event)).toEqual(['command_sent', 'command_result'])
+    expect(events.map((event) => event.event)).toEqual(['command_sent', 'command_result'])
     expect(events[1]!.properties).toMatchObject({
       venue: 'dydx',
       result: 'placed',
@@ -163,11 +163,11 @@ describe('analytics ingest', () => {
       { kind: 'place', intent },
       { kind: 'cancel-all', symbol: 'BTC' },
     ]
-    const events = commands.flatMap((c): Batch['events'] => [
-      [now, commandSent('hyperliquid', c)],
-      [now, commandResult('hyperliquid', c, { ok: { kind: 'placed', status: 'filled', detail: 'x' } })],
-      [now, commandResult('hyperliquid', c, { ok: { kind: 'done', detail: 'x' } })],
-      [now, commandResult('hyperliquid', c, { failed: 'rate-limited' })],
+    const events = commands.flatMap((command): Batch['events'] => [
+      [now, commandSent('hyperliquid', command)],
+      [now, commandResult('hyperliquid', command, { ok: { kind: 'placed', status: 'filled', detail: 'x' } })],
+      [now, commandResult('hyperliquid', command, { ok: { kind: 'done', detail: 'x' } })],
+      [now, commandResult('hyperliquid', command, { failed: 'rate-limited' })],
     ])
     const { sent, send } = recorder()
     expect((await ingest(beacon({ session, events }), 'mainnet', ENV, send)).status).toBe(204)
@@ -265,16 +265,19 @@ describe('analytics ingest', () => {
       frames: Array.from({ length: 20 }, () => frame),
     }
     const funnel: AppEvent = { event: 'trading_enabled', venue: 'dydx' }
-    const queue: Batch['events'] = Array.from({ length: 120 }, (_, i) => [now + i, i % 4 ? funnel : exception])
+    const queue: Batch['events'] = Array.from({ length: 120 }, (_, index) => [
+      now + index,
+      index % 4 ? funnel : exception,
+    ])
     const bodies = pack(session, queue)
     const forwarded: string[] = []
     for (const body of bodies) {
       expect(body.length).toBeLessThanOrEqual(MAX_BODY)
       const { sent, send } = recorder()
       expect((await ingest(beacon(body), 'mainnet', ENV, send)).status).toBe(204)
-      forwarded.push(...sent[0]!.body.batch.map((e) => e.event))
+      forwarded.push(...sent[0]!.body.batch.map((event) => event.event))
     }
-    expect(forwarded).toEqual(queue.map(([, e]) => e.event))
+    expect(forwarded).toEqual(queue.map(([, event]) => event.event))
   })
 
   it('rejects a beacon with no origin', async () => {

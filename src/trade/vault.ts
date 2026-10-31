@@ -6,7 +6,7 @@ import type { AccountRef, KeySlot, SecretLifetime, StoredKey } from '@tape/trade
 
 const stored = z.object({ status: z.enum(['draft', 'linked']), public: z.record(z.string(), z.string()) })
 const listeners = new Set<() => void>()
-const notify = () => listeners.forEach((l) => l())
+const notify = () => listeners.forEach((listener) => listener())
 
 const slotName = (ref: AccountRef) => `tape:trade:v1:${accountKey(ref)}`
 
@@ -36,7 +36,7 @@ export function keySlot(ref: AccountRef, lifetime: SecretLifetime): KeySlot {
 
 export function subscribeVault(listener: () => void): () => void {
   listeners.add(listener)
-  const onStorage = (e: StorageEvent) => e.key?.startsWith('tape:trade:') && listener()
+  const onStorage = (event: StorageEvent) => event.key?.startsWith('tape:trade:') && listener()
   window.addEventListener('storage', onStorage)
   return () => {
     listeners.delete(listener)
@@ -68,11 +68,11 @@ const MAX_DEPOSITS = 20
 const units = z
   .string()
   .regex(/^\d+$/)
-  .transform((v) => BigInt(v))
+  .transform((digits) => BigInt(digits))
 const txHash = z
   .string()
   .regex(/^0x[0-9a-fA-F]{64}$/)
-  .transform((h) => h as Hex)
+  .transform((hash) => hash as Hex)
 const depositRecord = z.object({
   chainId: z.number().int(),
   amount: units,
@@ -99,7 +99,7 @@ export const depositsSnapshot = (ref: AccountRef) => localStorage.getItem(deposi
 export function parseDeposits(raw: string | null): readonly DepositRecord[] {
   if (!raw) return []
   const parsed = z.array(z.unknown()).safeParse(JSON.parse(raw))
-  return parsed.success ? parsed.data.flatMap((d) => depositRecord.safeParse(d).data ?? []) : []
+  return parsed.success ? parsed.data.flatMap((entry) => depositRecord.safeParse(entry).data ?? []) : []
 }
 
 const bigintsAsText = (_key: string, value: unknown) => (typeof value === 'bigint' ? value.toString() : value)
@@ -110,7 +110,10 @@ function writeDeposits(ref: AccountRef, records: readonly DepositRecord[]) {
 }
 
 export function addDeposit(ref: AccountRef, record: DepositRecord) {
-  writeDeposits(ref, [record, ...parseDeposits(depositsSnapshot(ref)).filter((d) => d.hash !== record.hash)])
+  writeDeposits(ref, [
+    record,
+    ...parseDeposits(depositsSnapshot(ref)).filter((deposit) => deposit.hash !== record.hash),
+  ])
 }
 
 export function updateDeposit(
@@ -120,6 +123,6 @@ export function updateDeposit(
 ) {
   writeDeposits(
     ref,
-    parseDeposits(depositsSnapshot(ref)).map((d) => (d.hash === hash ? { ...d, ...patch } : d)),
+    parseDeposits(depositsSnapshot(ref)).map((deposit) => (deposit.hash === hash ? { ...deposit, ...patch } : deposit)),
   )
 }

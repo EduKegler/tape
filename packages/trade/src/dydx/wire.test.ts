@@ -48,7 +48,7 @@ describe('dydx wire integers', () => {
 
 describe('dydx wire properties', () => {
   it("maps one step and one tick to the market's step quantums and tick subticks, for any market", () => {
-    const decimals = fc.integer({ min: 0, max: 8 }).map((d) => d as Decimals)
+    const decimals = fc.integer({ min: 0, max: 8 }).map((decimal) => decimal as Decimals)
     fc.assert(
       fc.property(decimals, decimals, decimals, decimals, (qty, finerQty, px, finerPx) => {
         // dYdX: stepSize = stepBaseQuantums * 10^atomicResolution, tickSize = subticksPerTick * 10^(qce - atomicResolution - 6).

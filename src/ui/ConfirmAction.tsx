@@ -28,11 +28,11 @@ export function ConfirmAction({
   useEffect(() => {
     if (open) {
       confirmButton.current?.focus()
-      const outside = (e: PointerEvent) => {
-        if (!step.current?.contains(e.target as Node)) setOpen(false)
+      const outside = (event: PointerEvent) => {
+        if (!step.current?.contains(event.target as Node)) setOpen(false)
       }
-      const escape = (e: KeyboardEvent) => {
-        if (e.key !== 'Escape') return
+      const escape = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return
         backToTrigger.current = true
         setOpen(false)
       }

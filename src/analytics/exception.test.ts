@@ -69,7 +69,7 @@ describe('toException', () => {
     ['Firefox', GECKO_STACK, ['applyBookDelta', 'applyBookDelta/<', 'parseLevel']],
   ])('reads a %s stack', (_, stack, fns) => {
     const event = toException(thrown('x', stack), 'promise', false, { origin: SITE, chunkIds: {} })
-    expect(event?.frames.map((f) => f.fn)).toEqual(fns)
+    expect(event?.frames.map((frame) => frame.fn)).toEqual(fns)
     expect(event?.frames.at(-1)).toEqual({ file: `${SITE}/assets/t.js`, fn: 'parseLevel', line: 1, col: 56 })
   })
 
@@ -101,7 +101,10 @@ describe('toException', () => {
   it('keeps every field inside what the server accepts', () => {
     const long = [
       `Error: ${'m'.repeat(2000)}`,
-      ...Array.from({ length: 60 }, (_, i) => `    at ${'f'.repeat(300)} (${SITE}/assets/a${i}.js:${i}:${i})`),
+      ...Array.from(
+        { length: 60 },
+        (_, index) => `    at ${'f'.repeat(300)} (${SITE}/assets/a${index}.js:${index}:${index})`,
+      ),
       `    at x (${SITE}/${'p'.repeat(400)}.js:1:1)`,
     ].join('\n')
     const event = toException(thrown('m'.repeat(2000), long, 'E'.repeat(300)), 'router', true, PAGE)
@@ -116,24 +119,24 @@ describe('createReporter', () => {
 
   it('sends the same error once', () => {
     const sent: ExceptionEvent[] = []
-    const report = createReporter((e) => sent.push(e), page)
+    const report = createReporter((event) => sent.push(event), page)
     report(thrown('a', V8_STACK), 'window', false)
     report(thrown('a', V8_STACK), 'promise', false)
     report(thrown('b', V8_STACK), 'window', false)
-    expect(sent.map((e) => e.value)).toEqual(['a', 'b'])
+    expect(sent.map((event) => event.value)).toEqual(['a', 'b'])
   })
 
   it('stops after ten errors', () => {
     const sent: ExceptionEvent[] = []
-    const report = createReporter((e) => sent.push(e), page)
-    for (let i = 0; i < 25; i++) report(thrown(`error ${i}`, V8_STACK), 'window', false)
+    const report = createReporter((event) => sent.push(event), page)
+    for (let index = 0; index < 25; index++) report(thrown(`error ${index}`, V8_STACK), 'window', false)
     expect(sent).toHaveLength(10)
   })
 
   it('does not spend the cap on errors it drops', () => {
     const sent: ExceptionEvent[] = []
-    const report = createReporter((e) => sent.push(e), page)
-    for (let i = 0; i < 25; i++) report(`no stack ${i}`, 'promise', false)
+    const report = createReporter((event) => sent.push(event), page)
+    for (let index = 0; index < 25; index++) report(`no stack ${index}`, 'promise', false)
     report(thrown('a', V8_STACK), 'window', false)
     expect(sent).toHaveLength(1)
   })

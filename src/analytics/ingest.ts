@@ -28,14 +28,14 @@ function exception({ type, value, handled, source, frames }: Omit<ExceptionEvent
         mechanism: { handled, synthetic: false },
         stacktrace: {
           type: 'raw',
-          frames: frames.map((f) => ({
+          frames: frames.map((frame) => ({
             platform: 'web:javascript',
-            filename: f.file,
-            function: f.fn,
-            lineno: f.line,
-            colno: f.col,
-            ...(f.chunk ? { chunk_id: f.chunk } : {}),
-            in_app: new URL(f.file).origin === origin,
+            filename: frame.file,
+            function: frame.fn,
+            lineno: frame.line,
+            colno: frame.col,
+            ...(frame.chunk ? { chunk_id: frame.chunk } : {}),
+            in_app: new URL(frame.file).origin === origin,
           })),
         },
       },

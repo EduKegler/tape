@@ -9,7 +9,10 @@ const symbolOf = (base: Base) => `PERP_${base}_USDC`
 const RESOLUTION: Record<Interval, string> = { '1m': '1', '5m': '5', '15m': '15', '1h': '60' }
 const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000 }
 const KLINE: Record<Interval, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h' }
-const INTERVAL_OF = Object.fromEntries(Object.entries(KLINE).map(([k, v]) => [v, k])) as Record<string, Interval>
+const INTERVAL_OF = Object.fromEntries(Object.entries(KLINE).map(([interval, kline]) => [kline, interval])) as Record<
+  string,
+  Interval
+>
 
 interface WireBook {
   bids: RawLevel[]
@@ -32,11 +35,11 @@ type Wire =
   | { topic: string; ts: string; data?: Partial<WireBook & WireTrade & WireKline> | null }
   | { event: 'ping' | 'pong' | 'subscribe' | 'unsubscribe'; success?: boolean; topic?: undefined }
 
-const isBook = (d: Partial<WireBook>): d is WireBook => isPairs(d.bids) && isPairs(d.asks)
-const isTrade = (d: Partial<WireTrade>): d is WireTrade =>
-  isText(d.price) && isText(d.size) && (d.side === 'BUY' || d.side === 'SELL')
-const isKline = (d: Partial<WireKline>): d is WireKline =>
-  [d.open, d.close, d.high, d.low, d.volume, d.startTime].every(isText)
+const isBook = (book: Partial<WireBook>): book is WireBook => isPairs(book.bids) && isPairs(book.asks)
+const isTrade = (trade: Partial<WireTrade>): trade is WireTrade =>
+  isText(trade.price) && isText(trade.size) && (trade.side === 'BUY' || trade.side === 'SELL')
+const isKline = (kline: Partial<WireKline>): kline is WireKline =>
+  [kline.open, kline.close, kline.high, kline.low, kline.volume, kline.startTime].every(isText)
 
 function topicOf(target: StreamTarget): string {
   const symbol = target.spec.venueSymbol
@@ -46,7 +49,7 @@ function topicOf(target: StreamTarget): string {
 }
 
 const frame = (event: 'subscribe' | 'unsubscribe') => (targets: readonly StreamTarget[]) =>
-  targets.map((t) => JSON.stringify({ id: topicOf(t), topic: topicOf(t), event }))
+  targets.map((target) => JSON.stringify({ id: topicOf(target), topic: topicOf(target), event }))
 
 const HOST: Record<Network, { rest: string; ws: string }> = {
   mainnet: { rest: 'api.orderly.org', ws: 'ws-evm.orderly.org' },
@@ -73,37 +76,37 @@ export function orderly(network: Network): VenueAdapter {
     unsubscribeFrames: frame('unsubscribe'),
 
     parse(raw, symbols) {
-      const m = parseExactJson<Wire>(raw)
-      if ('event' in m) {
-        if (m.event === 'subscribe' && m.success === false) throw new VenueParseError('orderly', null, raw)
+      const message = parseExactJson<Wire>(raw)
+      if ('event' in message) {
+        if (message.event === 'subscribe' && message.success === false) throw new VenueParseError('orderly', null, raw)
         return []
       }
-      const [symbol = '', stream = ''] = m.topic.split('@')
+      const [symbol = '', stream = ''] = message.topic.split('@')
       const market = symbols(symbol)
       if (!market) return []
-      if (!isText(m.ts)) throw new VenueParseError('orderly', market, raw)
-      const d = m.data ?? {}
-      const time = Number(m.ts)
-      if (stream === 'orderbook' && isBook(d))
-        return [{ kind: 'book-snapshot', market, bids: d.bids, asks: d.asks, time }]
-      if (stream === 'trade' && isTrade(d)) {
+      if (!isText(message.ts)) throw new VenueParseError('orderly', market, raw)
+      const data = message.data ?? {}
+      const time = Number(message.ts)
+      if (stream === 'orderbook' && isBook(data))
+        return [{ kind: 'book-snapshot', market, bids: data.bids, asks: data.asks, time }]
+      if (stream === 'trade' && isTrade(data)) {
         return [
           {
             kind: 'trades',
             market,
             trades: [
               {
-                id: `${m.ts}:${d.price}:${d.size}:${d.side}`,
-                px: d.price,
-                qty: d.size,
-                side: d.side === 'BUY' ? 'buy' : 'sell',
+                id: `${message.ts}:${data.price}:${data.size}:${data.side}`,
+                px: data.price,
+                qty: data.size,
+                side: data.side === 'BUY' ? 'buy' : 'sell',
                 time,
               },
             ],
           },
         ]
       }
-      if (stream.startsWith('kline_') && isKline(d)) {
+      if (stream.startsWith('kline_') && isKline(data)) {
         const interval = INTERVAL_OF[stream.slice('kline_'.length)]
         if (!interval) return []
         return [
@@ -111,7 +114,9 @@ export function orderly(network: Network): VenueAdapter {
             kind: 'candle',
             market,
             interval,
-            candles: [{ open: Number(d.startTime), o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }],
+            candles: [
+              { open: Number(data.startTime), o: data.open, h: data.high, l: data.low, c: data.close, v: data.volume },
+            ],
           },
         ]
       }
@@ -132,13 +137,13 @@ export function orderly(network: Network): VenueAdapter {
           signal: signal ?? null,
         }),
       ])
-      const d = futures.data
-      const open = Number(d['24h_open'])
+      const stats = futures.data
+      const open = Number(stats['24h_open'])
       return {
-        changePct: ((Number(d['24h_close']) - open) / open) * 100,
-        volumeQuote: Number(d['24h_amount']),
-        fundingRate: Number(d.est_funding_rate) / Number(info.data.funding_period),
-        indexPrice: Number(d.index_price),
+        changePct: ((Number(stats['24h_close']) - open) / open) * 100,
+        volumeQuote: Number(stats['24h_amount']),
+        fundingRate: Number(stats.est_funding_rate) / Number(info.data.funding_period),
+        indexPrice: Number(stats.index_price),
       }
     },
 
@@ -146,7 +151,7 @@ export function orderly(network: Network): VenueAdapter {
       const to = Math.floor(Date.now() / 1000)
       const from = to - (500 * INTERVAL_MS[interval]) / 1000
       const url = `${rest}/tv/history?symbol=${symbolOf(base)}&resolution=${RESOLUTION[interval]}&from=${from}&to=${to}`
-      const h = await getExactJson<{
+      const history = await getExactJson<{
         s: string
         t: string[]
         o: string[]
@@ -155,8 +160,17 @@ export function orderly(network: Network): VenueAdapter {
         c: string[]
         v: string[]
       }>(fetch, url, { signal: signal ?? null })
-      if (h.s !== 'ok') return []
-      return h.t.map((t, i) => chartBar(Number(t) * 1000, h.o[i]!, h.h[i]!, h.l[i]!, h.c[i]!, h.v[i]!))
+      if (history.s !== 'ok') return []
+      return history.t.map((openTime, index) =>
+        chartBar(
+          Number(openTime) * 1000,
+          history.o[index]!,
+          history.h[index]!,
+          history.l[index]!,
+          history.c[index]!,
+          history.v[index]!,
+        ),
+      )
     },
   }
 }

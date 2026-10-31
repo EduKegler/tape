@@ -47,7 +47,7 @@ describe('ticks', () => {
       .map(([power, offset]) => 10 ** power + offset)
       .filter((px) => px > 0),
   )
-  const scale = fc.integer({ min: 0, max: 8 }).map((d) => d as Decimals)
+  const scale = fc.integer({ min: 0, max: 8 }).map((digits) => digits as Decimals)
   const onTick = (spec: MarketSpec, px: number) => px % priceTick(spec, px as Px) === 0
 
   it('accepts a Hyperliquid price when it is whole or has at most five significant figures', () => {
@@ -92,47 +92,47 @@ describe('ticks', () => {
 })
 
 describe('trades and candles', () => {
-  const t = (id: string, time: number): Trade => ({ id, time, px: 1 as Px, qty: 1 as Qty, side: 'buy' })
+  const trade = (id: string, time: number): Trade => ({ id, time, px: 1 as Px, qty: 1 as Qty, side: 'buy' })
 
   it('dedupes overlapping trades and keeps newest first', () => {
     const tape = emptyTape()
-    expect(pushTrades(tape, [t('a', 1), t('b', 2)])).toBe(true)
-    expect(pushTrades(tape, [t('b', 2)])).toBe(false)
-    pushTrades(tape, [t('c', 3)])
-    expect(tape.items.map((x) => x.id)).toEqual(['c', 'b', 'a'])
+    expect(pushTrades(tape, [trade('a', 1), trade('b', 2)])).toBe(true)
+    expect(pushTrades(tape, [trade('b', 2)])).toBe(false)
+    pushTrades(tape, [trade('c', 3)])
+    expect(tape.items.map((item) => item.id)).toEqual(['c', 'b', 'a'])
   })
 
   it('keeps only the newest TRADE_LIMIT trades', () => {
     const tape = emptyTape()
     pushTrades(
       tape,
-      Array.from({ length: TRADE_LIMIT + 1 }, (_, i) => t(`t${i + 1}`, i + 1)),
+      Array.from({ length: TRADE_LIMIT + 1 }, (_, index) => trade(`t${index + 1}`, index + 1)),
     )
     expect(tape.items).toHaveLength(TRADE_LIMIT)
-    expect(tape.items.some((x) => x.time === 1)).toBe(false)
+    expect(tape.items.some((item) => item.time === 1)).toBe(false)
   })
 
   it('places a late trade by its time', () => {
     const tape = emptyTape()
-    pushTrades(tape, [t('b', 2)])
-    pushTrades(tape, [t('a', 1)])
-    expect(tape.items.map((x) => x.id)).toEqual(['b', 'a'])
+    pushTrades(tape, [trade('b', 2)])
+    pushTrades(tape, [trade('a', 1)])
+    expect(tape.items.map((item) => item.id)).toEqual(['b', 'a'])
   })
 
   it('remembers every trade on the tape but not every id it was ever sent', () => {
     const tape = emptyTape()
-    for (let i = 1; i <= 330; i++) pushTrades(tape, [t(`t${i}`, i)])
-    expect(pushTrades(tape, [t('t321', 321)])).toBe(false)
-    expect(new Set(tape.items.map((x) => x.id)).size).toBe(tape.items.length)
+    for (let index = 1; index <= 330; index++) pushTrades(tape, [trade(`t${index}`, index)])
+    expect(pushTrades(tape, [trade('t321', 321)])).toBe(false)
+    expect(new Set(tape.items.map((item) => item.id)).size).toBe(tape.items.length)
     expect(tape.seen.size).toBeLessThan(330)
   })
 
-  const bar = (open: number, c: number): Candle => ({
+  const bar = (open: number, close: number): Candle => ({
     open,
     o: 1 as Px,
     h: 1 as Px,
     l: 1 as Px,
-    c: c as Px,
+    c: close as Px,
     v: 1 as Qty,
   })
 
@@ -144,9 +144,9 @@ describe('trades and candles', () => {
   })
 
   it('appends each new bar and keeps only the last CANDLE_LIMIT', () => {
-    const opens = Array.from({ length: CANDLE_LIMIT + 1 }, (_, i) => i * 60)
+    const opens = Array.from({ length: CANDLE_LIMIT + 1 }, (_, index) => index * 60)
     let bars: readonly Candle[] = []
     for (const open of opens) bars = upsertCandle(bars, bar(open, 1))
-    expect(bars.map((b) => b.open)).toEqual(opens.slice(1))
+    expect(bars.map((candle) => candle.open)).toEqual(opens.slice(1))
   })
 })

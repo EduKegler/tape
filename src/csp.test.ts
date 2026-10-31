@@ -39,7 +39,7 @@ const config: TradeConfig = {
 const connectSrc = (policy: string) =>
   policy
     .split('; ')
-    .find((d) => d.startsWith('connect-src '))!
+    .find((directive) => directive.startsWith('connect-src '))!
     .split(' ')
     .slice(1)
 
@@ -47,7 +47,7 @@ describe('content security policy', () => {
   it.each(NETWORKS)('lets the %s page reach every venue it streams from', async (network) => {
     const reached = await originsReached(network)
     expect(reached.size).toBeGreaterThanOrEqual(8)
-    expect([...reached].filter((o) => !CONNECT[network].includes(o))).toEqual([])
+    expect([...reached].filter((origin) => !CONNECT[network].includes(origin))).toEqual([])
   })
 
   it.each(NETWORKS)('lets the %s page quote and follow every deposit route', async (network) => {
@@ -80,17 +80,17 @@ describe('content security policy', () => {
           ),
         ])
     expect(origins.size).toBeGreaterThan(0)
-    expect([...origins].filter((o) => !CONNECT[network].includes(o))).toEqual([])
+    expect([...origins].filter((origin) => !CONNECT[network].includes(origin))).toEqual([])
   })
 
   it('keeps every testnet origin off mainnet', () => {
-    expect(CONNECT.testnet.filter((o) => CONNECT.mainnet.includes(o))).toEqual([])
+    expect(CONNECT.testnet.filter((origin) => CONNECT.mainnet.includes(origin))).toEqual([])
   })
 
   it('runs only scripts that carry the nonce', () => {
     const script = contentSecurityPolicy('abc', 'testnet', false)
       .split('; ')
-      .find((d) => d.startsWith('script-src'))
+      .find((directive) => directive.startsWith('script-src'))
     expect(script).toBe("script-src 'self' 'nonce-abc' 'wasm-unsafe-eval'")
   })
 
@@ -98,7 +98,7 @@ describe('content security policy', () => {
     const directive = (wc: boolean, name: string) =>
       contentSecurityPolicy('abc', 'testnet', wc)
         .split('; ')
-        .find((d) => d.startsWith(name))
+        .find((candidate) => candidate.startsWith(name))
     expect(directive(false, 'connect-src')).not.toContain('walletconnect')
     expect(directive(false, 'frame-src')).toBe("frame-src 'none'")
     expect(directive(true, 'connect-src')).toContain('wss://relay.walletconnect.org')
@@ -108,13 +108,13 @@ describe('content security policy', () => {
   it.each(NETWORKS)('lets the %s hub worker reach every venue it streams from', async (network) => {
     const reached = await originsReached(network)
     const allowed = connectSrc(workerSecurityPolicy(network))
-    expect([...reached].filter((o) => !allowed.includes(o))).toEqual([])
+    expect([...reached].filter((origin) => !allowed.includes(origin))).toEqual([])
   })
 
   it.each(NETWORKS)('keeps the other network out of the %s hub worker', async (network) => {
     const other = await originsReached(network === 'mainnet' ? 'testnet' : 'mainnet')
     const allowed = connectSrc(workerSecurityPolicy(network))
-    expect(allowed.filter((o) => other.has(o))).toEqual([])
+    expect(allowed.filter((origin) => other.has(origin))).toEqual([])
   })
 
   it.each(NETWORKS)('gives the %s hub worker no nonce, since its header is fixed at build time', (network) => {

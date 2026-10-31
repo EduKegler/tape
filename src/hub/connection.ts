@@ -60,12 +60,12 @@ function deferRepeatResubscribes(previous: ReadonlyMap<StreamKey, Hold>, streams
   const holds = new Map(previous)
   const now: StreamKey[] = []
   const later: StreamKey[] = []
-  for (const s of streams) {
-    const hold = holds.get(s)
-    if (hold && at < hold.until) later.push(s)
-    else now.push(s)
+  for (const stream of streams) {
+    const hold = holds.get(stream)
+    if (hold && at < hold.until) later.push(stream)
+    else now.push(stream)
     const count = hold?.count ?? 0
-    holds.set(s, { until: at + holdMs(count), count: count + 1 })
+    holds.set(stream, { until: at + holdMs(count), count: count + 1 })
   }
   return { holds, now, later }
 }
@@ -92,11 +92,11 @@ function reconcile(state: OpenState, input: ConnInput, policy: ConnPolicy, effec
       ],
     }
   }
-  const holds = new Map([...state.holds].filter(([, h]) => input.now < h.until + HOLD_MAX_MS))
-  const held = (s: StreamKey) => (holds.get(s)?.until ?? 0) > input.now
-  const wanted = [...input.desired].filter((s) => state.subscribed.has(s) || !held(s))
-  const add = wanted.filter((s) => !state.subscribed.has(s))
-  const drop = [...state.subscribed].filter((s) => !input.desired.has(s))
+  const holds = new Map([...state.holds].filter(([, hold]) => input.now < hold.until + HOLD_MAX_MS))
+  const held = (stream: StreamKey) => (holds.get(stream)?.until ?? 0) > input.now
+  const wanted = [...input.desired].filter((stream) => state.subscribed.has(stream) || !held(stream))
+  const add = wanted.filter((stream) => !state.subscribed.has(stream))
+  const drop = [...state.subscribed].filter((stream) => !input.desired.has(stream))
   const out = [...effects]
   if (drop.length) out.push({ fx: 'unsubscribe', streams: drop })
   if (add.length) out.push({ fx: 'subscribe', streams: add })
@@ -144,10 +144,10 @@ export function stepConnection(state: ConnState, event: ConnEvent, input: ConnIn
     }
     case 'resubscribe': {
       if (state.s !== 'open') return { state, effects: [] }
-      const streams = event.streams.filter((s) => state.subscribed.has(s))
+      const streams = event.streams.filter((stream) => state.subscribed.has(stream))
       if (!streams.length) return { state, effects: [] }
       const { holds, now, later } = deferRepeatResubscribes(state.holds, streams, input.now)
-      const subscribed = new Set([...state.subscribed].filter((s) => !later.includes(s)))
+      const subscribed = new Set([...state.subscribed].filter((stream) => !later.includes(stream)))
       const effects: ConnEffect[] = [{ fx: 'unsubscribe', streams }]
       if (now.length) effects.push({ fx: 'subscribe', streams: now })
       return { state: { ...state, subscribed, holds }, effects }

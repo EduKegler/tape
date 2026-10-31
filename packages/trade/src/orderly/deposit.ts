@@ -128,7 +128,7 @@ async function progress(
     { headers, mutates: false },
     unsuccessful,
   )
-  const row = History.parse(body).data.rows.find((r) => r.tx_id.toLowerCase() === sent.hash.toLowerCase())
+  const row = History.parse(body).data.rows.find((entry) => entry.tx_id.toLowerCase() === sent.hash.toLowerCase())
   if (!row) return { stage: 'relaying', detail: 'Waiting for Orderly to see the deposit' }
   if (CREDITING.has(row.trans_status)) return { stage: 'relaying', detail: 'Orderly is crediting it' }
   const amount = parseUsdc(row.amount)

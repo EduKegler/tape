@@ -8,11 +8,13 @@ export const SKEW = { min: 0.1, max: 10 } as const
 
 /** Splits whole units by weight. Each share is floored, and the units left go to the largest fractions first. */
 export function apportion(units: number, weights: readonly number[]): number[] {
-  const total = weights.reduce((a, b) => a + b, 0)
-  const exact = weights.map((w) => (units * w) / total)
+  const total = weights.reduce((sum, weight) => sum + weight, 0)
+  const exact = weights.map((weight) => (units * weight) / total)
   const shares = exact.map(Math.floor)
-  const left = units - shares.reduce((a, b) => a + b, 0)
-  const order = exact.map((x, i) => ({ i, fraction: x - Math.floor(x) })).sort((a, b) => b.fraction - a.fraction)
+  const left = units - shares.reduce((sum, share) => sum + share, 0)
+  const order = exact
+    .map((share, index) => ({ i: index, fraction: share - Math.floor(share) }))
+    .sort((first, second) => second.fraction - first.fraction)
   for (const { i } of order.slice(0, left)) shares[i] = (shares[i] ?? 0) + 1
   return shares
 }
@@ -48,19 +50,21 @@ export function toTick(spec: MarketSpec, side: Side, raw: number): Px {
  */
 export function scaleLegs(spec: MarketSpec, side: Side, range: ScaleRange, total: Qty): ScaleLegs {
   const { start, end, count, skew } = range
-  const prices = Array.from({ length: count }, (_, i) => toTick(spec, side, start + ((end - start) * i) / (count - 1)))
+  const prices = Array.from({ length: count }, (_, index) =>
+    toTick(spec, side, start + ((end - start) * index) / (count - 1)),
+  )
   if (new Set(prices).size < count)
     return { ok: false, field: 'count', message: `The range is too narrow for ${count} orders` }
-  const weights = prices.map((_, i) => 1 + ((skew - 1) * i) / (count - 1))
+  const weights = prices.map((_, index) => 1 + ((skew - 1) * index) / (count - 1))
   const sizes = apportion(total / spec.step, weights).map((units) => (units * spec.step) as Qty)
-  if (sizes.some((s) => s < spec.step))
+  if (sizes.some((size) => size < spec.step))
     return { ok: false, field: 'size', message: `Each order needs at least ${formatQty(spec.step, spec.scale)}` }
-  return { ok: true, legs: prices.map((px, i) => ({ px, size: sizes[i] as Qty })) }
+  return { ok: true, legs: prices.map((px, index) => ({ px, size: sizes[index] as Qty })) }
 }
 
 /** Every client id the intent sent: one per leg for a scale order. */
 export function clientIdsOf(intent: OrderIntent): readonly ClientOrderId[] {
-  return intent.order.kind === 'scale' ? intent.order.legs.map((l) => l.clientId) : [intent.clientId]
+  return intent.order.kind === 'scale' ? intent.order.legs.map((leg) => leg.clientId) : [intent.clientId]
 }
 
 /** One refusal or undefined per leg, in leg order. Refuses the whole order only when every leg was refused. */
@@ -70,7 +74,7 @@ export function scaleOutcome(
   refuse: (error: string) => never,
   tally = '',
 ): CommandOutcome {
-  const notes = refusals.flatMap((e, i) => (e ? [`. Order ${i + 1} not placed: ${e}`] : []))
+  const notes = refusals.flatMap((refusal, index) => (refusal ? [`. Order ${index + 1} not placed: ${refusal}`] : []))
   if (notes.length === refusals.length) refuse(refusals.find(Boolean) ?? 'Every order was refused')
   const placed = refusals.length - notes.length
   return { kind: 'placed', status, detail: `${placed} of ${refusals.length} orders placed${tally}${notes.join('')}` }
@@ -80,7 +84,7 @@ export function scaleOutcome(
 export function lookupSummary(results: readonly OrderLookup[]): OrderLookup {
   const [first] = results
   if (results.length === 1 && first) return first
-  const found = results.filter((r) => r.kind === 'found').length
+  const found = results.filter((result) => result.kind === 'found').length
   return found > 0
     ? { kind: 'found', detail: `${found} of ${results.length} orders on the venue` }
     : { kind: 'absent', detail: `None of the ${results.length} orders. ${first?.detail ?? ''}`.trim() }

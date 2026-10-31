@@ -46,12 +46,12 @@ function scriptUrl(raw: string): string | null {
 /** Browser engines print the newest call first. */
 function parseStack(stack: string): Frame[] {
   return stack.split('\n').flatMap((text) => {
-    const m = V8.exec(text) ?? GECKO.exec(text)
-    const file = m?.[2] ? scriptUrl(m[2]) : null
-    const line = Number(m?.[3])
-    const col = Number(m?.[4])
+    const match = V8.exec(text) ?? GECKO.exec(text)
+    const file = match?.[2] ? scriptUrl(match[2]) : null
+    const line = Number(match?.[3])
+    const col = Number(match?.[4])
     if (!file || !Number.isSafeInteger(line) || !Number.isSafeInteger(col)) return []
-    return [{ file, fn: (m?.[1] || '?').slice(0, MAX_FN), line, col }]
+    return [{ file, fn: (match?.[1] || '?').slice(0, MAX_FN), line, col }]
   })
 }
 
@@ -65,7 +65,7 @@ function chunkOf(chunkIds: Page['chunkIds']): ReadonlyMap<string, string> {
 }
 
 const scrub = (text: string) =>
-  SECRETS.reduce((t, [pattern, mask]) => t.replace(pattern, mask), text).slice(0, MAX_VALUE)
+  SECRETS.reduce((scrubbed, [pattern, mask]) => scrubbed.replace(pattern, mask), text).slice(0, MAX_VALUE)
 
 /** Wallet extensions inject scripts that throw on every page, so an uncaught error with no frame of ours is dropped. */
 export function toException(
@@ -79,12 +79,12 @@ export function toException(
   const frames = parseStack(error.stack)
     .slice(0, MAX_FRAMES)
     .reverse()
-    .map((f) => {
-      const chunk = chunks.get(f.file)
-      return chunk ? { ...f, chunk } : f
+    .map((frame) => {
+      const chunk = chunks.get(frame.file)
+      return chunk ? { ...frame, chunk } : frame
     })
   if (!frames.length) return null
-  const ours = frames.some((f) => new URL(f.file).origin === page.origin)
+  const ours = frames.some((frame) => new URL(frame.file).origin === page.origin)
   if (!ours && (source === 'window' || source === 'promise')) return null
   return {
     event: '$exception',

@@ -108,18 +108,18 @@ Date.now = () => Math.round(RECORDED_AT + performance.now() - startedAt)
 Object.assign(globalThis, { WebSocket: ReplayWebSocket, fetch: replayFetch })
 
 const control = new BroadcastChannel(CONTROL)
-control.onmessage = async (e: MessageEvent<Command>) => {
-  if (e.data.loop !== undefined) looping = e.data.loop
-  if (e.data.probe) control.postMessage({ reached: await reaches(e.data.probe) })
-  if (e.data.drop) {
-    down.add(e.data.drop)
-    for (const socket of sockets) if (socket.venue === e.data.drop) socket.drop()
+control.onmessage = async (event: MessageEvent<Command>) => {
+  if (event.data.loop !== undefined) looping = event.data.loop
+  if (event.data.probe) control.postMessage({ reached: await reaches(event.data.probe) })
+  if (event.data.drop) {
+    down.add(event.data.drop)
+    for (const socket of sockets) if (socket.venue === event.data.drop) socket.drop()
   }
-  if (e.data.restore) {
-    down.delete(e.data.restore)
-    for (const socket of sockets) if (socket.venue === e.data.restore && socket.readyState === 0) socket.connect()
+  if (event.data.restore) {
+    down.delete(event.data.restore)
+    for (const socket of sockets) if (socket.venue === event.data.restore && socket.readyState === 0) socket.connect()
   }
-  if (e.data.playback) {
+  if (event.data.playback) {
     const playback: Playback = { sockets: open.size, playing: [...open].filter((feed) => !feed.played()).length }
     control.postMessage({ playback })
   }

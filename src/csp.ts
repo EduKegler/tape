@@ -13,7 +13,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
     'https://api.orderly.org',
     'wss://ws-evm.orderly.org',
     'https://iris-api.circle.com',
-    ...CHAINS.mainnet.flatMap((c) => c.rpcUrls.default.http.map((url) => new URL(url).origin)),
+    ...CHAINS.mainnet.flatMap((chain) => chain.rpcUrls.default.http.map((url) => new URL(url).origin)),
   ],
   testnet: [
     'https://testnet.binance.vision',
@@ -25,7 +25,7 @@ export const CONNECT: Record<Network, readonly string[]> = {
     'https://test-dydx-rpc.kingnodes.com',
     'https://testnet-api.orderly.org',
     'wss://testnet-ws-evm.orderly.org',
-    ...CHAINS.testnet.flatMap((c) => c.rpcUrls.default.http.map((url) => new URL(url).origin)),
+    ...CHAINS.testnet.flatMap((chain) => chain.rpcUrls.default.http.map((url) => new URL(url).origin)),
   ],
 }
 

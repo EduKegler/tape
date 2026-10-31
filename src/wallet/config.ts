@@ -43,7 +43,10 @@ export const wagmiConfig = createConfig({
   ],
   multiInjectedProviderDiscovery: false,
   ssr: true,
-  transports: Object.fromEntries(chains.map((c) => [c.id, http()])) as Record<(typeof chains)[number]['id'], Transport>,
+  transports: Object.fromEntries(chains.map((chain) => [chain.id, http()])) as Record<
+    (typeof chains)[number]['id'],
+    Transport
+  >,
 })
 
 export async function switchOrAddChain(chainId: number): Promise<void> {

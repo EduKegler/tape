@@ -5,7 +5,8 @@ import type { BookInput, BookSide, BookStep, Level } from './book'
 import type { Px, Qty } from './fixed'
 
 const lv = (px: number, qty: number): Level => [px as Px, qty as Qty]
-const topLevels = (side: BookSide, n: number): Level[] => side.prices.slice(0, n).map((px) => lv(px, side.qty.get(px)!))
+const topLevels = (side: BookSide, count: number): Level[] =>
+  side.prices.slice(0, count).map((px) => lv(px, side.qty.get(px)!))
 const delta = (bids: Level[], asks: Level[], seq: [number, number] | null = null): BookInput => ({
   kind: 'delta',
   bids,
@@ -30,7 +31,7 @@ describe('rest-snapshot-sequenced (Binance)', () => {
   it('asks for the snapshot only after the first diff is buffered', () => {
     expect(initialSync('rest-snapshot-sequenced').effect).toEqual({ kind: 'none' })
     const steps = run('rest-snapshot-sequenced', [delta([lv(100, 5)], [], [8, 9]), delta([lv(99, 3)], [], [10, 12])])
-    expect(steps.map((s) => s.effect.kind)).toEqual(['fetch-snapshot', 'none'])
+    expect(steps.map((step) => step.effect.kind)).toEqual(['fetch-snapshot', 'none'])
   })
 
   it('refetches when the snapshot predates the buffered diffs', () => {
@@ -99,7 +100,7 @@ describe('rest-snapshot-sequenced (Binance)', () => {
     ])
     const last = steps[2]!
     expect(last.effect).toEqual({ kind: 'fetch-snapshot', epoch: 2 })
-    expect(last.sync.phase === 'awaiting-snapshot' && last.sync.buffer.map((d) => d.seq)).toEqual([
+    expect(last.sync.phase === 'awaiting-snapshot' && last.sync.buffer.map((buffered) => buffered.seq)).toEqual([
       { from: 14, to: 15 },
     ])
     expect(topLevels(visibleBook(last.sync)!.bids, 5)).toEqual([lv(100, 2)])
@@ -217,7 +218,7 @@ describe('book properties', () => {
 
   type Sides = { bids: Level[]; asks: Level[] }
   const sorted = (side: Map<number, number>, dir: 1 | -1) =>
-    [...side].sort(([a], [b]) => dir * (a - b)).map(([px, qty]) => lv(px, qty))
+    [...side].sort(([left], [right]) => dir * (left - right)).map(([px, qty]) => lv(px, qty))
 
   function plainModel(first: Sides, deltas: readonly Sides[]) {
     const bids = new Map<number, number>()
@@ -226,22 +227,22 @@ describe('book properties', () => {
     const dropWhere = (side: Map<number, number>, out: (px: number) => boolean) => {
       for (const px of [...side.keys()]) if (out(px)) side.delete(px)
     }
-    for (const l of first.bids) write(bids, l)
-    for (const l of first.asks) write(asks, l)
+    for (const entry of first.bids) write(bids, entry)
+    for (const entry of first.asks) write(asks, entry)
     const bid = Math.max(...bids.keys())
     const ask = Math.min(...asks.keys())
     if (bid >= ask) {
       dropWhere(bids, (px) => px >= ask)
       dropWhere(asks, (px) => px <= bid)
     }
-    for (const d of deltas) {
-      for (const l of d.bids) {
-        write(bids, l)
-        if (l[1] > 0) dropWhere(asks, (px) => px <= l[0])
+    for (const change of deltas) {
+      for (const entry of change.bids) {
+        write(bids, entry)
+        if (entry[1] > 0) dropWhere(asks, (px) => px <= entry[0])
       }
-      for (const l of d.asks) {
-        write(asks, l)
-        if (l[1] > 0) dropWhere(bids, (px) => px >= l[0])
+      for (const entry of change.asks) {
+        write(asks, entry)
+        if (entry[1] > 0) dropWhere(bids, (px) => px >= entry[0])
       }
     }
     return { bids: sorted(bids, -1), asks: sorted(asks, 1) }
@@ -250,11 +251,11 @@ describe('book properties', () => {
   const feeds = {
     'snapshot-then-deltas': (first: Sides, deltas: readonly Sides[]): BookInput[] => [
       snapshot(first.bids, first.asks),
-      ...deltas.map((d) => delta(d.bids, d.asks)),
+      ...deltas.map((change) => delta(change.bids, change.asks)),
     ],
     'rest-snapshot-sequenced': (first: Sides, deltas: readonly Sides[]): BookInput[] => [
       { kind: 'rest-snapshot', epoch: 1, lastUpdateId: 10, bids: first.bids, asks: first.asks },
-      ...deltas.map((d, i) => delta(d.bids, d.asks, [11 + i, 11 + i])),
+      ...deltas.map((change, index) => delta(change.bids, change.asks, [11 + index, 11 + index])),
     ],
   } as const
 

@@ -20,14 +20,14 @@ type Wire =
   | { e: 'trade'; s: string; t: number; p: string; q: string; T: number; m: boolean }
   | { e: 'kline'; s: string; k: WireKline }
 
-const isKline = (k: Partial<WireKline> | undefined): k is WireKline =>
-  isNumber(k?.t) && [k.i, k.o, k.h, k.l, k.c, k.v].every(isText)
+const isKline = (kline: Partial<WireKline> | undefined): kline is WireKline =>
+  isNumber(kline?.t) && [kline.i, kline.o, kline.h, kline.l, kline.c, kline.v].every(isText)
 
 function streamName(target: StreamTarget): string {
-  const s = target.spec.venueSymbol.toLowerCase()
-  if (target.channel === 'book') return `${s}@depth@100ms`
-  if (target.channel === 'trades') return `${s}@trade`
-  return `${s}@kline_${target.interval ?? '1m'}`
+  const symbol = target.spec.venueSymbol.toLowerCase()
+  if (target.channel === 'book') return `${symbol}@depth@100ms`
+  if (target.channel === 'trades') return `${symbol}@trade`
+  return `${symbol}@kline_${target.interval ?? '1m'}`
 }
 
 let requestId = 0
@@ -69,30 +69,49 @@ export function binance(network: Network): VenueAdapter {
     parse(raw, symbols) {
       const json = JSON.parse(raw) as { data?: Wire; result?: unknown } & Partial<Wire>
       if ('result' in json) return []
-      const m = (json.data ?? json) as Wire
-      const market = symbols(m.s)
+      const frame = (json.data ?? json) as Wire
+      const market = symbols(frame.s)
       if (!market) return []
-      switch (m.e) {
+      switch (frame.e) {
         case 'depthUpdate':
-          if (!isPairs(m.b) || !isPairs(m.a) || !isNumber(m.U) || !isNumber(m.u) || !isNumber(m.E)) break
-          return [{ kind: 'book-delta', market, bids: m.b, asks: m.a, seq: { from: m.U, to: m.u }, time: m.E }]
+          if (!isPairs(frame.b) || !isPairs(frame.a) || !isNumber(frame.U) || !isNumber(frame.u) || !isNumber(frame.E))
+            break
+          return [
+            {
+              kind: 'book-delta',
+              market,
+              bids: frame.b,
+              asks: frame.a,
+              seq: { from: frame.U, to: frame.u },
+              time: frame.E,
+            },
+          ]
         case 'trade':
-          if (!isNumber(m.t) || !isText(m.p) || !isText(m.q) || typeof m.m !== 'boolean' || !isNumber(m.T)) break
+          if (
+            !isNumber(frame.t)
+            || !isText(frame.p)
+            || !isText(frame.q)
+            || typeof frame.m !== 'boolean'
+            || !isNumber(frame.T)
+          )
+            break
           return [
             {
               kind: 'trades',
               market,
-              trades: [{ id: String(m.t), px: m.p, qty: m.q, side: m.m ? 'sell' : 'buy', time: m.T }],
+              trades: [
+                { id: String(frame.t), px: frame.p, qty: frame.q, side: frame.m ? 'sell' : 'buy', time: frame.T },
+              ],
             },
           ]
         case 'kline':
-          if (!isKline(m.k)) break
+          if (!isKline(frame.k)) break
           return [
             {
               kind: 'candle',
               market,
-              interval: m.k.i as Interval,
-              candles: [{ open: m.k.t, o: m.k.o, h: m.k.h, l: m.k.l, c: m.k.c, v: m.k.v }],
+              interval: frame.k.i as Interval,
+              candles: [{ open: frame.k.t, o: frame.k.o, h: frame.k.h, l: frame.k.l, c: frame.k.c, v: frame.k.v }],
             },
           ]
       }
@@ -100,14 +119,14 @@ export function binance(network: Network): VenueAdapter {
     },
 
     async fetchStats(base, fetch, signal) {
-      const t = await getJson<{ priceChangePercent: string; quoteVolume: string }>(
+      const ticker = await getJson<{ priceChangePercent: string; quoteVolume: string }>(
         fetch,
         `${rest}/ticker/24hr?symbol=${symbolOf(base)}`,
         { signal: signal ?? null },
       )
       return {
-        changePct: Number(t.priceChangePercent),
-        volumeQuote: Number(t.quoteVolume),
+        changePct: Number(ticker.priceChangePercent),
+        volumeQuote: Number(ticker.quoteVolume),
         fundingRate: null,
         indexPrice: null,
       }
@@ -118,7 +137,9 @@ export function binance(network: Network): VenueAdapter {
       const rows = await getJson<[number, string, string, string, string, string][]>(fetch, url, {
         signal: signal ?? null,
       })
-      return rows.map(([t, o, h, l, c, v]) => chartBar(t, o, h, l, c, v))
+      return rows.map(([openTime, open, high, low, close, volume]) =>
+        chartBar(openTime, open, high, low, close, volume),
+      )
     },
   }
 }

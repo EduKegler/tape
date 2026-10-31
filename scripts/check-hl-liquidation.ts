@@ -32,13 +32,13 @@ type State = {
 
 const count = Number(process.argv[2] ?? 40)
 const meta = await info<Meta>({ type: 'meta' })
-const tables = new Map(meta.marginTables.map(([id, t]) => [id, t.marginTiers]))
+const tables = new Map(meta.marginTables.map(([id, table]) => [id, table.marginTiers]))
 const tiersOf = new Map<string, MarginTier[]>(
-  meta.universe.map((u) => [
-    u.name,
-    (tables.get(u.marginTableId) ?? [{ lowerBound: '0', maxLeverage: u.maxLeverage }]).map((t) => ({
-      lowerBound: Number(t.lowerBound),
-      maxLeverage: t.maxLeverage,
+  meta.universe.map((asset) => [
+    asset.name,
+    (tables.get(asset.marginTableId) ?? [{ lowerBound: '0', maxLeverage: asset.maxLeverage }]).map((tier) => ({
+      lowerBound: Number(tier.lowerBound),
+      maxLeverage: tier.maxLeverage,
     })),
   ]),
 )
@@ -46,8 +46,8 @@ const tiersOf = new Map<string, MarginTier[]>(
 const board = (await (await fetch('https://stats-data.hyperliquid.xyz/Mainnet/leaderboard')).json()) as {
   leaderboardRows: { ethAddress: string; accountValue: string }[]
 }
-const rows = board.leaderboardRows.filter((r) => Number(r.accountValue) > 1_000)
-const picked = Array.from({ length: count }, (_, i) => rows[Math.floor((i * rows.length) / count)]!)
+const rows = board.leaderboardRows.filter((row) => Number(row.accountValue) > 1_000)
+const picked = Array.from({ length: count }, (_, index) => rows[Math.floor((index * rows.length) / count)]!)
 
 const errors: number[] = []
 const skipped: Record<string, number> = {}
@@ -57,16 +57,20 @@ for (const { ethAddress: user } of picked) {
     info<string>({ type: 'userAbstraction', user }),
     info<State>({ type: 'clearinghouseState', user }),
   ])
-  for (const { position: p } of state.assetPositions) {
+  for (const { position } of state.assetPositions) {
     const why =
-      mode === 'unifiedAccount' || mode === 'portfolioMargin' ? mode : p.leverage.type !== 'cross' ? 'isolated' : null
+      mode === 'unifiedAccount' || mode === 'portfolioMargin'
+        ? mode
+        : position.leverage.type !== 'cross'
+          ? 'isolated'
+          : null
     if (why) {
       skipped[why] = (skipped[why] ?? 0) + 1
       continue
     }
-    const tiers = tiersOf.get(p.coin)!
-    const size = Number(p.szi)
-    const value = Number(p.positionValue)
+    const tiers = tiersOf.get(position.coin)!
+    const size = Number(position.szi)
+    const value = Number(position.positionValue)
     const ours = estimateLiquidation(
       {
         kind: 'cross',
@@ -77,21 +81,21 @@ for (const { ethAddress: user } of picked) {
       },
       null,
     )
-    if (!p.liquidationPx) {
+    if (!position.liquidationPx) {
       noPrice += 1
-      if (ours.kind !== 'none') console.log('venue has no price, ours does', user, p.coin, ours)
+      if (ours.kind !== 'none') console.log('venue has no price, ours does', user, position.coin, ours)
       errors.push(ours.kind === 'none' ? 0 : Infinity)
       continue
     }
-    const venue = Number(p.liquidationPx)
+    const venue = Number(position.liquidationPx)
     const err = ours.kind === 'price' ? Math.abs(ours.px - venue) / venue : Infinity
     errors.push(err)
-    if (err > 0.001) console.log('off by more than 0.1%', user, p.coin, mode, { venue, ours })
+    if (err > 0.001) console.log('off by more than 0.1%', user, position.coin, mode, { venue, ours })
   }
 }
 
-errors.sort((a, b) => a - b)
-const pct = (q: number) => `${((errors[Math.floor(q * (errors.length - 1))] ?? NaN) * 100).toFixed(4)}%`
+errors.sort((left, right) => left - right)
+const pct = (quantile: number) => `${((errors[Math.floor(quantile * (errors.length - 1))] ?? NaN) * 100).toFixed(4)}%`
 console.log({
   accounts: picked.length,
   positions: errors.length,

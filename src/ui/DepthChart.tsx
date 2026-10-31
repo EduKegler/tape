@@ -9,46 +9,49 @@ function cssVar(el: Element, name: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim()
 }
 
-function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
+function draw(canvas: HTMLCanvasElement, frame: DepthFrame): void {
   const dpr = window.devicePixelRatio || 1
-  const { clientWidth: w, clientHeight: h } = canvas
-  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-    canvas.width = w * dpr
-    canvas.height = h * dpr
+  const { clientWidth: width, clientHeight: height } = canvas
+  if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+    canvas.width = width * dpr
+    canvas.height = height * dpr
   }
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.clearRect(0, 0, w, h)
-  if (!f.bids.px.length || !f.asks.px.length || !f.mid) return
-  const reach = Math.min(f.mid - (f.bids.px.at(-1) ?? f.mid), (f.asks.px.at(-1) ?? f.mid) - f.mid)
-  const lo = f.mid - reach
-  const hi = f.mid + reach
+  ctx.clearRect(0, 0, width, height)
+  if (!frame.bids.px.length || !frame.asks.px.length || !frame.mid) return
+  const reach = Math.min(
+    frame.mid - (frame.bids.px.at(-1) ?? frame.mid),
+    (frame.asks.px.at(-1) ?? frame.mid) - frame.mid,
+  )
+  const lo = frame.mid - reach
+  const hi = frame.mid + reach
   const cumAt = (side: DepthSide, inside: (px: number) => boolean) => {
-    let c = 0
-    for (let i = 0; i < side.px.length && inside(side.px[i]!); i++) c = side.cum[i]!
-    return c
+    let cumulative = 0
+    for (let level = 0; level < side.px.length && inside(side.px[level]!); level++) cumulative = side.cum[level]!
+    return cumulative
   }
   const max =
     Math.max(
-      cumAt(f.bids, (p) => p >= lo),
-      cumAt(f.asks, (p) => p <= hi),
+      cumAt(frame.bids, (price) => price >= lo),
+      cumAt(frame.asks, (price) => price <= hi),
     ) || 1
-  const x = (px: number) => ((px - lo) / (hi - lo)) * w
-  const y = (cum: number) => h - 4 - (cum / max) * (h - 20)
+  const priceX = (px: number) => ((px - lo) / (hi - lo)) * width
+  const depthY = (cum: number) => height - 4 - (cum / max) * (height - 20)
   const area = (side: DepthSide, sign: 1 | -1, stroke: string, fill: string) => {
     ctx.beginPath()
-    ctx.moveTo(x(f.mid), h)
+    ctx.moveTo(priceX(frame.mid), height)
     let prev = 0
-    for (let i = 0; i < side.px.length; i++) {
-      const px = side.px[i]!
+    for (let level = 0; level < side.px.length; level++) {
+      const px = side.px[level]!
       if (sign === -1 ? px < lo : px > hi) break
-      ctx.lineTo(x(px), y(prev))
-      prev = side.cum[i]!
-      ctx.lineTo(x(px), y(prev))
+      ctx.lineTo(priceX(px), depthY(prev))
+      prev = side.cum[level]!
+      ctx.lineTo(priceX(px), depthY(prev))
     }
-    ctx.lineTo(x(sign === -1 ? lo : hi), y(prev))
-    ctx.lineTo(x(sign === -1 ? lo : hi), h)
+    ctx.lineTo(priceX(sign === -1 ? lo : hi), depthY(prev))
+    ctx.lineTo(priceX(sign === -1 ? lo : hi), height)
     ctx.closePath()
     ctx.fillStyle = fill
     ctx.fill()
@@ -56,24 +59,24 @@ function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
     ctx.lineWidth = 1.25
     ctx.stroke()
   }
-  area(f.bids, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
-  area(f.asks, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
+  area(frame.bids, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
+  area(frame.asks, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
   ctx.fillStyle = cssVar(canvas, '--level3')
   ctx.font = `11px ${cssVar(canvas, '--font-sans')}`
   ctx.textAlign = 'left'
-  ctx.fillText(lo.toLocaleString('en-US', { maximumFractionDigits: 2 }), 6, h - 6)
+  ctx.fillText(lo.toLocaleString('en-US', { maximumFractionDigits: 2 }), 6, height - 6)
   ctx.textAlign = 'right'
-  ctx.fillText(hi.toLocaleString('en-US', { maximumFractionDigits: 2 }), w - 6, h - 6)
+  ctx.fillText(hi.toLocaleString('en-US', { maximumFractionDigits: 2 }), width - 6, height - 6)
 }
 
 export function DepthChart({ market }: { market: MarketKey }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const last = useRef<DepthFrame | null>(null)
   const raf = useRef(0)
-  useFrameEffect({ kind: 'depth', market }, (f) => {
-    last.current = f
+  useFrameEffect({ kind: 'depth', market }, (frame) => {
+    last.current = frame
     cancelAnimationFrame(raf.current)
-    raf.current = requestAnimationFrame(() => canvas.current && draw(canvas.current, f))
+    raf.current = requestAnimationFrame(() => canvas.current && draw(canvas.current, frame))
   })
   useEffect(() => {
     const el = canvas.current

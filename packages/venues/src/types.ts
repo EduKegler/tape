@@ -135,13 +135,20 @@ export async function getExactJson<T>(fetch: typeof globalThis.fetch, url: strin
   return parseExactJson<T>(await response.text())
 }
 
-export function chartBar(open: number, o: string, h: string, l: string, c: string, v: string): ChartBar {
+export function chartBar(
+  openTime: number,
+  open: string,
+  high: string,
+  low: string,
+  close: string,
+  volume: string,
+): ChartBar {
   return {
-    time: Math.floor(open / 1000),
-    open: Number(o),
-    high: Number(h),
-    low: Number(l),
-    close: Number(c),
-    volume: Number(v),
+    time: Math.floor(openTime / 1000),
+    open: Number(open),
+    high: Number(high),
+    low: Number(low),
+    close: Number(close),
+    volume: Number(volume),
   }
 }

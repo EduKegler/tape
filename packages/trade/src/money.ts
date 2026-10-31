@@ -21,21 +21,21 @@ export function amount(text: string): Amount {
 
 function roundedQuotient(numerator: bigint, denominator: bigint): bigint {
   const negative = numerator < 0n !== denominator < 0n
-  const n = numerator < 0n ? -numerator : numerator
-  const d = denominator < 0n ? -denominator : denominator
-  const q = (n * 2n + d) / (d * 2n)
-  return negative ? -q : q
+  const absNumerator = numerator < 0n ? -numerator : numerator
+  const absDenominator = denominator < 0n ? -denominator : denominator
+  const quotient = (absNumerator * 2n + absDenominator) / (absDenominator * 2n)
+  return negative ? -quotient : quotient
 }
 
-export const add = (a: Amount, b: Amount) => (a + b) as Amount
-export const subtract = (a: Amount, b: Amount) => (a - b) as Amount
-export const negate = (a: Amount) => (0n - a) as Amount
-export const abs = (a: Amount) => (a < 0n ? 0n - a : a) as Amount
-export const multiply = (a: Amount, b: Amount) => roundedQuotient(a * b, ONE) as Amount
-export const divide = (a: Amount, b: Amount) => roundedQuotient(a * ONE, b) as Amount
+export const add = (left: Amount, right: Amount) => (left + right) as Amount
+export const subtract = (left: Amount, right: Amount) => (left - right) as Amount
+export const negate = (value: Amount) => (0n - value) as Amount
+export const abs = (value: Amount) => (value < 0n ? 0n - value : value) as Amount
+export const multiply = (left: Amount, right: Amount) => roundedQuotient(left * right, ONE) as Amount
+export const divide = (left: Amount, right: Amount) => roundedQuotient(left * ONE, right) as Amount
 export const sum = (values: Iterable<Amount>) => {
   let total = ZERO
-  for (const v of values) total = add(total, v)
+  for (const value of values) total = add(total, value)
   return total
 }
 

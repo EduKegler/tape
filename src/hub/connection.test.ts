@@ -4,17 +4,17 @@ import { stepConnection } from './connection'
 import type { ConnEffect, ConnState } from './connection'
 
 const policy = { silenceMs: 30_000, keepaliveMs: null }
-const keys = (...k: string[]) => new Set(k as StreamKey[])
+const keys = (...names: string[]) => new Set(names as StreamKey[])
 const input = (desired: Set<StreamKey>, now = 0, lastMessageAt = now) => ({ desired, now, lastMessageAt, rand: 0.5 })
 const fx = (effects: readonly ConnEffect[]) =>
-  effects.map((e) => ('streams' in e ? `${e.fx}:${e.streams.join(',')}` : e.fx))
+  effects.map((effect) => ('streams' in effect ? `${effect.fx}:${effect.streams.join(',')}` : effect.fx))
 
 describe('stepConnection', () => {
   it('opens, then subscribes everything desired', () => {
-    const a = stepConnection({ s: 'idle' }, { e: 'tick' }, input(keys('a', 'b')), policy)
-    expect(fx(a.effects)).toEqual(['open'])
-    const b = stepConnection(a.state, { e: 'opened' }, input(keys('a', 'b')), policy)
-    expect(fx(b.effects)).toEqual(['subscribe:a,b'])
+    const connecting = stepConnection({ s: 'idle' }, { e: 'tick' }, input(keys('a', 'b')), policy)
+    expect(fx(connecting.effects)).toEqual(['open'])
+    const open = stepConnection(connecting.state, { e: 'opened' }, input(keys('a', 'b')), policy)
+    expect(fx(open.effects)).toEqual(['subscribe:a,b'])
   })
 
   it('moves subscriptions toward the desired set and does nothing when they match', () => {
@@ -92,7 +92,7 @@ describe('stepConnection', () => {
     let state: ConnState = { s: 'idle' }
     const delays: number[] = []
     let now = 0
-    for (let i = 0; i < 4; i++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       state = stepConnection(state, { e: 'tick' }, input(keys('a'), now), policy).state
       state = stepConnection(state, { e: 'opened' }, input(keys('a'), now), policy).state
       state = stepConnection(state, { e: 'closed' }, input(keys('a'), now + 100), policy).state
@@ -100,7 +100,7 @@ describe('stepConnection', () => {
       delays.push(state.retryAt - (now + 100))
       now = state.retryAt
     }
-    expect(delays).toEqual([1000, 2000, 4000, 8000].map((d) => d * 0.75))
+    expect(delays).toEqual([1000, 2000, 4000, 8000].map((delay) => delay * 0.75))
   })
 
   it('starts the backoff over after a connection that stayed up', () => {
