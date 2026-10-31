@@ -18,7 +18,9 @@ const EMPTY: Record<string, unknown> = {
 }
 
 /** Orderly testnet's recorded replies while a fresh wallet registered, added a key and was read back. */
-const [UNREGISTERED, NONCE, REGISTER, KEY_ADDED] = recordedWrite('orderly', 'enable').exchanges.map((e) => e.response)
+const [UNREGISTERED, NONCE, REGISTER, KEY_ADDED] = recordedWrite('orderly', 'enable').exchanges.map(
+  (exchange) => exchange.response,
+)
 const REGISTERED = recordedWrite('orderly', 'stepsDone').exchanges[0]!.response
 const SETUP_WRITES: Record<string, unknown> = { '/v1/register_account': REGISTER, '/v1/orderly_key': KEY_ADDED }
 

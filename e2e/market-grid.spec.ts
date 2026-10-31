@@ -61,7 +61,7 @@ test('at 1280×800 the header keeps one line, also while the ticker says it is r
 const failRead = (route: Route) => route.fulfill({ status: 503, body: '' })
 
 const barHeights = (page: Page) =>
-  page.locator('section > header').evaluateAll((bars) => bars.map((b) => b.getBoundingClientRect().height))
+  page.locator('section > header').evaluateAll((bars) => bars.map((bar) => bar.getBoundingClientRect().height))
 
 test('every panel title bar keeps one height while a panel says a read failed or its data is old', async ({ page }) => {
   await page.route('**/info', failRead)

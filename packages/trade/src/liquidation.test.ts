@@ -13,7 +13,7 @@ const flat = (accountValue: number, tiers = [{ lowerBound: 0, maxLeverage: 50 }]
   position: null,
 })
 
-const px = (l: Liquidation) => (l.kind === 'price' ? l.px : l.kind)
+const px = (liquidation: Liquidation) => (liquidation.kind === 'price' ? liquidation.px : liquidation.kind)
 
 const twoTiers = [
   { lowerBound: 0, maxLeverage: 50 },
@@ -22,8 +22,8 @@ const twoTiers = [
 
 /** Hyperliquid docs, Margin tiers: notional in each tier adds maintenance at that tier's rate. */
 const bandedMaintenance = (tiers: readonly MarginTier[], notional: number) =>
-  tiers.reduce((total, tier, i) => {
-    const upper = tiers[i + 1]?.lowerBound ?? Infinity
+  tiers.reduce((total, tier, index) => {
+    const upper = tiers[index + 1]?.lowerBound ?? Infinity
     const inBand = Math.max(0, Math.min(notional, upper) - tier.lowerBound)
     return total + inBand / (2 * tier.maxLeverage)
   }, 0)
@@ -36,13 +36,13 @@ const tierShapeArb = fc
         minLength: leverages.length - 1,
         maxLength: leverages.length - 1,
       })
-      .map((shares) => ({ leverages: leverages.toSorted((x, y) => y - x), shares })),
+      .map((shares) => ({ leverages: leverages.toSorted((left, right) => right - left), shares })),
   )
 
 const tiersAround = (shape: { leverages: number[]; shares: number[] }, notional: number): MarginTier[] => {
   let lowerBound = 0
-  return shape.leverages.map((maxLeverage, i) => {
-    if (i > 0) lowerBound += (shape.shares[i - 1] ?? 0) * notional
+  return shape.leverages.map((maxLeverage, index) => {
+    if (index > 0) lowerBound += (shape.shares[index - 1] ?? 0) * notional
     return { lowerBound, maxLeverage }
   })
 }
@@ -126,8 +126,8 @@ describe('liquidation estimate', () => {
           const accountValue = marginRatio * size * entryPx
           const othersMaintenance = othersShare * accountValue
           const signed = side === 'buy' ? size : -size
-          const slack = (p: number) =>
-            accountValue + signed * (p - entryPx) - othersMaintenance - bandedMaintenance(tiers, size * p)
+          const slack = (price: number) =>
+            accountValue + signed * (price - entryPx) - othersMaintenance - bandedMaintenance(tiers, size * price)
           const scale = accountValue + size * entryPx
           fc.pre(Math.abs(slack(entryPx)) > 1e-9 * scale && Math.abs(slack(0)) > 1e-9 * scale)
 

@@ -43,7 +43,9 @@ function Pairing({ connector, onCancel }: { connector: Connector; onCancel: () =
 
 function Qr({ text }: { text: string }) {
   const { size, data } = encode(text, { border: 2 })
-  const path = data.flatMap((row, y) => row.flatMap((dark, x) => (dark ? [`M${x} ${y}h1v1h-1z`] : []))).join('')
+  const path = data
+    .flatMap((row, top) => row.flatMap((dark, left) => (dark ? [`M${left} ${top}h1v1h-1z`] : [])))
+    .join('')
   return (
     <svg
       role="img"

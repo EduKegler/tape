@@ -1,3 +1,4 @@
+import { toDecimals, toPx } from './fixed'
 import type { Base, Brand, MarketKey, VenueId } from './ids'
 import type { Decimals, Px, Qty, Scale } from './fixed'
 
@@ -31,28 +32,37 @@ export interface MarketGroup {
   readonly markets: readonly MarketSpec[]
 }
 
-export function effectiveTick(spec: MarketSpec, ref: Px): Px {
+export function effectiveTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, ref: Px): Px {
   if (spec.tick.kind === 'fixed') return spec.tick.tick
-  if (ref <= 0) return 1 as Px
+  if (ref <= 0) return toPx(1)
   const integerDigits = Math.floor(Math.log10(ref / 10 ** spec.scale.px)) + 1
   const exponent = integerDigits - spec.tick.figures
-  return Math.max(1, 10 ** (exponent + spec.scale.px)) as Px
+  return toPx(Math.max(1, 10 ** (exponent + spec.scale.px)))
 }
 
 /** The step an order price must sit on. Hyperliquid also accepts any whole price, above 5 figures too. */
-export function priceTick(spec: MarketSpec, px: Px): Px {
-  return Math.min(effectiveTick(spec, px), 10 ** spec.scale.px) as Px
+export function priceTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, px: Px): Px {
+  return toPx(Math.min(effectiveTick(spec, px), 10 ** spec.scale.px))
 }
 
 /** A grouping increment in px units, a positive multiple of the effective tick. */
 export type GroupStep = Brand<Px, 'GroupStep'>
+
+function isGroupStep(units: Px): units is GroupStep {
+  return units > 0
+}
+
+function toGroupStep(units: Px): GroupStep {
+  if (!isGroupStep(units)) throw new RangeError(`group step ${units} is not positive`)
+  return units
+}
 
 const MULTIPLES = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000] as const
 const OPTION_COUNT = 6
 
 function stepsAt(spec: MarketSpec, mid: Px): GroupStep[] {
   const tick = effectiveTick(spec, mid)
-  return MULTIPLES.map((m) => (tick * m) as GroupStep)
+  return MULTIPLES.map((multiple) => toGroupStep(toPx(tick * multiple)))
 }
 
 /** The allowed step closest to `requested` (a decimal string from the URL), or the tick when it does not parse. */
@@ -74,7 +84,7 @@ export function groupDecimals(spec: MarketSpec, step: Px): Decimals {
     units /= 10
     decimals -= 1
   }
-  return decimals as Decimals
+  return toDecimals(decimals)
 }
 
 /** `side` is the aggressor, so a Binance m=true trade is a sell. */
@@ -109,13 +119,13 @@ export function emptyTape(): TradeTape {
 }
 
 export function pushTrades(tape: TradeTape, trades: readonly Trade[]): boolean {
-  const fresh = trades.filter((t) => !tape.seen.has(t.id))
+  const fresh = trades.filter((trade) => !tape.seen.has(trade.id))
   if (fresh.length === 0) return false
-  for (const t of fresh) tape.seen.add(t.id)
-  const items = [...fresh, ...tape.items].sort((a, b) => b.time - a.time).slice(0, TRADE_LIMIT)
+  for (const trade of fresh) tape.seen.add(trade.id)
+  const items = [...fresh, ...tape.items].sort((left, right) => right.time - left.time).slice(0, TRADE_LIMIT)
   if (tape.seen.size > TRADE_LIMIT * 4) {
     tape.seen.clear()
-    for (const t of items) tape.seen.add(t.id)
+    for (const trade of items) tape.seen.add(trade.id)
   }
   tape.items = items
   return true

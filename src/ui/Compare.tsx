@@ -8,7 +8,7 @@ import { TopicStatus } from './PanelStatus'
 import { Table } from './primitives'
 import type { Column } from './primitives'
 
-const listed = (r: CompareRow) => r.status !== 'unlisted'
+const listed = (row: CompareRow) => row.status !== 'unlisted'
 
 function Quote({ value, best, side }: { value: string; best: boolean; side: 'bid' | 'ask' }) {
   if (!best) return value || '—'
@@ -24,23 +24,23 @@ function Quote({ value, best, side }: { value: string; best: boolean; side: 'bid
 }
 
 const columns: Column<CompareRow>[] = [
-  { header: 'Venue', cell: (r) => VENUES[r.venue].label },
+  { header: 'Venue', cell: (row) => VENUES[row.venue].label },
   {
     header: 'Bid',
-    cell: (r) =>
-      listed(r) ? (
-        <Quote value={r.bid} best={r.bestBid} side="bid" />
+    cell: (row) =>
+      listed(row) ? (
+        <Quote value={row.bid} best={row.bestBid} side="bid" />
       ) : (
         <span className="font-sans text-level3">Not shown</span>
       ),
   },
-  { header: 'Ask', cell: (r) => listed(r) && <Quote value={r.ask} best={r.bestAsk} side="ask" /> },
-  { header: 'Basis', cell: (r) => listed(r) && (r.basisBps || '—') },
+  { header: 'Ask', cell: (row) => listed(row) && <Quote value={row.ask} best={row.bestAsk} side="ask" /> },
+  { header: 'Basis', cell: (row) => listed(row) && (row.basisBps || '—') },
 ]
-const NO_ROWS: CompareRow[] = []
+const NO_ROWS: readonly CompareRow[] = []
 
 export function Compare({ base, current }: { base: Base; current: VenueId }) {
-  const rows = useFrame({ kind: 'compare', base }, (f) => (f?.rows as CompareRow[] | undefined) ?? NO_ROWS)
+  const rows = useFrame({ kind: 'compare', base }, (frame) => frame?.rows ?? NO_ROWS)
   const navigate = useNavigate()
   const keys = useRowKeys()
   return (
@@ -52,11 +52,12 @@ export function Compare({ base, current }: { base: Base; current: VenueId }) {
       <div role="group" aria-label="Venue list" {...keys}>
         <Table
           rows={rows}
-          rowKey={(r) => r.venue}
+          rowKey={(row) => row.venue}
           columns={columns}
-          isCurrent={(r) => r.venue === current}
-          onRowClick={(r) =>
-            listed(r) && void navigate({ to: '/$venue/$base', params: { venue: r.venue, base }, search: (s) => s })
+          isCurrent={(row) => row.venue === current}
+          onRowClick={(row) =>
+            listed(row)
+            && void navigate({ to: '/$venue/$base', params: { venue: row.venue, base }, search: (search) => search })
           }
         />
       </div>

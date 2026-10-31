@@ -1,5 +1,6 @@
-import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
+import { isBase, isInterval, isTabId, parseMarketKey } from '@tape/core/ids'
 import type { TabId } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import type { ExceptionEvent } from '#/analytics/exception'
 import type { Frame, Topic } from './topics'
 
@@ -25,42 +26,40 @@ export type HubToTab =
   | { readonly t: 'stats'; readonly stats: HubStats }
   | { readonly t: 'exception'; readonly event: ExceptionEvent }
 
-function parseTopic(value: unknown): Topic | null {
-  if (typeof value !== 'object' || value === null) return null
-  const v = value as Record<string, unknown>
-  if (v.kind === 'compare')
-    return typeof v.base === 'string' && isBase(v.base) ? { kind: 'compare', base: v.base } : null
-  const market = typeof v.market === 'string' ? parseMarketKey(v.market) : null
+function parseTopic(fields: unknown): Topic | null {
+  if (!isRecord(fields)) return null
+  if (fields.kind === 'compare')
+    return typeof fields.base === 'string' && isBase(fields.base) ? { kind: 'compare', base: fields.base } : null
+  const market = typeof fields.market === 'string' ? parseMarketKey(fields.market) : null
   if (!market) return null
-  switch (v.kind) {
+  switch (fields.kind) {
     case 'book':
-      return typeof v.group === 'string' ? { kind: 'book', market, group: v.group } : null
+      return typeof fields.group === 'string' ? { kind: 'book', market, group: fields.group } : null
     case 'depth':
     case 'trades':
-      return { kind: v.kind, market }
+      return { kind: fields.kind, market }
     case 'candle':
-      return typeof v.interval === 'string' && isInterval(v.interval)
-        ? { kind: 'candle', market, interval: v.interval }
+      return typeof fields.interval === 'string' && isInterval(fields.interval)
+        ? { kind: 'candle', market, interval: fields.interval }
         : null
     default:
       return null
   }
 }
 
-export function parseTabMessage(data: unknown): TabToHub | null {
-  if (typeof data !== 'object' || data === null) return null
-  const m = data as Record<string, unknown>
-  switch (m.t) {
+export function parseTabMessage(message: unknown): TabToHub | null {
+  if (!isRecord(message)) return null
+  switch (message.t) {
     case 'hello':
-      return typeof m.tab === 'string' && typeof m.visible === 'boolean'
-        ? { t: 'hello', tab: m.tab as TabId, visible: m.visible }
+      return typeof message.tab === 'string' && isTabId(message.tab) && typeof message.visible === 'boolean'
+        ? { t: 'hello', tab: message.tab, visible: message.visible }
         : null
     case 'want':
-      return Array.isArray(m.topics)
-        ? { t: 'want', topics: m.topics.map(parseTopic).filter((x): x is Topic => x !== null) }
+      return Array.isArray(message.topics)
+        ? { t: 'want', topics: message.topics.map(parseTopic).filter((topic): topic is Topic => topic !== null) }
         : null
     case 'visible':
-      return typeof m.visible === 'boolean' ? { t: 'visible', visible: m.visible } : null
+      return typeof message.visible === 'boolean' ? { t: 'visible', visible: message.visible } : null
     case 'bye':
       return { t: 'bye' }
     default:

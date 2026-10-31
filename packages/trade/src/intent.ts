@@ -1,10 +1,11 @@
-import { DecimalError, formatPx, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
+import { DecimalError, formatPx, formatQty, notional, parsePx, parseQty, toPx, toQty } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import { bytesToHex } from 'viem'
 import { SKEW, scaleLegs, toTick } from './scale-order'
 import type { Slice } from './scale-order'
+import { isClientOrderId, toBps } from './types'
 import type {
   Bps,
   Capabilities,
@@ -18,34 +19,35 @@ import type {
   Tif,
 } from './types'
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an OrderIntent is made, from checked fields
 const intentOf = (fields: IntentFields, clientId = newClientId()) => ({ ...fields, clientId }) as OrderIntent
 
 const atMost = (places: number) =>
   places === 0 ? 'No decimals' : `At most ${places} ${places === 1 ? 'decimal' : 'decimals'}`
 
-export function checkPrice(spec: MarketSpec, value: string): string | undefined {
+export function checkPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, value: string): string | undefined {
   if (!value) return 'Enter a price'
   try {
     const px = parsePx(value, spec.scale)
     if (px <= 0) return 'Price must be above zero'
     const tick = priceTick(spec, px)
     if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
-  } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? atMost(spec.scale.px) : 'Not a number'
-    throw e
+  } catch (error) {
+    if (error instanceof DecimalError) return error.reason === 'precision' ? atMost(spec.scale.px) : 'Not a number'
+    throw error
   }
   return undefined
 }
 
-export function checkSize(spec: MarketSpec, value: string): string | undefined {
+export function checkSize(spec: Pick<MarketSpec, 'scale' | 'step'>, value: string): string | undefined {
   if (!value) return 'Enter a size'
   try {
     const qty = parseQty(value, spec.scale)
     if (qty < spec.step) return `Minimum is ${formatQty(spec.step, spec.scale)}`
     if (qty % spec.step !== 0) return `Size must be a multiple of ${formatQty(spec.step, spec.scale)}`
-  } catch (e) {
-    if (e instanceof DecimalError) return e.reason === 'precision' ? atMost(spec.scale.qty) : 'Not a number'
-    throw e
+  } catch (error) {
+    if (error instanceof DecimalError) return error.reason === 'precision' ? atMost(spec.scale.qty) : 'Not a number'
+    throw error
   }
   return undefined
 }
@@ -90,19 +92,25 @@ export interface IntentDraft {
 /** The nth take profit of a draft, counted from 1. */
 export type TakeProfitField = `takeProfit${number}`
 export type ExitField = TakeProfitField | 'stopLoss'
+const NAMED_FIELDS = [
+  'price',
+  'size',
+  'tif',
+  'takeProfits',
+  'stopLoss',
+  'start',
+  'end',
+  'count',
+  'skew',
+  'retracement',
+  'activation',
+] as const
 /** `takeProfits` holds what is wrong with the take profits together, such as sizes that miss the order size. */
-export type DraftField =
-  | 'price'
-  | 'size'
-  | 'tif'
-  | 'takeProfits'
-  | ExitField
-  | 'start'
-  | 'end'
-  | 'count'
-  | 'skew'
-  | 'retracement'
-  | 'activation'
+export type DraftField = (typeof NAMED_FIELDS)[number] | TakeProfitField
+
+export function isDraftField(name: string): name is DraftField {
+  return (NAMED_FIELDS as readonly string[]).includes(name) || /^takeProfit[1-9]\d*$/.test(name)
+}
 type Errors = Partial<Record<DraftField, string>>
 export type Built =
   { readonly ok: true; readonly intent: OrderIntent } | { readonly ok: false; readonly errors: Errors }
@@ -126,15 +134,15 @@ export function checkExits(
   const buy = side === 'buy'
   const near = buy ? entry.bid : entry.ask
   const far = buy ? entry.ask : entry.bid
-  const beyond = (a: Px, b: Px) => (buy ? a > b : a < b)
+  const beyond = (price: Px, bound: Px) => (buy ? price > bound : price < bound)
   const nearName = buy ? 'the bid' : 'the ask'
   const farName = buy ? 'the ask' : 'the bid'
   const { takeProfits, stopLoss } = exits
   const against = entry.px ?? far
-  takeProfits.forEach((takeProfit, i) => {
-    if (against === null) errors[takeProfitField(i)] = 'No price on the book yet'
+  takeProfits.forEach((takeProfit, index) => {
+    if (against === null) errors[takeProfitField(index)] = 'No price on the book yet'
     else if (!beyond(takeProfit, against))
-      errors[takeProfitField(i)] = `Must be ${buy ? 'above' : 'below'} ${entry.px === null ? farName : 'the price'}`
+      errors[takeProfitField(index)] = `Must be ${buy ? 'above' : 'below'} ${entry.px === null ? farName : 'the price'}`
   })
   if (stopLoss !== null) {
     if (entry.px === null && near === null) errors.stopLoss = 'No price on the book yet'
@@ -147,21 +155,19 @@ export function checkExits(
 }
 
 export function checkCount(value: string, max: number): string | undefined {
-  const n = Number(value)
-  return Number.isInteger(n) && n >= 2 && n <= max ? undefined : `From 2 to ${max} orders`
+  const count = Number(value)
+  return Number.isInteger(count) && count >= 2 && count <= max ? undefined : `From 2 to ${max} orders`
 }
 
 export function checkShare(value: string): string | undefined {
-  const n = Number(value)
-  return value && Number.isInteger(n) && n >= 1 && n <= 100 ? undefined : 'From 1 to 100%'
+  const share = Number(value)
+  return value && Number.isInteger(share) && share >= 1 && share <= 100 ? undefined : 'From 1 to 100%'
 }
 
 /** Each whole-percent share of the size, floored to the step, with what the floors leave on the last one. */
 export function splitSize(spec: MarketSpec, size: Qty, shares: readonly number[]): readonly Qty[] {
-  const floored = shares
-    .slice(0, -1)
-    .map((share) => (Math.floor((size * share) / (100 * spec.step)) * spec.step) as Qty)
-  return [...floored, (size - floored.reduce((sum, part) => sum + part, 0)) as Qty]
+  const floored = shares.slice(0, -1).map((share) => toQty(Math.floor((size * share) / (100 * spec.step)) * spec.step))
+  return [...floored, toQty(size - floored.reduce((sum, part) => sum + part, 0))]
 }
 
 /** A percent above 0 and below 100 with at most 2 decimals, or a price distance on the tick. */
@@ -170,13 +176,13 @@ export function checkRetracement(spec: MarketSpec, unit: 'pct' | 'px', value: st
   if (!value) return 'Enter a percent'
   if (!/^\d+(?:\.\d+)?$/.test(value)) return 'Not a number'
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return 'At most 2 decimals'
-  const n = Number(value)
-  return n > 0 && n < 100 ? undefined : 'Above 0 and below 100%'
+  const percent = Number(value)
+  return percent > 0 && percent < 100 ? undefined : 'Above 0 and below 100%'
 }
 
 function retracementOf(spec: MarketSpec, draft: IntentDraft): Retracement {
   return draft.retracementUnit === 'pct'
-    ? { pct: Math.round(Number(draft.retracement) * 100) as Bps }
+    ? { pct: toBps(Math.round(Number(draft.retracement) * 100)) }
     : { px: parsePx(draft.retracement, spec.scale) }
 }
 
@@ -192,8 +198,8 @@ function checkTrailing(spec: MarketSpec, draft: IntentDraft, caps: Capabilities,
 }
 
 export function checkSkew(value: string): string | undefined {
-  const n = Number(value)
-  return value && n >= SKEW.min && n <= SKEW.max ? undefined : `Between ${SKEW.min} and ${SKEW.max}`
+  const skew = Number(value)
+  return value && skew >= SKEW.min && skew <= SKEW.max ? undefined : `Between ${SKEW.min} and ${SKEW.max}`
 }
 
 export type ScaleDraft = Pick<IntentDraft, 'side' | 'size' | 'start' | 'end' | 'count' | 'skew'>
@@ -210,7 +216,7 @@ export function buildScale(spec: MarketSpec, draft: ScaleDraft, maxOrders: numbe
     count: checkCount(draft.count, maxOrders),
     skew: checkSkew(draft.skew),
   }
-  for (const [field, issue] of Object.entries(checks)) if (issue) errors[field as DraftField] = issue
+  for (const [field, issue] of Object.entries(checks)) if (issue && isDraftField(field)) errors[field] = issue
   if (Object.keys(errors).length > 0) return { ok: false, errors }
   const built = scaleLegs(
     spec,
@@ -236,7 +242,9 @@ function scaleSlices(spec: MarketSpec, draft: IntentDraft, caps: Capabilities, e
     Object.assign(errors, built.errors)
     return []
   }
-  const small = draft.reduceOnly ? undefined : built.legs.map((l) => belowMinimum(spec, l.px, l.size)).find(Boolean)
+  const small = draft.reduceOnly
+    ? undefined
+    : built.legs.map((leg) => belowMinimum(spec, leg.px, leg.size)).find(Boolean)
   if (small) errors.size = `Each order must be worth at least ${small}`
   return built.legs
 }
@@ -254,27 +262,27 @@ function takeProfitsOf(
     errors.takeProfits = withStop ? `At most ${most} with a stop loss on this venue` : `At most ${most} on this venue`
     return []
   }
-  rows.forEach((row, i) => {
+  rows.forEach((row, index) => {
     const issue = checkPrice(spec, row.price) ?? checkShare(row.share)
-    if (issue) errors[takeProfitField(i)] = issue
+    if (issue) errors[takeProfitField(index)] = issue
   })
-  if (rows.some((_, i) => errors[takeProfitField(i)])) return []
+  if (rows.some((_, index) => errors[takeProfitField(index)])) return []
   const shares = rows.map((row) => Number(row.share))
   const total = shares.reduce((sum, share) => sum + share, 0)
   const size = errors.size ? null : parseQty(draft.size, spec.scale)
   if (total !== 100) {
     const left = total < 100 && size !== null ? Math.round((size * (100 - total)) / (100 * spec.step)) * spec.step : 0
     const missing =
-      left > 0 ? `, so ${formatQty(left as Qty, spec.scale)} ${spec.base} has no take profit` : ', not 100%'
+      left > 0 ? `, so ${formatQty(toQty(left), spec.scale)} ${spec.base} has no take profit` : ', not 100%'
     errors.takeProfits = `Sizes add up to ${total}%${missing}`
     return []
   }
   if (size === null) return []
   const sizes = splitSize(spec, size, shares)
-  sizes.forEach((part, i) => {
-    if (part < spec.step) errors[takeProfitField(i)] = `Size rounds below ${formatQty(spec.step, spec.scale)}`
+  sizes.forEach((part, index) => {
+    if (part < spec.step) errors[takeProfitField(index)] = `Size rounds below ${formatQty(spec.step, spec.scale)}`
   })
-  return rows.map((row, i) => ({ px: parsePx(row.price, spec.scale), size: sizes[i] as Qty }))
+  return rows.map((row, index) => ({ px: parsePx(row.price, spec.scale), size: sizes[index]! }))
 }
 
 function touchPx(spec: MarketSpec, value: string): Px | null {
@@ -294,10 +302,10 @@ export function checkExitPrices(spec: MarketSpec, draft: ExitDraft): Partial<Rec
   if (draft.kind === 'limit' && entry === null) return {}
   const reference = { px: entry, bid: touchPx(spec, draft.bid), ask: touchPx(spec, draft.ask) }
   const issues: Partial<Record<ExitField, string>> = {}
-  draft.takeProfits.forEach((row, i) => {
+  draft.takeProfits.forEach((row, index) => {
     const px = priced(row.price)
     const issue = px === null ? undefined : checkExits(draft.side, reference, { takeProfits: [px], stopLoss: null })
-    if (issue?.takeProfit1) issues[takeProfitField(i)] = issue.takeProfit1
+    if (issue?.takeProfit1) issues[takeProfitField(index)] = issue.takeProfit1
   })
   const stopLoss = priced(draft.stopLoss)
   const issue = stopLoss === null ? undefined : checkExits(draft.side, reference, { takeProfits: [], stopLoss })
@@ -339,7 +347,7 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
       checkExits(
         draft.side,
         { px: entry, bid: touchPx(spec, draft.bid), ask: touchPx(spec, draft.ask) },
-        { takeProfits: takeProfits.map((t) => t.px), stopLoss },
+        { takeProfits: takeProfits.map((takeProfit) => takeProfit.px), stopLoss },
       ),
     )
   const slices = draft.kind === 'scale' ? scaleSlices(spec, draft, caps, errors) : []
@@ -363,7 +371,7 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
           ? {
               kind: 'scale' as const,
               tif: scaleTif,
-              legs: slices.map((l, i) => ({ ...l, clientId: i === 0 ? clientId : newClientId() })),
+              legs: slices.map((slice, index) => ({ ...slice, clientId: index === 0 ? clientId : newClientId() })),
             }
           : { kind: 'market' as const, slippage: draft.slippage }
   return {
@@ -397,15 +405,17 @@ export function closeIntent(spec: MarketSpec, position: Position, slippage: Bps)
 }
 
 export function newClientId(): ClientOrderId {
-  return bytesToHex(crypto.getRandomValues(new Uint8Array(16))) as ClientOrderId
+  const id = bytesToHex(crypto.getRandomValues(new Uint8Array(16)))
+  if (!isClientOrderId(id)) throw new TypeError(`bad client id ${id}`)
+  return id
 }
 
 /**
  * The limit a taking order carries: the far touch moved by the slippage, then onto the tick on
  * the side that keeps it inside the slippage. All three venues send a market order as an IOC limit.
  */
-export function worstPrice(spec: MarketSpec, side: Side, far: Px, slippageBps: number): Px {
+export function worstPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, side: Side, far: Px, slippageBps: number): Px {
   const moved = side === 'buy' ? (far * (10_000 + slippageBps)) / 10_000 : (far * (10_000 - slippageBps)) / 10_000
   const snapped = toTick(spec, side, moved)
-  return Math.max(snapped, priceTick(spec, snapped)) as Px
+  return toPx(Math.max(snapped, priceTick(spec, snapped)))
 }

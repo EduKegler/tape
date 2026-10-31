@@ -102,10 +102,10 @@ function intentOf(spec: MarketSpec, changes: Partial<IntentDraft> = {}) {
   return built.intent
 }
 const place = { kind: 'place', intent: intentOf(btc) } as const
-const failure = (p: Promise<unknown>) =>
-  p.then(
+const failure = (pending: Promise<unknown>) =>
+  pending.then(
     () => null,
-    (e: unknown) => (e instanceof TradeFailure ? e.error : e),
+    (error: unknown) => (error instanceof TradeFailure ? error.error : error),
   )
 function indexer(answer: (url: string) => unknown) {
   const urls: string[] = []
@@ -140,7 +140,7 @@ describe('dydx broadcast', () => {
   it('calls a broadcast reply without a hash an unknown outcome, since the order may be on chain', async () => {
     for (const reply of [undefined, { height: 1, code: 0, rawLog: '' }, { code: 0, log: '', hash: new Uint8Array() }]) {
       chain.reply = reply
-      const error = await dydx.execute(ctx, place).catch((e: unknown) => e)
+      const error = await dydx.execute(ctx, place).catch((thrown: unknown) => thrown)
       expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
     }
   })
@@ -149,7 +149,7 @@ describe('dydx broadcast', () => {
     chain.reply = { height: 1, code: 0, rawLog: '' }
     const error = await dydx
       .execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef })
-      .catch((e: unknown) => e)
+      .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
   })
 
@@ -686,9 +686,9 @@ describe('dydx setup', () => {
     return {
       writes,
       read: () => key,
-      write: (k: StoredKey) => {
-        key = k
-        writes.push(k)
+      write: (next: StoredKey) => {
+        key = next
+        writes.push(next)
       },
       clear: () => {
         key = null
@@ -723,11 +723,11 @@ describe('dydx setup', () => {
     const keys = tab(null)
     const signer = wallet(1)
     const steps: StepId[] = []
-    await dydx.enable({ ...ctx, keys }, signer, (s) => steps.push(s))
+    await dydx.enable({ ...ctx, keys }, signer, (step) => steps.push(step))
     expect(steps).toEqual(['derive-key'])
     // ethereumChainId of the testnet in v4-web's public/configs/v1/env.json.
     expect(signer.switchChain.mock.calls).toEqual([[11_155_111]])
-    expect(signer.signed.map((s) => [s.primaryType, s.domain, s.message])).toEqual([
+    expect(signer.signed.map((request) => [request.primaryType, request.domain, request.message])).toEqual([
       ['dYdX', { name: 'dYdX Chain', chainId: 11_155_111 }, { action: 'dYdX Chain Onboarding' }],
     ])
     expect(chain.deriveKey.mock.calls).toEqual([[SIGNATURE]])

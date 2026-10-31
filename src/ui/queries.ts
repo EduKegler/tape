@@ -11,7 +11,7 @@ export const marketsQuery = (venue: VenueId) =>
   })
 
 const byBase = (groups: readonly MarketGroup[]): ReadonlyMap<Base, MarketSpec> =>
-  new Map(groups.flatMap((g) => g.markets.map((m) => [m.base, m] as const)))
+  new Map(groups.flatMap((group) => group.markets.map((market) => [market.base, market] as const)))
 
 export const specsQuery = (venue: VenueId) => queryOptions({ ...marketsQuery(venue), select: byBase })
 

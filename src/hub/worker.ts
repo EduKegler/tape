@@ -14,6 +14,7 @@ interface WorkerScope {
   postMessage: (message: unknown) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- TypeScript's DOM lib types self as Window, not the worker scope
 const scope = self as unknown as WorkerScope
 const shared = 'onconnect' in scope
 
@@ -26,7 +27,7 @@ function fromWebSocket(ws: WebSocket): SocketLike {
     onclose: null,
   }
   ws.onopen = () => socket.onopen?.()
-  ws.onmessage = (e) => socket.onmessage?.(String(e.data))
+  ws.onmessage = (event) => socket.onmessage?.(String(event.data))
   ws.onclose = () => socket.onclose?.()
   return socket
 }
@@ -46,14 +47,14 @@ const hub = createHub({
 
 // A SharedWorker's errors reach no page on their own, so the hub hands them to a tab.
 const report = createReporter((event) => hub.report(event))
-scope.addEventListener('error', (e) => report(e.error, 'hub', false))
-scope.addEventListener('unhandledrejection', (e) => report(e.reason, 'hub', false))
+scope.addEventListener('error', (event) => report(event.error, 'hub', false))
+scope.addEventListener('unhandledrejection', (event) => report(event.reason, 'hub', false))
 
 function fromPort(port: MessagePort): HubPort {
   return {
-    post: (m: HubToTab) => port.postMessage(m),
+    post: (message: HubToTab) => port.postMessage(message),
     listen: (fn) => {
-      port.onmessage = (e) => fn(e.data)
+      port.onmessage = (event) => fn(event.data)
       port.start()
     },
     close: () => port.close(),
@@ -67,8 +68,8 @@ if (shared) {
   })
 } else {
   hub.connect({
-    post: (m: HubToTab) => scope.postMessage(m),
-    listen: (fn) => scope.addEventListener('message', (e) => fn(e.data)),
+    post: (message: HubToTab) => scope.postMessage(message),
+    listen: (fn) => scope.addEventListener('message', (event) => fn(event.data)),
     close: () => {},
   })
 }

@@ -15,9 +15,9 @@ if (!RECORDED_ON) throw new Error(`NETWORK must be one of ${NETWORKS.join(', ')}
 const VENUES = venues(RECORDED_ON)
 
 async function specsOf(venue: VenueId) {
-  const specs = (await VENUES[venue].fetchMarkets(recordedFetch)).flatMap((g) => g.markets)
-  const bySymbol = new Map(specs.map((s) => [s.venueSymbol, s]))
-  const byKey = new Map<MarketKey, MarketSpec>(specs.map((s) => [s.key, s]))
+  const specs = (await VENUES[venue].fetchMarkets(recordedFetch)).flatMap((group) => group.markets)
+  const bySymbol = new Map(specs.map((spec) => [spec.venueSymbol, spec]))
+  const byKey = new Map<MarketKey, MarketSpec>(specs.map((spec) => [spec.key, spec]))
   return { specs, lookup: (sym: string) => bySymbol.get(sym)?.key ?? null, byKey }
 }
 
@@ -35,23 +35,23 @@ const TRADABLE_IN_RECORDING: Record<VenueId, () => string[]> = {
   hyperliquid: () =>
     hyperliquidDexes()
       .filter((dex) => dex.collateralToken === 0)
-      .flatMap((dex) => dex.universe.filter((u) => !u.isDelisted).map((u) => u.name)),
+      .flatMap((dex) => dex.universe.filter((asset) => !asset.isDelisted).map((asset) => asset.name)),
   dydx: () =>
     Object.values(
       recording<{ markets: Record<string, { ticker: string; status: string; tickSize: string; stepSize: string }> }>(
         'dydx.markets.json',
       ).markets,
     )
-      .filter((m) => m.status === 'ACTIVE' && fits(m.tickSize) && fits(m.stepSize))
-      .map((m) => m.ticker.replace(/-USD$/, '')),
+      .filter((market) => market.status === 'ACTIVE' && fits(market.tickSize) && fits(market.stepSize))
+      .map((market) => market.ticker.replace(/-USD$/, '')),
   orderly: () =>
     recording<{ data: { rows: { symbol: string; status: string; broker_id: string | null }[] } }>('orderly.info.json')
-      .data.rows.filter((r) => r.status === 'ACTIVE' && r.broker_id === null)
-      .map((r) => r.symbol.replace(/^PERP_(.+)_USDC$/, '$1')),
+      .data.rows.filter((row) => row.status === 'ACTIVE' && row.broker_id === null)
+      .map((row) => row.symbol.replace(/^PERP_(.+)_USDC$/, '$1')),
   binance: () =>
     recording<{ symbols: { baseAsset: string; quoteAsset: string; status: string }[] }>('binance.markets.json')
-      .symbols.filter((s) => s.status === 'TRADING' && s.quoteAsset === 'USDT')
-      .map((s) => s.baseAsset),
+      .symbols.filter((listing) => listing.status === 'TRADING' && listing.quoteAsset === 'USDT')
+      .map((listing) => listing.baseAsset),
 }
 
 const SYMBOL: Record<VenueId, (base: Base) => string> = {
@@ -72,33 +72,36 @@ const RULES_IN_RECORDING: Record<VenueId, (base: Base) => Pick<MarketSpec, 'venu
   hyperliquid: (base) => {
     const { szDecimals } = recording<{ universe: { name: string; szDecimals: number }[] }>(
       'hyperliquid.meta.json',
-    ).universe.find((u) => u.name === base)!
+    ).universe.find((asset) => asset.name === base)!
     return { venueSymbol: base, scale: { px: 6 - szDecimals, qty: szDecimals } as MarketSpec['scale'] }
   },
   dydx: (base) => {
-    const m = recording<{ markets: Record<string, { tickSize: string; stepSize: string }> }>(
+    const market = recording<{ markets: Record<string, { tickSize: string; stepSize: string }> }>(
       `dydx.markets-${base}.json`,
     ).markets[`${base}-USD`]!
     return {
       venueSymbol: `${base}-USD`,
-      scale: { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) } as MarketSpec['scale'],
+      scale: { px: decimalsOf(market.tickSize), qty: decimalsOf(market.stepSize) } as MarketSpec['scale'],
     }
   },
   orderly: (base) => {
-    const m = recording<{ data: { quote_tick: number | string; base_tick: number | string } }>(
+    const market = recording<{ data: { quote_tick: number | string; base_tick: number | string } }>(
       `orderly.info-${base}.json`,
     ).data
     return {
       venueSymbol: `PERP_${base}_USDC`,
-      scale: { px: decimalsOf(String(m.quote_tick)), qty: decimalsOf(String(m.base_tick)) } as MarketSpec['scale'],
+      scale: {
+        px: decimalsOf(String(market.quote_tick)),
+        qty: decimalsOf(String(market.base_tick)),
+      } as MarketSpec['scale'],
     }
   },
   binance: (base) => {
     const { filters } = recording<{
       symbols: { symbol: string; filters: { filterType: string; tickSize?: string; stepSize?: string }[] }[]
-    }>('binance.markets.json').symbols.find((s) => s.symbol === `${base}USDT`)!
-    const tick = filters.find((f) => f.filterType === 'PRICE_FILTER')!.tickSize!
-    const step = filters.find((f) => f.filterType === 'LOT_SIZE')!.stepSize!
+    }>('binance.markets.json').symbols.find((listing) => listing.symbol === `${base}USDT`)!
+    const tick = filters.find((filter) => filter.filterType === 'PRICE_FILTER')!.tickSize!
+    const step = filters.find((filter) => filter.filterType === 'LOT_SIZE')!.stepSize!
     return { venueSymbol: `${base}USDT`, scale: { px: decimalsOf(tick), qty: decimalsOf(step) } as MarketSpec['scale'] }
   },
 }
@@ -118,13 +121,19 @@ async function replay(venue: VenueId) {
   let trades = 0
   let candles = 0
   for (const raw of wsFrames(venue)) {
-    for (const e of adapter.parse(raw, lookup)) {
-      if (e.kind === 'book-snapshot')
-        feed({ kind: 'snapshot', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), time: e.time })
-      if (e.kind === 'book-delta')
-        feed({ kind: 'delta', bids: toLevels(e.bids, spec), asks: toLevels(e.asks, spec), seq: e.seq, time: e.time })
-      if (e.kind === 'trades') trades += toTrades(e.trades, spec).length
-      if (e.kind === 'candle') candles += e.candles.map((c) => toCandle(c, spec)).length
+    for (const event of adapter.parse(raw, lookup)) {
+      if (event.kind === 'book-snapshot')
+        feed({ kind: 'snapshot', bids: toLevels(event.bids, spec), asks: toLevels(event.asks, spec), time: event.time })
+      if (event.kind === 'book-delta')
+        feed({
+          kind: 'delta',
+          bids: toLevels(event.bids, spec),
+          asks: toLevels(event.asks, spec),
+          seq: event.seq,
+          time: event.time,
+        })
+      if (event.kind === 'trades') trades += toTrades(event.trades, spec).length
+      if (event.kind === 'candle') candles += event.candles.map((candle) => toCandle(candle, spec)).length
     }
     if (step.effect.kind === 'fetch-snapshot' && adapter.book.protocol === 'rest-snapshot-sequenced') {
       const snap = await adapter.book.fetchSnapshot(spec, recordedFetch)
@@ -202,13 +211,13 @@ describe('a market the venue does not list', () => {
 describe('hyperliquid adapter', () => {
   it('lists the main dex unnamed, then each HIP-3 dex with a live market under its full name', async () => {
     const fullNames = recording<({ fullName: string } | null)[]>('hyperliquid.perpDexs.json')
-    const live = hyperliquidDexes().flatMap((dex, i) =>
-      dex.collateralToken === 0 && dex.universe.some((u) => !u.isDelisted && isBase(u.name))
-        ? [fullNames[i]?.fullName ?? null]
+    const live = hyperliquidDexes().flatMap((dex, index) =>
+      dex.collateralToken === 0 && dex.universe.some((asset) => !asset.isDelisted && isBase(asset.name))
+        ? [fullNames[index]?.fullName ?? null]
         : [],
     )
     const groups = await VENUES.hyperliquid.fetchMarkets(recordedFetch)
-    expect(groups.map((g) => g.name)).toEqual(live)
+    expect(groups.map((group) => group.name)).toEqual(live)
     expect(live[0]).toBeNull()
     expect(live.length).toBeGreaterThan(1)
   })
@@ -237,12 +246,12 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
 
   it('lists every market the venue marks tradable, under the name the venue streams it by', async () => {
     const { specs } = await specsOf(venue)
-    expect(specs.map((s) => s.base).sort()).toEqual(TRADABLE_IN_RECORDING[venue]().filter(isBase).sort())
-    expect(specs.map((s) => s.base)).toEqual(expect.arrayContaining(['BTC', 'ETH', 'SOL']))
-    for (const s of specs) {
-      expect(s.key).toBe(marketKey(venue, s.base))
-      expect(s.venue).toBe(venue)
-      expect(s.venueSymbol).toBe(SYMBOL[venue](s.base))
+    expect(specs.map((spec) => spec.base).sort()).toEqual(TRADABLE_IN_RECORDING[venue]().filter(isBase).sort())
+    expect(specs.map((spec) => spec.base)).toEqual(expect.arrayContaining(['BTC', 'ETH', 'SOL']))
+    for (const spec of specs) {
+      expect(spec.key).toBe(marketKey(venue, spec.base))
+      expect(spec.venue).toBe(venue)
+      expect(spec.venueSymbol).toBe(SYMBOL[venue](spec.base))
     }
   })
 
@@ -272,7 +281,7 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
   it('fetches candle history in time order', async () => {
     const bars = await adapter.fetchCandles(BTC, '1m', recordedFetch)
     expect(bars.length).toBeGreaterThan(1)
-    expect(bars.map((b) => b.time)).toEqual([...bars.map((b) => b.time)].sort((a, b) => a - b))
+    expect(bars.map((bar) => bar.time)).toEqual([...bars.map((bar) => bar.time)].sort((left, right) => left - right))
     expect(bars[0]!.close).toBeGreaterThan(1000)
   })
 

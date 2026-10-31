@@ -1,9 +1,21 @@
-import type { Address, Hex } from 'viem'
+import { isHex } from 'viem'
+import type { Address } from 'viem'
+import { isRecord } from '@tape/core/json'
+import { keysOf } from '@tape/core/record'
 import type { Eip712, WalletSigner } from './types'
 
-interface Eip1193 {
+export interface Eip1193 {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }
+
+/** A wallet provider with EIP-1193's `request`. Throws on anything else. */
+export function toEip1193(provider: unknown): Eip1193 {
+  if (!isEip1193(provider)) throw new Error('The wallet has no EIP-1193 provider')
+  return provider
+}
+
+const isEip1193 = (provider: unknown): provider is Eip1193 =>
+  isRecord(provider) && typeof provider.request === 'function'
 
 const DOMAIN_TYPES = {
   name: 'string',
@@ -15,8 +27,8 @@ const DOMAIN_TYPES = {
 
 /** The domain's own keys, in EIP-712 order, as viem and MetaMask derive them. */
 export function domainTypes(domain: Eip712['domain']) {
-  return (Object.keys(DOMAIN_TYPES) as (keyof typeof DOMAIN_TYPES)[])
-    .filter((k) => k in domain)
+  return keysOf(DOMAIN_TYPES)
+    .filter((key) => key in domain)
     .map((name) => ({ name, type: DOMAIN_TYPES[name] }))
 }
 
@@ -34,14 +46,17 @@ export function walletSigner(
     address,
     chainId: async () => Number(await provider.request({ method: 'eth_chainId' })),
     switchChain,
-    signTypedData: async (data) =>
-      (await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })) as Hex,
+    signTypedData: async (data) => {
+      const signature = await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })
+      if (!isHex(signature)) throw new Error('The wallet returned a signature that is not hex')
+      return signature
+    },
   }
 }
 
 /** What went wrong in a wallet call. Wallets such as MetaMask reject with a plain `{ code, message }`, not an Error. */
 export function rejectionMessage(error: unknown): string {
   if (error instanceof Error) return error.message
-  const message = (error as { message?: unknown } | null)?.message
+  const message = isRecord(error) ? error.message : undefined
   return typeof message === 'string' ? message : String(error)
 }

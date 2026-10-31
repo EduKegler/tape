@@ -1,5 +1,5 @@
 import type { Network } from '@tape/core/ids'
-import { ZERO, abs, add, amount, divide, format, multiply, negate, plain as plainAmount, subtract, sum } from './money'
+import { ZERO, abs, add, amount, divide, format, multiply, negate, plain, subtract, sum } from './money'
 import type { Amount } from './money'
 import type { Decimal, Fill, TradeVenueId } from './types'
 
@@ -45,7 +45,6 @@ interface Book {
   entryCost: Amount
 }
 
-const plain = (value: Amount) => plainAmount(value) as Decimal
 /** USDC, which every venue here settles PnL in, has 6 decimals. */
 const SETTLED_PLACES = 6
 const settled = (value: Amount) => plain(amount(format(value, SETTLED_PLACES)))
@@ -79,7 +78,7 @@ function realizeAtAverageCost(book: Book, fill: HistoryFill): Amount {
 export function realize(fills: readonly HistoryFill[]): RealizedFill[] {
   const books = new Map<string, Book>()
   return [...fills]
-    .sort((a, b) => a.time - b.time)
+    .sort((left, right) => left.time - right.time)
     .map((fill) => {
       const key = `${fill.venue}:${fill.account}:${fill.symbol}`
       let book = books.get(key)
@@ -117,31 +116,33 @@ export function summarize(
   const acc = (entry: HistoryFill | FundingPayment) => {
     const group = groupOf(entry)
     const key = `${group}\u0000${entry.asset}`
-    let a = groups.get(key)
-    if (!a) {
-      a = { group, asset: entry.asset, fills: 0, pnl: [], fees: [], funding: [] }
-      groups.set(key, a)
+    let tally = groups.get(key)
+    if (!tally) {
+      tally = { group, asset: entry.asset, fills: 0, pnl: [], fees: [], funding: [] }
+      groups.set(key, tally)
     }
-    return a
+    return tally
   }
-  for (const f of fills) {
-    const a = acc(f)
-    a.fills += 1
-    a.pnl.push(amount(f.pnl))
-    a.fees.push(amount(f.fee))
+  for (const fill of fills) {
+    const tally = acc(fill)
+    tally.fills += 1
+    tally.pnl.push(amount(fill.pnl))
+    tally.fees.push(amount(fill.fee))
   }
-  for (const p of funding) acc(p).funding.push(amount(p.amount))
+  for (const payment of funding) acc(payment).funding.push(amount(payment.amount))
   return [...groups.values()]
-    .sort((x, y) => (x.group === y.group ? x.asset.localeCompare(y.asset) : x.group.localeCompare(y.group)))
-    .map((a) => {
-      const realized = sum(a.pnl)
-      const fees = sum(a.fees)
-      const paid = sum(a.funding)
+    .sort((left, right) =>
+      left.group === right.group ? left.asset.localeCompare(right.asset) : left.group.localeCompare(right.group),
+    )
+    .map((tally) => {
+      const realized = sum(tally.pnl)
+      const fees = sum(tally.fees)
+      const paid = sum(tally.funding)
       return {
-        group: a.group,
-        asset: a.asset,
-        fills: a.fills,
-        payments: a.funding.length,
+        group: tally.group,
+        asset: tally.asset,
+        fills: tally.fills,
+        payments: tally.funding.length,
         realized: plain(realized),
         fees: plain(fees),
         funding: plain(paid),
@@ -178,54 +179,57 @@ const field = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replaceAll(
 
 /** RFC 4180 with CRLF, oldest first. The README's History CSV section is the column contract. */
 export function toCsv(fills: readonly RealizedFill[], funding: readonly FundingPayment[], network: Network): string {
-  const common = (e: HistoryFill | FundingPayment) => ({
-    time_utc: new Date(e.time).toISOString(),
-    timestamp_ms: String(e.time),
-    venue: e.venue,
+  const common = (entry: HistoryFill | FundingPayment) => ({
+    time_utc: new Date(entry.time).toISOString(),
+    timestamp_ms: String(entry.time),
+    venue: entry.venue,
     network,
-    account: e.account,
-    market: e.symbol,
-    asset: e.asset,
+    account: entry.account,
+    market: entry.symbol,
+    asset: entry.asset,
   })
   const rows: { time: number; row: CsvRow }[] = [
-    ...fills.map((f) => ({
-      time: f.time,
+    ...fills.map((fill) => ({
+      time: fill.time,
       row: {
-        ...common(f),
+        ...common(fill),
         type: 'fill',
-        side: f.side,
-        size: f.size,
-        price: f.px,
-        notional: plain(multiply(amount(f.px), amount(f.size))),
-        fee: f.fee,
-        realized_pnl: f.pnl,
-        realized_pnl_source: f.pnlSource,
+        side: fill.side,
+        size: fill.size,
+        price: fill.px,
+        notional: plain(multiply(amount(fill.px), amount(fill.size))),
+        fee: fill.fee,
+        realized_pnl: fill.pnl,
+        realized_pnl_source: fill.pnlSource,
         funding: '',
         funding_rate: '',
-        liquidation: String(f.liquidation),
-        venue_id: f.id,
+        liquidation: String(fill.liquidation),
+        venue_id: fill.id,
       },
     })),
-    ...funding.map((p) => ({
-      time: p.time,
+    ...funding.map((payment) => ({
+      time: payment.time,
       row: {
-        ...common(p),
+        ...common(payment),
         type: 'funding',
         side: '',
-        size: p.position ?? '',
+        size: payment.position ?? '',
         price: '',
         notional: '',
         fee: '',
         realized_pnl: '',
         realized_pnl_source: '',
-        funding: p.amount,
-        funding_rate: p.rate ?? '',
+        funding: payment.amount,
+        funding_rate: payment.rate ?? '',
         liquidation: '',
         venue_id: '',
       },
     })),
-  ].sort((a, b) => a.time - b.time)
-  return [CSV_COLUMNS.join(','), ...rows.map(({ row }) => CSV_COLUMNS.map((c) => field(row[c])).join(','))].join('\r\n')
+  ].sort((left, right) => left.time - right.time)
+  return [
+    CSV_COLUMNS.join(','),
+    ...rows.map(({ row }) => CSV_COLUMNS.map((column) => field(row[column])).join(',')),
+  ].join('\r\n')
 }
 
 /**
@@ -242,14 +246,14 @@ export async function walkByTime<T>(
   let start = 0
   for (;;) {
     const got = await page(start)
-    const fresh = got.filter((r) => !seen.has(walk.keyOf(r)))
-    for (const r of fresh) {
-      seen.add(walk.keyOf(r))
-      rows.push(r)
+    const fresh = got.filter((row) => !seen.has(walk.keyOf(row)))
+    for (const row of fresh) {
+      seen.add(walk.keyOf(row))
+      rows.push(row)
     }
     if (got.length < walk.size) return { rows, stalled: false }
     if (fresh.length === 0) return { rows, stalled: true }
-    start = walk.timeOf(got[got.length - 1] as T)
+    start = walk.timeOf(got[got.length - 1]!)
   }
 }
 
@@ -270,14 +274,17 @@ const DAY_MS = 86_400_000
 export function selectHistory(histories: readonly VenueHistory[], filter: HistoryFilter) {
   const from = filter.from ? Date.parse(`${filter.from}T00:00:00Z`) : -Infinity
   const to = filter.to ? Date.parse(`${filter.to}T00:00:00Z`) + DAY_MS : Infinity
-  const onVenue = (e: HistoryFill | FundingPayment) => filter.venue === null || e.venue === filter.venue
-  const keep = (e: HistoryFill | FundingPayment) =>
-    onVenue(e) && (filter.market === null || e.symbol === filter.market) && e.time >= from && e.time < to
-  const fills = realize(histories.flatMap((h) => h.fills))
-  const funding = histories.flatMap((h) => h.funding)
+  const onVenue = (entry: HistoryFill | FundingPayment) => filter.venue === null || entry.venue === filter.venue
+  const keep = (entry: HistoryFill | FundingPayment) =>
+    onVenue(entry)
+    && (filter.market === null || entry.symbol === filter.market)
+    && entry.time >= from
+    && entry.time < to
+  const fills = realize(histories.flatMap((history) => history.fills))
+  const funding = histories.flatMap((history) => history.funding)
   return {
     fills: fills.filter(keep),
     funding: funding.filter(keep),
-    markets: [...new Set([...fills, ...funding].filter(onVenue).map((e) => e.symbol))].sort(),
+    markets: [...new Set([...fills, ...funding].filter(onVenue).map((entry) => entry.symbol))].sort(),
   }
 }

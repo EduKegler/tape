@@ -1,7 +1,9 @@
-import type { Base, Interval, Network } from '@tape/core/ids'
+import { isInterval } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
+import type { Base, Network } from '@tape/core/ids'
 import { readBinanceMarket, readBinanceMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
-import type { RawLevel, StreamTarget, VenueAdapter } from './types'
+import type { RawSnapshot, StreamTarget, VenueAdapter } from './types'
 import { isNumber, isPairs, isText } from './wire'
 
 const symbolOf = (base: Base) => `${base}USDT`
@@ -15,19 +17,26 @@ interface WireKline {
   c: string
   v: string
 }
-type Wire =
-  | { e: 'depthUpdate'; E: number; s: string; U: number; u: number; b: RawLevel[]; a: RawLevel[] }
-  | { e: 'trade'; s: string; t: number; p: string; q: string; T: number; m: boolean }
-  | { e: 'kline'; s: string; k: WireKline }
 
-const isKline = (k: Partial<WireKline> | undefined): k is WireKline =>
-  isNumber(k?.t) && [k.i, k.o, k.h, k.l, k.c, k.v].every(isText)
+const isKline = (kline: unknown): kline is WireKline =>
+  isRecord(kline) && isNumber(kline.t) && [kline.i, kline.o, kline.h, kline.l, kline.c, kline.v].every(isText)
+
+const isSnapshot = (reply: unknown): reply is RawSnapshot =>
+  isRecord(reply) && isNumber(reply.lastUpdateId) && isPairs(reply.bids) && isPairs(reply.asks)
+const isTicker = (reply: unknown): reply is { priceChangePercent: string; quoteVolume: string } =>
+  isRecord(reply) && isText(reply.priceChangePercent) && isText(reply.quoteVolume)
+type KlineRow = [openTime: number, open: string, high: string, low: string, close: string, volume: string]
+const isKlineRows = (reply: unknown): reply is KlineRow[] =>
+  Array.isArray(reply)
+  && reply.every(
+    (row: unknown) => Array.isArray(row) && isNumber(row[0]) && [row[1], row[2], row[3], row[4], row[5]].every(isText),
+  )
 
 function streamName(target: StreamTarget): string {
-  const s = target.spec.venueSymbol.toLowerCase()
-  if (target.channel === 'book') return `${s}@depth@100ms`
-  if (target.channel === 'trades') return `${s}@trade`
-  return `${s}@kline_${target.interval ?? '1m'}`
+  const symbol = target.spec.venueSymbol.toLowerCase()
+  if (target.channel === 'book') return `${symbol}@depth@100ms`
+  if (target.channel === 'trades') return `${symbol}@trade`
+  return `${symbol}@kline_${target.interval ?? '1m'}`
 }
 
 let requestId = 0
@@ -52,9 +61,7 @@ export function binance(network: Network): VenueAdapter {
       protocol: 'rest-snapshot-sequenced',
       async fetchSnapshot(spec, fetch, signal) {
         const url = `${rest}/depth?symbol=${spec.venueSymbol}&limit=1000`
-        return getJson<{ lastUpdateId: number; bids: RawLevel[]; asks: RawLevel[] }>(fetch, url, {
-          signal: signal ?? null,
-        })
+        return getJson(fetch, url, isSnapshot, { signal: signal ?? null })
       },
     },
     keepalive: null,
@@ -67,32 +74,53 @@ export function binance(network: Network): VenueAdapter {
     unsubscribeFrames: (targets) => control('UNSUBSCRIBE', targets),
 
     parse(raw, symbols) {
-      const json = JSON.parse(raw) as { data?: Wire; result?: unknown } & Partial<Wire>
+      const json: unknown = JSON.parse(raw)
+      if (!isRecord(json)) throw new VenueParseError('binance', null, raw)
       if ('result' in json) return []
-      const m = (json.data ?? json) as Wire
-      const market = symbols(m.s)
+      const frame = json.data ?? json
+      if (!isRecord(frame) || !isText(frame.s)) return []
+      const market = symbols(frame.s)
       if (!market) return []
-      switch (m.e) {
+      switch (frame.e) {
         case 'depthUpdate':
-          if (!isPairs(m.b) || !isPairs(m.a) || !isNumber(m.U) || !isNumber(m.u) || !isNumber(m.E)) break
-          return [{ kind: 'book-delta', market, bids: m.b, asks: m.a, seq: { from: m.U, to: m.u }, time: m.E }]
+          if (!isPairs(frame.b) || !isPairs(frame.a) || !isNumber(frame.U) || !isNumber(frame.u) || !isNumber(frame.E))
+            break
+          return [
+            {
+              kind: 'book-delta',
+              market,
+              bids: frame.b,
+              asks: frame.a,
+              seq: { from: frame.U, to: frame.u },
+              time: frame.E,
+            },
+          ]
         case 'trade':
-          if (!isNumber(m.t) || !isText(m.p) || !isText(m.q) || typeof m.m !== 'boolean' || !isNumber(m.T)) break
+          if (
+            !isNumber(frame.t)
+            || !isText(frame.p)
+            || !isText(frame.q)
+            || typeof frame.m !== 'boolean'
+            || !isNumber(frame.T)
+          )
+            break
           return [
             {
               kind: 'trades',
               market,
-              trades: [{ id: String(m.t), px: m.p, qty: m.q, side: m.m ? 'sell' : 'buy', time: m.T }],
+              trades: [
+                { id: String(frame.t), px: frame.p, qty: frame.q, side: frame.m ? 'sell' : 'buy', time: frame.T },
+              ],
             },
           ]
         case 'kline':
-          if (!isKline(m.k)) break
+          if (!isKline(frame.k) || !isInterval(frame.k.i)) break
           return [
             {
               kind: 'candle',
               market,
-              interval: m.k.i as Interval,
-              candles: [{ open: m.k.t, o: m.k.o, h: m.k.h, l: m.k.l, c: m.k.c, v: m.k.v }],
+              interval: frame.k.i,
+              candles: [{ open: frame.k.t, o: frame.k.o, h: frame.k.h, l: frame.k.l, c: frame.k.c, v: frame.k.v }],
             },
           ]
       }
@@ -100,14 +128,12 @@ export function binance(network: Network): VenueAdapter {
     },
 
     async fetchStats(base, fetch, signal) {
-      const t = await getJson<{ priceChangePercent: string; quoteVolume: string }>(
-        fetch,
-        `${rest}/ticker/24hr?symbol=${symbolOf(base)}`,
-        { signal: signal ?? null },
-      )
+      const ticker = await getJson(fetch, `${rest}/ticker/24hr?symbol=${symbolOf(base)}`, isTicker, {
+        signal: signal ?? null,
+      })
       return {
-        changePct: Number(t.priceChangePercent),
-        volumeQuote: Number(t.quoteVolume),
+        changePct: Number(ticker.priceChangePercent),
+        volumeQuote: Number(ticker.quoteVolume),
         fundingRate: null,
         indexPrice: null,
       }
@@ -115,10 +141,10 @@ export function binance(network: Network): VenueAdapter {
 
     async fetchCandles(base, interval, fetch, signal) {
       const url = `${rest}/klines?symbol=${symbolOf(base)}&interval=${interval}&limit=500`
-      const rows = await getJson<[number, string, string, string, string, string][]>(fetch, url, {
-        signal: signal ?? null,
-      })
-      return rows.map(([t, o, h, l, c, v]) => chartBar(t, o, h, l, c, v))
+      const rows = await getJson(fetch, url, isKlineRows, { signal: signal ?? null })
+      return rows.map(([openTime, open, high, low, close, volume]) =>
+        chartBar(openTime, open, high, low, close, volume),
+      )
     },
   }
 }

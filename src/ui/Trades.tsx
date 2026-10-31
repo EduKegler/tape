@@ -15,14 +15,18 @@ const NO_ROWS: readonly TradeRow[] = []
 
 export function Trades({ market }: { market: MarketKey }) {
   const topic = { kind: 'trades', market } as const
-  const { rows, live } = useFrame(topic, (f) => ({ rows: f?.rows ?? NO_ROWS, live: f?.status === 'live' }), shallow)
+  const { rows, live } = useFrame(
+    topic,
+    (frame) => ({ rows: frame?.rows ?? NO_ROWS, live: frame?.status === 'live' }),
+    shallow,
+  )
   const scroller = useRef<HTMLDivElement>(null)
   const virtual = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW,
     overscan: 8,
-    getItemKey: (i) => rows[i]?.id ?? i,
+    getItemKey: (index) => rows[index]?.id ?? index,
   })
   const keys = useRowKeys()
   return (
@@ -37,32 +41,32 @@ export function Trades({ market }: { market: MarketKey }) {
           {live && rows.length === 0 && <p className="px-3 py-2 text-level3">No trades yet.</p>}
           <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
             {virtual.getVirtualItems().map((item) => {
-              const t = rows[item.index]
-              if (!t) return null
+              const trade = rows[item.index]
+              if (!trade) return null
               return (
                 <Button
                   key={item.key}
                   look="row"
                   data-row
                   tabIndex={-1}
-                  onClick={() => proposePrice(t.px)}
+                  onClick={() => proposePrice(trade.px)}
                   className="absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3"
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <span className={t.side === 'buy' ? 'text-bid' : 'text-ask'}>
+                  <span className={trade.side === 'buy' ? 'text-bid' : 'text-ask'}>
                     <span aria-hidden className="mr-1 text-xs">
-                      {SIDE_MARK[t.side]}
+                      {SIDE_MARK[trade.side]}
                     </span>
-                    <span className="sr-only">{t.side === 'buy' ? 'Buy' : 'Sell'} </span>
-                    {t.px}
+                    <span className="sr-only">{trade.side === 'buy' ? 'Buy' : 'Sell'} </span>
+                    {trade.px}
                   </span>
                   <span className="text-right text-level1">
                     <span className="sr-only">size </span>
-                    {t.qty}
+                    {trade.qty}
                   </span>
                   <span className="w-16 text-right text-level3">
                     <span className="sr-only">at </span>
-                    {formatClock(t.time)}
+                    {formatClock(trade.time)}
                   </span>
                 </Button>
               )

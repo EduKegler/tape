@@ -18,7 +18,7 @@ const FAST_AFTER =
 
 const sides = (raw: string): [RawLevel[], RawLevel[]] => {
   const { levels } = (JSON.parse(raw) as { data: { levels: { px: string; sz: string }[][] } }).data
-  const side = (i: 0 | 1) => levels[i]!.map((l) => [l.px, l.sz] as const)
+  const side = (index: 0 | 1) => levels[index]!.map((level) => [level.px, level.sz] as const)
   return [side(0), side(1)]
 }
 

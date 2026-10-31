@@ -10,7 +10,7 @@ const replying = (status: number, text: string) =>
 const failure = (fetch: typeof globalThis.fetch, mutates: boolean, classify: Classify = () => null) =>
   send('orderly', fetch, 'https://x', { method: 'POST', mutates }, classify).then(
     () => null,
-    (e: unknown): TradeError | null => (e instanceof TradeFailure ? e.error : null),
+    (thrown: unknown): TradeError | null => (thrown instanceof TradeFailure ? thrown.error : null),
   )
 
 describe('send', () => {

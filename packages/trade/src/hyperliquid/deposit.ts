@@ -91,7 +91,7 @@ const Ledger = z.array(
 const LEDGER_SLACK_MS = 10 * 60_000
 
 async function ledger(fetch: typeof globalThis.fetch, sent: SentDeposit) {
-  const body = await send<unknown>(
+  const body = await send(
     'hyperliquid',
     fetch,
     `${API[sent.ref.network]}/info`,
@@ -107,7 +107,7 @@ async function ledger(fetch: typeof globalThis.fetch, sent: SentDeposit) {
 /** Hyperliquid's ledger names the bridge deposit by the Arbitrum transaction hash. */
 async function bridgeProgress(fetch: typeof globalThis.fetch, sent: SentDeposit): Promise<DepositProgress> {
   const entry = (await ledger(fetch, sent)).find(
-    (e) => e.delta.type === 'deposit' && e.hash.toLowerCase() === sent.hash.toLowerCase(),
+    (update) => update.delta.type === 'deposit' && update.hash.toLowerCase() === sent.hash.toLowerCase(),
   )
   const amount = entry?.delta.usdc ? parseUsdc(entry.delta.usdc) : null
   return entry && amount
@@ -116,8 +116,8 @@ async function bridgeProgress(fetch: typeof globalThis.fetch, sent: SentDeposit)
 }
 
 function firstFrom<T extends { time: number }>(entries: readonly T[], at: number): T | undefined {
-  const byTime = entries.toSorted((a, b) => a.time - b.time)
-  return byTime.find((e) => e.time >= at) ?? byTime.at(-1)
+  const byTime = entries.toSorted((left, right) => left.time - right.time)
+  return byTime.find((entry) => entry.time >= at) ?? byTime.at(-1)
 }
 
 /** CCTP credits arrive as a send from Circle's CoreDepositWallet to the perps dex, which Hyperliquid names "". */
@@ -130,15 +130,15 @@ async function cctpProgress(
   if (forward.stage !== 'forwarded') return forward
   const expected = forward.feeExecuted === null ? null : sent.amount - forward.feeExecuted
   const credits = (await ledger(fetch, sent)).filter(
-    (e) =>
-      e.delta.type === 'send'
-      && e.delta.user?.toLowerCase() === CORE_DEPOSIT_WALLET.toLowerCase()
-      && e.delta.destination?.toLowerCase() === sent.ref.owner
-      && e.delta.destinationDex === ''
-      && e.delta.token === 'USDC'
-      && e.time >= sent.sentAt - LEDGER_SLACK_MS
-      && !sent.claimed.has(e.hash)
-      && (expected === null || parseUsdc(e.delta.amount ?? '') === expected),
+    (update) =>
+      update.delta.type === 'send'
+      && update.delta.user?.toLowerCase() === CORE_DEPOSIT_WALLET.toLowerCase()
+      && update.delta.destination?.toLowerCase() === sent.ref.owner
+      && update.delta.destinationDex === ''
+      && update.delta.token === 'USDC'
+      && update.time >= sent.sentAt - LEDGER_SLACK_MS
+      && !sent.claimed.has(update.hash)
+      && (expected === null || parseUsdc(update.delta.amount ?? '') === expected),
   )
   const entry = firstFrom(credits, sent.sentAt)
   const amount = entry?.delta.amount ? parseUsdc(entry.delta.amount) : null

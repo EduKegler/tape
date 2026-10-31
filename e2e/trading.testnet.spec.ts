@@ -46,7 +46,7 @@ async function shownOnTicket(ticket: Locator) {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((r) => (resolve = r))
+  const promise = new Promise<T>((settle) => (resolve = settle))
   return { promise, resolve }
 }
 
@@ -265,12 +265,12 @@ test('two take profits ride with the order, each closing its share of the size',
   await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
   await ticket.getByRole('button', { name: 'Add take profit' }).click()
   await expect(ticket.getByRole('button', { name: 'Add take profit' })).toHaveCount(0)
-  for (const [n, price, share] of [
+  for (const [leg, price, share] of [
     [1, '75000', '60'],
     [2, '76000', '40'],
   ] as const) {
-    await ticket.getByRole('textbox', { name: `Take profit ${n}`, exact: true }).fill(price)
-    await ticket.getByRole('textbox', { name: `Size ${n} (%)` }).fill(share)
+    await ticket.getByRole('textbox', { name: `Take profit ${leg}`, exact: true }).fill(price)
+    await ticket.getByRole('textbox', { name: `Size ${leg} (%)` }).fill(share)
   }
   await expect(ticket.getByRole('list', { name: 'Take profit sizes' }).getByRole('listitem')).toHaveText([
     /^75000\s*0\.00120$/,
@@ -311,11 +311,11 @@ for (const width of [1440, 375])
     const past = await ticket.evaluate((section) => {
       const edge = section.getBoundingClientRect()
       return [...section.querySelectorAll('*')]
-        .filter((e) => {
-          const box = e.getBoundingClientRect()
+        .filter((element) => {
+          const box = element.getBoundingClientRect()
           return box.width > 0 && (box.right > edge.right + 0.5 || box.left < edge.left - 0.5)
         })
-        .map((e) => e.getAttribute('aria-label') ?? e.tagName)
+        .map((element) => element.getAttribute('aria-label') ?? element.tagName)
     })
     expect(past).toEqual([])
   })

@@ -99,14 +99,14 @@ function emptyBook(): Book {
   return { bids: emptySide('bid'), asks: emptySide('ask'), lastSeq: null, time: 0 }
 }
 
-const better = (side: Side, a: number, b: number) => (side === 'bid' ? a > b : a < b)
+const better = (side: Side, price: number, other: number) => (side === 'bid' ? price > other : price < other)
 
 function seek(side: BookSide, px: Px): number {
   let lo = 0
   let hi = side.prices.length
   while (lo < hi) {
     const mid = (lo + hi) >>> 1
-    if (better(side.side, side.prices[mid] as number, px)) lo = mid + 1
+    if (better(side.side, side.prices[mid]!, px)) lo = mid + 1
     else hi = mid
   }
   return lo
@@ -128,7 +128,7 @@ function write(side: BookSide, px: Px, qty: Qty): void {
 
 function evictThrough(side: BookSide, px: Px): void {
   while (side.prices.length > 0) {
-    const best = side.prices[0] as Px
+    const best = side.prices[0]!
     if (side.side === 'ask' ? best > px : best < px) break
     side.prices.shift()
     side.qty.delete(best)
@@ -217,7 +217,7 @@ export function stepBook(protocol: BookProtocol, sync: BookSync, input: BookInpu
         const book = snapshotDroppingCrossed(input.bids, input.asks, 0)
         book.lastSeq = input.lastUpdateId
         let step: BookStep = { sync: { phase: 'live', epoch: sync.epoch, book }, effect: NONE, changed: true }
-        for (const d of sync.buffer) step = merge(step, stepBook(protocol, step.sync, { kind: 'delta', ...d }))
+        for (const delta of sync.buffer) step = merge(step, stepBook(protocol, step.sync, { kind: 'delta', ...delta }))
         return step
       }
       if (!input.seq) return unchanged(sync)
@@ -237,11 +237,11 @@ export function stepBook(protocol: BookProtocol, sync: BookSync, input: BookInpu
   }
 }
 
-function merge(a: BookStep, b: BookStep): BookStep {
+function merge(earlier: BookStep, later: BookStep): BookStep {
   return {
-    sync: b.sync,
-    effect: b.effect.kind === 'none' ? a.effect : b.effect,
-    changed: a.changed || b.changed,
+    sync: later.sync,
+    effect: later.effect.kind === 'none' ? earlier.effect : later.effect,
+    changed: earlier.changed || later.changed,
   }
 }
 

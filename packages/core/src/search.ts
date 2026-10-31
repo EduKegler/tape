@@ -7,10 +7,10 @@ const PREFIX = 1
 const SUBSTRING = 2
 
 function matchOf(base: Base, query: string): number | null {
-  const names = [base, splitBase(base).symbol].map((n) => n.toUpperCase())
+  const names = [base, splitBase(base).symbol].map((name) => name.toUpperCase())
   if (names.includes(query)) return EXACT
-  if (names.some((n) => n.startsWith(query))) return PREFIX
-  if (names.some((n) => n.includes(query))) return SUBSTRING
+  if (names.some((name) => name.startsWith(query))) return PREFIX
+  if (names.some((name) => name.includes(query))) return SUBSTRING
   return null
 }
 
@@ -19,10 +19,10 @@ const pinOf = (base: Base) => {
   return at === -1 ? PINNED_BASES.length : at
 }
 
-const byName = (a: Base, b: Base) => {
-  const [ua, ub] = [a.toUpperCase(), b.toUpperCase()]
+const byName = (left: Base, right: Base) => {
+  const [ua, ub] = [left.toUpperCase(), right.toUpperCase()]
   if (ua !== ub) return ua < ub ? -1 : 1
-  return a < b ? -1 : a > b ? 1 : 0
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 /**
@@ -32,14 +32,16 @@ const byName = (a: Base, b: Base) => {
  * matches on `TSLA`. Groups keep their order, and a group with no match drops out.
  */
 export function searchMarkets(groups: readonly MarketGroup[], query: string): readonly MarketGroup[] {
-  const q = query.trim().toUpperCase()
+  const needle = query.trim().toUpperCase()
   return groups.flatMap((group) => {
     const hits = group.markets.flatMap((spec) => {
-      const match = matchOf(spec.base, q)
+      const match = matchOf(spec.base, needle)
       return match === null ? [] : [{ spec, match, pin: pinOf(spec.base) }]
     })
-    hits.sort((a, b) => a.match - b.match || a.pin - b.pin || byName(a.spec.base, b.spec.base))
-    const markets: readonly MarketSpec[] = hits.map((h) => h.spec)
+    hits.sort(
+      (left, right) => left.match - right.match || left.pin - right.pin || byName(left.spec.base, right.spec.base),
+    )
+    const markets: readonly MarketSpec[] = hits.map((hit) => hit.spec)
     return markets.length ? [{ ...group, markets }] : []
   })
 }

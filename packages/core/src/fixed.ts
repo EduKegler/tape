@@ -26,10 +26,43 @@ export class DecimalError extends Error {
 
 const DECIMAL = /^(\d+)(?:\.(\d+))?$/
 
+export function isPx(units: number): units is Px {
+  return Number.isSafeInteger(units)
+}
+
+export function isQty(units: number): units is Qty {
+  return Number.isSafeInteger(units)
+}
+
+const unsafeUnits = (input: string, units: number) =>
+  new DecimalError(input, Number.isInteger(units) ? 'unsafe' : 'precision')
+
+/** Throws DecimalError on a count that is not a safe integer. */
+export function toPx(units: number): Px {
+  if (!isPx(units)) throw unsafeUnits(String(units), units)
+  return units
+}
+
+/** Throws DecimalError on a count that is not a safe integer. */
+export function toQty(units: number): Qty {
+  if (!isQty(units)) throw unsafeUnits(String(units), units)
+  return units
+}
+
+export function isDecimals(value: number): value is Decimals {
+  return Number.isInteger(value) && value >= 0 && value <= 8
+}
+
+/** Throws RangeError outside 0 to 8. */
+export function toDecimals(value: number): Decimals {
+  if (!isDecimals(value)) throw new RangeError(`${value} decimals is outside 0 to 8`)
+  return value
+}
+
 function parseUnits(input: string, decimals: Decimals): number {
   const match = DECIMAL.exec(input)
   if (!match) throw new DecimalError(input, 'syntax')
-  const whole = match[1] as string
+  const whole = match[1]!
   const fraction = match[2] ?? ''
   if (/[1-9]/.test(fraction.slice(decimals))) throw new DecimalError(input, 'precision')
   const units = Number(whole + fraction.slice(0, decimals).padEnd(decimals, '0'))
@@ -38,17 +71,17 @@ function parseUnits(input: string, decimals: Decimals): number {
 }
 
 export function parsePx(input: string, scale: Scale): Px {
-  return parseUnits(input, scale.px) as Px
+  return toPx(parseUnits(input, scale.px))
 }
 
 export function parseQty(input: string, scale: Scale): Qty {
-  return parseUnits(input, scale.qty) as Qty
+  return toQty(parseUnits(input, scale.qty))
 }
 
 /** Decimal places a venue increment string implies: "0.01000000" is 2, "1" is 0. */
 export function decimalsOf(increment: string): Decimals {
   const fraction = increment.split('.')[1]?.replace(/(?<!0)0+$/, '') ?? ''
-  return Math.min(fraction.length, 8) as Decimals
+  return toDecimals(Math.min(fraction.length, 8))
 }
 
 const grouping = new Intl.NumberFormat('en-US', { useGrouping: true, maximumFractionDigits: 0 })
@@ -86,13 +119,10 @@ export function wireDecimal(units: Px | Qty | bigint, decimals: number): string 
 export function plainDecimal(source: string): string {
   const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(source)
   if (!match) throw new DecimalError(source, 'syntax')
-  const [, sign, whole, fraction = '', exp = '0'] = match as unknown as [
-    string,
-    string,
-    string,
-    string | undefined,
-    string | undefined,
-  ]
+  const sign = match[1]!
+  const whole = match[2]!
+  const fraction = match[3] ?? ''
+  const exp = match[4] ?? '0'
   const digits = `${whole}${fraction}`
   const point = whole.length + Number(exp)
   const padded = point <= 0 ? `${'0'.repeat(1 - point)}${digits}` : digits.padEnd(point, '0')
@@ -113,8 +143,8 @@ export function formatNotional(value: bigint, scale: Scale, decimals = 2): strin
 
 export function rescalePx(px: Px, from: Decimals, to: Decimals): Px {
   const units = to >= from ? px * 10 ** (to - from) : px / 10 ** (from - to)
-  if (!Number.isSafeInteger(units)) throw new DecimalError(String(px), Number.isInteger(units) ? 'unsafe' : 'precision')
-  return units as Px
+  if (!isPx(units)) throw unsafeUnits(String(px), units)
+  return units
 }
 
 /** (ask - bid) / mid in basis points to 2 dp, truncated toward zero. Empty when the mid is zero. */

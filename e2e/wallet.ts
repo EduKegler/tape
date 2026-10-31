@@ -185,7 +185,7 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
 
   return {
     asked: () => [...state.asked],
-    askedFor: (kind) => state.asked.filter((a): a is AskedOf<typeof kind> => a.kind === kind),
+    askedFor: (kind) => state.asked.filter((entry): entry is AskedOf<typeof kind> => entry.kind === kind),
     switchAccount: async (to) => {
       if (to === state.selected) return
       state.selected = to
@@ -208,7 +208,7 @@ function provider({ binding, event }: { binding: string; event: string }) {
   const dispatch = (events: readonly (readonly [string, unknown])[]) => {
     for (const [name, value] of events) for (const listener of listeners.get(name) ?? []) listener(value)
   }
-  window.addEventListener(event, (e) => dispatch((e as CustomEvent<readonly [string, unknown][]>).detail))
+  window.addEventListener(event, (emitted) => dispatch((emitted as CustomEvent<readonly [string, unknown][]>).detail))
   const ethereum = {
     async request(request: { method: string; params?: unknown[] }) {
       const reply = await (window as unknown as Record<string, (request: unknown) => Promise<Reply>>)[binding]!(request)

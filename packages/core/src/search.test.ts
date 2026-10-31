@@ -10,7 +10,8 @@ const group = (name: string | null, bases: string[]): MarketGroup => ({
   name,
   markets: bases.map(spec),
 })
-const names = (groups: readonly MarketGroup[]) => groups.map((g) => [g.name, g.markets.map((m) => m.base)])
+const names = (groups: readonly MarketGroup[]) =>
+  groups.map((marketGroup) => [marketGroup.name, marketGroup.markets.map((market) => market.base)])
 
 describe('market search', () => {
   it('puts the exact name first, then names that start with the query, then names that hold it', () => {
@@ -64,12 +65,12 @@ describe('market search', () => {
 
   it('gives the same list whatever order the venue sends its markets in', () => {
     const letters = fc.constantFrom('A', 'a', 'K', 'k', '1')
-    const base = fc.array(letters, { minLength: 1, maxLength: 3 }).map((l) => l.join(''))
-    const query = fc.array(letters, { maxLength: 1 }).map((l) => l.join(''))
+    const base = fc.array(letters, { minLength: 1, maxLength: 3 }).map((chars) => chars.join(''))
+    const query = fc.array(letters, { maxLength: 1 }).map((chars) => chars.join(''))
     fc.assert(
-      fc.property(fc.uniqueArray(base, { maxLength: 8 }), query, (bases, q) => {
-        expect(names(searchMarkets([group(null, [...bases].reverse())], q))).toEqual(
-          names(searchMarkets([group(null, bases)], q)),
+      fc.property(fc.uniqueArray(base, { maxLength: 8 }), query, (bases, typed) => {
+        expect(names(searchMarkets([group(null, [...bases].reverse())], typed))).toEqual(
+          names(searchMarkets([group(null, bases)], typed)),
         )
       }),
     )
@@ -77,17 +78,19 @@ describe('market search', () => {
 
   it('returns each market that holds the query once, and only those', () => {
     const letters = fc.constantFrom('A', 'B', 'C', 'k', '1')
-    const base = fc.array(letters, { minLength: 1, maxLength: 4 }).map((l) => l.join(''))
+    const base = fc.array(letters, { minLength: 1, maxLength: 4 }).map((chars) => chars.join(''))
     const groups = fc.array(fc.uniqueArray(base, { maxLength: 8 }), { maxLength: 3 })
-    const query = fc.array(letters, { maxLength: 2 }).map((l) => l.join(''))
+    const query = fc.array(letters, { maxLength: 2 }).map((chars) => chars.join(''))
     fc.assert(
-      fc.property(groups, query, (lists, q) => {
+      fc.property(groups, query, (lists, typed) => {
         const found = searchMarkets(
-          lists.map((bases, i) => group(`dex ${i}`, bases)),
-          q,
-        ).flatMap((g) => g.markets.map((m) => `${g.name}/${m.base}`))
-        const holding = lists.flatMap((bases, i) =>
-          bases.filter((b) => b.toUpperCase().includes(q.toUpperCase())).map((b) => `dex ${i}/${b}`),
+          lists.map((bases, index) => group(`dex ${index}`, bases)),
+          typed,
+        ).flatMap((marketGroup) => marketGroup.markets.map((market) => `${marketGroup.name}/${market.base}`))
+        const holding = lists.flatMap((bases, index) =>
+          bases
+            .filter((name) => name.toUpperCase().includes(typed.toUpperCase()))
+            .map((name) => `dex ${index}/${name}`),
         )
         expect([...found].sort()).toEqual([...holding].sort())
       }),

@@ -101,9 +101,9 @@ export interface DepositVenue {
 
 /** Null for anything but a plain positive decimal with at most USDC's 6 places. */
 export function parseUsdc(text: string): bigint | null {
-  const m = /^(\d+)(?:\.(\d{0,6}))?$/.exec(text.trim())
-  if (!m) return null
-  const units = BigInt(m[1]!) * ONE_USDC + BigInt((m[2] ?? '').padEnd(USDC_DECIMALS, '0'))
+  const match = /^(\d+)(?:\.(\d{0,6}))?$/.exec(text.trim())
+  if (!match) return null
+  const units = BigInt(match[1]!) * ONE_USDC + BigInt((match[2] ?? '').padEnd(USDC_DECIMALS, '0'))
   return units > 0n ? units : null
 }
 
@@ -150,21 +150,23 @@ export type DepositIssue =
 /** Every issue but `high-fee` stops the deposit. */
 export const blocksDeposit = (issue: DepositIssue) => issue.kind !== 'high-fee'
 
-export function depositIssues(route: DepositRoute, amount: bigint, r: DepositReadings): readonly DepositIssue[] {
+export function depositIssues(route: DepositRoute, amount: bigint, readings: DepositReadings): readonly DepositIssue[] {
   const issues: DepositIssue[] = []
   if (route.minimum && amount < route.minimum.amount)
     issues.push({ kind: 'below-minimum', minimum: route.minimum.amount, lost: route.minimum.lost })
-  const fee = r.terms?.fee
+  const fee = readings.terms?.fee
   if (fee && fee.max >= amount) issues.push({ kind: 'fee-exceeds-amount', fee: fee.max })
   else if (fee && fee.expected * 10_000n >= amount * HIGH_FEE_BPS)
     issues.push({ kind: 'high-fee', bps: Number((fee.expected * 10_000n) / amount) })
-  if (r.terms?.refusal) issues.push(r.terms.refusal)
-  if (r.usdc !== null && r.usdc < amount) issues.push({ kind: 'insufficient-usdc', balance: r.usdc })
-  const native = r.gasCost === null ? null : r.gasCost + (r.terms?.message?.wei ?? 0n)
-  if (r.native !== null && native !== null && r.native < native)
-    issues.push({ kind: 'insufficient-gas', need: native, have: r.native })
-  if (r.code && r.code !== '0x' && !r.code.startsWith('0xef0100')) issues.push({ kind: 'contract-wallet' })
-  if (r.rejected !== null && !issues.some((i) => i.kind === 'insufficient-usdc'))
-    issues.push({ kind: 'chain-rejects', reason: r.rejected })
+  if (readings.terms?.refusal) issues.push(readings.terms.refusal)
+  if (readings.usdc !== null && readings.usdc < amount)
+    issues.push({ kind: 'insufficient-usdc', balance: readings.usdc })
+  const native = readings.gasCost === null ? null : readings.gasCost + (readings.terms?.message?.wei ?? 0n)
+  if (readings.native !== null && native !== null && readings.native < native)
+    issues.push({ kind: 'insufficient-gas', need: native, have: readings.native })
+  if (readings.code && readings.code !== '0x' && !readings.code.startsWith('0xef0100'))
+    issues.push({ kind: 'contract-wallet' })
+  if (readings.rejected !== null && !issues.some((issue) => issue.kind === 'insufficient-usdc'))
+    issues.push({ kind: 'chain-rejects', reason: readings.rejected })
   return issues
 }

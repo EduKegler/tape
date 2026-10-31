@@ -1,4 +1,4 @@
-import { concat, encodeAbiParameters, keccak256, stringToBytes } from 'viem'
+import { InvalidAddressError, concat, encodeAbiParameters, isAddress, isHex, keccak256, stringToBytes } from 'viem'
 import type { Address, Hex } from 'viem'
 
 /**
@@ -38,19 +38,26 @@ const DOMAIN_FIELDS: readonly Field[] = [
 ]
 
 function structHash(name: string, fields: readonly Field[], value: Readonly<Record<string, string | number>>): Hex {
-  const signature = `${name}(${fields.map((f) => `${f.type} ${f.name}`).join(',')})`
-  const encoded = fields.map((f) => {
-    const v = value[f.name]
-    if (f.type === 'string') return keccak256(stringToBytes(String(v)))
-    if (f.type === 'address') return encodeAbiParameters([{ type: 'address' }], [v as Address])
-    if (f.type === 'bytes32') return v as Hex
-    return encodeAbiParameters([{ type: 'uint256' }], [BigInt(v as number | string)])
+  const signature = `${name}(${fields.map((field) => `${field.type} ${field.name}`).join(',')})`
+  const encoded = fields.map((field) => {
+    const fieldValue = value[field.name]
+    if (field.type === 'string') return keccak256(stringToBytes(String(fieldValue)))
+    if (field.type === 'address') {
+      if (typeof fieldValue !== 'string' || !isAddress(fieldValue))
+        throw new InvalidAddressError({ address: String(fieldValue) })
+      return encodeAbiParameters([{ type: 'address' }], [fieldValue])
+    }
+    if (field.type === 'bytes32') {
+      if (!isHex(fieldValue)) throw new Error(`EIP-712 field ${field.name} is not hex`)
+      return fieldValue
+    }
+    return encodeAbiParameters([{ type: 'uint256' }], [BigInt(fieldValue!)])
   })
   return keccak256(concat([keccak256(stringToBytes(signature)), ...encoded]))
 }
 
 export function typedDataDigest(data: TypedData): Hex {
-  const fields = data.types[data.primaryType] as readonly Field[]
+  const fields = data.types[data.primaryType]!
   return keccak256(
     concat([
       '0x1901',

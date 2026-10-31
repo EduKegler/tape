@@ -15,7 +15,9 @@ describe('orderly wire', () => {
     expect(text).toBe(
       '{"symbol":"PERP_BTC_USDC","client_order_id":"tape-1","order_type":"LIMIT","order_price":80000.1,"order_quantity":0.00001,"side":"BUY","reduce_only":false}',
     )
-    expect(JSON.parse(text, (_k, v, ctx?: { source?: string }) => ctx?.source ?? v).order_quantity).toBe('0.00001')
+    expect(JSON.parse(text, (_k, value, ctx?: { source?: string }) => ctx?.source ?? value).order_quantity).toBe(
+      '0.00001',
+    )
   })
 
   it('wraps orders for the batch endpoint with each body as single orders write it', () => {

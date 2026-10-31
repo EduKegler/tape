@@ -1,28 +1,27 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { z } from 'zod'
-import type { Address, Hex } from 'viem'
-import { parsePx, wireDecimal } from '@tape/core/fixed'
-import type { Decimals, Px } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
+import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
+import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
 import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
-import { post, send } from '../send'
+import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
-import { TradeFailure } from '../types'
+import { TradeFailure, orderRef, secretHex, toDecimal } from '../types'
 import type {
   AccountView,
   Bps,
   Command,
   CommandOutcome,
-  Decimal,
   HistoryRequest,
   IntentFields,
   OrderIntent,
   OrderLookup,
+  OrderRules,
   OrderRef,
   SetupStep,
   StepId,
@@ -53,15 +52,30 @@ const TRIGGERS = 2
 
 interface Asset {
   readonly index: number
-  readonly spec: MarketSpec
+  readonly spec: OrderRules
   readonly tiers: readonly MarginTier[]
   readonly isolatedOnly: boolean
 }
 
-type HlMeta = {
-  universe: { name: string; szDecimals: string; maxLeverage: string; marginTableId: number; onlyIsolated?: boolean }[]
-  marginTables: [number, { marginTiers: { lowerBound: string; maxLeverage: string }[] }][]
-}
+const HlMeta = z.object({
+  universe: z.array(
+    z.object({
+      name: z.string(),
+      szDecimals: z.string(),
+      maxLeverage: z.string().optional(),
+      marginTableId: z.string().optional(),
+      onlyIsolated: z.boolean().optional(),
+    }),
+  ),
+  marginTables: z
+    .array(
+      z.tuple([
+        z.string(),
+        z.object({ marginTiers: z.array(z.object({ lowerBound: z.string(), maxLeverage: z.string() })) }),
+      ]),
+    )
+    .optional(),
+})
 
 type Meta = ReadonlyMap<string, Asset>
 
@@ -80,36 +94,40 @@ export function classifyText(text: string): TradeError {
   return { kind: 'rejected', detail: text }
 }
 
-const classify: Classify = (_status, body) => {
-  const b = body as { status?: string; response?: unknown } | null
-  return b?.status === 'err' ? classifyText(String(b.response)) : null
-}
+const classify: Classify = (_status, body) =>
+  isRecord(body) && body.status === 'err' ? classifyText(String(body.response)) : null
 
-const infoAt = <T>(network: Network, fetch: typeof globalThis.fetch, body: unknown) =>
-  send<T>('hyperliquid', fetch, `${API[network]}/info`, { ...post(body), mutates: false }, () => null)
-const info = <T>(ctx: VenueContext, body: unknown) => infoAt<T>(ctx.ref.network, ctx.fetch, body)
+const read = <T>(reply: z.ZodType<T>, body: unknown) => readReply('hyperliquid', reply, body, false)
+const infoAt = <T>(network: Network, fetch: typeof globalThis.fetch, body: unknown, reply: z.ZodType<T>) =>
+  send('hyperliquid', fetch, `${API[network]}/info`, { ...post(body), mutates: false }, () => null).then((got) =>
+    read(reply, got),
+  )
+const info = <T>(ctx: VenueContext, body: unknown, reply: z.ZodType<T>) =>
+  infoAt(ctx.ref.network, ctx.fetch, body, reply)
 
 /** Asset ids and szDecimals differ between mainnet and testnet, so each network gets its own rules. */
 function meta(ctx: VenueContext): Promise<Meta> {
   const network = ctx.ref.network
   let cached = metas.get(network)
   if (!cached) {
-    cached = info<HlMeta>(ctx, { type: 'meta' }).then((m) => {
-      const tables = new Map(m.marginTables)
+    cached = info(ctx, { type: 'meta' }, HlMeta).then((hlMeta) => {
+      const tables = new Map(hlMeta.marginTables)
       return new Map(
-        m.universe.map((u, index) => {
-          const qty = Number(u.szDecimals) as Decimals
-          const spec = {
-            venueSymbol: u.name,
-            scale: { px: (6 - qty) as Decimals, qty },
+        hlMeta.universe.map((perp, index) => {
+          const qty = toDecimals(Number(perp.szDecimals))
+          const spec: OrderRules = {
+            venueSymbol: perp.name,
+            scale: { px: toDecimals(6 - qty), qty },
             tick: { kind: 'sigfig', figures: 5 },
-            step: 1,
-          } as unknown as MarketSpec
+            step: toQty(1),
+          }
           // A table id the list lacks is a single tier at the asset's max leverage.
           const tiers = (
-            tables.get(u.marginTableId)?.marginTiers ?? [{ lowerBound: '0', maxLeverage: u.maxLeverage }]
-          ).map((t) => ({ lowerBound: Number(t.lowerBound), maxLeverage: Number(t.maxLeverage) }))
-          return [u.name, { index, spec, tiers, isolatedOnly: Boolean(u.onlyIsolated) }] as const
+            (perp.marginTableId === undefined ? undefined : tables.get(perp.marginTableId)?.marginTiers) ?? [
+              { lowerBound: '0', maxLeverage: perp.maxLeverage },
+            ]
+          ).map((tier) => ({ lowerBound: Number(tier.lowerBound), maxLeverage: Number(tier.maxLeverage) }))
+          return [perp.name, { index, spec, tiers, isolatedOnly: Boolean(perp.onlyIsolated) }] as const
         }),
       )
     })
@@ -126,24 +144,23 @@ async function asset(ctx: VenueContext, symbol: string): Promise<Asset> {
   )
 }
 
-function recheckPx(a: Asset, intent: OrderIntent, px: Px, what: string): string {
+function recheckPx(market: Asset, intent: OrderIntent, px: Px, what: string): string {
   const wire = wireDecimal(px, intent.spec.scale.px)
-  const issue = checkPrice(a.spec, wire)
+  const issue = checkPrice(market.spec, wire)
   return issue ? fail({ kind: 'invalid-order', detail: `${what} ${wire}: ${issue} on this network` }) : wire
 }
 
-function recheckSize(a: Asset, intent: OrderIntent): string {
+function recheckSize(market: Asset, intent: OrderIntent): string {
   const size = wireDecimal(intent.size, intent.spec.scale.qty)
-  const issue = checkSize(a.spec, size)
+  const issue = checkSize(market.spec, size)
   return issue ? fail({ kind: 'invalid-order', detail: `Size ${size}: ${issue} on this network` }) : size
 }
 
-async function touch(ctx: VenueContext, a: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
-  const book = await info<{ levels: [{ px: string }[], { px: string }[]] }>(ctx, {
-    type: 'l2Book',
-    coin: a.spec.venueSymbol,
-  })
-  const [bid, ask] = book.levels.map((side) => (side[0] ? parsePx(side[0].px, a.spec.scale) : null))
+const Book = z.object({ levels: z.array(z.array(z.object({ px: z.string() }))) })
+
+async function touch(ctx: VenueContext, market: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
+  const book = await info(ctx, { type: 'l2Book', coin: market.spec.venueSymbol }, Book)
+  const [bid, ask] = book.levels.map((side) => (side[0] ? parsePx(side[0].px, market.spec.scale) : null))
   return { bid: bid ?? null, ask: ask ?? null }
 }
 
@@ -154,44 +171,46 @@ async function placeWires(
   const { takeProfits, stopLoss } = intent.triggers
   if (takeProfits.length + (stopLoss === null ? 0 : 1) > TRIGGERS)
     fail({ kind: 'invalid-order', detail: `At most ${TRIGGERS} take profits and stop losses on one order` })
-  const a = await asset(ctx, intent.spec.venueSymbol)
-  const size = recheckSize(a, intent)
+  const market = await asset(ctx, intent.spec.venueSymbol)
+  const size = recheckSize(market, intent)
   const isBuy = intent.side === 'buy'
   if (intent.order.kind === 'scale') {
     if (takeProfits.length > 0 || stopLoss !== null)
       fail({ kind: 'invalid-order', detail: 'A scale order carries no take profit or stop loss' })
     const tif = TIF[intent.order.tif]
-    const wires = intent.order.legs.map((leg, i) => {
+    const wires = intent.order.legs.map((leg, index) => {
       const legSize = wireDecimal(leg.size, intent.spec.scale.qty)
-      const issue = checkSize(a.spec, legSize)
-      if (issue) fail({ kind: 'invalid-order', detail: `Order ${i + 1} size ${legSize}: ${issue} on this network` })
-      const px = recheckPx(a, intent, leg.px, `Order ${i + 1} price`)
-      return orderWire(a.index, isBuy, px, legSize, intent.reduceOnly, { limit: { tif } }, leg.clientId)
+      const issue = checkSize(market.spec, legSize)
+      if (issue) fail({ kind: 'invalid-order', detail: `Order ${index + 1} size ${legSize}: ${issue} on this network` })
+      const px = recheckPx(market, intent, leg.px, `Order ${index + 1} price`)
+      return orderWire(market.index, isBuy, px, legSize, intent.reduceOnly, { limit: { tif } }, leg.clientId)
     })
     return { wires, grouping: 'na' }
   }
-  const named = takeProfits.length > 1 ? (i: number) => `Take profit ${i + 1}` : () => 'Take profit'
+  const named = takeProfits.length > 1 ? (index: number) => `Take profit ${index + 1}` : () => 'Take profit'
   const exits = {
-    takeProfits: takeProfits.map((tp, i) => {
+    takeProfits: takeProfits.map((tp, index) => {
       const tpSize = wireDecimal(tp.size, intent.spec.scale.qty)
-      const issue = checkSize(a.spec, tpSize)
-      if (issue) fail({ kind: 'invalid-order', detail: `${named(i)} size ${tpSize}: ${issue} on this network` })
-      return { px: parsePx(recheckPx(a, intent, tp.px, named(i)), a.spec.scale), size: tpSize }
+      const issue = checkSize(market.spec, tpSize)
+      if (issue) fail({ kind: 'invalid-order', detail: `${named(index)} size ${tpSize}: ${issue} on this network` })
+      return { px: parsePx(recheckPx(market, intent, tp.px, named(index)), market.spec.scale), size: tpSize }
     }),
-    stopLoss: stopLoss === null ? null : parsePx(recheckPx(a, intent, stopLoss, 'Stop loss'), a.spec.scale),
+    stopLoss: stopLoss === null ? null : parsePx(recheckPx(market, intent, stopLoss, 'Stop loss'), market.spec.scale),
   }
   const order = intent.order
-  const limit = order.kind === 'limit' ? { px: recheckPx(a, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
-  const book = limit === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, a) : null
+  const limit =
+    order.kind === 'limit' ? { px: recheckPx(market, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
+  const book =
+    limit === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, market) : null
   if (book) {
     const issues = checkExits(
       intent.side,
-      { px: limit && parsePx(limit.px, a.spec.scale), ...book },
+      { px: limit && parsePx(limit.px, market.spec.scale), ...book },
       { takeProfits: exits.takeProfits.map((tp) => tp.px), stopLoss: exits.stopLoss },
     )
     const first =
       exits.takeProfits
-        .map((_, i) => issues[takeProfitField(i)] && `${named(i)}: ${issues[takeProfitField(i)]}`)
+        .map((_, index) => issues[takeProfitField(index)] && `${named(index)}: ${issues[takeProfitField(index)]}`)
         .find(Boolean)
       ?? (issues.stopLoss && `Stop loss: ${issues.stopLoss}`)
     if (first) fail({ kind: 'invalid-order', detail: `${first} on this network` })
@@ -201,18 +220,18 @@ async function placeWires(
     limit
     ?? (order.kind === 'market' && far !== null
       ? {
-          px: wireDecimal(worstPrice(a.spec, intent.side, far, order.slippage), a.spec.scale.px),
+          px: wireDecimal(worstPrice(market.spec, intent.side, far, order.slippage), market.spec.scale.px),
           tif: 'Ioc' as const,
         }
       : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' }))
   const wires = [
-    orderWire(a.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
+    orderWire(market.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
   ]
   const closing = isBuy ? 'sell' : 'buy'
   const trigger = (tpsl: 'tp' | 'sl', px: Px, sz: string) => {
-    const triggerPx = wireDecimal(px, a.spec.scale.px)
-    const bound = wireDecimal(worstPrice(a.spec, closing, px, TRIGGER_SLIPPAGE_BPS), a.spec.scale.px)
-    return orderWire(a.index, !isBuy, bound, sz, true, { trigger: { isMarket: true, triggerPx, tpsl } })
+    const triggerPx = wireDecimal(px, market.spec.scale.px)
+    const bound = wireDecimal(worstPrice(market.spec, closing, px, TRIGGER_SLIPPAGE_BPS), market.spec.scale.px)
+    return orderWire(market.index, !isBuy, bound, sz, true, { trigger: { isMarket: true, triggerPx, tpsl } })
   }
   for (const tp of exits.takeProfits) wires.push(trigger('tp', tp.px, tp.size))
   if (exits.stopLoss !== null) wires.push(trigger('sl', exits.stopLoss, size))
@@ -225,7 +244,7 @@ const nextNonce = () => (lastNonce = Math.max(Date.now(), lastNonce + 1))
 function agentOf(ctx: VenueContext) {
   const secret = ctx.keys.read()?.secret
   return secret
-    ? privateKeyToAccount(secret as Hex)
+    ? privateKeyToAccount(secretHex(secret))
     : fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
 }
 
@@ -249,29 +268,26 @@ type Statuses = z.infer<typeof Reply>
 async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
   const nonce = nextNonce()
   const signature = await signL1Action(localSigner(agentOf(ctx)), action, nonce, CHAIN[ctx.ref.network])
-  const body = await send<unknown>(
+  const body = await send(
     'hyperliquid',
     ctx.fetch,
     `${API[ctx.ref.network]}/exchange`,
     { ...post({ action, nonce, signature }), mutates: true },
     classify,
   )
-  const reply = Reply.safeParse(body)
-  return reply.success
-    ? reply.data
-    : fail({ kind: 'unknown-outcome', detail: `Unreadable reply: ${JSON.stringify(body)}` })
+  return readReply('hyperliquid', Reply, body, true)
 }
 
 const GONE = /never placed|already canceled|filled/i
 function legNames(wires: readonly OrderWire[]): string[] {
-  const tpsl = wires.map((w) => ('trigger' in w.t ? w.t.trigger.tpsl : null))
-  const tps = tpsl.filter((t) => t === 'tp').length
-  let n = 0
-  return tpsl.map((t) => (t === 'tp' ? (tps > 1 ? `TP ${++n}` : 'TP') : t === 'sl' ? 'SL' : 'Leg'))
+  const tpsl = wires.map((wire) => ('trigger' in wire.t ? wire.t.trigger.tpsl : null))
+  const tps = tpsl.filter((kind) => kind === 'tp').length
+  let tpNumber = 0
+  return tpsl.map((kind) => (kind === 'tp' ? (tps > 1 ? `TP ${++tpNumber}` : 'TP') : kind === 'sl' ? 'SL' : 'Leg'))
 }
 
 type OrderStatus = z.infer<typeof Status>
-const errorOf = (s: OrderStatus | undefined) => (typeof s === 'object' ? s.error : undefined)
+const errorOf = (status: OrderStatus | undefined) => (typeof status === 'object' ? status.error : undefined)
 
 function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatus[]): CommandOutcome {
   const [first, ...legs] = statuses
@@ -279,9 +295,9 @@ function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatu
   if (error) fail(classifyText(error))
   // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
   const names = legNames(wires)
-  const refused = legs.flatMap((s, i) => {
-    const legError = errorOf(s)
-    return legError ? [`${names[i + 1]} not placed: ${legError}`] : []
+  const refused = legs.flatMap((status, index) => {
+    const legError = errorOf(status)
+    return legError ? [`${names[index + 1]} not placed: ${legError}`] : []
   })
   const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
   if (typeof first === 'object' && first.filled)
@@ -301,9 +317,10 @@ function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatu
 
 /** Hyperliquid judges each order of the action on its own, so some legs can stand while others are refused. */
 function legsOutcome(statuses: readonly OrderStatus[]): CommandOutcome {
-  const count = (key: 'resting' | 'filled') => statuses.filter((s) => typeof s === 'object' && s[key]).length
+  const count = (key: 'resting' | 'filled') =>
+    statuses.filter((status) => typeof status === 'object' && status[key]).length
   const refusals = statuses.map(errorOf)
-  const stood = refusals.filter((e) => !e).length
+  const stood = refusals.filter((refusal) => !refusal).length
   const resting = count('resting')
   const filled = count('filled')
   return scaleOutcome(
@@ -320,16 +337,17 @@ const percent = (bps: Bps): `${number}%` => `${bps / 100}%`
 async function placeTrailing(ctx: VenueContext, intent: OrderIntent, order: Trailing): Promise<CommandOutcome> {
   if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
     fail({ kind: 'invalid-order', detail: 'A trailing stop carries no take profit or stop loss' })
-  const a = await asset(ctx, intent.spec.venueSymbol)
-  const size = recheckSize(a, intent)
+  const market = await asset(ctx, intent.spec.venueSymbol)
+  const size = recheckSize(market, intent)
   const retracement =
     'pct' in order.retracement
       ? { pct: percent(order.retracement.pct) }
-      : { px: recheckPx(a, intent, order.retracement.px, 'Retracement') }
-  const activationPx = order.activation === null ? null : recheckPx(a, intent, order.activation, 'Activation price')
+      : { px: recheckPx(market, intent, order.retracement.px, 'Retracement') }
+  const activationPx =
+    order.activation === null ? null : recheckPx(market, intent, order.activation, 'Activation price')
   const reply = await exchange(
     ctx,
-    trailingStopAction(a.index, intent.side === 'buy', size, intent.reduceOnly, retracement, activationPx),
+    trailingStopAction(market.index, intent.side === 'buy', size, intent.reduceOnly, retracement, activationPx),
   )
   const oid = reply.response.data?.oid
   return oid
@@ -354,19 +372,21 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       const targets = command.kind === 'cancel' ? [refParts(command.order)] : await openOf(ctx, command.symbol)
       if (targets.length === 0) return { kind: 'done', detail: 'Nothing to cancel' }
       const reply = await exchange(ctx, cancelAction(targets))
-      const errors = (reply.response.data?.statuses ?? []).flatMap((s) =>
-        typeof s === 'object' && s.error && !GONE.test(s.error) ? [s.error] : [],
+      const errors = (reply.response.data?.statuses ?? []).flatMap((status) =>
+        typeof status === 'object' && status.error && !GONE.test(status.error) ? [status.error] : [],
       )
       if (errors.length > 0) fail(classifyText(errors.join('; ')))
       return { kind: 'done', detail: `Canceled ${targets.length}` }
     }
     case 'leverage': {
-      const a = await asset(ctx, command.symbol)
-      await exchange(ctx, leverageAction(a.index, true, command.leverage))
+      const market = await asset(ctx, command.symbol)
+      await exchange(ctx, leverageAction(market.index, true, command.leverage))
       return { kind: 'done', detail: `Leverage ${command.leverage}x cross` }
     }
   }
 }
+
+const OrderLookupReply = z.object({ status: z.string(), order: z.object({ status: z.string() }).nullish() })
 
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
@@ -376,9 +396,7 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
       detail: 'Hyperliquid takes no client id on a trailing stop, so it cannot be found by one',
     })
   const replies = await Promise.all(
-    clientIdsOf(intent).map((oid) =>
-      info<{ status: string; order?: { status: string } }>(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }),
-    ),
+    clientIdsOf(intent).map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
   )
   return lookupSummary(
     replies.map((reply) =>
@@ -389,153 +407,190 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
   )
 }
 
-const refOf = (index: number, oid: string) => `${index}:${oid}` as OrderRef
+const refOf = (index: number, oid: string) => orderRef(index, oid)
 function refParts(ref: OrderRef) {
   const [index, oid] = ref.split(':')
   return { asset: Number(index), oid: Number(oid) }
 }
 
-interface HlOrder {
-  coin: string
-  side: 'A' | 'B'
-  limitPx: string
-  sz: string
-  oid: string
-  timestamp: string
-  orderType: string
-  reduceOnly: boolean
-  isTrigger: boolean
-  triggerPx: string
-}
+const HlOrders = z.array(
+  z.object({
+    coin: z.string(),
+    side: z.string(),
+    limitPx: z.string(),
+    sz: z.string(),
+    oid: z.string(),
+    timestamp: z.string(),
+    orderType: z.string(),
+    reduceOnly: z.boolean(),
+    isTrigger: z.boolean(),
+    triggerPx: z.string(),
+  }),
+)
 
 async function openOf(ctx: VenueContext, symbol: string) {
-  const [orders, m] = await Promise.all([
-    info<HlOrder[]>(ctx, { type: 'frontendOpenOrders', user: ctx.ref.owner }),
+  const [orders, markets] = await Promise.all([
+    info(
+      ctx,
+      { type: 'frontendOpenOrders', user: ctx.ref.owner },
+      z.array(z.object({ coin: z.string(), oid: z.string() })),
+    ),
     meta(ctx),
   ])
-  return orders.filter((o) => o.coin === symbol).map((o) => ({ asset: m.get(o.coin)?.index ?? -1, oid: Number(o.oid) }))
+  return orders
+    .filter((order) => order.coin === symbol)
+    .map((order) => ({ asset: markets.get(order.coin)?.index ?? -1, oid: Number(order.oid) }))
 }
 
 const UNIFIED = new Set(['unifiedAccount', 'portfolioMargin'])
+const isUnified = (mode: unknown) => typeof mode === 'string' && UNIFIED.has(mode)
+
+const AccountState = z.object({
+  marginSummary: z.object({ accountValue: z.string() }),
+  withdrawable: z.string(),
+  assetPositions: z.array(
+    z.object({
+      position: z.object({
+        coin: z.string(),
+        szi: z.string(),
+        entryPx: z.string(),
+        unrealizedPnl: z.string(),
+        liquidationPx: z.string().nullable(),
+        leverage: z.object({ type: z.string(), value: z.string() }),
+      }),
+    }),
+  ),
+})
+const Spot = z.object({
+  balances: z.array(z.object({ coin: z.string(), token: z.string(), total: z.string() })),
+  tokenToAvailableAfterMaintenance: z.array(z.tuple([z.string(), z.string()])).optional(),
+})
+const HlFills = z.array(
+  z.object({
+    coin: z.string(),
+    px: z.string(),
+    sz: z.string(),
+    side: z.string(),
+    time: z.string(),
+    fee: z.string(),
+    tid: z.string(),
+  }),
+)
 
 async function account(ctx: VenueContext): Promise<AccountView> {
   const user = ctx.ref.owner
-  type State = {
-    marginSummary: { accountValue: string }
-    withdrawable: string
-    assetPositions: {
-      position: {
-        coin: string
-        szi: string
-        entryPx: string
-        unrealizedPnl: string
-        liquidationPx: string | null
-        leverage: { type: string; value: string }
-      }
-    }[]
-  }
-  type Spot = {
-    balances: { coin: string; token: number; total: string }[]
-    tokenToAvailableAfterMaintenance?: [number, string][]
-  }
-  type HlFill = { coin: string; px: string; sz: string; side: 'A' | 'B'; time: string; fee: string; tid: string }
-  const [state, spot, mode, orders, fills, m] = await Promise.all([
-    info<State>(ctx, { type: 'clearinghouseState', user }),
-    info<Spot>(ctx, { type: 'spotClearinghouseState', user }),
-    info<string>(ctx, { type: 'userAbstraction', user }),
-    info<HlOrder[]>(ctx, { type: 'frontendOpenOrders', user }),
-    info<HlFill[]>(ctx, { type: 'userFills', user }),
+  const [state, spotState, mode, orders, fills, markets] = await Promise.all([
+    info(ctx, { type: 'clearinghouseState', user }, AccountState),
+    info(ctx, { type: 'spotClearinghouseState', user }, z.unknown()),
+    info(ctx, { type: 'userAbstraction', user }, z.unknown()),
+    info(ctx, { type: 'frontendOpenOrders', user }, HlOrders),
+    info(ctx, { type: 'userFills', user }, HlFills),
     meta(ctx),
   ])
-  const d = (s: string) => s as Decimal
   // A unified or portfolio margin account keeps one USDC balance in spot for spot and perps alike.
   // Its perp state holds only the margin in use, so it is not the balance.
-  const usdc = UNIFIED.has(mode) ? spot.balances.find((b) => b.coin === 'USDC') : undefined
+  const spot = isUnified(mode) ? read(Spot, spotState) : null
+  const usdc = spot?.balances.find((balance) => balance.coin === 'USDC')
   const equity = usdc ? usdc.total : state.marginSummary.accountValue
   const available = usdc
-    ? (spot.tokenToAvailableAfterMaintenance?.find(([token]) => token === usdc.token)?.[1] ?? usdc.total)
+    ? (spot?.tokenToAvailableAfterMaintenance?.find(([token]) => token === usdc.token)?.[1] ?? usdc.total)
     : state.withdrawable
   if (Number(equity) === 0 && state.assetPositions.length === 0 && orders.length === 0 && fills.length === 0)
     return { kind: 'empty' }
   return {
     kind: 'live',
     snapshot: {
-      equity: d(equity),
-      available: d(available),
-      positions: state.assetPositions.map(({ position: p }) => ({
-        symbol: p.coin,
-        side: p.szi.startsWith('-') ? 'short' : 'long',
-        size: d(p.szi.replace(/^-/, '')),
-        entry: d(p.entryPx),
-        unrealizedPnl: d(p.unrealizedPnl),
+      equity: toDecimal(equity),
+      available: toDecimal(available),
+      positions: state.assetPositions.map(({ position }) => ({
+        symbol: position.coin,
+        side: position.szi.startsWith('-') ? 'short' : 'long',
+        size: toDecimal(position.szi.replace(/^-/, '')),
+        entry: toDecimal(position.entryPx),
+        unrealizedPnl: toDecimal(position.unrealizedPnl),
         // An estimate the venue sends unrounded, so it gets the market's price decimals.
-        liquidation: p.liquidationPx ? d(Number(p.liquidationPx).toFixed(m.get(p.coin)?.spec.scale.px ?? 6)) : null,
-        leverage: `${p.leverage.value}x ${p.leverage.type}`,
+        liquidation: position.liquidationPx
+          ? toDecimal(Number(position.liquidationPx).toFixed(markets.get(position.coin)?.spec.scale.px ?? 6))
+          : null,
+        leverage: `${position.leverage.value}x ${position.leverage.type}`,
       })),
-      orders: orders.map((o) => ({
-        ref: refOf(m.get(o.coin)?.index ?? -1, o.oid),
-        symbol: o.coin,
-        side: o.side === 'B' ? 'buy' : 'sell',
-        kind: o.orderType,
-        px: d(o.isTrigger ? o.triggerPx : o.limitPx),
-        size: d(o.sz),
-        reduceOnly: o.reduceOnly,
-        placedAt: Number(o.timestamp),
-        cancelable: m.has(o.coin),
+      orders: orders.map((order) => ({
+        ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
+        symbol: order.coin,
+        side: order.side === 'B' ? 'buy' : 'sell',
+        kind: order.orderType,
+        px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
+        size: toDecimal(order.sz),
+        reduceOnly: order.reduceOnly,
+        placedAt: Number(order.timestamp),
+        cancelable: markets.has(order.coin),
       })),
-      fills: fills.slice(0, 20).map((f) => ({
-        id: f.tid,
-        symbol: f.coin,
-        side: f.side === 'B' ? 'buy' : 'sell',
-        px: d(f.px),
-        size: d(f.sz),
-        fee: d(f.fee),
-        time: Number(f.time),
+      fills: fills.slice(0, 20).map((fill) => ({
+        id: fill.tid,
+        symbol: fill.coin,
+        side: fill.side === 'B' ? 'buy' : 'sell',
+        px: toDecimal(fill.px),
+        size: toDecimal(fill.sz),
+        fee: toDecimal(fill.fee),
+        time: Number(fill.time),
       })),
     },
   }
 }
 
+const MarginState = z.object({
+  crossMarginSummary: z.object({ accountValue: z.string() }),
+  crossMaintenanceMarginUsed: z.string(),
+  assetPositions: z.array(
+    z.object({
+      position: z.object({
+        coin: z.string(),
+        szi: z.string(),
+        positionValue: z.string(),
+        leverage: z.object({ type: z.string() }),
+      }),
+    }),
+  ),
+})
+const ActiveAsset = z.object({ leverage: z.object({ type: z.string() }) })
+
 async function margin(ctx: VenueContext, symbol: string): Promise<MarginState> {
   const user = ctx.ref.owner
-  type State = {
-    crossMarginSummary: { accountValue: string }
-    crossMaintenanceMarginUsed: string
-    assetPositions: { position: { coin: string; szi: string; positionValue: string; leverage: { type: string } } }[]
-  }
-  const [a, mode, state, active] = await Promise.all([
+  const [market, mode, state, active] = await Promise.all([
     asset(ctx, symbol),
-    info<string>(ctx, { type: 'userAbstraction', user }),
-    info<State>(ctx, { type: 'clearinghouseState', user }),
-    info<{ leverage: { type: string } }>(ctx, { type: 'activeAssetData', user, coin: symbol }),
+    info(ctx, { type: 'userAbstraction', user }, z.unknown()),
+    info(ctx, { type: 'clearinghouseState', user }, MarginState),
+    info(ctx, { type: 'activeAssetData', user, coin: symbol }, z.unknown()),
   ])
-  if (UNIFIED.has(mode)) return { kind: 'unsupported', reason: 'Not estimated for unified accounts' }
-  const held = state.assetPositions.find((p) => p.position.coin === symbol)?.position
-  if (a.isolatedOnly || (held ?? active).leverage.type !== 'cross')
+  if (isUnified(mode)) return { kind: 'unsupported', reason: 'Not estimated for unified accounts' }
+  const held = state.assetPositions.find((entry) => entry.position.coin === symbol)?.position
+  if (market.isolatedOnly || (held ?? read(ActiveAsset, active)).leverage.type !== 'cross')
     return { kind: 'unsupported', reason: 'Not estimated for isolated margin' }
   const size = held ? Number(held.szi) : 0
   const value = held ? Number(held.positionValue) : 0
   return {
     kind: 'cross',
     accountValue: Number(state.crossMarginSummary.accountValue),
-    othersMaintenance: Number(state.crossMaintenanceMarginUsed) - maintenanceMargin(a.tiers, value),
-    tiers: a.tiers,
+    othersMaintenance: Number(state.crossMaintenanceMarginUsed) - maintenanceMargin(market.tiers, value),
+    tiers: market.tiers,
     position: size ? { size, mark: value / Math.abs(size) } : null,
   }
 }
+
+const Agents = z.array(z.object({ address: z.string(), validUntil: z.string() }))
 
 async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
   const key = ctx.keys.read()
   const agent = key?.public.agent?.toLowerCase()
   const builder = ctx.config.hyperliquid.builder
   const [agents, fee] = await Promise.all([
-    info<{ address: string; validUntil: string }[]>(ctx, { type: 'extraAgents', user: ctx.ref.owner }),
-    builder
-      ? info<string>(ctx, { type: 'maxBuilderFee', user: ctx.ref.owner, builder: builder.b })
-      : Promise.resolve(null),
+    info(ctx, { type: 'extraAgents', user: ctx.ref.owner }, Agents),
+    builder ? info(ctx, { type: 'maxBuilderFee', user: ctx.ref.owner, builder: builder.b }, z.unknown()) : null,
   ])
   const approved = Boolean(
-    key?.secret && agent && agents.some((a) => a.address.toLowerCase() === agent && Number(a.validUntil) > Date.now()),
+    key?.secret
+    && agent
+    && agents.some((entry) => entry.address.toLowerCase() === agent && Number(entry.validUntil) > Date.now()),
   )
   const list: SetupStep[] = [{ id: 'approve-agent', label: 'Approve a trading key', done: approved }]
   if (builder)
@@ -577,11 +632,11 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
       classify,
     )
   }
-  for (const step of (await steps(ctx)).filter((s) => !s.done)) {
+  for (const step of (await steps(ctx)).filter((entry) => !entry.done)) {
     onStep(step.id)
     if (step.id === 'approve-agent') {
       const existing = ctx.keys.read()
-      const secret = (existing?.secret as Hex | null) ?? generatePrivateKey()
+      const secret = existing?.secret ? secretHex(existing.secret) : generatePrivateKey()
       const agent = privateKeyToAccount(secret).address
       if (!existing?.secret) ctx.keys.write({ status: 'draft', public: { agent }, secret })
       await user(
@@ -591,7 +646,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
       )
     }
     if (step.id === 'approve-builder') {
-      const builder = ctx.config.hyperliquid.builder as { b: Address; f: number }
+      const builder = ctx.config.hyperliquid.builder!
       await user(
         'HyperliquidTransaction:ApproveBuilderFee',
         {
@@ -613,26 +668,27 @@ const FILL_PAGE = 2000
 const FUNDING_PAGE = 500
 const RECENT_FILLS = 10000
 
-interface HlHistoryFill {
-  coin: string
-  px: string
-  sz: string
-  side: 'A' | 'B'
-  time: string
-  startPosition: string
-  closedPnl: string
-  hash: string
-  oid: string
-  fee: string
-  feeToken: string
-  tid: string
-  liquidation?: { liquidatedUser: string }
-}
+const HlHistoryFill = z.object({
+  coin: z.string(),
+  px: z.string(),
+  sz: z.string(),
+  side: z.string(),
+  time: z.string(),
+  startPosition: z.string(),
+  closedPnl: z.string(),
+  hash: z.string(),
+  oid: z.string(),
+  fee: z.string(),
+  feeToken: z.string(),
+  tid: z.string(),
+  liquidation: z.object({ liquidatedUser: z.string() }).nullish(),
+})
+type HlHistoryFill = z.infer<typeof HlHistoryFill>
 
-interface HlFunding {
-  time: string
-  delta: { coin: string; usdc: string; szi: string; fundingRate: string }
-}
+const HlFunding = z.object({
+  time: z.string(),
+  delta: z.object({ coin: z.string(), usdc: z.string(), szi: z.string(), fundingRate: z.string() }),
+})
 
 /** Spot coins are `@index` or `BASE/QUOTE`. Perps on HIP-3 dexes are `dex:COIN`. */
 const isSpot = (coin: string) => coin.startsWith('@') || coin.includes('/')
@@ -642,21 +698,29 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   const [fills, funding] = await Promise.all([
     walkByTime(
       (startTime) =>
-        infoAt<HlHistoryFill[]>(network, fetch, { type: 'userFillsByTime', user, startTime, aggregateByTime: false }),
+        infoAt(
+          network,
+          fetch,
+          { type: 'userFillsByTime', user, startTime, aggregateByTime: false },
+          z.array(HlHistoryFill),
+        ),
       // Dust conversions come with tid 0 and a zero hash, so the tid alone repeats.
-      { size: FILL_PAGE, timeOf: (f) => Number(f.time), keyOf: (f) => `${f.tid}:${f.oid}:${f.coin}:${f.hash}` },
+      {
+        size: FILL_PAGE,
+        timeOf: (fill) => Number(fill.time),
+        keyOf: (fill) => `${fill.tid}:${fill.oid}:${fill.coin}:${fill.hash}`,
+      },
     ),
-    walkByTime((startTime) => infoAt<HlFunding[]>(network, fetch, { type: 'userFunding', user, startTime }), {
+    walkByTime((startTime) => infoAt(network, fetch, { type: 'userFunding', user, startTime }, z.array(HlFunding)), {
       size: FUNDING_PAGE,
-      timeOf: (f) => Number(f.time),
-      keyOf: (f) => `${f.time}:${f.delta.coin}`,
+      timeOf: (payment) => Number(payment.time),
+      keyOf: (payment) => `${payment.time}:${payment.delta.coin}`,
     }),
   ])
-  const perps = fills.rows.filter((f) => !isSpot(f.coin))
+  const perps = fills.rows.filter((fill) => !isSpot(fill.coin))
   const firsts = new Map<string, HlHistoryFill>()
-  for (const f of perps) if (!firsts.has(f.coin)) firsts.set(f.coin, f)
-  const startsOpen = [...firsts.values()].some((f) => Number(f.startPosition) !== 0)
-  const d = (s: string) => s as Decimal
+  for (const fill of perps) if (!firsts.has(fill.coin)) firsts.set(fill.coin, fill)
+  const startsOpen = [...firsts.values()].some((fill) => Number(fill.startPosition) !== 0)
   const gaps: string[] = []
   if (fills.rows.length >= RECENT_FILLS)
     gaps.push(`Hyperliquid serves only its ${RECENT_FILLS} most recent fills, so earlier fills are missing.`)
@@ -667,31 +731,31 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   if (fills.stalled || funding.stalled)
     gaps.push('Hyperliquid sent more rows for one moment than a page holds, so later rows are missing.')
   if (perps.length < fills.rows.length) gaps.push('Spot fills are left out.')
-  const collateral = new Map(perps.map((f) => [f.coin, f.feeToken]))
+  const collateral = new Map(perps.map((fill) => [fill.coin, fill.feeToken]))
   return {
-    fills: perps.map((f): HistoryFill => ({
+    fills: perps.map((fill): HistoryFill => ({
       venue: 'hyperliquid',
       account: user,
-      id: f.tid,
-      symbol: f.coin,
-      side: f.side === 'B' ? 'buy' : 'sell',
-      px: d(f.px),
-      size: d(f.sz),
-      fee: d(f.fee),
-      asset: f.feeToken,
-      time: Number(f.time),
-      liquidation: f.liquidation?.liquidatedUser.toLowerCase() === user,
-      venuePnl: d(f.closedPnl),
+      id: fill.tid,
+      symbol: fill.coin,
+      side: fill.side === 'B' ? 'buy' : 'sell',
+      px: toDecimal(fill.px),
+      size: toDecimal(fill.sz),
+      fee: toDecimal(fill.fee),
+      asset: fill.feeToken,
+      time: Number(fill.time),
+      liquidation: fill.liquidation?.liquidatedUser.toLowerCase() === user,
+      venuePnl: toDecimal(fill.closedPnl),
     })),
-    funding: funding.rows.map((f): FundingPayment => ({
+    funding: funding.rows.map((payment): FundingPayment => ({
       venue: 'hyperliquid',
       account: user,
-      symbol: f.delta.coin,
-      time: Number(f.time),
-      amount: d(f.delta.usdc),
-      asset: collateral.get(f.delta.coin) ?? 'USDC',
-      rate: d(f.delta.fundingRate),
-      position: d(f.delta.szi),
+      symbol: payment.delta.coin,
+      time: Number(payment.time),
+      amount: toDecimal(payment.delta.usdc),
+      asset: collateral.get(payment.delta.coin) ?? 'USDC',
+      rate: toDecimal(payment.delta.fundingRate),
+      position: toDecimal(payment.delta.szi),
     })),
     gaps,
   }

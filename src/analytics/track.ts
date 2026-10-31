@@ -11,11 +11,11 @@ const MAX_PATH = 200
 
 /** A UUIDv7, which PostHog reads the session start from. Lives in memory, so a reload is a new session. */
 export function uuidv7(now: number): string {
-  const b = crypto.getRandomValues(new Uint8Array(16))
-  for (let i = 0; i < 6; i++) b[i] = Math.floor(now / 2 ** (8 * (5 - i))) & 0xff
-  b[6] = (b[6]! & 0x0f) | 0x70
-  b[8] = (b[8]! & 0x3f) | 0x80
-  const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  for (let index = 0; index < 6; index++) bytes[index] = Math.floor(now / 2 ** (8 * (5 - index))) & 0xff
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
@@ -50,7 +50,7 @@ export function pageview(path: string, referrer: string, origin: string): AppEve
 }
 
 export function usePageViews() {
-  const path = useRouterState({ select: (s) => s.location.pathname })
+  const path = useRouterState({ select: (state) => state.location.pathname })
   useEffect(() => {
     track(pageview(path, session ? '' : document.referrer, location.origin))
   }, [path])
@@ -60,8 +60,8 @@ export const report = createReporter(track)
 
 export function useErrorReports() {
   useEffect(() => {
-    const onError = (e: ErrorEvent) => report(e.error, 'window', false)
-    const onRejection = (e: PromiseRejectionEvent) => report(e.reason, 'promise', false)
+    const onError = (event: ErrorEvent) => report(event.error, 'window', false)
+    const onRejection = (event: PromiseRejectionEvent) => report(event.reason, 'promise', false)
     addEventListener('error', onError)
     addEventListener('unhandledrejection', onRejection)
     return () => {
@@ -71,9 +71,9 @@ export function useErrorReports() {
   }, [])
 }
 
-export function commandSent(venueId: VenueId, c: Command): AppEvent {
-  if (c.kind !== 'place') return { event: 'command_sent', venue: venueId, command: c.kind }
-  const { side, order, reduceOnly } = c.intent
+export function commandSent(venueId: VenueId, command: Command): AppEvent {
+  if (command.kind !== 'place') return { event: 'command_sent', venue: venueId, command: command.kind }
+  const { side, order, reduceOnly } = command.intent
   return {
     event: 'command_sent',
     venue: venueId,
@@ -87,13 +87,13 @@ export function commandSent(venueId: VenueId, c: Command): AppEvent {
 
 export function commandResult(
   venueId: VenueId,
-  c: Command,
+  command: Command,
   outcome: { readonly ok: CommandOutcome } | { readonly failed: TradeError['kind'] },
 ): AppEvent {
   if ('failed' in outcome)
-    return { event: 'command_result', venue: venueId, command: c.kind, result: 'failed', error: outcome.failed }
-  const o = outcome.ok
-  return o.kind === 'placed'
-    ? { event: 'command_result', venue: venueId, command: c.kind, result: 'placed', status: o.status }
-    : { event: 'command_result', venue: venueId, command: c.kind, result: 'done' }
+    return { event: 'command_result', venue: venueId, command: command.kind, result: 'failed', error: outcome.failed }
+  const done = outcome.ok
+  return done.kind === 'placed'
+    ? { event: 'command_result', venue: venueId, command: command.kind, result: 'placed', status: done.status }
+    : { event: 'command_result', venue: venueId, command: command.kind, result: 'done' }
 }

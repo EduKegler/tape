@@ -132,10 +132,10 @@ function holdSends() {
     const wallet = (window as { ethereum?: { request: (r: { method: string }) => Promise<unknown> } }).ethereum
     if (!wallet) return void setTimeout(hold, 0)
     const ask = wallet.request.bind(wallet)
-    wallet.request = (r) =>
-      r.method === 'eth_sendTransaction'
+    wallet.request = (args) =>
+      args.method === 'eth_sendTransaction'
         ? new Promise((resolve) => Object.assign(window, { answerSend: resolve }))
-        : ask(r)
+        : ask(args)
   }
   hold()
 }

@@ -13,7 +13,8 @@ export function MarketSearch({ venue }: { venue: VenueId }) {
   const list = useQuery({ ...marketsQuery(venue), enabled: opened })
   const markets = list.data
   const groups = useMemo(
-    () => searchMarkets(markets ?? [], query).map((g) => ({ key: g.dex, label: g.name, items: g.markets })),
+    () =>
+      searchMarkets(markets ?? [], query).map((group) => ({ key: group.dex, label: group.name, items: group.markets })),
     [markets, query],
   )
   const navigate = useNavigate()
@@ -23,15 +24,17 @@ export function MarketSearch({ venue }: { venue: VenueId }) {
       value={query}
       groups={groups}
       empty={markets ? 'No market matches' : list.isError ? 'Could not load markets.' : 'Loading markets'}
-      itemKey={(m) => m.base}
-      renderItem={(m) => m.base}
+      itemKey={(market) => market.base}
+      renderItem={(market) => market.base}
       onChange={setQuery}
       onOpenChange={(open) => {
         if (!open) return
         setOpened(true)
         if (list.isError) void list.refetch()
       }}
-      onPick={(m) => void navigate({ to: '/$venue/$base', params: { venue, base: m.base }, search: (s) => s })}
+      onPick={(market) =>
+        void navigate({ to: '/$venue/$base', params: { venue, base: market.base }, search: (search) => search })
+      }
     />
   )
 }

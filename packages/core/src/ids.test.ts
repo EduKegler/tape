@@ -73,7 +73,7 @@ describe('bases', () => {
       'a:b:c',
       'x'.repeat(65),
     ]
-    expect(listed.filter((b) => !isBase(b))).toEqual([])
+    expect(listed.filter((base) => !isBase(base))).toEqual([])
     expect(refused.filter(isBase)).toEqual([])
   })
 

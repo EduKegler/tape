@@ -91,8 +91,11 @@ async function iris(venue: TradeVenueId, fetch: typeof globalThis.fetch, path: s
   let response: Response
   try {
     response = await fetch(`${IRIS}${path}`)
-  } catch (e) {
-    throw new TradeFailure(venue, { kind: 'unreachable', detail: e instanceof Error ? e.message : String(e) })
+  } catch (error) {
+    throw new TradeFailure(venue, {
+      kind: 'unreachable',
+      detail: error instanceof Error ? error.message : String(error),
+    })
   }
   if (response.status === 404) return null
   if (!response.ok) throw new TradeFailure(venue, { kind: 'unreachable', detail: `Circle ${response.status}` })
@@ -115,7 +118,7 @@ export async function hyperCoreFee(
     fetch,
     `/v2/burn/USDC/fees/${sourceDomain}/${HYPEREVM_DOMAIN}?forward=true&hyperCoreDeposit=true`,
   )
-  const fast = Fees.safeParse(body).data?.find((f) => f.finalityThreshold === FAST_FINALITY)
+  const fast = Fees.safeParse(body).data?.find((quote) => quote.finalityThreshold === FAST_FINALITY)
   if (!fast) throw new TradeFailure(venue, { kind: 'unreachable', detail: 'Circle sent no Fast Transfer fee' })
   const hundredthsBps = BigInt(Math.round(fast.minimumFee * 100))
   const protocol = ceilDiv(amount * hundredthsBps, 1_000_000n)
@@ -131,12 +134,12 @@ async function burnMessage(
   hash: Hex,
 ): Promise<BurnMessage | null> {
   const body = await iris(venue, fetch, messagePath(sourceDomain, hash))
-  const m = body === null ? undefined : Messages.safeParse(body).data?.messages[0]
-  if (!m) return null
-  const fee = m.decodedMessage?.decodedMessageBody?.feeExecuted
+  const message = body === null ? undefined : Messages.safeParse(body).data?.messages[0]
+  if (!message) return null
+  const fee = message.decodedMessage?.decodedMessageBody?.feeExecuted
   return {
-    attested: m.status === 'complete',
-    forward: forwardOf(m.forwardState),
+    attested: message.status === 'complete',
+    forward: forwardOf(message.forwardState),
     feeExecuted: fee ? BigInt(fee) : null,
   }
 }
@@ -169,4 +172,4 @@ export async function followForward(
     : { stage: 'relaying', detail: 'Waiting for Circle to attest the burn' }
 }
 
-const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b
+const ceilDiv = (dividend: bigint, divisor: bigint) => (dividend + divisor - 1n) / divisor

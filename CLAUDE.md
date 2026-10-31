@@ -80,6 +80,8 @@ Before a venue ships, its tests prove these:
 | Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
 | Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
+| No one-letter names | `id-length` in `eslint.config.js` |
+| No casts that narrow a type outside the constructor that owns it | `@typescript-eslint/no-unsafe-type-assertion` in `eslint.config.js`, off in tests |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
 | UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |

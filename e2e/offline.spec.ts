@@ -40,10 +40,10 @@ test('the hub worker cannot reach a venue', async ({ page, network }) => {
     async ({ control, probe }) =>
       new Promise<ProbeResult>((resolve) => {
         const channel = new BroadcastChannel(control)
-        channel.onmessage = (e: MessageEvent<{ reached?: ProbeResult }>) => {
-          if (!e.data.reached) return
+        channel.onmessage = (event: MessageEvent<{ reached?: ProbeResult }>) => {
+          if (!event.data.reached) return
           channel.close()
-          resolve(e.data.reached)
+          resolve(event.data.reached)
         }
         channel.postMessage({ probe })
       }),

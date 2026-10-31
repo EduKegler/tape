@@ -9,13 +9,17 @@ import type { HlSignature } from './sign'
 // Vectors from hyperliquid-python-sdk tests/signing_test.py. Python's to_hex drops leading zeros, so compare as integers.
 const wallet = localSigner(privateKeyToAccount('0x0123456789012345678901234567890123456789012345678901234567890123'))
 
-function expectSig(actual: HlSignature, r: Hex, s: Hex, v: number) {
-  expect([hexToBigInt(actual.r), hexToBigInt(actual.s), actual.v]).toEqual([hexToBigInt(r), hexToBigInt(s), v])
+function expectSig(actual: HlSignature, expectedR: Hex, expectedS: Hex, expectedV: number) {
+  expect([hexToBigInt(actual.r), hexToBigInt(actual.s), actual.v]).toEqual([
+    hexToBigInt(expectedR),
+    hexToBigInt(expectedS),
+    expectedV,
+  ])
 }
 
-const order = (t: unknown, c?: string) => ({
+const order = (orderType: unknown, cloid?: string) => ({
   type: 'order',
-  orders: [{ a: 1, b: true, p: '100', s: '100', r: false, t, ...(c ? { c } : {}) }],
+  orders: [{ a: 1, b: true, p: '100', s: '100', r: false, t: orderType, ...(cloid ? { c: cloid } : {}) }],
   grouping: 'na',
 })
 
@@ -142,9 +146,9 @@ describe('hyperliquid signing', () => {
       amount: '1',
       time: 1,
     }
-    const ending = (r: Hex, s: Hex, parity: '00' | '01') => ({
+    const ending = (signatureR: Hex, signatureS: Hex, parity: '00' | '01') => ({
       address: wallet.address,
-      signTypedData: async () => `${r}${s.slice(2)}${parity}` as Hex,
+      signTypedData: async () => `${signatureR}${signatureS.slice(2)}${parity}` as Hex,
     })
     const [r27, s27] = [
       '0x637b37dd731507cdd24f46532ca8ba6eec616952c56218baeff04144e4a77073',

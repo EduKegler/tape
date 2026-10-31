@@ -10,16 +10,19 @@ import {
 } from 'wagmi'
 import type { Connector, CreateConnectorFn } from 'wagmi'
 import { UserRejectedRequestError, erc20Abi, formatUnits } from 'viem'
+import { isRecord } from '@tape/core/json'
 import { shortAddress } from '#/ui/format'
 import { Button, Select } from '#/ui/primitives'
 import { track } from '#/analytics/track'
-import { USDC, chains } from './config'
+import { USDC, chains, isChainId } from './config'
 import { PairingQr } from './PairingQr'
 
 const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
 
-const kindOf = (c: Connector | CreateConnectorFn) =>
-  'type' in c && (c.type === 'injected' || c.type === 'walletConnect') ? c.type : 'other'
+const kindOf = (connector: Connector | CreateConnectorFn) =>
+  'type' in connector && (connector.type === 'injected' || connector.type === 'walletConnect')
+    ? connector.type
+    : 'other'
 
 export function WalletButton() {
   const { address, chainId, isConnected } = useConnection()
@@ -33,14 +36,14 @@ export function WalletButton() {
   } = useConnect({
     mutation: {
       onSuccess: (_data, { connector }) => track({ event: 'wallet_connected', connector: kindOf(connector) }),
-      onError: (e, { connector }) =>
+      onError: (failure, { connector }) =>
         track({
           event: 'wallet_connect_failed',
           connector: kindOf(connector),
           reason:
-            e instanceof ProviderNotFoundError
+            failure instanceof ProviderNotFoundError
               ? 'no-wallet'
-              : (e as { code?: number }).code === UserRejectedRequestError.code
+              : isRecord(failure) && failure.code === UserRejectedRequestError.code
                 ? 'rejected'
                 : 'other',
         }),
@@ -89,11 +92,14 @@ export function WalletButton() {
         size="md"
         id="chain"
         value={chainId}
-        onChange={(v) => switchChain({ chainId: Number(v) as (typeof chains)[number]['id'] })}
+        onChange={(value) => {
+          const id = Number(value)
+          if (isChainId(id)) switchChain({ chainId: id })
+        }}
       >
-        {chains.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
+        {chains.map((chain) => (
+          <option key={chain.id} value={chain.id}>
+            {chain.name}
           </option>
         ))}
       </Select>
@@ -106,7 +112,7 @@ export function WalletButton() {
 
 export function useUsdcBalance(): { readonly chain: string; readonly amount: string } | null {
   const { address, chainId, chain } = useConnection()
-  const token = chainId ? USDC[chainId as keyof typeof USDC] : undefined
+  const token = chainId ? USDC[chainId] : undefined
   const { data } = useReadContract({
     address: token,
     abi: erc20Abi,

@@ -18,8 +18,8 @@ export function raw(decimal: string): Raw {
 
 export function body(fields: Readonly<Record<string, string | number | boolean | Raw | undefined>>): string {
   const parts = Object.entries(fields)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => `${JSON.stringify(k)}:${typeof v === 'object' ? v.raw : JSON.stringify(v)}`)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${JSON.stringify(key)}:${typeof value === 'object' ? value.raw : JSON.stringify(value)}`)
   return `{${parts.join(',')}}`
 }
 
@@ -33,15 +33,15 @@ export interface OrderFields {
   readonly reduceOnly: boolean
 }
 
-export function orderBody(o: OrderFields): string {
+export function orderBody(order: OrderFields): string {
   return body({
-    symbol: o.symbol,
-    client_order_id: o.clientOrderId,
-    order_type: o.type,
-    order_price: raw(o.price),
-    order_quantity: raw(o.quantity),
-    side: o.side,
-    reduce_only: o.reduceOnly,
+    symbol: order.symbol,
+    client_order_id: order.clientOrderId,
+    order_type: order.type,
+    order_price: raw(order.price),
+    order_quantity: raw(order.quantity),
+    side: order.side,
+    reduce_only: order.reduceOnly,
   })
 }
 

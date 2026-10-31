@@ -10,7 +10,7 @@ export function Checkbox(props: {
         type="checkbox"
         name={props.name}
         checked={props.checked}
-        onChange={(e) => props.onChange(e.target.checked)}
+        onChange={(event) => props.onChange(event.target.checked)}
       />
       {props.label}
     </label>

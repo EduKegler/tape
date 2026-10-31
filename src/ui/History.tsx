@@ -3,7 +3,7 @@ import { useQueries } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useConnection } from 'wagmi'
 import { z } from 'zod'
-import type { Address } from 'viem'
+import { isAddress } from 'viem'
 import { selectHistory, summarize, toCsv } from '@tape/trade/history'
 import type { FundingPayment, RealizedFill, Totals } from '@tape/trade/history'
 import { amount, format } from '@tape/trade/money'
@@ -63,13 +63,13 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   useEffect(() => lastHistorySearch.setState(() => search), [search])
   const { address: connected } = useConnection()
   const wallet = (search.address ?? connected ?? null)?.toLowerCase() ?? null
-  const owned = wallet !== null && wallet === connected?.toLowerCase() ? (wallet as Address) : null
+  const owned = wallet !== null && wallet === connected?.toLowerCase() && isAddress(wallet) ? wallet : null
   const derived = useDydxAddress(owned)
   const dydx = search.dydx ?? derived
   const addressOf = (venue: TradeVenueId) => (venue === 'dydx' ? dydx : wallet)
-  const results = useQueries({ queries: HISTORY_VENUES.map((v) => historyQuery(v, addressOf(v))) })
+  const results = useQueries({ queries: HISTORY_VENUES.map((venue) => historyQuery(venue, addressOf(venue))) })
   const selected = selectHistory(
-    results.flatMap((r) => (r.data ? [r.data] : [])),
+    results.flatMap((result) => (result.data ? [result.data] : [])),
     {
       venue: search.venue === 'all' ? null : search.venue,
       market: search.market ?? null,
@@ -77,10 +77,10 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
       to: search.to ?? null,
     },
   )
-  const failed = HISTORY_VENUES.filter((_, i) => results[i]!.error).map((v) => VENUES[v].label)
+  const failed = HISTORY_VENUES.filter((_, index) => results[index]!.error).map((venue) => VENUES[venue].label)
   const unread = failed.length > 0 ? new Intl.ListFormat('en').format(failed) : null
-  const totals = summarize(selected.fills, selected.funding, (e) =>
-    search.totals === 'venue' ? VENUES[e.venue].label : new Date(e.time).toISOString().slice(0, 7),
+  const totals = summarize(selected.fills, selected.funding, (entry) =>
+    search.totals === 'venue' ? VENUES[entry.venue].label : new Date(entry.time).toISOString().slice(0, 7),
   )
   const all = search.totals === 'venue' ? summarize(selected.fills, selected.funding, () => 'All venues') : []
   const fills = search.kind === 'funding' ? [] : selected.fills
@@ -105,13 +105,13 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
             onSubmit={(next) => set({ address: next.wallet || undefined, dydx: next.dydx || undefined })}
           />
           <ul className="flex flex-col gap-2" aria-label="Venues">
-            {HISTORY_VENUES.map((venue, i) => (
+            {HISTORY_VENUES.map((venue, index) => (
               <VenueStatus
                 key={venue}
                 venue={venue}
                 address={addressOf(venue)}
-                result={results[i]!}
-                onRefresh={() => void results[i]!.refetch()}
+                result={results[index]!}
+                onRefresh={() => void results[index]!.refetch()}
               />
             ))}
           </ul>
@@ -184,8 +184,8 @@ function Addresses({
   return (
     <form
       className="flex flex-col gap-2"
-      onSubmit={(e) => {
-        e.preventDefault()
+      onSubmit={(event) => {
+        event.preventDefault()
         if (walletOk && dydxOk) onSubmit(draft)
       }}
     >
@@ -193,7 +193,7 @@ function Addresses({
         Wallet, for Hyperliquid and Orderly
         <InlineInput
           value={draft.wallet}
-          onChange={(e) => setDraft({ ...draft, wallet: e.target.value.trim() })}
+          onChange={(event) => setDraft({ ...draft, wallet: event.target.value.trim() })}
           placeholder={fallback.wallet ?? '0x…'}
           spellCheck={false}
           aria-invalid={!walletOk}
@@ -203,7 +203,7 @@ function Addresses({
         dYdX address
         <InlineInput
           value={draft.dydx}
-          onChange={(e) => setDraft({ ...draft, dydx: e.target.value.trim() })}
+          onChange={(event) => setDraft({ ...draft, dydx: event.target.value.trim() })}
           placeholder={fallback.dydx ?? 'dydx1…'}
           spellCheck={false}
           aria-invalid={!dydxOk}
@@ -228,7 +228,7 @@ function VenueStatus({
   onRefresh: () => void
 }) {
   const label = VENUES[venue].label
-  const h = result.data
+  const history = result.data
   return (
     <li className="flex flex-col gap-1 border-t border-rule pt-2" data-history-venue={venue}>
       <div className="flex items-baseline justify-between gap-2">
@@ -250,12 +250,12 @@ function VenueStatus({
       {result.error && (
         <ReadNote what={`${label} history`} error={result.error.error} onRetry={onRefresh} busy={result.isFetching} />
       )}
-      {h && (
+      {history && (
         <p className="num text-level2">
-          {h.fills.length} fills · {h.funding.length} funding payments
+          {history.fills.length} fills · {history.funding.length} funding payments
         </p>
       )}
-      {h?.gaps.map((gap) => (
+      {history?.gaps.map((gap) => (
         <p key={gap} className="text-xs/snug text-level3">
           {gap}
         </p>
@@ -281,7 +281,10 @@ function Filters({
         label="Venue"
         value={search.venue}
         onChange={(venue) => set({ venue, market: undefined })}
-        options={[{ value: 'all', label: 'All' }, ...HISTORY_VENUES.map((v) => ({ value: v, label: VENUES[v].label }))]}
+        options={[
+          { value: 'all', label: 'All' },
+          ...HISTORY_VENUES.map((venue) => ({ value: venue, label: VENUES[venue].label })),
+        ]}
       />
       <Segmented
         label="Type"
@@ -295,37 +298,37 @@ function Filters({
       />
       <label className="flex items-center gap-1 text-level3">
         Market
-        <Select size="sm" value={search.market ?? ''} onChange={(v) => set({ market: v || undefined })}>
+        <Select size="sm" value={search.market ?? ''} onChange={(value) => set({ market: value || undefined })}>
           <option value="">All</option>
-          {markets.map((m) => (
-            <option key={m} value={m}>
-              {m}
+          {markets.map((market) => (
+            <option key={market} value={market}>
+              {market}
             </option>
           ))}
         </Select>
       </label>
       <div role="group" aria-label="Period" className="flex items-center gap-1 text-level3">
-        {presets(now).map((p) => (
+        {presets(now).map((preset) => (
           <Button
-            key={p.label}
+            key={preset.label}
             look="toggle"
-            aria-pressed={search.from === p.from && search.to === p.to}
-            onClick={() => set({ from: p.from, to: p.to })}
+            aria-pressed={search.from === preset.from && search.to === preset.to}
+            onClick={() => set({ from: preset.from, to: preset.to })}
           >
-            {p.label}
+            {preset.label}
           </Button>
         ))}
         <InlineInput
           type="date"
           aria-label="From"
           value={search.from ?? ''}
-          onChange={(e) => set({ from: e.target.value || undefined })}
+          onChange={(event) => set({ from: event.target.value || undefined })}
         />
         <InlineInput
           type="date"
           aria-label="To"
           value={search.to ?? ''}
-          onChange={(e) => set({ to: e.target.value || undefined })}
+          onChange={(event) => set({ to: event.target.value || undefined })}
         />
       </div>
     </div>
@@ -339,22 +342,22 @@ function TotalsTable({ rows, first, empty }: { rows: Totals[]; first: string; em
   const columns: Column<Totals>[] = [
     {
       header: first,
-      cell: (t) => (
+      cell: (total) => (
         <>
-          {t.group}
-          {t.asset !== 'USDC' && <span className="text-level3"> · {t.asset}</span>}
+          {total.group}
+          {total.asset !== 'USDC' && <span className="text-level3"> · {total.asset}</span>}
         </>
       ),
     },
-    { header: 'Fills', cell: (t) => t.fills },
-    { header: 'Realized PnL', cell: (t) => <Signed value={t.realized} /> },
-    { header: 'Fees', cell: (t) => money(t.fees) },
-    { header: 'Funding', cell: (t) => <Signed value={t.funding} /> },
-    { header: 'Net', cell: (t) => <Signed value={t.net} /> },
+    { header: 'Fills', cell: (total) => total.fills },
+    { header: 'Realized PnL', cell: (total) => <Signed value={total.realized} /> },
+    { header: 'Fees', cell: (total) => money(total.fees) },
+    { header: 'Funding', cell: (total) => <Signed value={total.funding} /> },
+    { header: 'Net', cell: (total) => <Signed value={total.net} /> },
   ]
   return (
     <div className={`${TOTALS_HEIGHT} overflow-y-auto`}>
-      <Table rows={rows} rowKey={(t) => `${t.group}:${t.asset}`} columns={columns} />
+      <Table rows={rows} rowKey={(total) => `${total.group}:${total.asset}`} columns={columns} />
     </div>
   )
 }
@@ -370,7 +373,7 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
   const rows = [
     ...fills.map((fill): Row => ({ kind: 'fill', time: fill.time, fill })),
     ...payments.map((payment): Row => ({ kind: 'funding', time: payment.time, payment })),
-  ].sort((a, b) => b.time - a.time)
+  ].sort((left, right) => right.time - left.time)
   const scroller = useRef<HTMLDivElement>(null)
   const virtual = useVirtualizer({
     count: rows.length,
@@ -428,9 +431,9 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
         )}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
-            const r = rows[item.index]
-            if (!r) return null
-            const e = r.kind === 'fill' ? r.fill : r.payment
+            const row = rows[item.index]
+            if (!row) return null
+            const entry = row.kind === 'fill' ? row.fill : row.payment
             return (
               <div
                 key={item.key}
@@ -440,13 +443,13 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
                 style={{ transform: `translateY(${item.start}px)` }}
               >
                 <span role="cell" className="whitespace-nowrap">
-                  {utcTime(r.time)}
+                  {utcTime(row.time)}
                 </span>
-                <span role="cell">{VENUES[e.venue].label}</span>
+                <span role="cell">{VENUES[entry.venue].label}</span>
                 <span role="cell" className="truncate text-level1">
-                  {e.symbol}
+                  {entry.symbol}
                 </span>
-                {r.kind === 'fill' ? <FillCells fill={r.fill} /> : <FundingCells payment={r.payment} />}
+                {row.kind === 'fill' ? <FillCells fill={row.fill} /> : <FundingCells payment={row.payment} />}
               </div>
             )
           })}

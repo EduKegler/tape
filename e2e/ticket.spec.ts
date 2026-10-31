@@ -116,7 +116,7 @@ test('a book row from a stale book warns under the price without blocking', asyn
   await row.click()
   await expect(price).toHaveAccessibleDescription(/^Book 2\d s old\. Check the market\.$/)
   const note = ticket.getByText(/^Book 2\d s old/)
-  expect(await note.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+  expect(await note.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   await expect(price).toHaveAttribute('aria-invalid', 'false')
 
   await price.fill('80590')

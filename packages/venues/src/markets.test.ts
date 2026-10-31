@@ -21,7 +21,12 @@ describe('hyperliquid markets', () => {
       }),
       INFO,
     )
-    expect(groups.map((g) => [g.name, g.markets.map((m) => [m.key, m.venueSymbol, m.scale])])).toEqual([
+    expect(
+      groups.map((group) => [
+        group.name,
+        group.markets.map((market) => [market.key, market.venueSymbol, market.scale]),
+      ]),
+    ).toEqual([
       [null, [['hyperliquid:STX', 'STX', { px: 5, qty: 1 }]]],
       ['Paragon', [['hyperliquid:para:STX', 'para:STX', { px: 3, qty: 3 }]]],
     ])
@@ -39,7 +44,7 @@ describe('hyperliquid markets', () => {
       }),
       INFO,
     )
-    expect(groups.map((g) => [g.dex, g.name])).toEqual([
+    expect(groups.map((group) => [group.dex, group.name])).toEqual([
       ['', null],
       ['trv', 'Trove'],
       ['trw', 'Trove'],
@@ -57,7 +62,7 @@ describe('hyperliquid markets', () => {
       }),
       INFO,
     )
-    expect(groups.map((g) => g.name)).toEqual([null])
+    expect(groups.map((group) => group.name)).toEqual([null])
   })
 
   it('reads one HIP-3 market from its own dex', async () => {

@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import { parseExactJson } from '@tape/core/json'
 import { TradeFailure } from './types'
 import type { TradeError, TradeVenueId } from './types'
@@ -6,25 +7,25 @@ export type Classify = (status: number, body: unknown, text: string) => TradeErr
 
 const REPLY_TIMEOUT_MS = 10_000
 
-export async function send<T>(
+export async function send(
   venue: TradeVenueId,
   fetch: typeof globalThis.fetch,
   url: string,
   init: RequestInit & { mutates: boolean },
   classify: Classify,
-): Promise<T> {
+): Promise<unknown> {
   let response: Response
   try {
     response = await fetch(url, { ...init, signal: AbortSignal.timeout(REPLY_TIMEOUT_MS) })
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
     throw new TradeFailure(venue, init.mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
   }
   let text: string
   try {
     text = await response.text()
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
     throw new TradeFailure(venue, init.mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
   }
   if (init.mutates && response.status >= 500)
@@ -37,7 +38,15 @@ export async function send<T>(
   }
   const error = classify(response.status, body, text) ?? httpError(response.status, text)
   if (error) throw new TradeFailure(venue, error)
-  return body as T
+  return body
+}
+
+/** `body` read through `reply`. A reply it cannot read is an unknown outcome on a write and unreachable on a read. */
+export function readReply<T>(venue: TradeVenueId, reply: z.ZodType<T>, body: unknown, mutates: boolean): T {
+  const read = reply.safeParse(body)
+  if (read.success) return read.data
+  const detail = `Unreadable reply: ${JSON.stringify(body)}`
+  throw new TradeFailure(venue, mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
 }
 
 function httpError(status: number, text: string): TradeError | null {

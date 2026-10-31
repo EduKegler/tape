@@ -1,19 +1,19 @@
 import { bytesToHex } from 'viem'
+import { z } from 'zod'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize, worstPrice } from '../intent'
-import { send } from '../send'
-import { TradeFailure } from '../types'
+import { readReply, send } from '../send'
+import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
   AccountView,
   Command,
   CommandOutcome,
-  Decimal,
   HistoryRequest,
   OrderIntent,
   OrderLookup,
+  OrderRules,
   OrderRef,
   SetupStep,
   StepId,
@@ -38,7 +38,7 @@ const TIF = { gtc: 0, ioc: 1, 'post-only': 2 } as const
 const FLAGS = { short: 0, long: 64 } as const
 
 interface Market extends ClobMarket {
-  readonly spec: MarketSpec
+  readonly spec: OrderRules
 }
 
 function fail(error: TradeError): never {
@@ -56,46 +56,51 @@ export function classifyMessage(message: string): TradeError {
   return { kind: 'unknown-outcome', detail: message }
 }
 
-const indexerAt = <T>(network: Network, fetch: typeof globalThis.fetch, path: string) =>
-  send<T>('dydx', fetch, `${INDEXER[network]}${path}`, { mutates: false }, (status, _b, text) =>
+const indexerAt = <T>(network: Network, fetch: typeof globalThis.fetch, path: string, reply: z.ZodType<T>) =>
+  send('dydx', fetch, `${INDEXER[network]}${path}`, { mutates: false }, (status, _b, text) =>
     status === 404 ? { kind: 'rejected', detail: text } : null,
-  )
-const indexer = <T>(ctx: VenueContext, path: string) => indexerAt<T>(ctx.ref.network, ctx.fetch, path)
+  ).then((body) => readReply('dydx', reply, body, false))
+const indexer = <T>(ctx: VenueContext, path: string, reply: z.ZodType<T>) =>
+  indexerAt(ctx.ref.network, ctx.fetch, path, reply)
+
+const PerpetualMarkets = z.object({
+  markets: z.record(
+    z.string(),
+    z.object({
+      clobPairId: z.string(),
+      atomicResolution: z.string(),
+      quantumConversionExponent: z.string(),
+      stepBaseQuantums: z.string(),
+      subticksPerTick: z.string(),
+      tickSize: z.string(),
+      stepSize: z.string(),
+    }),
+  ),
+})
 
 const markets = new Map<string, Promise<Market>>()
 function market(ctx: VenueContext, ticker: string): Promise<Market> {
   const key = `${ctx.ref.network}:${ticker}`
   let cached = markets.get(key)
   if (!cached) {
-    type M = {
-      clobPairId: string
-      atomicResolution: string
-      quantumConversionExponent: string
-      stepBaseQuantums: string
-      subticksPerTick: string
-      tickSize: string
-      stepSize: string
-    }
-    cached = indexer<{ markets: Record<string, M> }>(ctx, `/perpetualMarkets?ticker=${ticker}`).then(
-      ({ markets: all }) => {
-        const m =
-          all[ticker] ?? fail({ kind: 'invalid-order', detail: `${ticker} is not listed on dYdX ${ctx.ref.network}` })
-        const scale: Scale = { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) }
-        return {
-          clobPairId: Number(m.clobPairId),
-          atomicResolution: Number(m.atomicResolution),
-          quantumConversionExponent: Number(m.quantumConversionExponent),
-          stepBaseQuantums: Number(m.stepBaseQuantums),
-          subticksPerTick: Number(m.subticksPerTick),
-          spec: {
-            venueSymbol: ticker,
-            scale,
-            tick: { kind: 'fixed', tick: parsePx(m.tickSize, scale) },
-            step: parseQty(m.stepSize, scale),
-          } as unknown as MarketSpec,
-        }
-      },
-    )
+    cached = indexer(ctx, `/perpetualMarkets?ticker=${ticker}`, PerpetualMarkets).then(({ markets: all }) => {
+      const listed =
+        all[ticker] ?? fail({ kind: 'invalid-order', detail: `${ticker} is not listed on dYdX ${ctx.ref.network}` })
+      const scale: Scale = { px: decimalsOf(listed.tickSize), qty: decimalsOf(listed.stepSize) }
+      return {
+        clobPairId: Number(listed.clobPairId),
+        atomicResolution: Number(listed.atomicResolution),
+        quantumConversionExponent: Number(listed.quantumConversionExponent),
+        stepBaseQuantums: Number(listed.stepBaseQuantums),
+        subticksPerTick: Number(listed.subticksPerTick),
+        spec: {
+          venueSymbol: ticker,
+          scale,
+          tick: { kind: 'fixed', tick: parsePx(listed.tickSize, scale) },
+          step: parseQty(listed.stepSize, scale),
+        },
+      }
+    })
     cached.catch(() => markets.delete(key))
     markets.set(key, cached)
   }
@@ -133,14 +138,23 @@ function withinTimeout<T>(work: Promise<T>): Promise<T> {
   return Promise.race([work, late]).finally(() => clearTimeout(timer))
 }
 
+/** The fields Tape reads from the TxResponse or IndexedTx that v4-client-js resolves a broadcast with. */
+const BroadcastReply = z
+  .looseObject({
+    code: z.number().optional(),
+    log: z.string().optional(),
+    hash: z.union([z.instanceof(Uint8Array), z.string()]).optional(),
+  })
+  .optional()
+
 /** The client throws plain errors for chain refusals; a reply with a non-zero code is a refusal too. */
 async function broadcast(network: Network, run: (client: Validator) => Promise<unknown>): Promise<string> {
-  let reply: { code?: number; log?: string; hash?: Uint8Array | string } | undefined
+  let reply: z.infer<typeof BroadcastReply>
   try {
-    reply = (await withinTimeout(validatorOf(network).then(run))) as typeof reply
-  } catch (e) {
-    if (e instanceof TradeFailure) throw e
-    fail(classifyMessage(e instanceof Error ? e.message : String(e)))
+    reply = readReply('dydx', BroadcastReply, await withinTimeout(validatorOf(network).then(run)), true)
+  } catch (error) {
+    if (error instanceof TradeFailure) throw error
+    fail(classifyMessage(error instanceof Error ? error.message : String(error)))
   }
   if (reply?.code) {
     const log = reply.log ?? `code ${reply.code}`
@@ -152,44 +166,47 @@ async function broadcast(network: Network, run: (client: Validator) => Promise<u
   return hash
 }
 
-function recheckPx(m: Market, intent: OrderIntent, px: Px): Px {
+function recheckPx(perp: Market, intent: OrderIntent, px: Px): Px {
   const wire = wireDecimal(px, intent.spec.scale.px)
-  const issue = checkPrice(m.spec, wire)
+  const issue = checkPrice(perp.spec, wire)
   return issue
     ? fail({ kind: 'invalid-order', detail: `Price ${wire}: ${issue} on this network` })
-    : parsePx(wire, m.spec.scale)
+    : parsePx(wire, perp.spec.scale)
 }
+
+const Level = z.object({ price: z.string() })
+const Orderbook = z.object({ bids: z.array(Level), asks: z.array(Level) })
 
 async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
   if (intent.order.kind === 'trailing') fail({ kind: 'unsupported', detail: 'dYdX has no trailing stop' })
   if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
     fail({ kind: 'unsupported', detail: 'dYdX takes no take profit or stop loss from Tape' })
-  const m = await market(ctx, intent.spec.venueSymbol)
+  const perp = await market(ctx, intent.spec.venueSymbol)
   const size = wireDecimal(intent.size, intent.spec.scale.qty)
-  const sizeIssue = checkSize(m.spec, size)
+  const sizeIssue = checkSize(perp.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   if (intent.order.kind === 'scale') fail({ kind: 'unsupported', detail: 'dYdX takes no scale order from Tape' })
   let px: Px
   let tif: 0 | 1 | 2
   if (intent.order.kind === 'limit') {
-    px = recheckPx(m, intent, intent.order.px)
+    px = recheckPx(perp, intent, intent.order.px)
     tif = TIF[intent.order.tif]
   } else {
-    const book = await indexer<{ bids: { price: string }[]; asks: { price: string }[] }>(
-      ctx,
-      `/orderbooks/perpetualMarket/${intent.spec.venueSymbol}`,
-    )
+    const book = await indexer(ctx, `/orderbooks/perpetualMarket/${intent.spec.venueSymbol}`, Orderbook)
     const far = intent.side === 'buy' ? book.asks[0] : book.bids[0]
     if (!far) fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
-    px = worstPrice(m.spec, intent.side, parsePx(far.price, m.spec.scale), intent.order.slippage)
+    px = worstPrice(perp.spec, intent.side, parsePx(far.price, perp.spec.scale), intent.order.slippage)
     tif = TIF.ioc
   }
   const { default: Long } = await import('long')
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const wallet = await walletOf(mnemonicOf(ctx))
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
-  const q = Long.fromString(quantums(parseQty(size, m.spec.scale), m.spec.scale, m).toString(), true)
-  const s = Long.fromString(subticks(px, m.spec.scale, m).toString(), true)
+  const baseQuantums = Long.fromString(
+    quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(),
+    true,
+  )
+  const orderSubticks = Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true)
   const builder = ctx.config.dydx.builder ?? undefined
   const clientId = clientIdOf(intent.clientId)
   const short = tif === TIF.ioc
@@ -199,10 +216,10 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
         return client.post.placeOrder(
           subaccount,
           clientId,
-          m.clobPairId,
+          perp.clobPairId,
           SIDE[intent.side],
-          q,
-          s,
+          baseQuantums,
+          orderSubticks,
           tif,
           FLAGS.short,
           intent.reduceOnly,
@@ -220,10 +237,10 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
           client.post.placeOrder(
             subaccount,
             clientId,
-            m.clobPairId,
+            perp.clobPairId,
             SIDE[intent.side],
-            q,
-            s,
+            baseQuantums,
+            orderSubticks,
             tif,
             FLAGS.long,
             intent.reduceOnly,
@@ -240,25 +257,24 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   return { kind: 'placed', status: short ? 'accepted' : 'resting', detail: `Broadcast ${hash}` }
 }
 
-interface IndexerOrder {
-  id: string
-  clientId: string
-  clobPairId: string
-  ticker: string
-  side: 'BUY' | 'SELL'
-  size: string
-  price: string
-  type: string
-  reduceOnly: boolean
-  orderFlags: string
-  goodTilBlock?: string
-  updatedAt?: string
-}
+const IndexerOrder = z.object({
+  clientId: z.string(),
+  clobPairId: z.string(),
+  ticker: z.string(),
+  side: z.string(),
+  size: z.string(),
+  price: z.string(),
+  type: z.string(),
+  reduceOnly: z.boolean(),
+  orderFlags: z.string(),
+  updatedAt: z.string().optional(),
+})
+type IndexerOrder = z.infer<typeof IndexerOrder>
 
-const refOf = (o: IndexerOrder) => `${o.ticker}:${o.clientId}:${o.orderFlags}:${o.clobPairId}` as OrderRef
+const refOf = (order: IndexerOrder) => orderRef(order.ticker, order.clientId, order.orderFlags, order.clobPairId)
 
 async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
-  const [, clientId, flags, clobPairId] = ref.split(':') as [string, string, string, string]
+  const [, clientId, flags, clobPairId] = ref.split(':')
   const wallet = await walletOf(mnemonicOf(ctx))
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
@@ -277,24 +293,25 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
   try {
     const network = ctx.ref.network
     await (isShort ? broadcast(network, run) : sequenced(wallet.address ?? '', () => broadcast(network, run)))
-  } catch (e) {
+  } catch (error) {
     if (!(
-      e instanceof TradeFailure
-      && 'detail' in e.error
+      error instanceof TradeFailure
+      && 'detail' in error.error
       && /order.*(?:does not exist|not found)|already (?:filled|canceled|cancelled|removed)|cancel(?:lation)? .*already exists/i.test(
-        e.error.detail,
+        error.error.detail,
       )
     ))
-      throw e
+      throw error
   }
 }
 
 const addressOf = (ctx: VenueContext) => ctx.keys.read()?.public.address ?? null
 
 async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOrder[]> {
-  return indexer<IndexerOrder[]>(
+  return indexer(
     ctx,
     `/orders?address=${address}&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50`,
+    z.array(IndexerOrder),
   )
 }
 
@@ -302,18 +319,19 @@ async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOr
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
   const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
   const clientId = String(clientIdOf(intent.clientId))
-  let orders: (IndexerOrder & { status: string })[]
+  let orders: { clientId: string; status: string }[]
   try {
     orders = await indexer(
       ctx,
       `/orders?address=${address}&subaccountNumber=0&ticker=${intent.spec.venueSymbol}&limit=100&returnLatestOrders=true`,
+      z.array(z.object({ clientId: z.string(), status: z.string() })),
     )
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected')
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error.kind === 'rejected')
       return { kind: 'absent', detail: 'The dYdX indexer has no account for this address' }
-    throw e
+    throw error
   }
-  const hit = orders.find((o) => o.clientId === clientId)
+  const hit = orders.find((order) => order.clientId === clientId)
   return hit
     ? { kind: 'found', detail: `Order ${hit.status.toLowerCase()}` }
     : { kind: 'absent', detail: 'Not in the dYdX indexer yet. It can lag the chain by a few blocks.' }
@@ -328,8 +346,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       return { kind: 'done', detail: 'Cancel broadcast' }
     case 'cancel-all': {
       const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
-      const orders = (await openOrders(ctx, address)).filter((o) => o.ticker === command.symbol)
-      for (const o of orders) await cancel(ctx, refOf(o))
+      const orders = (await openOrders(ctx, address)).filter((order) => order.ticker === command.symbol)
+      for (const order of orders) await cancel(ctx, refOf(order))
       return { kind: 'done', detail: `Canceled ${orders.length}` }
     }
     case 'leverage':
@@ -337,75 +355,83 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   }
 }
 
+const Subaccount = z.object({
+  subaccount: z.object({
+    equity: z.string(),
+    freeCollateral: z.string(),
+    openPerpetualPositions: z.record(
+      z.string(),
+      z.object({
+        market: z.string(),
+        side: z.string(),
+        size: z.string(),
+        entryPrice: z.string(),
+        unrealizedPnl: z.string(),
+      }),
+    ),
+  }),
+})
+const RecentFills = z.object({
+  fills: z.array(
+    z.object({
+      id: z.string(),
+      market: z.string(),
+      side: z.string(),
+      price: z.string(),
+      size: z.string(),
+      fee: z.string(),
+      createdAt: z.string(),
+    }),
+  ),
+})
+
 async function account(ctx: VenueContext): Promise<AccountView> {
   const address = addressOf(ctx)
   if (!address) return { kind: 'unknown' }
-  type Sub = {
-    subaccount: {
-      equity: string
-      freeCollateral: string
-      openPerpetualPositions: Record<
-        string,
-        { market: string; side: 'LONG' | 'SHORT'; size: string; entryPrice: string; unrealizedPnl: string }
-      >
-    }
-  }
-  type Fills = {
-    fills: {
-      id: string
-      market: string
-      side: 'BUY' | 'SELL'
-      price: string
-      size: string
-      fee: string
-      createdAt: string
-    }[]
-  }
-  let sub: Sub
+  let sub: z.infer<typeof Subaccount>
   try {
-    sub = await indexer<Sub>(ctx, `/addresses/${address}/subaccountNumber/0`)
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { kind: 'empty' }
-    throw e
+    sub = await indexer(ctx, `/addresses/${address}/subaccountNumber/0`, Subaccount)
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error.kind === 'rejected') return { kind: 'empty' }
+    throw error
   }
   const [orders, fills] = await Promise.all([
     openOrders(ctx, address),
-    indexer<Fills>(ctx, `/fills?address=${address}&subaccountNumber=0&limit=20`),
+    indexer(ctx, `/fills?address=${address}&subaccountNumber=0&limit=20`, RecentFills),
   ])
-  const d = (s: string) => s as Decimal
   return {
     kind: 'live',
     snapshot: {
-      equity: d(sub.subaccount.equity),
-      available: d(sub.subaccount.freeCollateral),
-      positions: Object.values(sub.subaccount.openPerpetualPositions).map((p) => ({
-        symbol: p.market,
-        side: p.side === 'LONG' ? 'long' : 'short',
-        size: d(p.size.replace(/^-/, '')),
-        entry: d(p.entryPrice),
-        unrealizedPnl: d(p.unrealizedPnl),
+      equity: toDecimal(sub.subaccount.equity),
+      available: toDecimal(sub.subaccount.freeCollateral),
+      positions: Object.values(sub.subaccount.openPerpetualPositions).map((position) => ({
+        symbol: position.market,
+        side: position.side === 'LONG' ? 'long' : 'short',
+        size: toDecimal(position.size.replace(/^-/, '')),
+        entry: toDecimal(position.entryPrice),
+        unrealizedPnl: toDecimal(position.unrealizedPnl),
         liquidation: null,
         leverage: null,
       })),
-      orders: orders.map((o) => ({
-        ref: refOf(o),
-        symbol: o.ticker,
-        side: o.side === 'BUY' ? 'buy' : 'sell',
-        kind: o.type,
-        px: d(o.price),
-        size: d(o.size),
-        reduceOnly: o.reduceOnly,
-        placedAt: o.updatedAt ? Date.parse(o.updatedAt) : 0,
+      orders: orders.map((order) => ({
+        ref: refOf(order),
+        symbol: order.ticker,
+        side: order.side === 'BUY' ? 'buy' : 'sell',
+        kind: order.type,
+        px: toDecimal(order.price),
+        size: toDecimal(order.size),
+        reduceOnly: order.reduceOnly,
+        placedAt: order.updatedAt ? Date.parse(order.updatedAt) : 0,
         cancelable: true,
       })),
-      fills: fills.fills.map((f) => ({
-        id: f.id,
-        symbol: f.market,
-        side: f.side === 'BUY' ? 'buy' : 'sell',
-        px: d(f.price),
-        size: d(f.size),
-        fee: d(f.fee),
-        time: Date.parse(f.createdAt),
+      fills: fills.fills.map((fill) => ({
+        id: fill.id,
+        symbol: fill.market,
+        side: fill.side === 'BUY' ? 'buy' : 'sell',
+        px: toDecimal(fill.price),
+        size: toDecimal(fill.size),
+        fee: toDecimal(fill.fee),
+        time: Date.parse(fill.createdAt),
       })),
     },
   }
@@ -430,25 +456,29 @@ const LAST_PAGE = 25
 /** Fills where the protocol, not the account's own order, closed the position. */
 const FORCED = new Set(['LIQUIDATED', 'DELEVERAGED'])
 
-interface IndexerFill {
-  id: string
-  side: 'BUY' | 'SELL'
-  type: string
-  market: string
-  marketType: string
-  price: string
-  size: string
-  fee: string
-  createdAt: string
-}
+const IndexerFill = z.object({
+  id: z.string(),
+  side: z.string(),
+  type: z.string(),
+  market: z.string(),
+  marketType: z.string(),
+  price: z.string(),
+  size: z.string(),
+  fee: z.string(),
+  createdAt: z.string(),
+})
+type IndexerFill = z.infer<typeof IndexerFill>
 
-interface IndexerFunding {
-  ticker: string
-  payment: string
-  rate: string
-  size: string
-  createdAt: string
-}
+const IndexerFunding = z.object({
+  ticker: z.string(),
+  payment: z.string(),
+  rate: z.string(),
+  size: z.string(),
+  createdAt: z.string(),
+})
+type IndexerFunding = z.infer<typeof IndexerFunding>
+const FillPage = z.object({ fills: z.array(IndexerFill) })
+const FundingPage = z.object({ fundingPayments: z.array(IndexerFunding) })
 
 /** Page mode returns fills oldest first by event, which keeps fills in one block in the order they happened. */
 async function pages<T>(read: (page: number) => Promise<T[]>): Promise<{ rows: T[]; capped: boolean }> {
@@ -467,21 +497,18 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   let funding: { rows: IndexerFunding[]; capped: boolean }
   try {
     ;[fills, funding] = await Promise.all([
+      pages((page) => indexerAt(network, fetch, `/fills?${query}&page=${page}`, FillPage).then((reply) => reply.fills)),
       pages((page) =>
-        indexerAt<{ fills: IndexerFill[] }>(network, fetch, `/fills?${query}&page=${page}`).then((r) => r.fills),
-      ),
-      pages((page) =>
-        indexerAt<{ fundingPayments: IndexerFunding[] }>(network, fetch, `/fundingPayments?${query}&page=${page}`).then(
-          (r) => r.fundingPayments,
+        indexerAt(network, fetch, `/fundingPayments?${query}&page=${page}`, FundingPage).then(
+          (reply) => reply.fundingPayments,
         ),
       ),
     ])
-  } catch (e) {
-    if (e instanceof TradeFailure && e.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
-    throw e
+  } catch (error) {
+    if (error instanceof TradeFailure && error.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
+    throw error
   }
-  const d = (s: string) => s as Decimal
-  const perps = fills.rows.filter((f) => f.marketType === 'PERPETUAL')
+  const perps = fills.rows.filter((fill) => fill.marketType === 'PERPETUAL')
   const gaps = [
     'dYdX reports no realized PnL per fill, so Tape computes it by average cost over the whole history.',
     'Only subaccount 0 is read. Isolated positions on dYdX live in other subaccounts.',
@@ -493,29 +520,29 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
       `dYdX's indexer pages through ${PAGE * LAST_PAGE} funding payments at most, so some payments are missing.`,
     )
   return {
-    fills: perps.map((f): HistoryFill => ({
+    fills: perps.map((fill): HistoryFill => ({
       venue: 'dydx',
       account: address,
-      id: f.id,
-      symbol: f.market,
-      side: f.side === 'BUY' ? 'buy' : 'sell',
-      px: d(f.price),
-      size: d(f.size),
-      fee: d(f.fee),
+      id: fill.id,
+      symbol: fill.market,
+      side: fill.side === 'BUY' ? 'buy' : 'sell',
+      px: toDecimal(fill.price),
+      size: toDecimal(fill.size),
+      fee: toDecimal(fill.fee),
       asset: 'USDC',
-      time: Date.parse(f.createdAt),
-      liquidation: FORCED.has(f.type),
+      time: Date.parse(fill.createdAt),
+      liquidation: FORCED.has(fill.type),
       venuePnl: null,
     })),
-    funding: funding.rows.map((f): FundingPayment => ({
+    funding: funding.rows.map((payment): FundingPayment => ({
       venue: 'dydx',
       account: address,
-      symbol: f.ticker,
-      time: Date.parse(f.createdAt),
-      amount: d(f.payment),
+      symbol: payment.ticker,
+      time: Date.parse(payment.createdAt),
+      amount: toDecimal(payment.payment),
       asset: 'USDC',
-      rate: d(f.rate),
-      position: d(f.size),
+      rate: toDecimal(payment.rate),
+      position: toDecimal(payment.size),
     })),
     gaps,
   }

@@ -25,7 +25,9 @@ async function openHistory(page: Page, { timeout = [], period = '' }: { timeout?
       if (timeout.includes(venue)) return route.abort('timedout')
       const request = route.request()
       const type = (request.postDataJSON() as { type?: string } | null)?.type ?? null
-      const hit = HISTORY[venue].exchanges.find((e) => e.url === request.url() && (e.body?.type ?? null) === type)
+      const hit = HISTORY[venue].exchanges.find(
+        (exchange) => exchange.url === request.url() && (exchange.body?.type ?? null) === type,
+      )
       return hit
         ? route.fulfill({ json: hit.response, headers: { 'access-control-allow-origin': '*' } })
         : route.fallback()

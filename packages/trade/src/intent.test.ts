@@ -218,7 +218,7 @@ describe('order intent properties', () => {
     )
   const validPrice = ({ tick, scale }: MarketSpec) =>
     tick.kind === 'fixed'
-      ? fc.integer({ min: 1, max: 10_000_000 }).map((k) => k * tick.tick)
+      ? fc.integer({ min: 1, max: 10_000_000 }).map((ticks) => ticks * tick.tick)
       : fc.oneof(
           fc
             .tuple(fc.integer({ min: 1, max: 99_999 }), fc.integer({ min: 0, max: 6 }))

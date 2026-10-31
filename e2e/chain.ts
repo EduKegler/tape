@@ -46,9 +46,9 @@ export async function fakeChains(page: Page, network: Network) {
     }
     switch (read.functionName) {
       case 'aggregate3': {
-        const results = read.args[0].map((c) => ({
+        const results = read.args[0].map((request) => ({
           success: true,
-          returnData: call(chainId, { to: c.target, data: c.callData }),
+          returnData: call(chainId, { to: request.target, data: request.callData }),
         }))
         return encodeFunctionResult({ abi: READS, functionName: 'aggregate3', result: results })
       }
@@ -109,7 +109,8 @@ export async function fakeChains(page: Page, network: Network) {
     })
 
   return {
-    fund: (chainId: number, owner: Address, h: Holdings) => holdings.set(`${chainId}:${owner.toLowerCase()}`, h),
+    fund: (chainId: number, owner: Address, balances: Holdings) =>
+      holdings.set(`${chainId}:${owner.toLowerCase()}`, balances),
     unanswered: () => [...unanswered],
   }
 }

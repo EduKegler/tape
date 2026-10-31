@@ -16,26 +16,32 @@ export function useRowKeys() {
   const last = useRef<HTMLElement | null>(null)
   return {
     tabIndex: inside ? -1 : 0,
-    onFocus: (e: FocusEvent<HTMLElement>) => {
-      if (e.target !== e.currentTarget) {
-        last.current = e.target
+    onFocus: (event: FocusEvent<HTMLElement>) => {
+      if (event.target !== event.currentTarget) {
+        last.current = event.target
         setInside(true)
         return
       }
-      const rows = rowsIn(e.currentTarget)
+      const rows = rowsIn(event.currentTarget)
       const back = last.current && rows.includes(last.current) ? last.current : rows[0]
       back?.focus()
     },
-    onBlur: (e: FocusEvent<HTMLElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget)) setInside(false)
+    onBlur: (event: FocusEvent<HTMLElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setInside(false)
     },
-    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
-      const step = STEPS[e.key]
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      const step = STEPS[event.key]
       if (!step) return
-      const rows = rowsIn(e.currentTarget)
-      const to = rows[step(rows.indexOf(document.activeElement as HTMLElement), rows.length - 1)]
+      const rows = rowsIn(event.currentTarget)
+      const to =
+        rows[
+          step(
+            rows.findIndex((row) => row === document.activeElement),
+            rows.length - 1,
+          )
+        ]
       if (!to) return
-      e.preventDefault()
+      event.preventDefault()
       to.focus()
       to.scrollIntoView({ block: 'nearest' })
     },
@@ -86,15 +92,15 @@ export function Segmented<T extends string>({
 }) {
   return (
     <div role="radiogroup" aria-label={label} className="flex items-center gap-3">
-      {options.map((o) => (
+      {options.map((option) => (
         <Button
-          key={o.value}
+          key={option.value}
           look="toggle"
           role="radio"
-          aria-checked={o.value === value}
-          onClick={() => onChange(o.value)}
+          aria-checked={option.value === value}
+          onClick={() => onChange(option.value)}
         >
-          {o.label}
+          {option.label}
         </Button>
       ))}
     </div>

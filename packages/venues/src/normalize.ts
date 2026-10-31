@@ -9,16 +9,16 @@ export function toLevels(raw: readonly RawLevel[], spec: MarketSpec): Level[] {
 }
 
 export function toTrades(raw: readonly RawTrade[], spec: MarketSpec): Trade[] {
-  return raw.map((t) => ({
-    id: t.id,
-    side: t.side,
-    time: t.time,
-    px: parsePx(t.px, spec.scale),
-    qty: parseQty(t.qty, spec.scale),
+  return raw.map((trade) => ({
+    id: trade.id,
+    side: trade.side,
+    time: trade.time,
+    px: parsePx(trade.px, spec.scale),
+    qty: parseQty(trade.qty, spec.scale),
   }))
 }
 
 export function toCandle(raw: RawCandle, spec: MarketSpec): Candle {
-  const px = (v: string) => parsePx(v, spec.scale)
+  const px = (value: string) => parsePx(value, spec.scale)
   return { open: raw.open, o: px(raw.o), h: px(raw.h), l: px(raw.l), c: px(raw.c), v: parseQty(raw.v, spec.scale) }
 }

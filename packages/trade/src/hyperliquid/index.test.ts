@@ -63,7 +63,7 @@ function place(over: Partial<typeof draft>, spec = btc): Command {
 
 function memorySlot(initial: StoredKey | null): KeySlot {
   let key = initial
-  return { read: () => key, write: (k) => void (key = k), clear: () => void (key = null) }
+  return { read: () => key, write: (next) => void (key = next), clear: () => void (key = null) }
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -111,19 +111,19 @@ function venue(
     keys: memorySlot({ status: 'linked', public: { agent }, secret: agentKey }),
     fetch,
   }
-  const posts = () => sent.filter((s) => s.url.endsWith('/exchange'))
+  const posts = () => sent.filter((request) => request.url.endsWith('/exchange'))
   return { ctx, sent, posts }
 }
 
 const wiresOf = (post: Sent | undefined) => {
   const action = post?.body.action as { grouping: string; orders: { b: boolean; p: string; r: boolean; t: unknown }[] }
-  return { grouping: action.grouping, orders: action.orders.map((o) => [o.b, o.p, o.r, o.t]) }
+  return { grouping: action.grouping, orders: action.orders.map((order) => [order.b, order.p, order.r, order.t]) }
 }
 
-const failureOf = (p: Promise<unknown>) =>
-  p.then(
+const failureOf = (pending: Promise<unknown>) =>
+  pending.then(
     () => null,
-    (e: unknown) => (e instanceof TradeFailure ? e.error : e),
+    (error: unknown) => (error instanceof TradeFailure ? error.error : error),
   )
 
 describe('hyperliquid sells', () => {
@@ -182,7 +182,7 @@ describe('hyperliquid nonces', () => {
     const { ctx, posts } = venue(replied('rest'))
     await hyperliquid.execute(ctx, place({}))
     await hyperliquid.execute(ctx, place({}))
-    expect(posts().map((p) => p.body.nonce)).toEqual([now, now + 1])
+    expect(posts().map((post) => post.body.nonce)).toEqual([now, now + 1])
   })
 })
 
@@ -233,7 +233,7 @@ describe('hyperliquid reads that fail', () => {
       status: 'resting',
       detail: `Resting as order ${restingOid}`,
     })
-    expect(sent.filter((s) => s.body.type === 'meta').map((s) => s.url)).toEqual([
+    expect(sent.filter((request) => request.body.type === 'meta').map((request) => request.url)).toEqual([
       'https://api.hyperliquid.xyz/info',
       'https://api.hyperliquid.xyz/info',
     ])
@@ -470,7 +470,7 @@ describe('hyperliquid leverage', () => {
       kind: 'done',
       detail: 'Leverage 5x cross',
     })
-    expect(posts().map((p) => [p.url, p.body.action])).toEqual([
+    expect(posts().map((post) => [post.url, post.body.action])).toEqual([
       [
         'https://api.hyperliquid-testnet.xyz/exchange',
         { type: 'updateLeverage', asset: 3, isCross: true, leverage: 5 },
@@ -575,7 +575,7 @@ describe('hyperliquid market orders without exits', () => {
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
     })
-    expect(sent.find((s) => s.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
+    expect(sent.find((request) => request.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80810', true, { limit: { tif: 'Ioc' } }]] })
   })
 
@@ -631,7 +631,7 @@ describe('hyperliquid account sides', () => {
         json(answers[(JSON.parse(init?.body as string) as { type: string }).type] ?? null)) as typeof globalThis.fetch,
     })
     if (view.kind !== 'live') throw new Error(view.kind)
-    expect(view.snapshot.positions.map((p) => [p.symbol, p.side, p.size, p.liquidation])).toEqual([
+    expect(view.snapshot.positions.map((held) => [held.symbol, held.side, held.size, held.liquidation])).toEqual([
       ['BTC', 'long', '0.02', '40000.5'],
       ['ETH', 'long', '0.5', '3100.123457'],
     ])
@@ -639,7 +639,7 @@ describe('hyperliquid account sides', () => {
     expect([btcOrder?.ref, btcOrder?.side]).toEqual(['3:589008353129', 'sell'])
     expect(ethOrder?.side).toBe('sell')
     expect(ethOrder?.ref).toMatch(/:589008353130$/)
-    expect(view.snapshot.fills.map((f) => f.side)).toEqual(['buy'])
+    expect(view.snapshot.fills.map((fill) => fill.side)).toEqual(['buy'])
   })
 
   // Info endpoint docs: a spot order's coin is "@" and the spot pair index, or a name such as PURR/USDC.
@@ -671,7 +671,7 @@ describe('hyperliquid account sides', () => {
         json(answers[(JSON.parse(init?.body as string) as { type: string }).type] ?? null)) as typeof globalThis.fetch,
     })
     if (view.kind !== 'live') throw new Error(view.kind)
-    expect(view.snapshot.orders.map((o) => [o.symbol, o.cancelable])).toEqual([
+    expect(view.snapshot.orders.map((listed) => [listed.symbol, listed.cancelable])).toEqual([
       ['BTC', true],
       ['@107', false],
       ['PURR/USDC', false],
@@ -739,7 +739,11 @@ describe('hyperliquid setup', () => {
     }) as typeof globalThis.fetch
     const { ctx } = venue(() => statuses([]))
     const config = { ...ctx.config, hyperliquid: { builder: fee === null ? null : builder } }
-    return { ctx: { ...ctx, config, keys, fetch }, sent, posts: () => sent.filter((s) => s.url.endsWith('/exchange')) }
+    return {
+      ctx: { ...ctx, config, keys, fetch },
+      sent,
+      posts: () => sent.filter((request) => request.url.endsWith('/exchange')),
+    }
   }
 
   function wallet() {
@@ -772,7 +776,7 @@ describe('hyperliquid setup', () => {
     expect((await approved(withKey('draft', null), valid()))?.done).toBe(false)
     const { ctx, sent } = setup(withKey('linked'), valid())
     await hyperliquid.steps(ctx)
-    expect(sent.map((s) => s.body)).toEqual([{ type: 'extraAgents', user: owner }])
+    expect(sent.map((request) => request.body)).toEqual([{ type: 'extraAgents', user: owner }])
   })
 
   // maxBuilderFee from the info endpoint docs answers in tenths of a basis point, the unit of the builder f.
@@ -786,7 +790,7 @@ describe('hyperliquid setup', () => {
         { id: 'approve-agent', label: 'Approve a trading key', done: true },
         { id: 'approve-builder', label: "Approve Tape's fee of 1 bp", done },
       ])
-      expect(sent.find((s) => s.body.type === 'maxBuilderFee')?.body).toEqual({
+      expect(sent.find((request) => request.body.type === 'maxBuilderFee')?.body).toEqual({
         type: 'maxBuilderFee',
         user: owner,
         builder: builder.b,
@@ -814,7 +818,7 @@ describe('hyperliquid setup', () => {
     const chain = { signatureChainId: '0x66eee', hyperliquidChain: 'Testnet' }
     const agentMessage = { hyperliquidChain: 'Testnet', agentAddress, agentName: 'tape', nonce: now }
     const feeMessage = { hyperliquidChain: 'Testnet', maxFeeRate: '0.01%', builder: builder.b, nonce: now }
-    expect(posts().map((p) => [p.url, p.body])).toEqual([
+    expect(posts().map((post) => [post.url, post.body])).toEqual([
       [
         'https://api.hyperliquid-testnet.xyz/exchange',
         { action: { type: 'approveAgent', ...chain, ...agentMessage }, nonce: now, signature },
@@ -866,7 +870,7 @@ describe('hyperliquid setup', () => {
     const steps: string[] = []
     await hyperliquid.enable(ctx, wallet().signer, (step) => steps.push(step))
     expect(steps).toEqual(['approve-builder'])
-    expect(posts().map((p) => (p.body.action as { type: string }).type)).toEqual(['approveBuilderFee'])
+    expect(posts().map((post) => (post.body.action as { type: string }).type)).toEqual(['approveBuilderFee'])
     expect(keys.read()).toEqual({ status: 'linked', public: { agent }, secret: agentKey })
   })
 })

@@ -1,7 +1,8 @@
 import { encodeFunctionData, erc20Abi, hexToBytes, keccak256, parseAbi, stringToBytes } from 'viem'
-import type { Address, Hex } from 'viem'
+import type { Address } from 'viem'
 import { z } from 'zod'
 import type { Network } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import { approveCall, parseUsdc } from '../deposit'
 import type {
   DepositCall,
@@ -12,8 +13,9 @@ import type {
   ProgressIo,
   SentDeposit,
 } from '../deposit'
-import { send } from '../send'
+import { readReply, send } from '../send'
 import type { Classify } from '../send'
+import { secretHex } from '../types'
 import { accountId, orderlyKey, signRequest } from './sign'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
@@ -72,12 +74,14 @@ export function vaultDeposit(to: Address, owner: Address, brokerId: string, amou
 /** Orderly answers an address it never registered with `success: false` and a 200. */
 async function registered(fetch: typeof globalThis.fetch, network: Network, owner: Address, brokerId: string) {
   const url = `${API[network]}/v1/get_account?address=${owner}&broker_id=${brokerId}`
-  const body = await send<{ success: boolean }>('orderly', fetch, url, { mutates: false }, unreadable)
-  return body.success
+  const body = await send('orderly', fetch, url, { mutates: false }, unreadable)
+  return readReply('orderly', Registration, body, false).success
 }
 
+const Registration = z.object({ success: z.boolean() })
+
 const unreadable: Classify = (status, body, text) =>
-  status < 400 && typeof (body as { success?: unknown } | null)?.success !== 'boolean'
+  status < 400 && !(isRecord(body) && typeof body.success === 'boolean')
     ? { kind: 'unreachable', detail: `Unreadable reply: ${text}` }
     : null
 
@@ -88,7 +92,7 @@ function overLimit(amount: bigint, limit: bigint, held: bigint): DepositRefusal 
 }
 
 const unsuccessful: Classify = (_s, body, text) =>
-  (body as { success?: boolean } | null)?.success === false ? { kind: 'rejected', detail: text } : null
+  isRecord(body) && body.success === false ? { kind: 'rejected', detail: text } : null
 
 const History = z.object({
   data: z.object({
@@ -120,15 +124,9 @@ async function progress(
     return { stage: 'unwatched', detail: 'Enable trading on Orderly to follow the credit here' }
   const path = `/v1/asset/history?side=DEPOSIT&start_t=${sent.sentAt - HISTORY_SLACK_MS}`
   const account = accountId(sent.ref.owner, brokerId)
-  const headers = signRequest(orderlyKey(hexToBytes(key.secret as Hex)), account, Date.now(), 'GET', path)
-  const body = await send<unknown>(
-    'orderly',
-    fetch,
-    `${API[network]}${path}`,
-    { headers, mutates: false },
-    unsuccessful,
-  )
-  const row = History.parse(body).data.rows.find((r) => r.tx_id.toLowerCase() === sent.hash.toLowerCase())
+  const headers = signRequest(orderlyKey(hexToBytes(secretHex(key.secret))), account, Date.now(), 'GET', path)
+  const body = await send('orderly', fetch, `${API[network]}${path}`, { headers, mutates: false }, unsuccessful)
+  const row = History.parse(body).data.rows.find((entry) => entry.tx_id.toLowerCase() === sent.hash.toLowerCase())
   if (!row) return { stage: 'relaying', detail: 'Waiting for Orderly to see the deposit' }
   if (CREDITING.has(row.trans_status)) return { stage: 'relaying', detail: 'Orderly is crediting it' }
   const amount = parseUsdc(row.amount)

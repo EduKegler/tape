@@ -1,5 +1,5 @@
 import { VENUE_IDS, marketKey, streamKey } from '@tape/core/ids'
-import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from '@tape/core/ids'
+import type { Base, Brand, Interval, MarketKey, StreamKey, VenueId } from '@tape/core/ids'
 
 export const BOOK_ROWS = 14
 
@@ -12,18 +12,25 @@ export type Topic =
 
 type TopicKind = Topic['kind']
 
-export function topicKey(topic: Topic): TopicKey {
+export type TopicKey = Brand<string, 'TopicKey'>
+
+function topicText(topic: Topic): string {
   switch (topic.kind) {
     case 'book':
-      return `book|${topic.market}|${topic.group}` as TopicKey
+      return `book|${topic.market}|${topic.group}`
     case 'candle':
-      return `candle|${topic.market}|${topic.interval}` as TopicKey
+      return `candle|${topic.market}|${topic.interval}`
     case 'compare':
-      return `compare|${topic.base}` as TopicKey
+      return `compare|${topic.base}`
     case 'depth':
     case 'trades':
-      return `${topic.kind}|${topic.market}` as TopicKey
+      return `${topic.kind}|${topic.market}`
   }
+}
+
+export function topicKey(topic: Topic): TopicKey {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place a TopicKey is made
+  return topicText(topic) as TopicKey
 }
 
 function streamsFor(topic: Topic): readonly StreamKey[] {
@@ -36,15 +43,15 @@ function streamsFor(topic: Topic): readonly StreamKey[] {
     case 'candle':
       return [streamKey(topic.market, 'candle', topic.interval)]
     case 'compare':
-      return VENUE_IDS.flatMap((v) => [
-        streamKey(marketKey(v, topic.base), 'book'),
-        streamKey(marketKey(v, topic.base), 'trades'),
+      return VENUE_IDS.flatMap((venue) => [
+        streamKey(marketKey(venue, topic.base), 'book'),
+        streamKey(marketKey(venue, topic.base), 'trades'),
       ])
   }
 }
 
 export function marketsFor(topic: Topic): readonly MarketKey[] {
-  return topic.kind === 'compare' ? VENUE_IDS.map((v) => marketKey(v, topic.base)) : [topic.market]
+  return topic.kind === 'compare' ? VENUE_IDS.map((venue) => marketKey(venue, topic.base)) : [topic.market]
 }
 
 export type FrameStatus = 'live' | 'syncing' | 'stale'
@@ -156,12 +163,13 @@ export function deriveStreams(
 ): { readonly streams: ReadonlySet<StreamKey>; readonly lastWanted: ReadonlyMap<StreamKey, number> } {
   const streams = new Set<StreamKey>()
   const next = new Map<StreamKey, number>()
-  for (const wants of wantSets) for (const topic of wants.values()) for (const s of streamsFor(topic)) streams.add(s)
-  for (const s of streams) next.set(s, now)
-  for (const [s, at] of lastWanted) {
-    if (!streams.has(s) && now - at < LINGER_MS) {
-      streams.add(s)
-      next.set(s, at)
+  for (const wants of wantSets)
+    for (const topic of wants.values()) for (const stream of streamsFor(topic)) streams.add(stream)
+  for (const stream of streams) next.set(stream, now)
+  for (const [stream, at] of lastWanted) {
+    if (!streams.has(stream) && now - at < LINGER_MS) {
+      streams.add(stream)
+      next.set(stream, at)
     }
   }
   return { streams, lastWanted: next }

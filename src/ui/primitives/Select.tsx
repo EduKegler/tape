@@ -22,7 +22,7 @@ export function Select({
   return (
     <select
       {...props}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(event) => onChange(event.target.value)}
       className={`num rounded-sm border border-edge bg-inset text-level1 disabled:opacity-40 ${sizes[size]}`}
     />
   )

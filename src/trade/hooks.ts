@@ -1,9 +1,9 @@
 import { useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useConnection } from 'wagmi'
-import { UserRejectedRequestError } from 'viem'
-import type { Address } from 'viem'
+import { UserRejectedRequestError, isAddress } from 'viem'
 import type { VenueId } from '@tape/core/ids'
+import { isRecord } from '@tape/core/json'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
 import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
@@ -21,7 +21,7 @@ import type {
   TradeVenueId,
   VenueContext,
 } from '@tape/trade/types'
-import { rejectionMessage, walletSigner } from '@tape/trade/wallet'
+import { rejectionMessage, toEip1193, walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
@@ -77,20 +77,18 @@ function contextFor(ref: AccountRef): VenueContext {
 export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Promise<T> {
   try {
     return await run()
-  } catch (e) {
-    if (e instanceof TradeFailure) throw e
-    if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code)
+  } catch (error) {
+    if (error instanceof TradeFailure) throw error
+    if (isRecord(error) && error.code === UserRejectedRequestError.code)
       throw new TradeFailure(venue, { kind: 'wallet-rejected' })
-    report(e, 'trade', true)
-    throw new TradeFailure(venue, { kind: 'unexpected', detail: rejectionMessage(e) })
+    report(error, 'trade', true)
+    throw new TradeFailure(venue, { kind: 'unexpected', detail: rejectionMessage(error) })
   }
 }
 
 function useRef(venue: VenueId): AccountRef | null {
-  const { address } = useConnection()
-  return address && isTradeVenue(venue) && !SITE_READ_ONLY
-    ? { venue, network: NETWORK, owner: address.toLowerCase() as Address }
-    : null
+  const owner = useConnection().address?.toLowerCase()
+  return owner && isAddress(owner) && isTradeVenue(venue) && !SITE_READ_ONLY ? { venue, network: NETWORK, owner } : null
 }
 
 function useSlot(ref: AccountRef | null): SlotState | null {
@@ -127,18 +125,22 @@ export function useTradeSession(venue: VenueId): TradeSession {
   const enable = useMutation<undefined, TradeFailure>({
     networkMode: 'always',
     mutationFn: async () => {
-      const r = ref!
-      const provider = (await connector!.getProvider()) as Parameters<typeof walletSigner>[0]
+      const account = ref!
+      const provider = toEip1193(await connector!.getProvider())
       const onStep = (step: StepId) => {
         setProgress(step)
-        track({ event: 'trading_enable_step', venue: r.venue, step })
+        track({ event: 'trading_enable_step', venue: account.venue, step })
       }
       const run = () =>
-        guard(r.venue, () =>
-          TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner, switchOrAddChain), onStep),
+        guard(account.venue, () =>
+          TRADING[account.venue].enable(
+            contextFor(account),
+            walletSigner(provider, account.owner, switchOrAddChain),
+            onStep,
+          ),
         )
       await (typeof navigator !== 'undefined' && 'locks' in navigator
-        ? navigator.locks.request(`tape:enable:${accountKey(r)}`, run)
+        ? navigator.locks.request(`tape:enable:${accountKey(account)}`, run)
         : run())
     },
     onMutate: () => {
@@ -219,36 +221,36 @@ export function useMarginReading(ref: AccountRef | null, symbol: string): Margin
 
 export function useTradeCommands(ref: AccountRef | null) {
   const client = useQueryClient()
-  const command = ref ? tradeKeys(ref).command : ['trade', 'none', 'command']
+  const commandKey = ref ? tradeKeys(ref).command : ['trade', 'none', 'command']
   const mutation = useMutation<CommandOutcome, TradeFailure, Command>({
-    mutationKey: command,
+    mutationKey: commandKey,
     networkMode: 'always',
-    mutationFn: (c) =>
+    mutationFn: (command) =>
       ref
-        ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), c))
+        ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), command))
         : Promise.reject(new Error('no account')),
-    onMutate: (c) => {
-      if (ref) track(commandSent(ref.venue, c))
+    onMutate: (command) => {
+      if (ref) track(commandSent(ref.venue, command))
     },
-    onSuccess: (outcome, c) => {
-      if (ref) track(commandResult(ref.venue, c, { ok: outcome }))
+    onSuccess: (outcome, command) => {
+      if (ref) track(commandResult(ref.venue, command, { ok: outcome }))
     },
-    onError: (failure, c) => {
-      if (ref) track(commandResult(ref.venue, c, { failed: failure.error.kind }))
+    onError: (failure, command) => {
+      if (ref) track(commandResult(ref.venue, command, { failed: failure.error.kind }))
       if (!ref || failure.error.kind !== 'needs-setup') return
       const slot = keySlot(ref, TRADING[ref.venue].secrets)
       const key = slot.read()
       if (key?.status === 'linked') slot.write({ ...key, status: 'draft' })
     },
-    onSettled: (_data, _error, c) => {
+    onSettled: (_data, _error, command) => {
       if (!ref) return
-      release(ref, c)
+      release(ref, command)
       return client.invalidateQueries({ queryKey: tradeKeys(ref).all })
     },
   })
   const inFlight = useMutationState({
-    filters: { mutationKey: command, status: 'pending' },
-    select: (m) => m.state.variables as Command,
+    filters: { mutationKey: commandKey, status: 'pending' },
+    select: (pending) => pending.state.variables,
   })
   // Hyperliquid's trailingStop action takes no client id, so no lookup can find a trailing stop by one.
   const unknown =
@@ -275,8 +277,8 @@ export function useTradeCommands(ref: AccountRef | null) {
     }),
   )
   return {
-    run: (c: Command) => {
-      if (ref && claim(ref, c)) mutation.mutate(c)
+    run: (command: Command) => {
+      if (ref && claim(ref, command)) mutation.mutate(command)
     },
     last: {
       outcome: mutation.data ?? null,
