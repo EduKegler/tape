@@ -56,9 +56,8 @@ export function TopicStatus({
   const key = topicKey(topic)
   const status = useFrame(topic, (f) => f?.status ?? null)
   const [live, setLive] = useState<{ key: string; at: number } | null>(null)
-  useFrameEffect(topic, (f) => {
-    if (f.status !== 'live') return
-    const at = Date.now()
+  useFrameEffect(topic, ({ liveAt: at }) => {
+    if (at === null) return
     setLive((prev) => (prev?.key === key && at - prev.at < 1000 ? prev : { key, at }))
   })
   const liveAt = live?.key === key ? live.at : null

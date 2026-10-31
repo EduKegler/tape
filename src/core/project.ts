@@ -25,6 +25,7 @@ export interface MarketView {
   readonly trades: TradeTape
   readonly candles: ReadonlyMap<Interval, readonly Candle[]>
   readonly status: FrameStatus
+  readonly liveAt: number | null
 }
 
 const DEPTH_LEVELS = 400
@@ -76,6 +77,7 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
     key,
     version,
     status: market.status,
+    liveAt: market.liveAt,
     group: formatPx(step, spec.scale, decimals),
     groupOptions: options,
     asks: ladder(asks, askCum),
@@ -115,6 +117,7 @@ export function projectDepth(key: TopicKey, market: MarketView, version: number)
     key,
     version,
     status: market.status,
+    liveAt: market.liveAt,
     bids: book ? depthSide(book.bids, scale.px, scale.qty) : NO_DEPTH,
     asks: book ? depthSide(book.asks, scale.px, scale.qty) : NO_DEPTH,
     mid: bid !== null && ask !== null ? toDisplayFloat(((bid + ask) / 2) as Px, scale.px) : 0,
@@ -135,6 +138,7 @@ export function projectTrades(key: TopicKey, market: MarketView, version: number
     key,
     version,
     status: market.status,
+    liveAt: market.liveAt,
     rows: items.map((t) => ({
       id: t.id,
       side: t.side,
@@ -155,6 +159,7 @@ export function projectCandle(key: TopicKey, market: MarketView, interval: Inter
     key,
     version,
     status: market.status,
+    liveAt: market.liveAt,
     bars: bars.map((b) => ({
       time: Math.floor(b.open / 1000),
       open: toDisplayFloat(b.o, scale.px),
@@ -227,5 +232,7 @@ export function projectCompare(
     : statuses.length > 0 && statuses.every((s) => s === 'stale')
       ? 'stale'
       : 'syncing'
-  return { kind: 'compare', key, version, status, rows }
+  const liveAts = quotes.flatMap((q) => (q.m && q.m.liveAt !== null ? [q.m.liveAt] : []))
+  const liveAt = liveAts.length ? Math.max(...liveAts) : null
+  return { kind: 'compare', key, version, status, liveAt, rows }
 }
