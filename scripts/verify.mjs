@@ -4,6 +4,7 @@ const checks = [
   'pnpm typecheck',
   'node scripts/check-public.mjs',
   'node scripts/check-cycles.mjs',
+  'node scripts/check-contrast.mjs',
   'eslint --max-warnings 0',
   'prettier --check .',
   'knip',
