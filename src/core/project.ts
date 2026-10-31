@@ -25,7 +25,6 @@ export interface MarketView {
   readonly trades: TradeTape
   readonly candles: ReadonlyMap<Interval, readonly Candle[]>
   readonly status: FrameStatus
-  readonly uncrossed: number
 }
 
 const DEPTH_LEVELS = 400
@@ -88,7 +87,6 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
     mid: bid !== null && ask !== null ? formatMid(bid, ask, spec.scale) : '',
     spread: bid !== null && ask !== null ? formatPx((ask - bid) as Px, spec.scale) : '',
     spreadBps: bid !== null && ask !== null ? spreadBps(bid, ask) : '',
-    uncrossed: market.uncrossed,
   }
 }
 

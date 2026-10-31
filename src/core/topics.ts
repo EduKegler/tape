@@ -74,7 +74,6 @@ export interface BookFrame extends FrameBase {
   readonly mid: string
   readonly spread: string
   readonly spreadBps: string
-  readonly uncrossed: number
 }
 
 export interface DepthSide {

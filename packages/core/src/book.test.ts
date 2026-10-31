@@ -1,10 +1,11 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { bestAsk, bestBid, initialSync, stepBook, topLevels, visibleBook } from './book'
-import type { BookInput, BookStep, Level } from './book'
+import { bestAsk, bestBid, initialSync, stepBook, visibleBook } from './book'
+import type { BookInput, BookSide, BookStep, Level } from './book'
 import type { Px, Qty } from './fixed'
 
 const lv = (px: number, qty: number): Level => [px as Px, qty as Qty]
+const topLevels = (side: BookSide, n: number): Level[] => side.prices.slice(0, n).map((px) => lv(px, side.qty.get(px)!))
 const delta = (bids: Level[], asks: Level[], seq: [number, number] | null = null): BookInput => ({
   kind: 'delta',
   bids,
@@ -134,7 +135,6 @@ describe('snapshot-then-deltas (dYdX)', () => {
     const book = visibleBook(last.sync)!
     expect(bestBid(book)).toBe(102)
     expect(bestAsk(book)).toBe(103)
-    expect(last.uncrossed).toBe(2)
   })
 
   it('drops the crossed levels on both sides of a crossed snapshot', () => {

@@ -35,17 +35,14 @@ export async function send<T>(
   } catch {
     body = null
   }
-  const error = classify(response.status, body, text) ?? httpError(response.status, text, init.mutates)
+  const error = classify(response.status, body, text) ?? httpError(response.status, text)
   if (error) throw new TradeFailure(venue, error)
   return body as T
 }
 
-function httpError(status: number, text: string, mutates: boolean): TradeError | null {
+function httpError(status: number, text: string): TradeError | null {
   if (status === 429) return { kind: 'rate-limited', detail: text || 'Too many requests' }
-  if (status >= 500)
-    return mutates
-      ? { kind: 'unknown-outcome', detail: `${status} ${text}` }
-      : { kind: 'unreachable', detail: `${status} ${text}` }
+  if (status >= 500) return { kind: 'unreachable', detail: `${status} ${text}` }
   if (status >= 400) return { kind: 'rejected', detail: `${status} ${text}` }
   return null
 }

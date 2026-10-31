@@ -59,7 +59,6 @@ function stepsAt(spec: MarketSpec, mid: Px): GroupStep[] {
 export function snapGroup(spec: MarketSpec, mid: Px, requested: string): GroupStep {
   const steps = stepsAt(spec, mid).slice(0, OPTION_COUNT)
   const wanted = Number(requested) * 10 ** spec.scale.px
-  if (!Number.isFinite(wanted) || wanted <= 0) return steps[0] as GroupStep
   return steps.reduce((best, step) => (Math.abs(step - wanted) < Math.abs(best - wanted) ? step : best))
 }
 
@@ -110,7 +109,7 @@ export function emptyTape(): TradeTape {
 }
 
 export function pushTrades(tape: TradeTape, trades: readonly Trade[]): boolean {
-  const fresh = trades.filter((t) => !tape.seen.has(t.id)).sort((a, b) => b.time - a.time)
+  const fresh = trades.filter((t) => !tape.seen.has(t.id))
   if (fresh.length === 0) return false
   for (const t of fresh) tape.seen.add(t.id)
   const items = [...fresh, ...tape.items].sort((a, b) => b.time - a.time).slice(0, TRADE_LIMIT)
