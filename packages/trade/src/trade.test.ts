@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
+import { decode, encode } from '@msgpack/msgpack'
 import { bech32 } from '@scure/base'
 import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -13,7 +14,7 @@ import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
 import { buildIntent, closeIntent, splitSize } from './intent'
-import type { TakeProfitDraft } from './intent'
+import type { IntentDraft, TakeProfitDraft } from './intent'
 import type { Bps, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
 import { domainTypes, walletJson } from './wallet'
@@ -47,9 +48,23 @@ const draft = {
   end: '',
   count: '',
   skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
 } as const
 
 const tp = (price: string, share = '100'): TakeProfitDraft => ({ price, share })
+
+const trailing = {
+  ...draft,
+  kind: 'trailing',
+  side: 'sell',
+  price: '',
+  reduceOnly: true,
+  bid: '79990',
+  ask: '80010',
+  retracement: '1.5',
+} as const
 
 const config: TradeConfig = {
   mainnet: false,
@@ -172,6 +187,46 @@ describe('order intent', () => {
         takeProfits: 'Not offered on this venue',
       })
     }
+  })
+
+  it('builds a trailing stop by percent or by price, armed at once or at a price', () => {
+    const order = (overrides: Partial<IntentDraft>) => {
+      const built = buildIntent(btc, { ...trailing, ...overrides }, caps)
+      return built.ok ? built.intent.order : built.errors
+    }
+    expect(order({})).toEqual({ kind: 'trailing', retracement: { pct: 150 }, activation: null })
+    expect(order({ retracement: '0.01' })).toEqual({ kind: 'trailing', retracement: { pct: 1 }, activation: null })
+    expect(order({ retracementUnit: 'px', retracement: '800', activation: '82000' })).toEqual({
+      kind: 'trailing',
+      retracement: { px: 8000 },
+      activation: 820000,
+    })
+  })
+
+  it('refuses a retracement of 0 or 100% and more than 2 decimals, and any take profit or stop loss with it', () => {
+    const errors = (overrides: Partial<IntentDraft>) => {
+      const built = buildIntent(btc, { ...trailing, ...overrides }, caps)
+      return built.ok ? {} : built.errors
+    }
+    expect(errors({ retracement: '0' })).toEqual({ retracement: 'Above 0 and below 100%' })
+    expect(errors({ retracement: '100' })).toEqual({ retracement: 'Above 0 and below 100%' })
+    expect(errors({ retracement: '1.234' })).toEqual({ retracement: 'At most 2 decimals' })
+    expect(errors({ retracement: '' })).toEqual({ retracement: 'Enter a percent' })
+    expect(errors({ retracementUnit: 'px', retracement: '0' })).toEqual({ retracement: 'Price must be above zero' })
+    expect(errors({ activation: '82000.55' })).toEqual({ activation: 'At most 1 decimals' })
+    expect(errors({ takeProfits: [tp('70000')], stopLoss: '85000' })).toEqual({
+      takeProfits: 'Not with a trailing stop',
+      stopLoss: 'Not with a trailing stop',
+    })
+  })
+
+  it('offers a trailing stop on Hyperliquid and not on Orderly or dYdX', () => {
+    expect(buildIntent(btc, trailing, caps).ok).toBe(true)
+    for (const other of [TRADING.orderly, TRADING.dydx])
+      expect(buildIntent(btc, trailing, other.capabilities)).toEqual({
+        ok: false,
+        errors: { retracement: 'Not offered on this venue' },
+      })
   })
 
   it('keeps the stop of a limit that crosses the book below the bid it will fill near', () => {
@@ -546,6 +601,74 @@ describe('hyperliquid module', () => {
     })
   })
 
+  it('signs a trailingStop action with its keys in the order of the exchange docs, and reads the oid', async () => {
+    const DOCS_ORDER = ['type', 'asset', 'isBuy', 'sz', 'reduceOnly', 'retracement', 'activationPx']
+    const cases = [
+      [{}, { pct: '1.5%' }, null],
+      [{ retracementUnit: 'px', retracement: '800', activation: '82000' }, { px: '800' }, '82000'],
+    ] as const
+    for (const [overrides, retracement, activationPx] of cases) {
+      const { fetch, sent } = venue((url, body) =>
+        url.endsWith('/info')
+          ? body.type === 'meta'
+            ? testnetMeta
+            : null
+          : { status: 'ok', response: { type: 'trailingStop', data: { oid: 77738308 } } },
+      )
+      const ctx: VenueContext = {
+        ref: { venue: 'hyperliquid', network: 'testnet', owner },
+        config,
+        keys: memorySlot({ status: 'linked', public: { agent }, secret: agentKey }),
+        fetch,
+      }
+      const built = buildIntent(btc, { ...trailing, size: '0.001', ...overrides }, caps)
+      if (!built.ok) throw new Error('intent')
+      const outcome = await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })
+      expect(outcome).toEqual({ kind: 'placed', status: 'resting', detail: 'Resting as order 77738308' })
+      const post = sent.find((s) => s.url.endsWith('/exchange'))!
+      const action = post.body.action as Record<string, unknown>
+      expect(action).toEqual({
+        type: 'trailingStop',
+        asset: 3,
+        isBuy: false,
+        sz: '0.001',
+        reduceOnly: true,
+        retracement,
+        activationPx,
+      })
+      expect(Object.keys(decode(encode(action)) as object)).toEqual(DOCS_ORDER)
+      const signature = post.body.signature as { r: Hex; s: Hex; v: number }
+      const digest = typedDataDigest(l1TypedData(actionHash(action, null, post.body.nonce as number, null), 'Testnet'))
+      expect(
+        await recoverAddress({ hash: digest, signature: { r: signature.r, s: signature.s, v: BigInt(signature.v) } }),
+      ).toBe(agent)
+    }
+  })
+
+  it('calls a trailing stop write that times out, answers 5xx or carries no oid an unknown outcome', async () => {
+    const built = buildIntent(btc, trailing, caps)
+    if (!built.ok) throw new Error('intent')
+    const replies = [
+      () => Promise.reject(new DOMException('The operation timed out.', 'TimeoutError')),
+      () => Promise.resolve(new Response('<html>502 Bad Gateway</html>', { status: 502 })),
+      () => Promise.resolve(new Response(JSON.stringify({ status: 'ok', response: { type: 'trailingStop' } }))),
+    ]
+    for (const exchange of replies) {
+      const fetch = (async (url: string) =>
+        url.endsWith('/info') ? new Response(JSON.stringify(testnetMeta)) : exchange()) as typeof globalThis.fetch
+      const ctx: VenueContext = {
+        ref: { venue: 'hyperliquid', network: 'testnet', owner },
+        config,
+        keys: memorySlot({ status: 'linked', public: { agent }, secret: agentKey }),
+        fetch,
+      }
+      const error = await TRADING.hyperliquid
+        .execute(ctx, { kind: 'place', intent: built.intent })
+        .catch((e: unknown) => e)
+      expect(error instanceof TradeFailure && error.error.kind).toBe('unknown-outcome')
+    }
+  })
+
   it('sends every scale leg in one action and reports the legs Hyperliquid refused', async () => {
     const { fetch, sent } = venue((url, body) =>
       url.endsWith('/info')
@@ -896,6 +1019,26 @@ describe('orderly module', () => {
   })
 })
 
+describe('a trailing stop on a venue without one', () => {
+  it('is refused by Orderly and dYdX in execute before anything is sent', async () => {
+    const built = buildIntent(btc, trailing, caps)
+    if (!built.ok) throw new Error('intent')
+    for (const other of [TRADING.orderly, TRADING.dydx]) {
+      const { fetch, sent } = venue(() => ({ success: true }))
+      const ctx: VenueContext = {
+        ref: { venue: other.id, network: 'testnet', owner: '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' },
+        config,
+        keys: memorySlot({ status: 'linked', public: {}, secret: `0x${'11'.repeat(32)}` }),
+        fetch,
+      }
+      await expect(other.execute(ctx, { kind: 'place', intent: built.intent })).rejects.toMatchObject({
+        error: { kind: 'unsupported' },
+      })
+      expect(sent).toEqual([])
+    }
+  })
+})
+
 describe('order lookup after an unknown outcome', () => {
   const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' as Address
   const built = buildIntent(btc, draft, caps)
@@ -918,6 +1061,17 @@ describe('order lookup after an unknown outcome', () => {
       expect(result).toEqual(expected)
       expect(sent[0]?.body).toEqual({ type: 'orderStatus', user: owner, oid: intent.clientId })
     }
+  })
+
+  it('does not ask Hyperliquid for a trailing stop, which carries no cloid to find it by', async () => {
+    const stop = buildIntent(btc, trailing, caps)
+    if (!stop.ok) throw new Error('intent')
+    const { fetch, sent } = venue(() => ({ status: 'unknownOid' }))
+    const ctx = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch } as const
+    await expect(TRADING.hyperliquid.lookup(ctx, stop.intent)).rejects.toMatchObject({
+      error: { kind: 'unsupported' },
+    })
+    expect(sent).toEqual([])
   })
 
   it('calls a scale order found when any leg is on Hyperliquid, since legs are judged one by one', async () => {

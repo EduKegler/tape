@@ -12,6 +12,7 @@ import type {
   IntentFields,
   OrderIntent,
   Position,
+  Retracement,
   Side,
   TakeProfit,
   Tif,
@@ -63,7 +64,7 @@ export interface TakeProfitDraft {
 
 export interface IntentDraft {
   readonly side: Side
-  readonly kind: 'limit' | 'market' | 'scale'
+  readonly kind: 'limit' | 'market' | 'scale' | 'trailing'
   readonly price: string
   readonly size: string
   readonly tif: Tif
@@ -79,13 +80,28 @@ export interface IntentDraft {
   readonly end: string
   readonly count: string
   readonly skew: string
+  /** Trailing stop: how far the price comes back, as a percent or a price, and the price that arms it, empty to arm it at once. */
+  readonly retracement: string
+  readonly retracementUnit: 'pct' | 'px'
+  readonly activation: string
 }
 
 /** The nth take profit of a draft, counted from 1. */
 export type TakeProfitField = `takeProfit${number}`
 export type ExitField = TakeProfitField | 'stopLoss'
 /** `takeProfits` holds what is wrong with the take profits together, such as sizes that miss the order size. */
-export type DraftField = 'price' | 'size' | 'tif' | 'takeProfits' | ExitField | 'start' | 'end' | 'count' | 'skew'
+export type DraftField =
+  | 'price'
+  | 'size'
+  | 'tif'
+  | 'takeProfits'
+  | ExitField
+  | 'start'
+  | 'end'
+  | 'count'
+  | 'skew'
+  | 'retracement'
+  | 'activation'
 type Errors = Partial<Record<DraftField, string>>
 export type Built =
   { readonly ok: true; readonly intent: OrderIntent } | { readonly ok: false; readonly errors: Errors }
@@ -145,6 +161,32 @@ export function splitSize(spec: MarketSpec, size: Qty, shares: readonly number[]
     .slice(0, -1)
     .map((share) => (Math.floor((size * share) / (100 * spec.step)) * spec.step) as Qty)
   return [...floored, (size - floored.reduce((sum, part) => sum + part, 0)) as Qty]
+}
+
+/** A percent above 0 and below 100 with at most 2 decimals, or a price distance on the tick. */
+export function checkRetracement(spec: MarketSpec, unit: 'pct' | 'px', value: string): string | undefined {
+  if (unit === 'px') return checkPrice(spec, value)
+  if (!value) return 'Enter a percent'
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return 'At most 2 decimals'
+  const n = Number(value)
+  return n > 0 && n < 100 ? undefined : 'Above 0 and below 100%'
+}
+
+function retracementOf(spec: MarketSpec, draft: IntentDraft): Retracement {
+  return draft.retracementUnit === 'pct'
+    ? { pct: Math.round(Number(draft.retracement) * 100) as Bps }
+    : { px: parsePx(draft.retracement, spec.scale) }
+}
+
+function checkTrailing(spec: MarketSpec, draft: IntentDraft, caps: Capabilities, errors: Errors) {
+  if (!caps.trailingStop) {
+    errors.retracement = 'Not offered on this venue'
+    return
+  }
+  const retracement = checkRetracement(spec, draft.retracementUnit, draft.retracement)
+  if (retracement) errors.retracement = retracement
+  const activation = draft.activation ? checkPrice(spec, draft.activation) : undefined
+  if (activation) errors.activation = activation
 }
 
 export function checkSkew(value: string): string | undefined {
@@ -241,11 +283,14 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
     const price = checkPrice(spec, draft.price)
     if (price) errors.price = price
   }
-  if (draft.kind !== 'market' && !caps.tif.includes(draft.tif)) errors.tif = 'Not offered on this venue'
+  if (draft.kind === 'trailing') checkTrailing(spec, draft, caps, errors)
+  const rests = draft.kind === 'limit' || draft.kind === 'scale'
+  if (rests && !caps.tif.includes(draft.tif)) errors.tif = 'Not offered on this venue'
   const scaleTif = draft.kind === 'scale' && draft.tif !== 'ioc' ? draft.tif : null
   if (draft.kind === 'scale' && scaleTif === null) errors.tif = 'Not with a scale order'
   const offered = (field: 'takeProfits' | 'stopLoss') => {
     if (draft.kind === 'scale') errors[field] = 'Not with a scale order'
+    else if (draft.kind === 'trailing') errors[field] = 'Not with a trailing stop'
     else if (!caps.triggers) errors[field] = 'Not offered on this venue'
     return !errors[field]
   }
@@ -282,16 +327,22 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors }
   const clientId = newClientId()
-  const order =
+  const order: IntentFields['order'] =
     draft.kind === 'limit'
-      ? { kind: 'limit' as const, px: parsePx(draft.price, spec.scale), tif: draft.tif }
-      : scaleTif !== null
+      ? { kind: 'limit', px: parsePx(draft.price, spec.scale), tif: draft.tif }
+      : draft.kind === 'trailing'
         ? {
-            kind: 'scale' as const,
-            tif: scaleTif,
-            legs: slices.map((l, i) => ({ ...l, clientId: i === 0 ? clientId : newClientId() })),
+            kind: 'trailing',
+            retracement: retracementOf(spec, draft),
+            activation: draft.activation ? parsePx(draft.activation, spec.scale) : null,
           }
-        : { kind: 'market' as const, slippage: draft.slippage }
+        : scaleTif !== null
+          ? {
+              kind: 'scale' as const,
+              tif: scaleTif,
+              legs: slices.map((l, i) => ({ ...l, clientId: i === 0 ? clientId : newClientId() })),
+            }
+          : { kind: 'market' as const, slippage: draft.slippage }
   return {
     ok: true,
     intent: intentOf(

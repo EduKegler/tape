@@ -15,10 +15,12 @@ import { localSigner } from '../typed-data'
 import { TradeFailure } from '../types'
 import type {
   AccountView,
+  Bps,
   Command,
   CommandOutcome,
   Decimal,
   HistoryRequest,
+  IntentFields,
   OrderIntent,
   OrderLookup,
   OrderRef,
@@ -32,7 +34,7 @@ import type {
 import { walkByTime } from '../history'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
-import { cancelAction, leverageAction, orderAction, orderWire } from './wire'
+import { cancelAction, leverageAction, orderAction, orderWire, trailingStopAction } from './wire'
 import type { OrderWire, Tif } from './wire'
 
 const API: Record<Network, string> = {
@@ -129,6 +131,12 @@ function recheckPx(a: Asset, intent: OrderIntent, px: Px, what: string): string 
   return issue ? fail({ kind: 'invalid-order', detail: `${what} ${wire}: ${issue} on this network` }) : wire
 }
 
+function recheckSize(a: Asset, intent: OrderIntent): string {
+  const size = wireDecimal(intent.size, intent.spec.scale.qty)
+  const issue = checkSize(a.spec, size)
+  return issue ? fail({ kind: 'invalid-order', detail: `Size ${size}: ${issue} on this network` }) : size
+}
+
 async function touch(ctx: VenueContext, a: Asset): Promise<{ bid: Px | null; ask: Px | null }> {
   const book = await info<{ levels: [{ px: string }[], { px: string }[]] }>(ctx, {
     type: 'l2Book',
@@ -143,9 +151,7 @@ async function placeWires(
   intent: OrderIntent,
 ): Promise<{ wires: OrderWire[]; grouping: 'na' | 'normalTpsl' }> {
   const a = await asset(ctx, intent.spec.venueSymbol)
-  const size = wireDecimal(intent.size, intent.spec.scale.qty)
-  const sizeIssue = checkSize(a.spec, size)
-  if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
+  const size = recheckSize(a, intent)
   const isBuy = intent.side === 'buy'
   const { takeProfits, stopLoss } = intent.triggers
   if (intent.order.kind === 'scale') {
@@ -230,7 +236,10 @@ const Status = z.union([
 ])
 const Reply = z.object({
   status: z.literal('ok'),
-  response: z.object({ type: z.string(), data: z.object({ statuses: z.array(Status) }).optional() }),
+  response: z.object({
+    type: z.string(),
+    data: z.object({ statuses: z.array(Status).optional(), oid: z.string().optional() }).optional(),
+  }),
 })
 type Statuses = z.infer<typeof Reply>
 
@@ -300,9 +309,34 @@ function legsOutcome(statuses: readonly OrderStatus[]): CommandOutcome {
   )
 }
 
+type Trailing = Extract<IntentFields['order'], { kind: 'trailing' }>
+const percent = (bps: Bps) => `${bps / 100}%`
+
+async function placeTrailing(ctx: VenueContext, intent: OrderIntent, order: Trailing): Promise<CommandOutcome> {
+  if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'invalid-order', detail: 'A trailing stop carries no take profit or stop loss' })
+  const a = await asset(ctx, intent.spec.venueSymbol)
+  const size = recheckSize(a, intent)
+  const retracement =
+    'pct' in order.retracement
+      ? { pct: percent(order.retracement.pct) }
+      : { px: recheckPx(a, intent, order.retracement.px, 'Retracement') }
+  const activationPx = order.activation === null ? null : recheckPx(a, intent, order.activation, 'Activation price')
+  const reply = await exchange(
+    ctx,
+    trailingStopAction(a.index, intent.side === 'buy', size, intent.reduceOnly, retracement, activationPx),
+  )
+  const oid = reply.response.data?.oid
+  return oid
+    ? { kind: 'placed', status: 'resting', detail: `Resting as order ${oid}` }
+    : fail({ kind: 'unknown-outcome', detail: `No order id in the reply: ${JSON.stringify(reply)}` })
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place': {
+      const { order } = command.intent
+      if (order.kind === 'trailing') return placeTrailing(ctx, command.intent, order)
       const { wires, grouping } = await placeWires(ctx, command.intent)
       const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
       const statuses = reply.response.data?.statuses ?? []
@@ -331,6 +365,11 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+  if (intent.order.kind === 'trailing')
+    fail({
+      kind: 'unsupported',
+      detail: 'Hyperliquid takes no client id on a trailing stop, so it cannot be found by one',
+    })
   const replies = await Promise.all(
     clientIdsOf(intent).map((oid) =>
       info<{ status: string; order?: { status: string } }>(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }),
@@ -661,6 +700,7 @@ export const hyperliquid = {
     triggers: { takeProfits: TAKE_PROFITS },
     leverage: true,
     scaleOrders: SCALE_ORDERS,
+    trailingStop: true,
   },
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,

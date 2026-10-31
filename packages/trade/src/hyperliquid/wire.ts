@@ -62,3 +62,18 @@ export function cancelAction(cancels: readonly { readonly asset: number; readonl
 export function leverageAction(asset: number, isCross: boolean, leverage: number) {
   return { type: 'updateLeverage', asset, isCross, leverage }
 }
+
+/** A percent string such as `1.5%`, or a distance in price. */
+type Retracement = { readonly pct: string } | { readonly px: string }
+
+/** Keys in the order of the exchange endpoint docs, which no SDK carries yet. */
+export function trailingStopAction(
+  asset: number,
+  isBuy: boolean,
+  sz: string,
+  reduceOnly: boolean,
+  retracement: Retracement,
+  activationPx: string | null,
+) {
+  return { type: 'trailingStop', asset, isBuy, sz, reduceOnly, retracement, activationPx }
+}

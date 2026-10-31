@@ -12,6 +12,7 @@ import {
   buildScale,
   checkCount,
   checkPrice,
+  checkRetracement,
   checkShare,
   checkSize,
   checkSkew,
@@ -36,7 +37,7 @@ import { TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
-type Kind = 'limit' | 'market' | 'scale'
+type Kind = 'limit' | 'market' | 'scale' | 'trailing'
 const FIELD_LABEL = {
   price: 'Price',
   size: 'Size',
@@ -47,6 +48,8 @@ const FIELD_LABEL = {
   end: 'End price',
   count: 'Orders',
   skew: 'Size skew',
+  retracement: 'Retracement',
+  activation: 'Activation price',
 } as const
 const fieldLabel = (field: DraftField, takeProfits: number) =>
   field in FIELD_LABEL
@@ -58,6 +61,7 @@ const evenShares = (count: number) =>
     100,
     Array.from({ length: count }, () => 1),
   ).map(String)
+const takesExits = (kind: Kind) => kind === 'limit' || kind === 'market'
 const TIF_LABEL: Record<Tif, string> = {
   gtc: 'Good til canceled',
   ioc: 'Immediate or cancel',
@@ -122,10 +126,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       end: '',
       count: '5',
       skew: '1',
+      retracement: '',
+      retracementUnit: 'pct' as 'pct' | 'px',
+      activation: '',
     },
     onSubmit: ({ value }) => {
       if (!ref || !canSend || sending) return
-      const exits = protect && kind !== 'scale'
+      const exits = protect && takesExits(kind)
       const rows = value.takeProfits
       const takeProfits = !exits || (rows.length === 1 && !rows[0]?.price) ? [] : rows
       const result = buildIntent(
@@ -140,7 +147,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           bid: touch.bid,
           ask: touch.ask,
         },
-        caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: null, leverage: false, scaleOrders: 0 },
+        caps ?? {
+          tif: ['gtc', 'ioc', 'post-only'],
+          triggers: null,
+          leverage: false,
+          scaleOrders: 0,
+          trailingStop: false,
+        },
       )
       if (!result.ok) {
         setBuilt({
@@ -184,6 +197,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         label="Order type"
         value={kind}
         onChange={(k) => {
+          if (k === 'trailing' || kind === 'trailing') form.setFieldValue('reduceOnly', k === 'trailing')
           setKind(k)
           if (k === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
         }}
@@ -191,8 +205,63 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           { value: 'limit', label: 'Limit' },
           { value: 'market', label: 'Market' },
           ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
+          ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
         ]}
       />
+      {kind === 'trailing' && (
+        <div className="flex flex-col gap-2">
+          <form.Field name="retracementUnit">
+            {(unit) => (
+              <>
+                <form.Field
+                  name="retracement"
+                  validators={{
+                    onChangeListenTo: ['retracementUnit'],
+                    onChange: ({ value }) => checkRetracement(spec, unit.state.value, value),
+                  }}
+                >
+                  {(field) => (
+                    <Input
+                      label={`${FIELD_LABEL.retracement} (${unit.state.value === 'pct' ? '%' : spec.quote})`}
+                      name={field.name}
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={field.handleChange}
+                      error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                      hint={<span className="text-level3">From the best price</span>}
+                    />
+                  )}
+                </form.Field>
+                <Segmented
+                  label="Retracement in"
+                  value={unit.state.value}
+                  onChange={unit.handleChange}
+                  options={[
+                    { value: 'pct', label: 'Percent' },
+                    { value: 'px', label: spec.quote },
+                  ]}
+                />
+              </>
+            )}
+          </form.Field>
+          <form.Field
+            name="activation"
+            validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
+          >
+            {(field) => (
+              <Input
+                label={`${FIELD_LABEL.activation} (${spec.quote})`}
+                name={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                hint={<span className="text-level3">Empty to trail at once</span>}
+              />
+            )}
+          </form.Field>
+        </div>
+      )}
       {kind === 'limit' && (
         <form.Field name="price" validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
           {(field) => (
@@ -278,7 +347,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           />
         )}
       </form.Field>
-      {kind !== 'market' ? (
+      {kind === 'trailing' ? null : kind !== 'market' ? (
         <form.Field name="tif">
           {(field) => (
             <label className="flex items-center justify-between text-sm text-level3">
@@ -316,13 +385,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           </label>
         )}
       </form.Field>
-      {caps?.triggers && kind !== 'scale' && (
+      {caps?.triggers && takesExits(kind) && (
         <label className="flex items-center gap-2 text-sm text-level2">
           <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
           Take profit and stop loss
         </label>
       )}
-      {caps?.triggers && kind !== 'scale' && protect && (
+      {caps?.triggers && takesExits(kind) && protect && (
         <div className="flex flex-col gap-2">
           <form.Field name="takeProfits" mode="array">
             {(rows) => {
@@ -425,7 +494,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         {([values, canSubmit]) => {
           const scale = kind === 'scale' ? buildScale(spec, { ...values, side }, caps?.scaleOrders ?? 0) : null
           const legs = scale?.ok ? scale.legs : null
-          const px = kind === 'market' ? far : checkPrice(spec, values.price) ? '' : values.price
+          const px = kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
           const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
           const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
           return (
@@ -442,7 +511,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
               </dl>
               {legs && <ScaleLegs spec={spec} legs={legs} />}
-              {protect && kind !== 'scale' && values.takeProfits.length > 1 && (
+              {protect && takesExits(kind) && values.takeProfits.length > 1 && (
                 <TakeProfitSplit spec={spec} size={values.size} rows={values.takeProfits} />
               )}
               <SubmitArea

@@ -34,6 +34,9 @@ const draft = {
   end: '',
   count: '',
   skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
 } as const
 
 const INFO = '{"success":true,"data":{"quote_tick":0.1,"base_tick":0.00001}}'

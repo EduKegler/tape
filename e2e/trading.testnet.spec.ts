@@ -342,6 +342,99 @@ test('a take profit under the ask stops in the ticket and sends nothing', async 
   expect(orders(hyperliquid.sent)).toEqual([])
 })
 
+const trailingStops = (sent: readonly ExchangeBody[]) =>
+  sent.filter((body) => body.action.type === 'trailingStop').map((body) => body.action)
+
+test('a trailing stop goes out as a native trailingStop action with the retracement the ticket shows', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  hyperliquid.exchange = () => ({ json: { status: 'ok', response: { type: 'trailingStop', data: { oid: 77738308 } } } })
+  await ticket.getByRole('button', { name: 'sell', exact: true }).click()
+  await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
+  await expect(ticket.getByRole('checkbox', { name: 'Reduce only' })).toBeChecked()
+  await expect(ticket.getByRole('combobox')).toHaveCount(0)
+  await expect(ticket.getByRole('checkbox', { name: 'Take profit and stop loss' })).toHaveCount(0)
+  await ticket.getByRole('textbox', { name: 'Retracement (%)' }).fill('1.5')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  const sell = ticket.getByRole('button', { name: 'Sell BTC' })
+  await sell.click()
+  await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 77738308')
+  await expectAccessible(page)
+
+  await ticket.getByRole('radio', { name: 'USDC', exact: true }).click()
+  await ticket.getByRole('textbox', { name: 'Retracement (USDC)' }).fill('800')
+  await ticket.getByRole('textbox', { name: 'Activation price (USDC)' }).fill('82000')
+  await sell.click()
+  await expect.poll(() => trailingStops(hyperliquid.sent)).toHaveLength(2)
+  expect(trailingStops(hyperliquid.sent)).toEqual([
+    {
+      type: 'trailingStop',
+      asset: BTC,
+      isBuy: false,
+      sz: '0.002',
+      reduceOnly: true,
+      retracement: { pct: '1.5%' },
+      activationPx: null,
+    },
+    {
+      type: 'trailingStop',
+      asset: BTC,
+      isBuy: false,
+      sz: '0.002',
+      reduceOnly: true,
+      retracement: { px: '800' },
+      activationPx: '82000',
+    },
+  ])
+})
+
+test('a retracement of 0 or 100% stops in the ticket and sends nothing', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, ticket } = await enable(page)
+  await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  const retracement = ticket.getByRole('textbox', { name: 'Retracement (%)' })
+  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  for (const value of ['0', '100']) {
+    await retracement.fill(value)
+    await expect(retracement).toHaveAccessibleDescription('Above 0 and below 100%')
+    await expect(buy).toBeDisabled()
+  }
+  await retracement.fill('1')
+  await expect(buy).toBeEnabled()
+  expect(trailingStops(hyperliquid.sent)).toEqual([])
+})
+
+test('a trailing stop write that times out shows an unknown outcome and lets the trader send again', async ({
+  page,
+  wallet: _wallet,
+  consoleErrors,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  hyperliquid.exchange = () => ({ abort: 'timedout' })
+  const asked: string[] = []
+  hyperliquid.orderStatus = (cloid) => {
+    asked.push(cloid)
+    return { status: 'unknownOid' }
+  }
+  await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
+  await ticket.getByRole('textbox', { name: 'Retracement (%)' }).fill('1')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  await buy.click()
+
+  const alert = ticket.getByRole('alert')
+  await expect(alert).toContainText(
+    'Sent, but no answer came back. Check positions, orders and fills before sending again.',
+  )
+  await expect(alert).toContainText('Could not ask the venue about this order.')
+  await expect(buy).toBeEnabled()
+  expect(asked).toEqual([])
+  expect(trailingStops(hyperliquid.sent)).toHaveLength(1)
+  expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
+})
+
 test('three clicks in one tick send one order, and the next goes after the answer', async ({
   page,
   wallet: _wallet,

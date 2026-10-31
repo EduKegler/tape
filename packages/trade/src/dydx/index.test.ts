@@ -88,6 +88,9 @@ const draft: IntentDraft = {
   end: '',
   count: '',
   skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
 }
 function intentOf(spec: MarketSpec, changes: Partial<IntentDraft> = {}) {
   const built = buildIntent(spec, { ...draft, ...changes }, dydx.capabilities)

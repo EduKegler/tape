@@ -48,6 +48,9 @@ const draft = {
   end: '',
   count: '',
   skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
 }
 
 function place(over: Partial<typeof draft>): Command {
