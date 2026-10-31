@@ -272,4 +272,13 @@ describe('Orderly deposit credit', () => {
       })
     }
   })
+
+  it('sends a testnet deposit to the testnet LayerZero Scan', async () => {
+    const sepolia = routes('testnet')[0]!
+    const { fetch } = orderlyAnswering(history([{ ...row('FAILED'), chain_id: '421614' }]))
+    const onTestnet = { ...sent, ref: { ...sent.ref, network: 'testnet' as const }, chainId: 421614 }
+    expect(await sepolia.progress({ fetch, keys: keys(linked) }, onTestnet)).toMatchObject({
+      check: { url: `https://testnet.layerzeroscan.com/tx/${hash}` },
+    })
+  })
 })

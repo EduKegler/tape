@@ -17,6 +17,10 @@ import type { Classify } from '../send'
 import { accountId, orderlyKey, signRequest } from './sign'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
+const LAYERZERO_SCAN: Record<Network, string> = {
+  mainnet: 'https://layerzeroscan.com',
+  testnet: 'https://testnet.layerzeroscan.com',
+}
 
 interface Source {
   readonly chainId: number
@@ -131,7 +135,7 @@ async function progress(
       row.trans_status === 'FAILED'
         ? 'Orderly reports the deposit as failed'
         : `Orderly reports the deposit as ${row.trans_status}, a state Tape does not know`,
-    check: { label: 'LayerZero message', url: `https://layerzeroscan.com/tx/${sent.hash}` },
+    check: { label: 'LayerZero message', url: `${LAYERZERO_SCAN[network]}/tx/${sent.hash}` },
   }
 }
 
