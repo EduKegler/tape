@@ -5,17 +5,18 @@ import { estimateGas, getPublicClient, waitForTransactionReceipt } from 'wagmi/a
 import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, numberToHex } from 'viem'
 import type { Address, Chain, Client, Hex, Transport } from 'viem'
 import { estimateL1Fee } from 'viem/op-stack'
-import { DEPOSITS } from '@tape/trade'
+import { DEPOSITS, TRADING } from '@tape/trade'
 import { blocksDeposit, depositIssues } from '@tape/trade/deposit'
-import type { DepositCall, DepositFee, DepositIssue, DepositProgress, DepositRoute } from '@tape/trade/deposit'
+import type { DepositCall, DepositIssue, DepositProgress, DepositRoute, DepositTerms } from '@tape/trade/deposit'
 import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
 import { track } from '#/analytics/track'
 import { wagmiConfig } from '#/wallet/config'
-import { addDeposit, depositsSnapshot, parseDeposits, subscribeVault, updateDeposit } from './vault'
+import { TRADE_CONFIG } from './config'
+import { addDeposit, depositsSnapshot, keySlot, parseDeposits, subscribeVault, updateDeposit } from './vault'
 import type { DepositRecord } from './vault'
 
-const PROGRESS_POLL_MS = 4_000
+const watchEnded = (p: DepositProgress | undefined) => p?.stage === 'unresolved'
 
 type ChainId = (typeof wagmiConfig.chains)[number]['id']
 const wagmiChain = (id: number) => id as ChainId
@@ -27,7 +28,7 @@ interface Eip1193 {
 const browserFetch: typeof globalThis.fetch = (input, init) => fetch(input, init)
 
 export function depositRoutes(ref: AccountRef): readonly DepositRoute[] {
-  return DEPOSITS[ref.venue]?.routes(ref.network) ?? []
+  return DEPOSITS[ref.venue]?.routes(ref.network, TRADE_CONFIG) ?? []
 }
 
 /** USDC the owner holds on each route's chain, in route order. Null while unread. */
@@ -48,8 +49,8 @@ export function useRouteBalances(ref: AccountRef, routes: readonly DepositRoute[
 }
 
 export interface DepositQuote {
-  readonly fee: DepositFee | null
-  readonly feeError: boolean
+  readonly terms: DepositTerms | null
+  readonly termsError: boolean
   readonly calls: readonly DepositCall[] | null
   /** Wei for every call, at the chain's max fee per gas, plus the L1 data fee on Base and OP Mainnet. */
   readonly gasCost: bigint | null
@@ -64,7 +65,9 @@ async function estimateCalls(chainId: ChainId, owner: Address, calls: readonly D
   const gas: bigint[] = []
   for (const [i, call] of calls.entries()) {
     try {
-      gas.push(await estimateGas(wagmiConfig, { chainId, account: owner, to: call.to, data: call.data }))
+      gas.push(
+        await estimateGas(wagmiConfig, { chainId, account: owner, to: call.to, data: call.data, value: call.value }),
+      )
     } catch (e) {
       const revert = e instanceof BaseError ? e.walk((x) => x instanceof ExecutionRevertedError) : null
       if (i === 0 && revert instanceof ExecutionRevertedError)
@@ -79,7 +82,9 @@ async function estimateCalls(chainId: ChainId, owner: Address, calls: readonly D
 async function l1DataFee(chainId: ChainId, owner: Address, calls: readonly DepositCall[]) {
   const client = getPublicClient(wagmiConfig, { chainId }) as Client<Transport, Chain>
   if (!client.chain.contracts?.gasPriceOracle) return 0n
-  const fees = await Promise.all(calls.map((c) => estimateL1Fee(client, { account: owner, to: c.to, data: c.data })))
+  const fees = await Promise.all(
+    calls.map((c) => estimateL1Fee(client, { account: owner, to: c.to, data: c.data, value: c.value })),
+  )
   return fees.reduce((a, b) => a + b, 0n)
 }
 
@@ -103,17 +108,20 @@ export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bi
   const native = useBalance({ address: ref.owner, chainId })
   const code = useBytecode({ address: ref.owner, chainId })
   const gasPrice = useEstimateFeesPerGas({ chainId })
-  const fee = useQuery(
+  const terms = useQuery(
     queryOptions({
-      queryKey: ['deposit', 'fee', route.chainId, amount?.toString() ?? null],
-      queryFn: amount ? () => route.fee(browserFetch, amount) : skipToken,
+      queryKey: ['deposit', 'terms', ref.venue, chainId, ref.owner, amount?.toString() ?? null],
+      queryFn: amount
+        ? () =>
+            route.terms({ fetch: browserFetch, chain: getPublicClient(wagmiConfig, { chainId }) }, ref.owner, amount)
+        : skipToken,
       staleTime: 30_000,
     }),
   )
   const allowed = route.spender === null ? 0n : (allowance.data ?? null)
   const calls = useMemo(
-    () => (amount && fee.data && allowed !== null ? route.calls(ref.owner, amount, fee.data, allowed) : null),
-    [route, ref.owner, amount, fee.data, allowed],
+    () => (amount && terms.data && allowed !== null ? route.calls(ref.owner, amount, terms.data, allowed) : null),
+    [route, ref.owner, amount, terms.data, allowed],
   )
   const gas = useQuery(
     queryOptions({
@@ -129,15 +137,17 @@ export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bi
     usdc: usdc.data ?? null,
     native: native.data?.value ?? null,
     code: code.isSuccess ? (code.data ?? '0x') : null,
-    fee: fee.data ?? null,
+    terms: terms.data ?? null,
     gasCost,
     rejected: gas.data?.rejected ?? null,
   }
   const issues = amount ? depositIssues(route, amount, readings) : []
-  const known = [readings.usdc, readings.native, readings.code, readings.fee, readings.gasCost].every((v) => v !== null)
+  const known = [readings.usdc, readings.native, readings.code, readings.terms, readings.gasCost].every(
+    (v) => v !== null,
+  )
   return {
-    fee: fee.data ?? null,
-    feeError: fee.isError,
+    terms: terms.data ?? null,
+    termsError: terms.isError,
     calls,
     gasCost,
     issues,
@@ -174,16 +184,24 @@ export function useSendDeposit(ref: AccountRef) {
   return useMutation<
     Hex,
     Error,
-    { route: DepositRoute; amount: bigint; fee: DepositFee; calls: readonly DepositCall[] }
+    { route: DepositRoute; amount: bigint; terms: DepositTerms; calls: readonly DepositCall[] }
   >({
-    mutationFn: async ({ route, amount, fee, calls }) => {
+    mutationFn: async ({ route, amount, terms, calls }) => {
       if (!connector) throw new Error('No wallet connected')
       const provider = (await connector.getProvider()) as Eip1193
       const send = async (call: DepositCall) => {
         await onChain(provider, route.chainId)
         return (await provider.request({
           method: 'eth_sendTransaction',
-          params: [{ from: ref.owner, to: call.to, data: call.data, chainId: numberToHex(route.chainId) }],
+          params: [
+            {
+              from: ref.owner,
+              to: call.to,
+              data: call.data,
+              ...(call.value > 0n ? { value: numberToHex(call.value) } : {}),
+              chainId: numberToHex(route.chainId),
+            },
+          ],
         })) as Hex
       }
       let approved = false
@@ -207,7 +225,7 @@ export function useSendDeposit(ref: AccountRef) {
         addDeposit(ref, {
           chainId: route.chainId,
           amount,
-          fee,
+          fee: terms.fee,
           hash,
           replacement: null,
           sentAt: Date.now(),
@@ -297,7 +315,8 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
       queryFn:
         route && record.gasPaid !== null && !record.outcome
           ? async () => {
-              const p = await route.progress(browserFetch, { ...record, hash: sentHash(record), ref, claimed })
+              const io = { fetch: browserFetch, keys: keySlot(ref, TRADING[ref.venue].secrets) }
+              const p = await route.progress(io, { ...record, hash: sentHash(record), ref, claimed })
               if (p.stage === 'credited') {
                 updateDeposit(ref, record.hash, { outcome: p })
                 track({
@@ -310,7 +329,8 @@ export function useDepositStatus(ref: AccountRef, record: DepositRecord): { stat
               return p
             }
           : skipToken,
-      refetchInterval: PROGRESS_POLL_MS,
+      refetchInterval: (q) => (!route || watchEnded(q.state.data) ? false : route.pollEvery),
+      staleTime: (q) => (watchEnded(q.state.data) ? Infinity : 0),
     }),
   )
   const late = usePassed(route ? record.sentAt + route.eta.worst * 1000 : Infinity)

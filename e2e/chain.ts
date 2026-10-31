@@ -14,7 +14,7 @@ export interface Holdings {
   readonly tokens: Readonly<Record<Address, bigint>>
 }
 
-/** The ERC-20 and Multicall3 reads wagmi makes, by their published signatures. */
+/** The ERC-20, Multicall3 and Orderly Vault reads wagmi makes, by their published signatures. */
 const READS = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
   'function allowance(address owner, address spender) view returns (uint256)',
@@ -22,11 +22,14 @@ const READS = parseAbi([
   'struct Call3 { address target; bool allowFailure; bytes callData; }',
   'struct Result { bool success; bytes returnData; }',
   'function aggregate3(Call3[] calls) payable returns (Result[] returnData)',
+  'function getDepositFee(address receiver, (bytes32 accountId, bytes32 brokerHash, bytes32 tokenHash, uint128 tokenAmount) data) view returns (uint256)',
+  'function tokenAddress2DepositLimit(address token) view returns (uint256)',
 ])
 
 const NOTHING: Holdings = { native: 0n, tokens: {} }
 const GAS = 60_000n
 const GWEI = 1_000_000_000n
+const LAYERZERO_FEE = 10n ** 14n
 
 export async function fakeChains(page: Page, network: Network) {
   const holdings = new Map<string, Holdings>()
@@ -62,6 +65,10 @@ export async function fakeChains(page: Page, network: Network) {
         })
       case 'allowance':
         return encodeFunctionResult({ abi: READS, functionName: 'allowance', result: 0n })
+      case 'getDepositFee':
+        return encodeFunctionResult({ abi: READS, functionName: 'getDepositFee', result: LAYERZERO_FEE })
+      case 'tokenAddress2DepositLimit':
+        return encodeFunctionResult({ abi: READS, functionName: 'tokenAddress2DepositLimit', result: 0n })
     }
   }
 

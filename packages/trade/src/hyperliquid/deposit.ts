@@ -1,9 +1,16 @@
 import { z } from 'zod'
 import type { Address } from 'viem'
 import type { Network } from '@tape/core/ids'
-import { CORE_DEPOSIT_WALLET, TOKEN_MESSENGER_V2, burnMessage, burnToHyperCore, hyperCoreFee } from '../cctp'
+import {
+  CORE_DEPOSIT_WALLET,
+  FORWARD_WORST,
+  TOKEN_MESSENGER_V2,
+  burnToHyperCore,
+  followForward,
+  hyperCoreFee,
+} from '../cctp'
 import { approveCall, parseUsdc, transferCall } from '../deposit'
-import type { DepositProgress, DepositRoute, DepositVenue, SentDeposit } from '../deposit'
+import type { DepositFee, DepositProgress, DepositRoute, DepositTerms, DepositVenue, SentDeposit } from '../deposit'
 import { post, send } from '../send'
 
 const API: Record<Network, string> = {
@@ -25,6 +32,8 @@ const BRIDGE: Record<Network, { readonly chainId: number; readonly token: Addres
   },
 }
 const BRIDGE_MINIMUM = 5_000_000n
+const POLL_EVERY = 4_000
+const feeOnly = (fee: DepositFee): DepositTerms => ({ fee, message: null, refusal: null })
 
 const bridgeRoute = (network: Network): DepositRoute => ({
   chainId: BRIDGE[network].chainId,
@@ -33,9 +42,10 @@ const bridgeRoute = (network: Network): DepositRoute => ({
   hops: ['Hyperliquid bridge on Arbitrum'],
   minimum: { amount: BRIDGE_MINIMUM, lost: true },
   eta: { typical: 60, worst: 600 },
-  fee: () => Promise.resolve({ expected: 0n, max: 0n }),
+  pollEvery: POLL_EVERY,
+  terms: () => Promise.resolve(feeOnly({ expected: 0n, max: 0n })),
   calls: (_owner, amount) => [transferCall(BRIDGE[network].token, BRIDGE[network].bridge, amount)],
-  progress: bridgeProgress,
+  progress: ({ fetch }, sent) => bridgeProgress(fetch, sent),
 })
 
 /** `domain` is Circle's CCTP id for the chain. */
@@ -51,14 +61,14 @@ const cctpRoute = ({ chainId, domain, token }: (typeof CCTP_SOURCES)[number]): D
   spender: TOKEN_MESSENGER_V2,
   hops: ['Circle CCTP', 'HyperEVM'],
   minimum: null,
-  // Circle can turn a Fast Transfer into a standard one, which waits 15 to 19 min for Ethereum finality.
-  eta: { typical: 60, worst: 1800 },
-  fee: (fetch, amount) => hyperCoreFee('hyperliquid', fetch, domain, amount),
-  calls: (owner, amount, fee, allowance) => [
+  eta: { typical: 60, worst: FORWARD_WORST },
+  pollEvery: POLL_EVERY,
+  terms: ({ fetch }, _owner, amount) => hyperCoreFee('hyperliquid', fetch, domain, amount).then(feeOnly),
+  calls: (owner, amount, terms, allowance) => [
     ...(allowance < amount ? [approveCall(token, TOKEN_MESSENGER_V2, amount)] : []),
-    burnToHyperCore(token, owner, amount, fee.max),
+    burnToHyperCore(token, owner, amount, terms.fee.max),
   ],
-  progress: (fetch, sent) => cctpProgress(fetch, sent, domain),
+  progress: ({ fetch }, sent) => cctpProgress(fetch, sent, domain),
 })
 
 const Ledger = z.array(
@@ -116,16 +126,9 @@ async function cctpProgress(
   sent: SentDeposit,
   domain: number,
 ): Promise<DepositProgress> {
-  const message = await burnMessage('hyperliquid', fetch, domain, sent.hash)
-  if (!message?.attested) return { stage: 'relaying', detail: 'Waiting for Circle to attest the burn' }
-  if (message.forward === 'failed')
-    return {
-      stage: 'stuck',
-      detail:
-        'Circle reports that forwarding to Hyperliquid failed. Keep the transaction hash for Circle and Hyperliquid support',
-    }
-  if (message.forward === 'pending') return { stage: 'relaying', detail: 'Circle is forwarding it to Hyperliquid' }
-  const expected = message.feeExecuted === null ? null : sent.amount - message.feeExecuted
+  const forward = await followForward('hyperliquid', fetch, domain, sent)
+  if (forward.stage !== 'forwarded') return forward
+  const expected = forward.feeExecuted === null ? null : sent.amount - forward.feeExecuted
   const credits = (await ledger(fetch, sent)).filter(
     (e) =>
       e.delta.type === 'send'
