@@ -36,7 +36,7 @@ import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
-import { Button, Checkbox, Input, Select } from './primitives'
+import { Button, Checkbox, Input, Select, TextLink } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
@@ -815,11 +815,7 @@ export function SiteReadOnly() {
       Mainnet is read only in Tape.{' '}
       {TESTNET_SITE && (
         <>
-          Trading runs on{' '}
-          <a href={TESTNET_SITE} className="text-level1 underline underline-offset-2">
-            testnet
-          </a>
-          .
+          Trading runs on <TextLink href={TESTNET_SITE}>testnet</TextLink>.
         </>
       )}
     </p>

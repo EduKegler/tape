@@ -21,7 +21,7 @@ import type { DepositQuote, DepositStatus } from '#/trade/deposit'
 import type { DepositRecord } from '#/trade/vault'
 import { wagmiConfig } from '#/wallet/config'
 import { shortAddress } from './format'
-import { Button, Dialog, Input, Select } from './primitives'
+import { Button, Dialog, Input, Select, TextLink } from './primitives'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
 const chainOf = (id: number) => wagmiConfig.chains.find((c) => c.id === id)
@@ -353,9 +353,9 @@ function SendError({ error }: { error: Error }) {
 function TxLink({ chainId, hash }: { chainId: number; hash: string }) {
   const explorer = chainOf(chainId)?.blockExplorers.default.url
   return explorer ? (
-    <a href={`${explorer}/tx/${hash}`} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+    <TextLink href={`${explorer}/tx/${hash}`} newTab>
       {shortAddress(hash)}
-    </a>
+    </TextLink>
   ) : (
     <span>{shortAddress(hash)}</span>
   )
@@ -429,9 +429,9 @@ function CheckManually({ check, hash }: { check: { label: string; url: string };
     <div className="border-l-2 border-warn pl-2 text-level2">
       <p>
         Open the{' '}
-        <a href={check.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+        <TextLink href={check.url} newTab>
           {check.label}
-        </a>
+        </TextLink>
         , or give support the source transaction hash:
       </p>
       <p className="num mt-1 text-xs break-all text-level1">{hash}</p>

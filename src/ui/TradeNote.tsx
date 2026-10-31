@@ -77,7 +77,7 @@ export function ReadNote(props: { what: string; error: TradeError; onRetry: () =
   return (
     <p role="alert" className="border-l-2 border-warn pl-2 text-level1">
       Could not read {props.what}. {readFailure(props.error)}{' '}
-      <Button look="quiet" onClick={props.onRetry} disabled={props.busy} className="underline underline-offset-2">
+      <Button look="link" onClick={props.onRetry} disabled={props.busy}>
         Retry
       </Button>
     </p>
