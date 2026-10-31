@@ -74,6 +74,7 @@ Review catches the rest. A screen that shows one of these goes back:
 3. Compare each screenshot with the matching one in `reference/`. A difference the change did not intend goes back.
 4. Run `pnpm e2e`. An assertion changed on purpose goes in the review with its diff.
 5. For a change on the trading screen, run `perf-probe.mjs` against the baseline and report main-thread work.
+6. The screens the operator approves enter `reference/` in the same PR, each with a line under Reference that says what it settles. A screen the PR makes wrong is retaken or leaves.
 
 ## Reference
 
