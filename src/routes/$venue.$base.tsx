@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 import { INTERVALS, isBase, isVenueId, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
@@ -8,6 +9,7 @@ import { Compare } from '#/ui/Compare'
 import { DepthChart } from '#/ui/DepthChart'
 import { Header } from '#/ui/Header'
 import { OrderBook } from '#/ui/OrderBook'
+import { marketQuery } from '#/ui/queries'
 import { StatusBar } from '#/ui/StatusBar'
 import { Ticket } from '#/ui/Ticket'
 import { Account } from '#/ui/Account'
@@ -42,42 +44,60 @@ function Market() {
   const group = search.group === undefined ? '' : String(search.group)
   const navigate = Route.useNavigate()
   const market = marketKey(venue, base)
+  const unlisted = useQuery(marketQuery(venue, base)).data === null
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh">
       <Header venue={venue} base={base} />
-      <main className="grid flex-1 gap-px p-px lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_20rem_17rem_22rem] lg:grid-rows-[minmax(0,1fr)_15rem_14rem]">
-        <div className="h-80 lg:h-auto lg:min-h-0">
-          <CandleChart
-            venue={venue}
-            base={base}
-            interval={search.interval}
-            onInterval={(i) => void navigate({ search: (s) => ({ ...s, interval: i }), replace: true })}
-          />
-        </div>
-        <div className="h-[660px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-auto">
-          <OrderBook
-            market={market}
-            group={group}
-            onGroup={(g) => void navigate({ search: (s) => ({ ...s, group: Number(g) }), replace: true })}
-          />
-        </div>
-        <div className="h-80 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:h-auto">
-          <Trades market={market} />
-        </div>
-        <div className="lg:col-start-4 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
-          <Ticket venue={venue} base={base} group={group} />
-        </div>
-        <div className="h-52 lg:col-start-1 lg:row-start-2 lg:h-auto">
-          <DepthChart market={market} />
-        </div>
-        <div className="lg:col-start-4 lg:row-span-2 lg:row-start-2">
-          <Compare base={base} current={venue} />
-        </div>
-        <div className="h-72 lg:col-span-3 lg:col-start-1 lg:row-start-3 lg:h-auto lg:min-h-0">
-          <Account venue={venue} base={base} />
-        </div>
-      </main>
+      {unlisted ? (
+        <Unlisted venue={venue} base={base} />
+      ) : (
+        <main className="grid flex-1 gap-px p-px lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_20rem_17rem_22rem] lg:grid-rows-[minmax(0,1fr)_15rem_14rem]">
+          <div className="h-80 lg:h-auto lg:min-h-0">
+            <CandleChart
+              venue={venue}
+              base={base}
+              interval={search.interval}
+              onInterval={(i) => void navigate({ search: (s) => ({ ...s, interval: i }), replace: true })}
+            />
+          </div>
+          <div className="h-[660px] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:h-auto">
+            <OrderBook
+              market={market}
+              group={group}
+              onGroup={(g) => void navigate({ search: (s) => ({ ...s, group: Number(g) }), replace: true })}
+            />
+          </div>
+          <div className="h-80 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:h-auto">
+            <Trades market={market} />
+          </div>
+          <div className="lg:col-start-4 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
+            <Ticket venue={venue} base={base} group={group} />
+          </div>
+          <div className="h-52 lg:col-start-1 lg:row-start-2 lg:h-auto">
+            <DepthChart market={market} />
+          </div>
+          <div className="lg:col-start-4 lg:row-span-2 lg:row-start-2">
+            <Compare base={base} current={venue} />
+          </div>
+          <div className="h-72 lg:col-span-3 lg:col-start-1 lg:row-start-3 lg:h-auto lg:min-h-0">
+            <Account venue={venue} base={base} />
+          </div>
+        </main>
+      )}
       <StatusBar />
     </div>
+  )
+}
+
+function Unlisted({ venue, base }: { venue: VenueId; base: Base }) {
+  return (
+    <main className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+      <h1 className="text-lg text-level1">
+        Tape does not show {base} on {VENUES[venue].label}
+      </h1>
+      <p className="text-sm text-level3">
+        {VENUES[venue].label} does not list it, or Tape leaves it out. Pick another market or venue in the header.
+      </p>
+    </main>
   )
 }

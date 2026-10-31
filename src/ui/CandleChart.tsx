@@ -7,7 +7,7 @@ import type { Base, Interval, VenueId } from '@tape/core/ids'
 import { useFrameEffect } from '#/client/hooks'
 import { formatChartTick, formatChartTime } from './format'
 import { Panel, Segmented } from './Panel'
-import { candlesQuery, specsQuery } from './queries'
+import { candlesQuery, marketQuery } from './queries'
 
 const MARKS = {
   [TickMarkType.Year]: 'year',
@@ -40,7 +40,7 @@ export function CandleChart({
   const host = useRef<HTMLDivElement>(null)
   const series = useRef<Series | null>(null)
   const history = useQuery(candlesQuery(venue, base, interval))
-  const decimals = useQuery({ ...specsQuery(venue), select: (specs) => specs.get(base)?.scale.px }).data
+  const decimals = useQuery(marketQuery(venue, base)).data?.scale.px
 
   useEffect(() => {
     const el = host.current

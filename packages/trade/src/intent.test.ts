@@ -3,15 +3,16 @@ import { describe, expect, it } from 'vitest'
 import { wireDecimal } from '@tape/core/fixed'
 import type { Decimals, Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
+import type { Base } from '@tape/core/ids'
 import type { MarketSpec, TickRule } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import { checkPrice, checkSize, closeIntent, worstPrice } from './intent'
 import type { Bps, Decimal, Position } from './types'
 
 const hl: MarketSpec = {
-  key: marketKey('hyperliquid', 'BTC'),
+  key: marketKey('hyperliquid', 'BTC' as Base),
   venue: 'hyperliquid',
-  base: 'BTC',
+  base: 'BTC' as Base,
   quote: 'USDC',
   kind: 'perp',
   venueSymbol: 'BTC',

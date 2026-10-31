@@ -3,15 +3,16 @@ import { describe, expect, it } from 'vitest'
 import { parsePx, wireDecimal } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
+import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import { checkPrice } from './intent'
 import { apportion, scaleLegs } from './scale-order'
 
 const fixed: MarketSpec = {
-  key: marketKey('dydx', 'ETH'),
+  key: marketKey('dydx', 'ETH' as Base),
   venue: 'dydx',
-  base: 'ETH',
+  base: 'ETH' as Base,
   quote: 'USD',
   kind: 'perp',
   venueSymbol: 'ETH-USD',
@@ -21,7 +22,7 @@ const fixed: MarketSpec = {
 }
 const sigfig: MarketSpec = {
   ...fixed,
-  key: marketKey('hyperliquid', 'BTC'),
+  key: marketKey('hyperliquid', 'BTC' as Base),
   venue: 'hyperliquid',
   venueSymbol: 'BTC',
   scale: { px: 1, qty: 5 },

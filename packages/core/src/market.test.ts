@@ -15,11 +15,13 @@ import {
 import type { Candle, MarketSpec, Trade } from './market'
 import type { Decimals, Px, Qty } from './fixed'
 import { marketKey } from './ids'
+import type { Base } from './ids'
 
+const BTC = 'BTC' as Base
 const hl = (px: 1 | 2 | 4): MarketSpec => ({
-  key: marketKey('hyperliquid', 'BTC'),
+  key: marketKey('hyperliquid', BTC),
   venue: 'hyperliquid',
-  base: 'BTC',
+  base: BTC,
   quote: 'USDC',
   kind: 'perp',
   venueSymbol: 'BTC',

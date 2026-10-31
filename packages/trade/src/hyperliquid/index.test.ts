@@ -3,6 +3,7 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address } from 'viem'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
+import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent, closeIntent } from '../intent'
 import { TradeFailure } from '../types'
@@ -21,9 +22,9 @@ const testnetMeta = {
   ],
 }
 const btc: MarketSpec = {
-  key: marketKey('hyperliquid', 'BTC'),
+  key: marketKey('hyperliquid', 'BTC' as Base),
   venue: 'hyperliquid',
-  base: 'BTC',
+  base: 'BTC' as Base,
   quote: 'USDC',
   kind: 'perp',
   venueSymbol: 'BTC',

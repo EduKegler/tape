@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NETWORKS } from '@tape/core/ids'
-import type { Network } from '@tape/core/ids'
+import type { Base, Network } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { venues } from '@tape/venues/index'
 import { DEPOSITS } from '@tape/trade'
@@ -17,9 +17,10 @@ async function originsReached(network: Network) {
   for (const adapter of Object.values(venues(network))) {
     origins.add(new URL(adapter.url).origin)
     await Promise.allSettled([
-      adapter.fetchSpecs(offline),
-      adapter.fetchStats('BTC', offline),
-      adapter.fetchCandles('BTC', '1m', offline),
+      adapter.fetchMarkets(offline),
+      adapter.fetchMarket('BTC' as Base, offline),
+      adapter.fetchStats('BTC' as Base, offline),
+      adapter.fetchCandles('BTC' as Base, '1m', offline),
       adapter.book.protocol === 'rest-snapshot-sequenced'
         ? adapter.book.fetchSnapshot({ venueSymbol: 'BTCUSDT' } as MarketSpec, offline)
         : null,

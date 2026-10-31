@@ -5,6 +5,7 @@ import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address, Hex } from 'viem'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
+import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { deriveKey, onboarding, walletOf } from './dydx/client'
 import { classifyMessage as dydxMessage } from './dydx'
@@ -18,9 +19,9 @@ import { domainTypes, walletJson } from './wallet'
 import { TRADING } from './index'
 
 const btc: MarketSpec = {
-  key: marketKey('hyperliquid', 'BTC'),
+  key: marketKey('hyperliquid', 'BTC' as Base),
   venue: 'hyperliquid',
-  base: 'BTC',
+  base: 'BTC' as Base,
   quote: 'USDC',
   kind: 'perp',
   venueSymbol: 'BTC',
@@ -618,7 +619,7 @@ describe('orderly module', () => {
   const owner = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' as Address
   const perp: MarketSpec = {
     ...btc,
-    key: marketKey('orderly', 'BTC'),
+    key: marketKey('orderly', 'BTC' as Base),
     venue: 'orderly',
     venueSymbol: 'PERP_BTC_USDC',
     tick: { kind: 'fixed', tick: 1 as Px },

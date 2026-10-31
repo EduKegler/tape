@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TabId } from '@tape/core/ids'
+import type { Base, TabId } from '@tape/core/ids'
 import { marketKey } from '@tape/core/ids'
 import { recordedFetch, wsFrames } from '@tape/venues/fixtures'
 import { venues } from '@tape/venues/index'
@@ -17,13 +17,13 @@ interface FakeSocket extends SocketLike {
   closed: boolean
 }
 
-function setup({ openAtOnce = true } = {}) {
+function setup({ openAtOnce = true, fetch = recordedFetch } = {}) {
   const sockets: FakeSocket[] = []
   const gone = new Map<TabId, () => void>()
   const hub = createHub({
     mode: 'shared',
     venues: VENUES,
-    fetch: recordedFetch,
+    fetch,
     now: () => Date.now(),
     random: () => 0.5,
     watchTabGone: (id) => new Promise<void>((resolve) => gone.set(id, resolve)),
@@ -79,7 +79,7 @@ function replay(sockets: FakeSocket[]) {
   }
 }
 
-const btc = (venue: 'binance' | 'hyperliquid' | 'dydx') => marketKey(venue, 'BTC')
+const btc = (venue: 'binance' | 'hyperliquid' | 'dydx') => marketKey(venue, 'BTC' as Base)
 
 const hyperliquidBook = (coin: 'BTC' | 'ETH') =>
   wsFrames('hyperliquid')
@@ -109,7 +109,7 @@ describe('hub', () => {
     ])
     b.want([
       { kind: 'book', market: btc('binance'), group: '1' },
-      { kind: 'compare', base: 'BTC' },
+      { kind: 'compare', base: 'BTC' as Base },
     ])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
@@ -131,12 +131,49 @@ describe('hub', () => {
     hub.dispose()
   })
 
+  it("opens every venue's book without reading the venue's market list", async () => {
+    const lists = /\/perpetualMarkets$|\/public\/info$|exchangeInfo\?permissions=/
+    const { hub, sockets } = setup({
+      fetch: (input, init) =>
+        lists.test(input instanceof Request ? input.url : input.toString())
+        || /"type":"(?:allPerpMetas|perpDexs)"/.test(typeof init?.body === 'string' ? init.body : '')
+          ? Promise.reject(new Error('no list'))
+          : recordedFetch(input, init),
+    })
+    const a = tab(hub, 'a')
+    a.want([{ kind: 'compare', base: 'BTC' as Base }])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(1500)
+
+    const compare = a.frames.get('compare|BTC')
+    expect(compare?.kind === 'compare' && compare.rows.map((r) => r.status)).toEqual(['live', 'live', 'live', 'live'])
+    hub.dispose()
+  })
+
+  it('marks the venues that do not list a market as unlisted in the venues table', async () => {
+    const { hub } = setup()
+    const a = tab(hub, 'a')
+    a.want([{ kind: 'compare', base: 'kPEPE' as Base }])
+    await vi.advanceTimersByTimeAsync(1500)
+
+    const compare = a.frames.get('compare|kPEPE')
+    const rows = compare?.kind === 'compare' ? compare.rows : []
+    expect(Object.fromEntries(rows.map((r) => [r.venue, r.status === 'unlisted']))).toEqual({
+      binance: true,
+      hyperliquid: false,
+      dydx: true,
+      orderly: true,
+    })
+    hub.dispose()
+  })
+
   it('sends the exact touch in a book grouped wider than the spread', async () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')
     a.want([
       { kind: 'book', market: btc('binance'), group: '100' },
-      { kind: 'compare', base: 'BTC' },
+      { kind: 'compare', base: 'BTC' as Base },
     ])
     await vi.advanceTimersByTimeAsync(50)
     replay(sockets)
@@ -248,7 +285,7 @@ describe('hub', () => {
   it('posts no pre-drop book as live while a new socket resets its books', async () => {
     const { hub, sockets } = setup({ openAtOnce: false })
     const a = tab(hub, 'a')
-    const eth = marketKey('hyperliquid', 'ETH')
+    const eth = marketKey('hyperliquid', 'ETH' as Base)
     a.want([bookTopic(eth), bookTopic(btc('hyperliquid'))])
     await vi.advanceTimersByTimeAsync(1100)
     sockets[0]!.onopen!()
@@ -294,7 +331,7 @@ describe('hub', () => {
     const socket = sockets.find((s) => s.url.includes('dydx'))!
     socket.onmessage!(dydxBook)
     await vi.advanceTimersByTimeAsync(200)
-    a.want([bookTopic(marketKey('dydx', 'ETH'))])
+    a.want([bookTopic(marketKey('dydx', 'ETH' as Base))])
     await vi.advanceTimersByTimeAsync(9000)
     socket.onmessage!(dydxCorrupt)
     socket.onmessage!(dydxBook)

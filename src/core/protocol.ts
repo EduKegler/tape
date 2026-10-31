@@ -30,8 +30,7 @@ function parseTopic(value: unknown): Topic | null {
   const v = value as Record<string, unknown>
   if (v.kind === 'compare')
     return typeof v.base === 'string' && isBase(v.base) ? { kind: 'compare', base: v.base } : null
-  const [venue, base] = typeof v.market === 'string' ? v.market.split(':') : []
-  const market = venue && base ? parseMarketKey(venue, base) : null
+  const market = typeof v.market === 'string' ? parseMarketKey(v.market) : null
   if (!market) return null
   switch (v.kind) {
     case 'book':

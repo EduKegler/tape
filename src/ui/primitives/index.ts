@@ -1,4 +1,5 @@
 export { Button } from './Button'
 export { Input } from './Input'
+export { Search } from './Search'
 export { Table } from './Table'
 export type { Column } from './Table'

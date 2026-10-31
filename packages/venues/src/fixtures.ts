@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import type { VenueId } from '@tape/core/ids'
 
 const dir = new URL('./__fixtures__/', import.meta.url)
-const json = (name: string): unknown => JSON.parse(readFileSync(new URL(name, dir), 'utf8'))
 
 /** Recorded WebSocket frames, in arrival order. */
 export function wsFrames(venue: VenueId): string[] {
@@ -12,17 +11,21 @@ export function wsFrames(venue: VenueId): string[] {
 }
 
 const ROUTES: [RegExp, string][] = [
-  [/binance\.vision\/api\/v3\/exchangeInfo/, 'binance.exchangeInfo.json'],
+  [/binance\.vision\/api\/v3\/exchangeInfo/, 'binance.markets.json'],
   [/binance\.vision\/api\/v3\/depth/, 'binance.depth.json'],
   [/binance\.vision\/api\/v3\/klines/, 'binance.klines.json'],
   [/binance\.vision\/api\/v3\/ticker\/24hr/, 'binance.ticker.json'],
+  [/\/v4\/perpetualMarkets$/, 'dydx.markets.json'],
   [/perpetualMarkets\?ticker=BTC-USD/, 'dydx.markets-BTC.json'],
   [/perpetualMarkets\?ticker=ETH-USD/, 'dydx.markets-ETH.json'],
   [/perpetualMarkets\?ticker=SOL-USD/, 'dydx.markets-SOL.json'],
+  [/perpetualMarkets\?ticker=/, 'dydx.markets.json'],
   [/\/v4\/candles\//, 'dydx.candles.json'],
+  [/orderly\.org\/v1\/public\/info$/, 'orderly.info.json'],
   [/orderly\.org\/v1\/public\/info\/PERP_BTC_USDC/, 'orderly.info-BTC.json'],
   [/orderly\.org\/v1\/public\/info\/PERP_ETH_USDC/, 'orderly.info-ETH.json'],
   [/orderly\.org\/v1\/public\/info\/PERP_SOL_USDC/, 'orderly.info-SOL.json'],
+  [/orderly\.org\/v1\/public\/info\/PERP_/, 'orderly.info-missing.json'],
   [/orderly\.org\/v1\/public\/futures/, 'orderly.futures.json'],
   [/orderly\.org\/v1\/tv\/history/, 'orderly.history.json'],
 ]
@@ -36,5 +39,8 @@ export const recordedFetch: typeof globalThis.fetch = async (input, init) => {
     file = `hyperliquid.${body.type}.json`
   }
   if (!file) throw new Error(`no recording for ${url}`)
-  return new Response(JSON.stringify(json(file)), { status: 200, headers: { 'content-type': 'application/json' } })
+  return new Response(readFileSync(new URL(file, dir), 'utf8'), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
 }
