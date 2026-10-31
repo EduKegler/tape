@@ -1,6 +1,7 @@
 /**
- * Stands in for `https-proxy-agent`, which the dYdX client imports for Node proxies and which
- * extends Node's http.Agent, absent in the browser. Tape never configures a proxy.
+ * Stands in for `https-proxy-agent`, which the dYdX client imports by name and axios's Node adapter
+ * by default, both for Node proxies, and which extends Node's http.Agent, absent in the browser.
+ * Tape never configures a proxy.
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- the dYdX client calls new HttpsProxyAgent()
 export class HttpsProxyAgent {
@@ -8,3 +9,5 @@ export class HttpsProxyAgent {
     throw new Error('Tape does not proxy dYdX requests')
   }
 }
+
+export default HttpsProxyAgent
