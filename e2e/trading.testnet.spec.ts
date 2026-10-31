@@ -439,8 +439,8 @@ test('a trailing stop write that times out shows an unknown outcome and lets the
   await expect(alert).toContainText(
     'Sent, but no answer came back. Check positions, orders and fills before sending again.',
   )
-  await expect(alert).toContainText('Could not ask the venue about this order.')
   await expect(buy).toBeEnabled()
+  await expect(alert).not.toContainText(/about this order|Asking the venue/)
   expect(asked).toEqual([])
   expect(trailingStops(hyperliquid.sent)).toHaveLength(1)
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
