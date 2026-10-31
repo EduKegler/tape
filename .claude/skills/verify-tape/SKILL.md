@@ -39,6 +39,10 @@ node .claude/skills/verify-tape/scripts/verify-tape.mjs up
 
 `VERIFY_TAPE_WATCH=<address>` makes the test wallet watch-only: it connects as that address, so the app reads its real balances, and it refuses every signature and transaction. A refused `eth_sendTransaction` still lands in `wallet.jsonl` with the transaction the app asked for. Use it for journeys that need funds, such as deposits.
 
+`VERIFY_TAPE_KEY_FILE=<path>` makes the test wallet sign with a funded testnet key in place of the throwaway one, so a Hyperliquid testnet order rests and fills for real. The file holds the key as 64 hex digits, with or without `0x`, or as JSON with a `privateKey` field. `up` and the wallet refuse it on a mainnet build, with `VERIFY_TAPE_WATCH`, when the file is missing, and when the file sits inside a git work tree. The key never reaches `wallet.jsonl`, `.state/` or the console. `up` and `doctor` print the funded address. The guard still blocks every mainnet write.
+
+Run one funded run at a time on the account. Tape approves its Hyperliquid agent under one name, so the second run replaces the first run's agent and the first run's next order is refused.
+
 Ready prints the run id, both pids and the evidence folder. Server ready is not data ready. Live data arrives in the browser a few seconds later. Each feature file says what to wait for.
 
 `up --network testnet` builds with `VITE_NETWORK=testnet`. Trading journeys need it. `up --reuse-build` skips the build and serves the last one when it was built for the same network. Only use it when `src/` has not changed since that build.
@@ -184,6 +188,7 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 - `scripts/verify-tape.mjs` is the harness. Commands: `up`, `doctor`, `down`, `open`, `click`, `fill`, `select`, `press`, `wait`, `text`, `attr`, `eval`, `aria`, `shot`, `pages`, `close`.
 - `scripts/parity.mjs` captures and diffs computed styles on a replay run. Commands: `capture`, `diff`.
 - `scripts/perf-probe.mjs` is the perf probe. Run it with `--help` for its flags.
+- `scripts/funded-key.mjs` reads and checks the `VERIFY_TAPE_KEY_FILE` key for `up` and the test wallet. `node --test '.claude/skills/verify-tape/scripts/*.test.mjs'` runs its refusals and a funded wallet against headless Chrome.
 - `scripts/replay-routes.mjs` serves a replay page's REST calls from the recordings, for `parity.mjs` and `perf-probe.mjs`.
 - `scripts/vite.verify.config.ts` is verification scaffolding. It only moves build output, and with `--replay` swaps in the E2E hub worker. It is never used by the product.
 
@@ -193,8 +198,8 @@ To drop the build cache too: `rm -rf .claude/skills/verify-tape/.cache`. To drop
 - The status bar text arrives a few seconds after load and changes as sockets open. Wait for the value you need, such as `Sockets 4`.
 - Leaving a market for 10 s closes its streams. A tab on `Not Found` holds no wants, so `Sockets` can drop to 0 and recover when another tab subscribes.
 - Every tab of this Chrome shares one SharedWorker hub. Open extra tabs only when the journey needs them, and `close` them after, or the `Tabs` count is off for the next journey.
-- The wallet is the harness test wallet, never an extension. Branded Chrome ignores `--load-extension`. It has no funds, so trading proof is the venue's rejection naming the recovered address. See `features/trading.md`.
-- Each `up` makes a new wallet key. Compare addresses within one run only. A watch-only run keeps the watched address.
+- The wallet is the harness test wallet, never an extension. Branded Chrome ignores `--load-extension`. Without `VERIFY_TAPE_KEY_FILE` it has no funds, so trading proof is the venue's rejection naming the recovered address. See `features/trading.md`.
+- Each `up` makes a new wallet key. Compare addresses within one run only. A watch-only run keeps the watched address, and a funded run keeps the funded one.
 - Another run, from another worktree, can hold ports 4391, 9391 and 4392. Set `VERIFY_TAPE_PORT`, `VERIFY_TAPE_CDP_PORT` and `VERIFY_TAPE_WALLET_PORT` to free ones, and export them for every later command.
 - The build sends a Content Security Policy. A blocked script or host shows in the console as `violates the following Content Security Policy directive`, and the feature stalls without an error on screen. Read the console before blaming the venue.
 - `steps.jsonl` records commands that failed too, with the error. Read it when a journey stops halfway.

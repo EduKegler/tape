@@ -4,28 +4,46 @@ import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFundedKey } from './funded-key.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const require = createRequire(resolve(REPO, 'package.json'))
 const { concat, hashStruct, keccak256, numberToHex } = require('viem')
 const { generatePrivateKey, privateKeyToAccount } = require('viem/accounts')
 
-const [cdpPort, walletPort, keyFile, logFile] = process.argv.slice(2)
+const [cdpPort, walletPort, keyFile, logFile, network = 'mainnet'] = process.argv.slice(2)
 if (!cdpPort || !walletPort || !keyFile || !logFile) {
-  console.error('usage: test-wallet.mjs <cdp-port> <wallet-port> <key-file> <log-file>')
+  console.error('usage: test-wallet.mjs <cdp-port> <wallet-port> <key-file> <log-file> [mainnet|testnet]')
   process.exit(1)
 }
 
-const key = existsSync(keyFile) ? JSON.parse(readFileSync(keyFile, 'utf8')).privateKey : generatePrivateKey()
-const account = privateKeyToAccount(key)
 // A funded address to read from, for journeys that need real balances. It never signs or sends.
 const watch = process.env.VERIFY_TAPE_WATCH ?? null
 if (watch && !/^0x[0-9a-fA-F]{40}$/.test(watch)) {
   console.error(`VERIFY_TAPE_WATCH is not an address: ${watch}`)
   process.exit(1)
 }
+const fundedFile = process.env.VERIFY_TAPE_KEY_FILE || null
+let funded = null
+if (fundedFile)
+  try {
+    funded = readFundedKey(fundedFile, { network, watch })
+  } catch (e) {
+    console.error(e.message)
+    process.exit(1)
+  }
+const key =
+  funded ?? (existsSync(keyFile) ? JSON.parse(readFileSync(keyFile, 'utf8')).privateKey : generatePrivateKey())
+const account = privateKeyToAccount(key)
 const address = watch ?? account.address
-writeFileSync(keyFile, JSON.stringify({ privateKey: key, address, watchOnly: Boolean(watch) }, null, 2))
+writeFileSync(
+  keyFile,
+  JSON.stringify(
+    { ...(funded ? {} : { privateKey: key }), address, watchOnly: Boolean(watch), funded: Boolean(funded) },
+    null,
+    2,
+  ),
+)
 let chainId = 1
 let connected = false
 
@@ -214,5 +232,5 @@ ws.onmessage = (event) => {
 }
 ws.onclose = () => process.exit(0)
 send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true })
-log({ started: true, address, watchOnly: Boolean(watch), walletPort: Number(walletPort) })
-console.log(`test wallet ${address}${watch ? ' (watch-only)' : ''} on 127.0.0.1:${walletPort}`)
+log({ started: true, address, watchOnly: Boolean(watch), funded: Boolean(funded), walletPort: Number(walletPort) })
+console.log(`test wallet ${address}${watch ? ' (watch-only)' : funded ? ' (funded)' : ''} on 127.0.0.1:${walletPort}`)
