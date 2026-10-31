@@ -21,7 +21,7 @@ import type { DepositQuote, DepositStatus } from '#/trade/deposit'
 import type { DepositRecord } from '#/trade/vault'
 import { wagmiConfig } from '#/wallet/config'
 import { shortAddress } from './format'
-import { Button, Dialog } from './primitives'
+import { Button, Dialog, Input } from './primitives'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
 const chainOf = (id: number) => wagmiConfig.chains.find((c) => c.id === id)
@@ -32,10 +32,29 @@ const minutes = (seconds: number) => Math.max(1, Math.round(seconds / 60))
 const clock = (ms: number) => new Date(ms).toLocaleTimeString('en-GB')
 
 export function DepositButton({ account }: { account: AccountRef }) {
-  const [open, setOpen] = useState(false)
-  const amountRef = useRef<HTMLInputElement>(null)
   const venue = DEPOSITS[account.venue]
   if (!venue || depositRoutes(account).length === 0) return null
+  return <Deposit account={account} venue={venue} />
+}
+
+type Send = ReturnType<typeof useSendDeposit>
+
+interface Draft {
+  readonly text: string
+  readonly setText: (text: string) => void
+  readonly chainId: number | null
+  readonly setChainId: (chainId: number) => void
+  readonly shown: Hex | null
+  readonly setShown: (hash: Hex | null) => void
+}
+
+function Deposit({ account, venue }: { account: AccountRef; venue: DepositVenue }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [chainId, setChainId] = useState<number | null>(null)
+  const [shown, setShown] = useState<Hex | null>(null)
+  const deposit = useSendDeposit(account)
+  const amountRef = useRef<HTMLInputElement>(null)
   return (
     <>
       <Button look="primary" size="sm" onClick={() => setOpen(true)}>
@@ -46,8 +65,19 @@ export function DepositButton({ account }: { account: AccountRef }) {
         onClose={() => setOpen(false)}
         title={`Deposit USDC to ${venue.destination}`}
         initialFocus={amountRef}
+        lockReason={
+          deposit.pending
+            ? 'Confirm in your wallet. Esc stays here until you answer it, and closing keeps this deposit.'
+            : null
+        }
       >
-        <DepositBody account={account} venue={venue} amountRef={amountRef} />
+        <DepositBody
+          account={account}
+          venue={venue}
+          draft={{ text, setText, chainId, setChainId, shown, setShown }}
+          deposit={deposit}
+          amountRef={amountRef}
+        />
       </Dialog>
     </>
   )
@@ -56,28 +86,33 @@ export function DepositButton({ account }: { account: AccountRef }) {
 function DepositBody({
   account,
   venue,
+  draft,
+  deposit,
   amountRef,
 }: {
   account: AccountRef
   venue: DepositVenue
+  draft: Draft
+  deposit: Send
   amountRef: RefObject<HTMLInputElement | null>
 }) {
   const deposits = useDeposits(account)
-  const [shown, setShown] = useState<Hex | null>(null)
-  const record = deposits.find((d) => d.hash === shown)
+  const record = deposits.find((d) => d.hash === draft.shown)
   return (
     <>
       {record ? (
         <>
           <Receipt account={account} venue={venue} record={record} />
-          <Button look="quiet" onClick={() => setShown(null)} className="self-start">
+          <Button look="quiet" onClick={() => draft.setShown(null)} className="self-start">
             New deposit
           </Button>
         </>
       ) : (
-        <DepositForm account={account} venue={venue} amountRef={amountRef} onSent={setShown} />
+        <DepositForm account={account} venue={venue} draft={draft} deposit={deposit} amountRef={amountRef} />
       )}
-      {deposits.length > 0 && <Recent account={account} deposits={deposits} shown={shown} onShow={setShown} />}
+      {deposits.length > 0 && (
+        <Recent account={account} deposits={deposits} shown={draft.shown} onShow={draft.setShown} />
+      )}
     </>
   )
 }
@@ -85,35 +120,39 @@ function DepositBody({
 function DepositForm({
   account,
   venue,
+  draft,
+  deposit,
   amountRef,
-  onSent,
 }: {
   account: AccountRef
   venue: DepositVenue
+  draft: Draft
+  deposit: Send
   amountRef: RefObject<HTMLInputElement | null>
-  onSent: (hash: Hex) => void
 }) {
   const routes = depositRoutes(account)
   const balances = useRouteBalances(account, routes)
   const { chainId: walletChain } = useConnection()
-  const [chainId, setChainId] = useState(
-    () => routes.find((r) => r.chainId === walletChain)?.chainId ?? routes[0]!.chainId,
-  )
-  const route = routes.find((r) => r.chainId === chainId) ?? routes[0]!
+  const route =
+    routes.find((r) => r.chainId === draft.chainId) ?? routes.find((r) => r.chainId === walletChain) ?? routes[0]!
   const balance = balances[routes.indexOf(route)] ?? null
-  const [text, setText] = useState('')
-  const amount = parseUsdc(text)
+  const amount = parseUsdc(draft.text)
   const quote = useDepositQuote(account, route, amount)
-  const deposit = useSendDeposit(account)
   const fromId = useId()
-  const amountId = useId()
+  const edit = (text: string) => {
+    deposit.reset()
+    draft.setText(text)
+  }
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (!amount || !quote.ready || !quote.terms || !quote.calls) return
-        deposit.send({ route, amount, terms: quote.terms, calls: quote.calls }, onSent)
+        deposit.send({ route, amount, terms: quote.terms, calls: quote.calls }, (hash) => {
+          draft.setText('')
+          draft.setShown(hash)
+        })
       }}
     >
       <div className="flex flex-col gap-1">
@@ -122,12 +161,13 @@ function DepositForm({
         </label>
         <select
           id={fromId}
-          value={chainId}
+          value={route.chainId}
+          disabled={deposit.pending}
           onChange={(e) => {
             deposit.reset()
-            setChainId(Number(e.target.value))
+            draft.setChainId(Number(e.target.value))
           }}
-          className="rounded-sm border border-rule bg-surface px-2 py-1.5 text-level1"
+          className="h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1"
         >
           {routes.map((r, i) => (
             <option key={r.chainId} value={r.chainId}>
@@ -137,47 +177,33 @@ function DepositForm({
           ))}
         </select>
       </div>
-      {walletChain !== route.chainId && (
+      {!deposit.pending && walletChain !== route.chainId && (
         <p role="status" className="text-level2">
           Your wallet is on {walletChain ? chainName(walletChain) : 'another network'}. Tape asks it to switch to{' '}
           {chainName(route.chainId)} before you sign.
         </p>
       )}
-      <div className="flex flex-col gap-1">
-        <div className="flex justify-between text-level3">
-          <label htmlFor={amountId}>Amount (USDC)</label>
-          {balance !== null && (
-            <Button
-              look="quiet"
-              onClick={() => {
-                deposit.reset()
-                setText(usdc(balance))
-              }}
-            >
+      <Input
+        inputRef={amountRef}
+        label="Amount (USDC)"
+        name="amount"
+        value={draft.text}
+        disabled={deposit.pending}
+        error={draft.text !== '' && amount === null ? 'A positive amount, at most 6 decimals.' : undefined}
+        hint={
+          balance !== null && (
+            <Button look="quiet" disabled={deposit.pending} onClick={() => edit(usdc(balance))}>
               Max {usdc(balance)}
             </Button>
-          )}
-        </div>
-        <input
-          ref={amountRef}
-          id={amountId}
-          inputMode="decimal"
-          autoComplete="off"
-          value={text}
-          onChange={(e) => {
-            deposit.reset()
-            setText(e.target.value.trim())
-          }}
-          aria-invalid={text !== '' && amount === null}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
-        />
-        {text !== '' && amount === null && <span className="text-ask">A positive amount, at most 6 decimals.</span>}
-      </div>
+          )
+        }
+        onChange={edit}
+      />
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
       {amount !== null && <Issues issues={quote.issues} route={route} messenger={quote.terms?.message?.via ?? null} />}
       <Button look="primary" size="lg" type="submit" disabled={!quote.ready || deposit.pending}>
         {deposit.pending
-          ? 'Confirm in your wallet…'
+          ? 'Waiting for your wallet…'
           : amount
             ? `Deposit ${usdc(amount)} USDC from ${chainName(route.chainId)}`
             : 'Deposit'}
