@@ -36,7 +36,7 @@ import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
-import { Button, Input } from './primitives'
+import { Button, Checkbox, Input } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
@@ -221,7 +221,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
 
   const book = useRef<{ readonly live: boolean; readonly at: number | null }>({ live: false, at: null })
   useFrameEffect({ kind: 'book', market: spec.key, group }, (f) => {
-    book.current = f.status === 'live' ? { live: true, at: Date.now() } : { live: false, at: book.current.at }
+    book.current = { live: f.status === 'live', at: f.liveAt }
   })
   const [priceNote, setPriceNote] = useState<string | null>(null)
   useEffect(() => {
@@ -446,22 +446,16 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         )}
         <form.Field name="reduceOnly">
           {(field) => (
-            <label className="flex items-center gap-2 text-sm text-level2">
-              <input
-                type="checkbox"
-                name="reduceOnly"
-                checked={field.state.value}
-                onChange={(e) => field.handleChange(e.target.checked)}
-              />
-              Reduce only
-            </label>
+            <Checkbox
+              label="Reduce only"
+              name="reduceOnly"
+              checked={field.state.value}
+              onChange={(checked) => field.handleChange(checked)}
+            />
           )}
         </form.Field>
         {caps?.triggers && takesExits(kind) && (
-          <label className="flex items-center gap-2 text-sm text-level2">
-            <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
-            Take profit and stop loss
-          </label>
+          <Checkbox label="Take profit and stop loss" name="protect" checked={protect} onChange={setProtect} />
         )}
         {caps?.triggers && takesExits(kind) && protect && (
           <div className="flex flex-col gap-2">
@@ -627,7 +621,7 @@ function oldBookNote(book: { readonly live: boolean; readonly at: number | null 
   if (book.at === null || (book.live && now - book.at <= STALE_AFTER_MS)) return null
   const seconds = Math.max(0, Math.floor((now - book.at) / 1000))
   const age = seconds < 120 ? `${seconds} s` : `${Math.round(seconds / 60)} min`
-  return `From a book ${age} old. Check it against the market.`
+  return `Book ${age} old. Check the market.`
 }
 
 type Preview = Entry & { readonly notional: bigint }
@@ -681,7 +675,8 @@ function TakeProfitSplit({ spec, size, rows }: { spec: MarketSpec; size: string;
   if (checkSize(spec, size) || rows.some((r) => checkShare(r.share))) return null
   const shares = rows.map((r) => Number(r.share))
   const total = shares.reduce((sum, share) => sum + share, 0)
-  if (total !== 100) return <p className="text-sm text-ask">Sizes add up to {total}%, not 100%</p>
+  if (total !== 100)
+    return <p className="border-l-2 border-warn pl-2 text-sm text-level1">Sizes add up to {total}%, not 100%</p>
   const sizes = splitSize(spec, parseQty(size, spec.scale), shares)
   return (
     <ol aria-label="Take profit sizes" className="num flex flex-col gap-0.5 text-sm">

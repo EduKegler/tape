@@ -49,6 +49,20 @@ test('the book goes stale when its socket drops and live again after the replay 
   await expect(footer(page).getByText('Sockets 4', { exact: true })).toBeVisible()
 })
 
+test('a market opened after its venue dropped shows the last book the hub had, with its age', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?interval=1m')
+  await expect(panel(page, 'Venues').getByRole('row', { name: /^Hyperliquid .*\d/ })).toBeVisible()
+  await send(page, { drop: 'hyperliquid' })
+  await page
+    .getByRole('navigation', { name: 'Venue' })
+    .getByRole('link', { name: /Hyperliquid/ })
+    .click()
+  const book = panel(page, 'Order book')
+  await expect(book.getByRole('button', { name: /^Bid / }).first()).toBeVisible()
+  await expect(book.getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
+  await expect(book.getByText('Waiting for Hyperliquid')).toHaveCount(0)
+})
+
 test('a second tab shares the hub and its sockets', async ({ page, context }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const second = await openTab(context, '/hyperliquid/BTC')

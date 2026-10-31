@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Dialog`, `Input`, `Search` and `Table`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `Search` and `Table`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 
@@ -19,7 +19,7 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 - **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `warn` means old data, a price warning or a failed read. `accent` marks focus and the selected item: market, venue, interval, order type, account tab and the current row. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
 - **One surface, split by `rule` lines.** The order ticket has its own tone, `ticket`. A dialog sits on `raised`. A field sits on `inset` inside an `edge` border.
 - **Numbers are tabular.** Give them `num`, align them right in columns, and keep the same decimals down a column.
-- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. `className` on a primitive carries layout: width, alignment, padding. A field's error goes through `Input`'s `error`.
+- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
 - **Side reads without color.** A label like `Buy / Long`, a mark like `▲` and `▼`, or position, as in the book.
 
 ## Panel state
@@ -29,7 +29,7 @@ Data and connection are two axes. Data is live, stale, empty or error. Connectio
 A panel fed by a hub topic passes `<TopicStatus topic={…} />` to `Panel`'s `status` slot, beside the title. Pass `ageLimit` where an old frame misleads, as in the book, the depth and the ticket's price hint. Pass `error` and `onRetry` for a failed read.
 
 - Old data stays readable, with its age beside the title.
-- A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text.
+- A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text. Outside a hub panel it goes through `ReadNote`, which takes its reason from `readFailure`.
 - Before the first frame the panel says `Loading…` and shows no placeholder number. With the socket down it names the venue it waits for.
 - A legitimately empty result is plain `level3` text in place of the data.
 - The panel state speaks through `aria-live="polite"` with no role, because the ticket's order outcome owns `role="status"` and `role="alert"`.
@@ -52,8 +52,9 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 
 - arbitrary values and properties, such as `text-[13px]`, `z-[60]` or `[transition:…]`;
 - `rounded-full`, shadows, and any class outside the closed scales;
-- a raw `<button>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
+- a raw `<button>`, `<input>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
 - a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
+- a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn` or `accent`;
 - an animation without `motion-safe:`.
 
 Review catches the rest. A screen that shows one of these goes back:
@@ -73,6 +74,7 @@ Review catches the rest. A screen that shows one of these goes back:
 3. Compare each screenshot with the matching one in `reference/`. A difference the change did not intend goes back.
 4. Run `pnpm e2e`. An assertion changed on purpose goes in the review with its diff.
 5. For a change on the trading screen, run `perf-probe.mjs` against the baseline and report main-thread work.
+6. The screens the operator approves enter `reference/` in the same PR, each with a line under Reference that says what it settles. A screen the PR makes wrong is retaken or leaves.
 
 ## Reference
 
@@ -87,7 +89,7 @@ Screens approved for the visual direction. Layout in them may be ahead of the co
 - `reference/history-error.png`: `/history` when a venue did not answer. Read wording, Retry per venue, and no totals beside the failure.
 - `reference/deposit-summary.png`: the Deposit dialog on `raised`. The summary is the confirmation, and the one button names the amount and the source chain.
 
-Screens from the code, on the replay build. The market panels and the header look like this today.
+Screens from the code, on the replay build. The market panels, the header, the ticket, the Account, `/history` and the Deposit dialog look like this today.
 
 - `reference/market-live.png`: the market panels live at 1440×900. Lockup in the header, last price at 22 px with the side arrow, book mid at 22 px, `▲` and `▼` on trades, `●` on the best venue bid and ask.
 - `reference/market-1280.png`: the same at 1280×800, with all 28 book levels in view.
@@ -95,3 +97,10 @@ Screens from the code, on the replay build. The market panels and the header loo
 - `reference/market-offline.png`: no socket left. Every panel says `Offline` with its age.
 - `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry.
 - `reference/market-focus.png`: the book holds keyboard focus. One Tab stop, and the arrows move the focus ring between levels.
+- `reference/ticket-field-error.png`: a rule error sits on its field in a `warn` rule while typing, and the disabled button says why under the totals.
+- `reference/ticket-unknown.png`: the venue did not answer an order. The outcome sits above the button, says it was sent with no answer, and resend waits on `Checking the venue…`.
+- `reference/ticket-rejected.png`: the venue refused the order. The typed outcome sits right above the button with the venue's own words under it, and the form keeps its values.
+- `reference/account-close.png`: closing a position confirms on its own row, with size, expected price and its own slippage before `Confirm close`.
+- `reference/grid-offline.png`: the whole grid offline at 1440×900. The ticket runs the full height, Account and Venues size to their content, and the status bar says prices are frozen.
+- `reference/history-rows.png`: `/history` with rows. Totals per venue, the fills and funding as one table, and the address and date fields as `InlineInput`.
+- `reference/deposit-signing.png`: the Deposit dialog while the wallet signs. A `warn` rule says Esc stays and closing keeps the deposit, and the button says `Waiting for your wallet…`.

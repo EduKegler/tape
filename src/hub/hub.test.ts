@@ -350,6 +350,30 @@ describe('hub', () => {
     hub.dispose()
   })
 
+  it('dates a frame by when its market was last live, also for a tab that wants it after the drop', async () => {
+    const { hub, sockets } = setup({ openAtOnce: false })
+    const a = tab(hub, 'a')
+    const topic = bookTopic(btc('hyperliquid'))
+    const key = `book|${btc('hyperliquid')}|1`
+    a.want([topic])
+    await vi.advanceTimersByTimeAsync(1100)
+    sockets[0]!.onopen!()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(a.frames.get(key)?.liveAt ?? null).toBeNull()
+    const live = Date.now()
+    sockets[0]!.onmessage!(hyperliquidBook('BTC'))
+    await vi.advanceTimersByTimeAsync(300)
+    expect(a.frames.get(key)).toMatchObject({ status: 'live', liveAt: live })
+
+    sockets[0]!.onclose!()
+    await vi.advanceTimersByTimeAsync(20_000)
+    const b = tab(hub, 'b')
+    b.want([topic])
+    await vi.advanceTimersByTimeAsync(300)
+    expect(b.frames.get(key)).toMatchObject({ status: 'stale', liveAt: live })
+    hub.dispose()
+  })
+
   it('keeps a dYdX book off live when its snapshot lands after a held resubscribe', async () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')
