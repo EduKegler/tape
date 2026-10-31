@@ -88,9 +88,18 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
         className={`absolute inset-y-0 right-0 w-full origin-right ${ask ? 'bg-ask-wash' : 'bg-bid-wash'}`}
         style={{ transform: `scaleX(${row.fill})` }}
       />
-      <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>{row.px}</span>
-      <span className="relative text-right text-level1">{row.qty}</span>
-      <span className="relative text-right text-level3">{row.cum}</span>
+      <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>
+        <span className="sr-only">{ask ? 'Ask' : 'Bid'} </span>
+        {row.px}
+      </span>
+      <span className="relative text-right text-level1">
+        <span className="sr-only">size </span>
+        {row.qty}
+      </span>
+      <span className="relative text-right text-level3">
+        <span className="sr-only">total </span>
+        {row.cum}
+      </span>
     </Button>
   )
 })

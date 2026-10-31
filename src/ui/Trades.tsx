@@ -4,7 +4,7 @@ import { shallow } from '@tanstack/store'
 import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import type { TradeRow } from '#/core/topics'
-import { formatClock } from './format'
+import { SIDE_MARK, formatClock } from './format'
 import { Panel } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button } from './primitives'
@@ -46,9 +46,21 @@ export function Trades({ market }: { market: MarketKey }) {
                   className="absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3"
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <span className={t.side === 'buy' ? 'text-bid' : 'text-ask'}>{t.px}</span>
-                  <span className="text-right text-level1">{t.qty}</span>
-                  <span className="w-16 text-right text-level3">{formatClock(t.time)}</span>
+                  <span className={t.side === 'buy' ? 'text-bid' : 'text-ask'}>
+                    <span aria-hidden className="mr-1 text-xs">
+                      {SIDE_MARK[t.side]}
+                    </span>
+                    <span className="sr-only">{t.side === 'buy' ? 'Buy' : 'Sell'} </span>
+                    {t.px}
+                  </span>
+                  <span className="text-right text-level1">
+                    <span className="sr-only">size </span>
+                    {t.qty}
+                  </span>
+                  <span className="w-16 text-right text-level3">
+                    <span className="sr-only">at </span>
+                    {formatClock(t.time)}
+                  </span>
                 </Button>
               )
             })}

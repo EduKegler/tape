@@ -1,5 +1,7 @@
 const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 })
 
+export const SIDE_MARK = { buy: '▲', sell: '▼' } as const
+
 export const formatCompact = (n: number) => compact.format(n)
 
 export function formatPct(n: number, digits = 2): string {
