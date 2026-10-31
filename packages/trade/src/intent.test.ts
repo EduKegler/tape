@@ -81,6 +81,27 @@ describe('order intent', () => {
       ).toEqual({ stopLoss: 'Not offered on this venue' })
     }
   })
+
+  it("checks a limit's stop against its own price when the book has no side", () => {
+    expect(errorsOf({ stopLoss: '81000' })).toEqual({ stopLoss: 'Must be below the price' })
+    expect(errorsOf({ stopLoss: '79000' })).toEqual({})
+    expect(errorsOf({ kind: 'market', price: '', stopLoss: '78000' })).toEqual({ stopLoss: 'No price on the book yet' })
+  })
+
+  it('accepts exits on the right side of a sell', () => {
+    const sell = { side: 'sell', bid: '79990', ask: '80010' } as const
+    expect(errorsOf({ ...sell, takeProfits: [{ price: '79000', share: '100' }], stopLoss: '81000' })).toEqual({})
+    expect(errorsOf({ ...sell, takeProfits: [{ price: '79000', share: '100' }] })).toEqual({})
+    expect(errorsOf({ ...sell, stopLoss: '81000' })).toEqual({})
+  })
+
+  it('refuses an exit at the order price', () => {
+    const at = [{ price: '80000', share: '100' }]
+    expect(errorsOf({ takeProfits: at })).toEqual({ takeProfit1: 'Must be above the price' })
+    expect(errorsOf({ side: 'sell', takeProfits: at })).toEqual({ takeProfit1: 'Must be below the price' })
+    expect(errorsOf({ stopLoss: '80000' })).toEqual({ stopLoss: 'Must be below the price' })
+    expect(errorsOf({ side: 'sell', stopLoss: '80000' })).toEqual({ stopLoss: 'Must be above the price' })
+  })
 })
 
 describe('order intent properties', () => {
