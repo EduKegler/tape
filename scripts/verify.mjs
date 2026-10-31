@@ -1,15 +1,17 @@
 import { spawn } from 'node:child_process'
 
-const checks = [
-  'pnpm typecheck',
-  'node scripts/check-public.mjs',
-  'node scripts/check-cycles.mjs',
-  'node scripts/check-contrast.mjs',
-  'eslint --max-warnings 0',
-  'prettier --check .',
-  'knip',
-  'vitest run',
-]
+const docChecks = ['node scripts/check-public.mjs', 'prettier --check .']
+const checks = process.argv.includes('--docs')
+  ? docChecks
+  : [
+      'pnpm typecheck',
+      ...docChecks,
+      'node scripts/check-cycles.mjs',
+      'node scripts/check-contrast.mjs',
+      'eslint --max-warnings 0',
+      'knip',
+      'vitest run',
+    ]
 
 const run = (check) =>
   new Promise((resolve) => {

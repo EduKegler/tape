@@ -3,6 +3,8 @@ import { appendFileSync, closeSync, mkdtempSync, openSync, readFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { changedFiles, changeKind } from './change-kind.mjs'
+
 const [base = 'origin/main', head = 'HEAD'] = process.argv.slice(2)
 // Git sets GIT_DIR for hooks, and it wins over `git -C`, so a pre-push run would check out commits in the caller's worktree.
 const env = Object.fromEntries(
@@ -43,9 +45,13 @@ try {
     const lock = git('rev-parse', `${sha}:pnpm-lock.yaml`)
     const installed = lock === lockfile || install(log, '--offline') || install(log)
     lockfile = installed ? lock : undefined
-    const ok = installed && spawnSync('pnpm', ['verify'], { cwd: dir, env, stdio: ['ignore', log, log] }).status === 0
+    const docsOnly = changeKind(changedFiles(`${sha}^..${sha}`, env)) === 'docs'
+    const verify = docsOnly ? ['verify', '--docs'] : ['verify']
+    const ok = installed && spawnSync('pnpm', verify, { cwd: dir, env, stdio: ['ignore', log, log] }).status === 0
     closeSync(log)
-    if (ok) {
+    if (ok && docsOnly) {
+      console.log(`ok    ${subject} (markdown only)`)
+    } else if (ok) {
       appendFileSync(passedFile, `${treeOf(sha)}\n`)
       console.log(`ok    ${subject}`)
     } else {
