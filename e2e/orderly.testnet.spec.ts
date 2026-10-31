@@ -112,3 +112,13 @@ test('an Orderly limit order goes out with the side, price and size the ticket s
     },
   ])
 })
+
+test('a setup step already done reads done in text', async ({ page, wallet: _wallet }) => {
+  const orderly = await fakeOrderly(page, 'testnet')
+  orderly.registered.value = true
+  await openMarket(page, '/orderly/BTC?interval=1m')
+  const ticket = panel(page, 'Order ticket')
+  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  const steps = ticket.getByRole('listitem')
+  await expect(steps).toHaveText(['✓Register an Orderly account, done', 'Add a trading key'])
+})
