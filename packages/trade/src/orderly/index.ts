@@ -208,6 +208,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       const intent = command.intent
       if (intent.order.kind === 'trailing')
         fail({ kind: 'unsupported', detail: 'Orderly takes no trailing stop from Tape' })
+      if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+        fail({ kind: 'unsupported', detail: 'Orderly takes no take profit or stop loss from Tape' })
       const symbol = intent.spec.venueSymbol
       const spec = await networkSpec(ctx, symbol)
       if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)

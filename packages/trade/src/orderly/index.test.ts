@@ -145,6 +145,20 @@ describe('orderly orders', () => {
     }
   })
 
+  it('refuses an intent carrying a take profit or stop loss and sends nothing', async () => {
+    const { ctx, sent } = orderlyAt(() => ({ body: PLACED }))
+    const exits = [
+      { takeProfits: [{ px: 820_000 as Px, size: 100 as Qty }], stopLoss: null },
+      { takeProfits: [], stopLoss: 790_000 as Px },
+    ]
+    for (const triggers of exits)
+      expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent: { ...intentOf({}), triggers } }))).toEqual({
+        kind: 'unsupported',
+        detail: 'Orderly takes no take profit or stop loss from Tape',
+      })
+    expect(sent).toEqual([])
+  })
+
   it('sends every leg of a sell scale order as SELL', async () => {
     const { ctx, sent } = orderlyAt(() => ({
       body: '{"success":true,"data":{"rows":[{"order_id":1,"error_message":"none"},{"order_id":2,"error_message":"none"}]}}',

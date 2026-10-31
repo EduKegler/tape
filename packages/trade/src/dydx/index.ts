@@ -141,6 +141,8 @@ function recheckPx(m: Market, intent: OrderIntent, px: Px): Px {
 
 async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
   if (intent.order.kind === 'trailing') fail({ kind: 'unsupported', detail: 'dYdX has no trailing stop' })
+  if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'unsupported', detail: 'dYdX takes no take profit or stop loss from Tape' })
   const m = await market(ctx, intent.spec.venueSymbol)
   const size = wireDecimal(intent.size, intent.spec.scale.qty)
   const sizeIssue = checkSize(m.spec, size)
