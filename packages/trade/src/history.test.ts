@@ -212,6 +212,32 @@ describe('history csv', () => {
     expect(record(lines[3]!)).toMatchObject({ realized_pnl: '5', liquidation: 'true' })
   })
 
+  it('leaves the fill columns empty on a funding row, and the rate and size when the venue gave none', () => {
+    const time = Date.UTC(2026, 0, 3)
+    const [, line] = toCsv([], [funding('-0.3', time, { rate: null, position: null })], 'mainnet').split('\r\n')
+    expect(Object.fromEntries(CSV_COLUMNS.map((c, i) => [c, line!.split(',')[i]]))).toEqual({
+      time_utc: '2026-01-03T00:00:00.000Z',
+      timestamp_ms: String(time),
+      venue: 'dydx',
+      network: 'mainnet',
+      account: 'a',
+      type: 'funding',
+      market: 'BTC-USD',
+      side: '',
+      size: '',
+      price: '',
+      notional: '',
+      fee: '',
+      asset: 'USDC',
+      realized_pnl: '',
+      realized_pnl_source: '',
+      funding: '-0.3',
+      funding_rate: '',
+      liquidation: '',
+      venue_id: '',
+    })
+  })
+
   it('quotes a field that holds a comma or a quote', () => {
     const odd = realize([fill('buy', '1', '1', { symbol: 'A,"B"' })])
     expect(toCsv(odd, [], 'testnet').split('\r\n')[1]).toContain('"A,""B"""')
