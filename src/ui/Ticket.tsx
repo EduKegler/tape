@@ -33,6 +33,7 @@ import { useFrame } from '#/client/hooks'
 import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
+import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button, Input } from './primitives'
@@ -305,7 +306,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               hint={
                 near ? (
                   <Button look="quiet" onClick={() => field.handleChange(near)}>
-                    {side === 'buy' ? 'Bid' : 'Ask'} {near}
+                    {side === 'buy' ? 'Bid' : 'Ask'} {groupThousands(near)}
                   </Button>
                 ) : null
               }

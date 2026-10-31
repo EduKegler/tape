@@ -2,6 +2,15 @@ const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFra
 
 export const SIDE_MARK = { buy: '▲', sell: '▼' } as const
 
+const thousands = new Intl.NumberFormat('en-US', { useGrouping: true })
+
+/** Groups the whole part of a decimal string and keeps its digits exact, so `80595.5` reads `80,595.5`. */
+export function groupThousands(decimal: string): string {
+  const [whole = '0', fraction] = decimal.split('.')
+  const grouped = thousands.format(BigInt(whole))
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`
+}
+
 export const formatCompact = (n: number) => compact.format(n)
 
 export function formatPct(n: number, digits = 2): string {

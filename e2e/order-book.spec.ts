@@ -40,7 +40,7 @@ test('clicking the best bid puts its price into the ticket', async ({ page }) =>
   const ticket = panel(page, 'Order ticket')
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
   await expect(price).toHaveValue('')
-  await expect(ticket.getByRole('button', { name: 'Bid 80595', exact: true })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Bid 80,595', exact: true })).toBeVisible()
   await panel(page, 'Order book')
     .getByRole('button', { name: /^Bid 80,595 / })
     .click()
