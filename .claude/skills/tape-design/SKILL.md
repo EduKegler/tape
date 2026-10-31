@@ -97,9 +97,9 @@ Screens from the code, on the replay build. The market panels, the header, the t
 
 - `reference/market-live.png`: the market panels live at 1440×900. Lockup in the header, last price at 22 px with the side arrow, book mid at 22 px, `▲` and `▼` on trades, `●` on the best venue bid and ask.
 - `reference/market-1280.png`: the same at 1280×800, with all 28 book levels in view.
-- `reference/market-stale.png`: Hyperliquid went quiet. Each panel keeps its data and says `Reconnecting` with the age.
+- `reference/market-stale.png`: Hyperliquid went quiet. Each panel keeps its data and says `Reconnecting` with the age. The book's state stacks under its title, and every title bar keeps one height.
 - `reference/market-offline.png`: no socket left. Every panel says `Offline` with its age.
-- `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry.
+- `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry as a link.
 - `reference/market-focus.png`: the book holds keyboard focus. One Tab stop, and the arrows move the focus ring between levels.
 - `reference/ticket-field-error.png`: a rule error sits on its field in a `warn` rule while typing, and the disabled button says why under the totals.
 - `reference/ticket-unknown.png`: the venue did not answer an order. The outcome sits above the button, says it was sent with no answer, and resend waits on `Checking the venue…`.
