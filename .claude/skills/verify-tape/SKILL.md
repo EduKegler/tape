@@ -33,7 +33,7 @@ node .claude/skills/verify-tape/scripts/verify-tape.mjs up
 
 1. Refuses if port 4391 (app) or 9391 (Chrome CDP) is in use, or if a run from this harness is still up. It never attaches to a server it did not start. Port 3000 is the user's `pnpm dev` and is never touched.
 2. Runs `vite build` with `scripts/vite.verify.config.ts`, which is the repo's `vite.config.ts` with all output moved to `.claude/skills/verify-tape/.cache/`. The user's `.output/` and Vite cache are not touched. The build takes about 2 s and includes uncommitted changes in `src/`.
-3. Starts the built Nitro server (`.cache/output/server/index.mjs`) on `127.0.0.1:4391`, and headless Chrome with a throwaway profile in `.state/chrome`.
+3. Serves the built Worker (`.cache/output/server/wrangler.json`) with `wrangler dev` on `127.0.0.1:4391`, and headless Chrome with a throwaway profile in `.state/chrome`.
 4. Waits until `GET /hyperliquid/BTC?interval=1m` returns 200 with the title `BTC on Hyperliquid`, and the CDP port answers.
 5. Starts the test wallet on `127.0.0.1:4392`. It attaches to Chrome over CDP, injects an EIP-1193 provider into every page, signs with a fresh throwaway key, and blocks mainnet order writes and Orderly registration with a 451. Every request it signs or blocks lands in `artifacts/<run-id>/wallet.jsonl`. The provider calls `/__tape-test-wallet` on the app's own origin and the wallet answers over CDP, so the app's Content Security Policy applies as it does in production.
 
