@@ -126,6 +126,16 @@ describe('a market the venue does not list', () => {
     expect(await VENUES.binance.fetchMarket('kPEPE' as Base, refuse)).toBeNull()
   })
 
+  it('asks Binance for a symbol outside ASCII', async () => {
+    const asked: string[] = []
+    const recorded: typeof fetch = (input, init) => {
+      asked.push(input instanceof Request ? input.url : input.toString())
+      return recordedFetch(input, init)
+    }
+    expect((await VENUES.binance.fetchMarket('币安人生' as Base, recorded))?.venueSymbol).toBe('币安人生USDT')
+    expect(asked).toEqual([expect.stringContaining(`symbol=${encodeURIComponent('币安人生USDT')}`)])
+  })
+
   it("looks in Binance's whole list when a browser hides its 400", async () => {
     const hidden: typeof fetch = (input, init) =>
       (input instanceof Request ? input.url : input.toString()).includes('exchangeInfo?symbol=')

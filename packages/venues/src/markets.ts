@@ -283,8 +283,8 @@ export async function readBinanceMarkets(
   return own(specs(info.symbols, binanceSpec))
 }
 
-/** The symbols Binance accepts, as its -1100 reply states: `^[\w\-._&&[^a-z]]{1,50}$`. */
-const BINANCE_SYMBOL = /^[A-Z0-9_.-]{1,50}$/
+/** Binance refuses any symbol with a lowercase ASCII letter, as the range in its -1100 reply shows: `^[\w\-._&&[^a-z]]{1,50}$`. */
+const BINANCE_REFUSED = /[a-z]/
 
 export async function readBinanceMarket(
   fetch: Fetch,
@@ -293,10 +293,14 @@ export async function readBinanceMarket(
   signal?: AbortSignal,
 ): Promise<MarketSpec | null> {
   const symbol = `${base}USDT`
-  if (isHip3(base) || !BINANCE_SYMBOL.test(symbol)) return null
+  if (isHip3(base) || BINANCE_REFUSED.test(symbol)) return null
   let info: { symbols: BinanceSymbol[] } | null
   try {
-    info = await listedJson(fetch, `${rest}/exchangeInfo?symbol=${symbol}&showPermissionSets=false`, signal)
+    info = await listedJson(
+      fetch,
+      `${rest}/exchangeInfo?symbol=${encodeURIComponent(symbol)}&showPermissionSets=false`,
+      signal,
+    )
   } catch (e) {
     // Binance sends the 400 for a symbol it does not list without CORS headers, so a browser fetch rejects
     // with a TypeError, as it does offline. Its whole list tells the two apart.
