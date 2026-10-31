@@ -74,15 +74,18 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       devtools(),
       nitro({
-        routeRules: {
-          // Nitro's Vercel preset uses this key as the route's regex and rewrites only `/**`, so it must read the same to rou3 and to Vercel.
-          // Vercel stops at the first route that matches, so the worker would lose the immutable caching Nitro sets on `/assets/**`.
-          '/assets/worker-([A-Za-z0-9_-]+).js': {
-            headers: {
-              'content-security-policy': workerSecurityPolicy(VITE_NETWORK),
-              'cache-control': 'public, max-age=31536000, immutable',
-            },
+        preset: 'cloudflare-module',
+        compatibilityDate: '2026-10-23',
+        cloudflare: {
+          wrangler: {
+            name: VITE_NETWORK === 'mainnet' ? 'tape' : 'tape-testnet',
+            // `wrangler deploy` deletes the variables set in the dashboard unless this keeps them.
+            keep_vars: true,
           },
+        },
+        routeRules: {
+          // Cloudflare applies every `_headers` rule that matches, so the hub worker keeps the immutable caching Nitro sets on `/assets/**`.
+          '/assets/worker-*.js': { headers: { 'content-security-policy': workerSecurityPolicy(VITE_NETWORK) } },
         },
       }),
       tailwindcss(),

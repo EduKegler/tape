@@ -34,15 +34,8 @@ export default defineConfig({
   },
   projects: NETWORKS.map((network) => ({ name: network, use: { baseURL: origin(network), network } })),
   webServer: NETWORKS.map((network) => ({
-    command: `node e2e/.cache/${network}/output/server/index.mjs`,
+    command: `wrangler dev -c e2e/.cache/${network}/output/server/wrangler.json --ip 127.0.0.1 --port ${new URL(origin(network)).port}`,
     url: `${origin(network)}/`,
-    env: {
-      HOST: '127.0.0.1',
-      NITRO_HOST: '127.0.0.1',
-      PORT: new URL(origin(network)).port,
-      NITRO_PORT: new URL(origin(network)).port,
-      POSTHOG_KEY: '',
-    },
     reuseExistingServer: false,
   })),
 })
