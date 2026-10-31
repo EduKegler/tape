@@ -12,7 +12,7 @@ import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { ConfirmAction } from './ConfirmAction'
-import { Button, Table } from './primitives'
+import { Button, InlineInput, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
@@ -211,7 +211,7 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
       }}
     >
       <label htmlFor={id}>Leverage</label>
-      <input
+      <InlineInput
         id={id}
         inputMode="numeric"
         autoComplete="off"
@@ -220,7 +220,7 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
         onChange={(e) => setValue(e.target.value.trim())}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="num h-6 w-10 rounded-sm border border-edge bg-inset px-1 text-level1 outline-none focus:border-accent aria-invalid:border-warn"
+        className="w-10"
       />
       {error && (
         <span id={`${id}-error`} className="border-l-2 border-warn pl-1.5 text-level1">

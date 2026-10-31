@@ -12,7 +12,7 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { Button, Table } from './primitives'
+import { Button, InlineInput, Table } from './primitives'
 import type { Column } from './primitives'
 
 const WALLET = /^0x[0-9a-fA-F]{40}$/
@@ -190,24 +190,22 @@ function Addresses({
     >
       <label className="flex flex-col gap-1 text-level3">
         Wallet, for Hyperliquid and Orderly
-        <input
+        <InlineInput
           value={draft.wallet}
           onChange={(e) => setDraft({ ...draft, wallet: e.target.value.trim() })}
           placeholder={fallback.wallet ?? '0x…'}
           spellCheck={false}
           aria-invalid={!walletOk}
-          className="num h-7 rounded-sm border border-edge bg-inset px-2 text-sm text-level1"
         />
       </label>
       <label className="flex flex-col gap-1 text-level3">
         dYdX address
-        <input
+        <InlineInput
           value={draft.dydx}
           onChange={(e) => setDraft({ ...draft, dydx: e.target.value.trim() })}
           placeholder={fallback.dydx ?? 'dydx1…'}
           spellCheck={false}
           aria-invalid={!dydxOk}
-          className="num h-7 rounded-sm border border-edge bg-inset px-2 text-sm text-level1"
         />
       </label>
       <Button look="primary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
@@ -338,19 +336,17 @@ function Filters({
             {p.label}
           </Button>
         ))}
-        <input
+        <InlineInput
           type="date"
           aria-label="From"
           value={search.from ?? ''}
           onChange={(e) => set({ from: e.target.value || undefined })}
-          className="num h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         />
-        <input
+        <InlineInput
           type="date"
           aria-label="To"
           value={search.to ?? ''}
           onChange={(e) => set({ to: e.target.value || undefined })}
-          className="num h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
         />
       </div>
     </div>

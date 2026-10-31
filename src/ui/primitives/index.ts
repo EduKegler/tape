@@ -1,5 +1,7 @@
 export { Button } from './Button'
+export { Checkbox } from './Checkbox'
 export { Input } from './Input'
+export { InlineInput } from './InlineInput'
 export { Search } from './Search'
 export { Table } from './Table'
 export type { Column } from './Table'

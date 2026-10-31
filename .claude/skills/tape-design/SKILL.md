@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Dialog`, `Input`, `Search` and `Table`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `Search` and `Table`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 
@@ -19,7 +19,7 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 - **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `warn` means old data, a price warning or a failed read. `accent` marks focus and the selected item: market, venue, interval, order type, account tab and the current row. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
 - **One surface, split by `rule` lines.** The order ticket has its own tone, `ticket`. A dialog sits on `raised`. A field sits on `inset` inside an `edge` border.
 - **Numbers are tabular.** Give them `num`, align them right in columns, and keep the same decimals down a column.
-- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. `className` on a primitive carries layout: width, alignment, padding. A field's error goes through `Input`'s `error`.
+- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
 - **Side reads without color.** A label like `Buy / Long`, a mark like `▲` and `▼`, or position, as in the book.
 
 ## Panel state

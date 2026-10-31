@@ -36,7 +36,7 @@ import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
-import { Button, Input } from './primitives'
+import { Button, Checkbox, Input } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
@@ -446,22 +446,16 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         )}
         <form.Field name="reduceOnly">
           {(field) => (
-            <label className="flex items-center gap-2 text-sm text-level2">
-              <input
-                type="checkbox"
-                name="reduceOnly"
-                checked={field.state.value}
-                onChange={(e) => field.handleChange(e.target.checked)}
-              />
-              Reduce only
-            </label>
+            <Checkbox
+              label="Reduce only"
+              name="reduceOnly"
+              checked={field.state.value}
+              onChange={(checked) => field.handleChange(checked)}
+            />
           )}
         </form.Field>
         {caps?.triggers && takesExits(kind) && (
-          <label className="flex items-center gap-2 text-sm text-level2">
-            <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
-            Take profit and stop loss
-          </label>
+          <Checkbox label="Take profit and stop loss" name="protect" checked={protect} onChange={setProtect} />
         )}
         {caps?.triggers && takesExits(kind) && protect && (
           <div className="flex flex-col gap-2">
