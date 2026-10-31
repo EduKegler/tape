@@ -6,7 +6,7 @@ import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import type { IntentDraft } from '../intent'
 import { TradeFailure } from '../types'
-import type { Bps, OrderRef, VenueContext } from '../types'
+import type { Bps, Eip712, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { dydx } from '.'
 
 const chain = vi.hoisted(() => {
@@ -15,13 +15,15 @@ const chain = vi.hoisted(() => {
     if (state.reply instanceof Error) throw state.reply
     return state.reply
   }
-  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer) })
+  const deriveKey = vi.fn(async (signature: string) => ({ mnemonic: `words of ${signature}`, address: 'dydx1derived' }))
+  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer), deriveKey })
 })
 
 vi.mock('./client', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   // SHORT_BLOCK_FORWARD in build/esm/src/clients/constants.js of v4-client-js 3.6.0.
   sdk: async () => ({ SubaccountInfo: { forLocalWallet: () => ({}) }, SHORT_BLOCK_FORWARD: 15 }),
+  deriveKey: chain.deriveKey,
   walletOf: async () => ({ address: 'dydx1test' }),
   validatorOf: async () => ({
     get: { latestBlockHeight: async () => 1 },
@@ -622,5 +624,77 @@ describe('dydx account', () => {
     const { urls, ctx: open } = indexer(replies)
     expect(await dydx.account({ ...open, keys: locked.keys })).toEqual({ kind: 'unknown' })
     expect(urls).toEqual([])
+  })
+})
+
+describe('dydx setup', () => {
+  const SIGNATURE = `0x${'ab'.repeat(65)}` as const
+
+  function tab(initial: StoredKey | null) {
+    let key = initial
+    const writes: StoredKey[] = []
+    return {
+      writes,
+      read: () => key,
+      write: (k: StoredKey) => {
+        key = k
+        writes.push(k)
+      },
+      clear: () => {
+        key = null
+      },
+    }
+  }
+
+  function wallet(chainId: number) {
+    let active = chainId
+    const signed: Eip712[] = []
+    return {
+      signed,
+      address: ctx.ref.owner,
+      chainId: async () => active,
+      switchChain: vi.fn(async (id: number) => {
+        active = id
+      }),
+      signTypedData: async (typed: Eip712) => {
+        signed.push(typed)
+        return SIGNATURE
+      },
+    }
+  }
+
+  it('asks a tab without the dYdX key to unlock it, and a tab holding it for nothing', async () => {
+    const step = (done: boolean) => [{ id: 'derive-key', label: 'Unlock your dYdX key in this tab', done }]
+    expect(await dydx.steps(locked)).toEqual(step(false))
+    expect(await dydx.steps(ctx)).toEqual(step(true))
+  })
+
+  it('derives the dYdX key on the Sepolia onboarding chain for a testnet account, and keeps it linked in the tab', async () => {
+    const keys = tab(null)
+    const signer = wallet(1)
+    const steps: StepId[] = []
+    await dydx.enable({ ...ctx, keys }, signer, (s) => steps.push(s))
+    expect(steps).toEqual(['derive-key'])
+    // ethereumChainId of the testnet in v4-web's public/configs/v1/env.json.
+    expect(signer.switchChain.mock.calls).toEqual([[11_155_111]])
+    expect(signer.signed.map((s) => [s.primaryType, s.domain, s.message])).toEqual([
+      ['dYdX', { name: 'dYdX Chain', chainId: 11_155_111 }, { action: 'dYdX Chain Onboarding' }],
+    ])
+    expect(chain.deriveKey.mock.calls).toEqual([[SIGNATURE]])
+    expect(keys.writes).toEqual([
+      { status: 'linked', public: { address: 'dydx1derived' }, secret: `words of ${SIGNATURE}` },
+    ])
+  })
+
+  it('signs nothing for a tab that already holds the dYdX key, and stays on the chain the wallet is on', async () => {
+    const keys = tab({ status: 'linked', public: { address: 'dydx1test' }, secret: 'mnemonic' })
+    const signer = wallet(11_155_111)
+    await dydx.enable({ ...ctx, keys }, signer, () => {})
+    expect(signer.signed).toEqual([])
+    expect(keys.writes).toEqual([])
+    const fresh = tab(null)
+    await dydx.enable({ ...ctx, keys: fresh }, signer, () => {})
+    expect(signer.switchChain).not.toHaveBeenCalled()
+    expect(fresh.writes).toHaveLength(1)
   })
 })
