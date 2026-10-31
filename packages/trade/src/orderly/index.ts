@@ -59,16 +59,22 @@ export function classifyMessage(message: string): TradeError {
   return { kind: 'rejected', detail: message }
 }
 
-/** Orderly's codes for an API key in the wrong format, and for one that is invalid, expired or revoked. */
-const BAD_KEY = new Set(['-1001', '-1002'])
+/**
+ * Kinds Orderly's error codes page fixes by code: -1001 an API key in the wrong format, -1002 one that is invalid,
+ * expired or revoked, and -1012 a refusal by an internal module, which a reduce only order with no position gets.
+ */
+const KIND_OF_CODE: Readonly<Record<string, 'needs-setup' | 'rejected'>> = {
+  '-1001': 'needs-setup',
+  '-1002': 'needs-setup',
+  '-1012': 'rejected',
+}
 
 const classify: Classify = (status, body, text) => {
   const b = body as { success?: boolean; code?: string; message?: string } | null
   if (status === 429) return { kind: 'rate-limited', detail: b?.message ?? text }
   if (b?.success !== false) return null
-  return b.code !== undefined && BAD_KEY.has(b.code)
-    ? { kind: 'needs-setup', detail: b.message ?? text }
-    : classifyMessage(b.message ?? text)
+  const kind = b.code === undefined ? undefined : KIND_OF_CODE[b.code]
+  return kind ? { kind, detail: b.message ?? text } : classifyMessage(b.message ?? text)
 }
 
 /**
