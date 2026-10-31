@@ -27,7 +27,7 @@ jobs:
           - network: testnet
             venue: binance
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       NETWORK: ${{ matrix.network }}
     steps:
