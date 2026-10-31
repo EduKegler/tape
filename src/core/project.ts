@@ -223,6 +223,11 @@ export function projectCompare(
       bestAsk: asks.length > 1 && ask === Math.min(...asks),
     }
   })
-  const status: FrameStatus = rows.some((r) => r.status === 'live') ? 'live' : 'syncing'
+  const statuses = quotes.flatMap((q) => (q.m ? [q.m.status] : []))
+  const status: FrameStatus = statuses.includes('live')
+    ? 'live'
+    : statuses.length > 0 && statuses.every((s) => s === 'stale')
+      ? 'stale'
+      : 'syncing'
   return { kind: 'compare', key, version, status, rows }
 }
