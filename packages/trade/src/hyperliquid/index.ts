@@ -302,11 +302,13 @@ function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatu
 /** Hyperliquid judges each order of the action on its own, so some legs can stand while others are refused. */
 function legsOutcome(statuses: readonly OrderStatus[]): CommandOutcome {
   const count = (key: 'resting' | 'filled') => statuses.filter((s) => typeof s === 'object' && s[key]).length
+  const refusals = statuses.map(errorOf)
+  const stood = refusals.filter((e) => !e).length
   const resting = count('resting')
   const filled = count('filled')
   return scaleOutcome(
-    statuses.map(errorOf),
-    filled === statuses.length ? 'filled' : resting > 0 ? 'resting' : 'accepted',
+    refusals,
+    filled === stood ? 'filled' : resting > 0 ? 'resting' : 'accepted',
     (error) => fail(classifyText(error)),
     `: ${resting} resting, ${filled} filled`,
   )

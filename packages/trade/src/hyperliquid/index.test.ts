@@ -406,6 +406,17 @@ describe('hyperliquid order outcomes', () => {
       detail: '3 of 3 orders placed: 0 resting, 3 filled',
     })
   })
+
+  it('calls a scale order filled with the refusals when the legs that stood all filled', async () => {
+    const fill = { filled: { totalSz: '0.001', avgPx: '80020' } }
+    const { ctx } = venue(() => statuses([fill, fill, { error: 'Insufficient margin to place order.' }]))
+    const scale = place({ kind: 'scale', size: '0.003', start: '80100', end: '80020', count: '3' })
+    expect(await hyperliquid.execute(ctx, scale)).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: '2 of 3 orders placed: 0 resting, 2 filled. Order 3 not placed: Insufficient margin to place order.',
+    })
+  })
 })
 
 describe('hyperliquid cancels', () => {
