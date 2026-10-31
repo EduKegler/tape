@@ -167,6 +167,7 @@ export function splitSize(spec: MarketSpec, size: Qty, shares: readonly number[]
 export function checkRetracement(spec: MarketSpec, unit: 'pct' | 'px', value: string): string | undefined {
   if (unit === 'px') return checkPrice(spec, value)
   if (!value) return 'Enter a percent'
+  if (!/^\d+(?:\.\d+)?$/.test(value)) return 'Not a number'
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return 'At most 2 decimals'
   const n = Number(value)
   return n > 0 && n < 100 ? undefined : 'Above 0 and below 100%'

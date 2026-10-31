@@ -206,7 +206,7 @@ describe('order intent', () => {
     })
   })
 
-  it('refuses a retracement of 0 or 100% and more than 2 decimals, and any take profit or stop loss with it', () => {
+  it('refuses a retracement that is no number, 0, 100% or past 2 decimals, and any take profit or stop loss with it', () => {
     const errors = (overrides: Partial<IntentDraft>) => {
       const built = buildIntent(btc, { ...trailing, ...overrides }, caps)
       return built.ok ? {} : built.errors
@@ -215,6 +215,8 @@ describe('order intent', () => {
     expect(errors({ retracement: '100' })).toEqual({ retracement: 'Above 0 and below 100%' })
     expect(errors({ retracement: '1.234' })).toEqual({ retracement: 'At most 2 decimals' })
     expect(errors({ retracement: '' })).toEqual({ retracement: 'Enter a percent' })
+    for (const retracement of ['abc', '-1', '1.', '1,5', ' 1.5', '1e1'])
+      expect(errors({ retracement })).toEqual({ retracement: 'Not a number' })
     expect(errors({ retracementUnit: 'px', retracement: '0' })).toEqual({ retracement: 'Price must be above zero' })
     expect(errors({ activation: '82000.55' })).toEqual({ activation: 'At most 1 decimals' })
     expect(errors({ takeProfits: [tp('70000')], stopLoss: '85000' })).toEqual({
