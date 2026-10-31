@@ -114,8 +114,8 @@ function DepositForm({
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!amount || !quote.ready || !quote.fee || !quote.calls || send.isPending) return
-        send.mutate({ route, amount, fee: quote.fee, calls: quote.calls }, { onSuccess: onSent })
+        if (!amount || !quote.ready || !quote.terms || !quote.calls || send.isPending) return
+        send.mutate({ route, amount, terms: quote.terms, calls: quote.calls }, { onSuccess: onSent })
       }}
     >
       <div className="flex flex-col gap-1">
@@ -175,7 +175,7 @@ function DepositForm({
         {text !== '' && amount === null && <span className="text-ask">A positive amount, at most 6 decimals.</span>}
       </div>
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
-      {amount !== null && <Issues issues={quote.issues} route={route} />}
+      {amount !== null && <Issues issues={quote.issues} route={route} messenger={quote.terms?.message?.via ?? null} />}
       <Button look="primary-block" type="submit" disabled={!quote.ready || send.isPending}>
         {send.isPending
           ? 'Confirm in your wallet…'
@@ -204,12 +204,16 @@ function Summary({
   amount: bigint | null
   quote: DepositQuote
 }) {
-  const fee = quote.fee
-  const free = fee !== null && fee.max === 0n
+  const fee = quote.terms?.fee ?? null
+  const message = quote.terms?.message ?? null
+  const charges = [
+    ...(fee && fee.max > 0n ? [feeText(fee)] : []),
+    ...(message ? [`${gasText(message.wei, route.chainId)} to ${message.via}`] : []),
+  ]
   const rows: [string, string][] = [
     ['Route', [chainName(route.chainId), ...route.hops, venue.destination].join(' → ')],
     ['Credited to', `${shortAddress(account.owner)}, the same address`],
-    ['Fee', fee ? (free ? 'None' : feeText(fee)) : quote.feeError ? 'Unavailable' : '…'],
+    ['Fee', quote.terms ? charges.join(' and ') || 'None' : quote.termsError ? 'Unavailable' : '…'],
     [
       'You receive',
       quote.issues.some((i) => i.kind === 'below-minimum' && i.lost)
@@ -246,7 +250,7 @@ function Summary({
   )
 }
 
-function issueText(issue: DepositIssue, route: DepositRoute): string {
+function issueText(issue: DepositIssue, route: DepositRoute, messenger: string | null): string {
   const chain = chainName(route.chainId)
   switch (issue.kind) {
     case 'below-minimum':
@@ -258,17 +262,29 @@ function issueText(issue: DepositIssue, route: DepositRoute): string {
     case 'insufficient-usdc':
       return `The wallet has ${usdc(issue.balance)} USDC on ${chain}.`
     case 'insufficient-gas':
-      return `Gas needs about ${gasText(issue.need, route.chainId)} on ${chain}. The wallet has ${gasText(issue.have, route.chainId)}.`
+      return `${messenger ? `Gas and the ${messenger} fee need` : 'Gas needs'} about ${gasText(issue.need, route.chainId)} on ${chain}. The wallet has ${gasText(issue.have, route.chainId)}.`
     case 'contract-wallet':
       return `This address is a contract on ${chain}. The venue credits the same address, and a contract wallet cannot sign there. Deposit from a regular wallet.`
     case 'chain-rejects':
       return `${chain} would reject this transaction: ${issue.reason}. Nothing was sent.`
     case 'high-fee':
       return `The fee is ${(issue.bps / 100).toFixed(2)}% of this deposit.`
+    case 'no-account':
+      return 'The venue has no account for this address yet. Enable trading first, which registers it, then deposit.'
+    case 'over-limit':
+      return `The venue's vault on ${chain} takes ${usdc(issue.room)} USDC more right now. Send less, or deposit from another chain.`
   }
 }
 
-function Issues({ issues, route }: { issues: readonly DepositIssue[]; route: DepositRoute }) {
+function Issues({
+  issues,
+  route,
+  messenger,
+}: {
+  issues: readonly DepositIssue[]
+  route: DepositRoute
+  messenger: string | null
+}) {
   if (issues.length === 0) return null
   return (
     <ul className="flex flex-col gap-1">
@@ -279,7 +295,7 @@ function Issues({ issues, route }: { issues: readonly DepositIssue[]; route: Dep
           data-deposit-issue={issue.kind}
           className={`rounded-sm border p-2 ${blocksDeposit(issue) ? 'border-ask/40 text-ask' : 'border-rule text-level2'}`}
         >
-          {issueText(issue, route)}
+          {issueText(issue, route, messenger)}
         </li>
       ))}
     </ul>

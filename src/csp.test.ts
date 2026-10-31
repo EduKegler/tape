@@ -4,6 +4,8 @@ import type { Network } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { venues } from '@tape/venues/index'
 import { DEPOSITS } from '@tape/trade'
+import type { DepositVenue } from '@tape/trade/deposit'
+import type { TradeConfig, TradeVenueId } from '@tape/trade/types'
 import { CONNECT, contentSecurityPolicy, workerSecurityPolicy } from './csp'
 
 async function originsReached(network: Network) {
@@ -26,6 +28,13 @@ async function originsReached(network: Network) {
   return origins
 }
 
+const config: TradeConfig = {
+  mainnet: true,
+  hyperliquid: { builder: null },
+  dydx: { builder: null },
+  orderly: { brokerId: { mainnet: 'tape', testnet: 'demo' } },
+}
+
 const connectSrc = (policy: string) =>
   policy
     .split('; ')
@@ -46,12 +55,29 @@ describe('content security policy', () => {
       origins.add(new URL(input instanceof Request ? input.url : input).origin)
       return Promise.reject(new Error('offline'))
     }
-    const sent = { ref: { venue: 'hyperliquid', network, owner: '0x01' }, amount: 1n, hash: '0x01', sentAt: 0 } as const
-    for (const route of Object.values(DEPOSITS).flatMap((v) => v.routes(network)))
-      await Promise.allSettled([
-        route.fee(offline, 10_000_000n),
-        route.progress(offline, { ...sent, chainId: route.chainId, claimed: new Set() }),
-      ])
+    const owner = '0x2e5346477b01397553df3ec9a637f3e535325d6d'
+    const chain = { readContract: () => Promise.reject(new Error('offline')) }
+    const keys = {
+      read: () => ({ status: 'linked', public: {}, secret: `0x${'01'.repeat(32)}` }) as const,
+      write: () => {},
+      clear: () => {},
+    }
+    for (const [venue, deposits] of Object.entries(DEPOSITS) as [TradeVenueId, DepositVenue][])
+      for (const route of deposits.routes(network, config))
+        await Promise.allSettled([
+          route.terms({ fetch: offline, chain }, owner, 10_000_000n),
+          route.progress(
+            { fetch: offline, keys },
+            {
+              ref: { venue, network, owner },
+              chainId: route.chainId,
+              amount: 1n,
+              hash: '0x01',
+              sentAt: 0,
+              claimed: new Set(),
+            },
+          ),
+        ])
     expect(origins.size).toBeGreaterThan(0)
     expect([...origins].filter((o) => !CONNECT[network].includes(o))).toEqual([])
   })

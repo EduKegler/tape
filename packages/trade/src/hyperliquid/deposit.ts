@@ -10,7 +10,7 @@ import {
   hyperCoreFee,
 } from '../cctp'
 import { approveCall, parseUsdc, transferCall } from '../deposit'
-import type { DepositProgress, DepositRoute, DepositVenue, SentDeposit } from '../deposit'
+import type { DepositFee, DepositProgress, DepositRoute, DepositTerms, DepositVenue, SentDeposit } from '../deposit'
 import { post, send } from '../send'
 
 const API: Record<Network, string> = {
@@ -32,6 +32,8 @@ const BRIDGE: Record<Network, { readonly chainId: number; readonly token: Addres
   },
 }
 const BRIDGE_MINIMUM = 5_000_000n
+const POLL_EVERY = 4_000
+const feeOnly = (fee: DepositFee): DepositTerms => ({ fee, message: null, refusal: null })
 
 const bridgeRoute = (network: Network): DepositRoute => ({
   chainId: BRIDGE[network].chainId,
@@ -40,9 +42,10 @@ const bridgeRoute = (network: Network): DepositRoute => ({
   hops: ['Hyperliquid bridge on Arbitrum'],
   minimum: { amount: BRIDGE_MINIMUM, lost: true },
   eta: { typical: 60, worst: 600 },
-  fee: () => Promise.resolve({ expected: 0n, max: 0n }),
+  pollEvery: POLL_EVERY,
+  terms: () => Promise.resolve(feeOnly({ expected: 0n, max: 0n })),
   calls: (_owner, amount) => [transferCall(BRIDGE[network].token, BRIDGE[network].bridge, amount)],
-  progress: bridgeProgress,
+  progress: ({ fetch }, sent) => bridgeProgress(fetch, sent),
 })
 
 /** `domain` is Circle's CCTP id for the chain. */
@@ -59,12 +62,13 @@ const cctpRoute = ({ chainId, domain, token }: (typeof CCTP_SOURCES)[number]): D
   hops: ['Circle CCTP', 'HyperEVM'],
   minimum: null,
   eta: { typical: 60, worst: FORWARD_WORST },
-  fee: (fetch, amount) => hyperCoreFee('hyperliquid', fetch, domain, amount),
-  calls: (owner, amount, fee, allowance) => [
+  pollEvery: POLL_EVERY,
+  terms: ({ fetch }, _owner, amount) => hyperCoreFee('hyperliquid', fetch, domain, amount).then(feeOnly),
+  calls: (owner, amount, terms, allowance) => [
     ...(allowance < amount ? [approveCall(token, TOKEN_MESSENGER_V2, amount)] : []),
-    burnToHyperCore(token, owner, amount, fee.max),
+    burnToHyperCore(token, owner, amount, terms.fee.max),
   ],
-  progress: (fetch, sent) => cctpProgress(fetch, sent, domain),
+  progress: ({ fetch }, sent) => cctpProgress(fetch, sent, domain),
 })
 
 const Ledger = z.array(

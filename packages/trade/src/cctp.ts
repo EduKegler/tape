@@ -43,6 +43,7 @@ export function burnToHyperCore(token: Address, owner: Address, amount: bigint, 
       functionName: 'depositForBurnWithHook',
       args: [amount, HYPEREVM_DOMAIN, forwarder, token, forwarder, maxFee, FAST_FINALITY, hyperCoreHook(owner)],
     }),
+    value: 0n,
     gasFallback: 250_000n,
   }
 }
