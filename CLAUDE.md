@@ -14,7 +14,13 @@ This repo is public. Research, competitor notes and decision logs go to the priv
 
 Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. Never skip the hook.
 
-One logical change per commit: one reason to change, which a reviewer keeps or reverts as a whole, and a subject that names it with no "and" or list. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits. Split: the same edit at many sites is one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol. Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it. `pnpm verify:commits` runs it on each commit since `origin/main`, in the pre-push hook and in CI. Never push with `--no-verify`.
+One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. Size a commit by the work, not by the edit: a feature with its tests, a fix with its test, a batch of new tests for one package. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits, because a reviewer can revert each fix alone. Split: #36 has 36 commits, one per test, and is two, one `test(trade)` for the dYdX gaps the mutation run found and one `test(core)` for the core ones. The same edit at many sites is also one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol.
+
+Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it, and a fix shares a commit with its Vitest test, because a red test fails `pnpm verify`. `pnpm verify:commits` runs it on each commit since `origin/main`, in the pre-push hook and in CI, so each commit adds a full `pnpm verify` to the PR's CI run. Never push with `--no-verify`.
+
+## Pull requests
+
+A PR carries a whole ticket or plan block, and tickets on the same area go in one PR. A PR goes out on its own only when it fixes a red `main` or a broken workflow. Branch each PR from `main`, never from another open PR. Each PR costs at least two CI runs with the e2e job, one per push to it and one for the merge to `main`. This overrides the pstack Opening a PR playbook, which prefers narrow PRs and treats each commit as a future PR.
 
 ## Comments
 
@@ -75,6 +81,7 @@ Before a venue ships, its tests prove these:
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
 | The testnet build shows each venue's live book | the `smoke` job in `.github/workflows/nightly.yml` |
 | One logical change per commit | review only |
+| A PR carries a whole ticket or plan block | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |
 
