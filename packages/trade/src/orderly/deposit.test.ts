@@ -184,6 +184,20 @@ describe('Orderly Vault deposit', () => {
     expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'unreachable', detail: '502 Bad Gateway' })
   })
 
+  it('calls a 200 registration reply it cannot read unreachable, not unregistered', async () => {
+    const { chain } = chainAnswering(VAULT_READS)
+    for (const text of ['<html>Service Unavailable</html>', 'null', '{"data":{}}']) {
+      const fetch = (async () => new Response(text)) as typeof globalThis.fetch
+      const error = await arbitrum()
+        .terms({ fetch, chain }, recorded.owner, recorded.amount)
+        .catch((e: unknown) => e)
+      expect(error instanceof TradeFailure && error.error).toEqual({
+        kind: 'unreachable',
+        detail: `Unreadable reply: ${text}`,
+      })
+    }
+  })
+
   it('refuses a deposit that takes the Vault past its USDC limit, and says how much still fits', async () => {
     const { fetch } = orderlyAnswering(ACCOUNT.registered)
     const { chain } = chainAnswering({ ...VAULT_READS, [DEPOSIT_LIMIT]: 1_000_000_000n, [BALANCE_OF]: 900_000_000n })

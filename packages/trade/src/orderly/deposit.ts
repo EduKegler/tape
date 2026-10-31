@@ -72,9 +72,14 @@ export function vaultDeposit(to: Address, owner: Address, brokerId: string, amou
 /** Orderly answers an address it never registered with `success: false` and a 200. */
 async function registered(fetch: typeof globalThis.fetch, network: Network, owner: Address, brokerId: string) {
   const url = `${API[network]}/v1/get_account?address=${owner}&broker_id=${brokerId}`
-  const body = await send<{ success?: boolean } | null>('orderly', fetch, url, { mutates: false }, () => null)
-  return body?.success === true
+  const body = await send<{ success: boolean }>('orderly', fetch, url, { mutates: false }, unreadable)
+  return body.success
 }
+
+const unreadable: Classify = (status, body, text) =>
+  status < 400 && typeof (body as { success?: unknown } | null)?.success !== 'boolean'
+    ? { kind: 'unreachable', detail: `Unreadable reply: ${text}` }
+    : null
 
 /** The Vault reverts with DepositExceedLimit once its USDC plus the deposit passes a limit other than zero. */
 function overLimit(amount: bigint, limit: bigint, held: bigint): DepositRefusal | null {

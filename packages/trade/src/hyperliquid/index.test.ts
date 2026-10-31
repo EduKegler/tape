@@ -406,6 +406,17 @@ describe('hyperliquid order outcomes', () => {
       detail: '3 of 3 orders placed: 0 resting, 3 filled',
     })
   })
+
+  it('calls a scale order filled with the refusals when the legs that stood all filled', async () => {
+    const fill = { filled: { totalSz: '0.001', avgPx: '80020' } }
+    const { ctx } = venue(() => statuses([fill, fill, { error: 'Insufficient margin to place order.' }]))
+    const scale = place({ kind: 'scale', size: '0.003', start: '80100', end: '80020', count: '3' })
+    expect(await hyperliquid.execute(ctx, scale)).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: '2 of 3 orders placed: 0 resting, 2 filled. Order 3 not placed: Insufficient margin to place order.',
+    })
+  })
 })
 
 describe('hyperliquid cancels', () => {
@@ -630,6 +641,42 @@ describe('hyperliquid account sides', () => {
     expect(ethOrder?.side).toBe('sell')
     expect(ethOrder?.ref).toMatch(/:589008353130$/)
     expect(view.snapshot.fills.map((f) => f.side)).toEqual(['buy'])
+  })
+
+  // Info endpoint docs: a spot order's coin is "@" and the spot pair index, or a name such as PURR/USDC.
+  it('lists a spot order Tape cannot cancel, since it trades only the perps in the meta', async () => {
+    const order = (coin: string, oid: number) => ({
+      coin,
+      side: 'B',
+      limitPx: '20.0',
+      sz: '1.0',
+      oid,
+      timestamp: 1793248070251,
+      orderType: 'Limit',
+      reduceOnly: false,
+      isTrigger: false,
+      triggerPx: '0.0',
+    })
+    const noState = { marginSummary: { accountValue: '10.0' }, withdrawable: '10.0', assetPositions: [] }
+    const answers: Record<string, unknown> = {
+      meta: testnetMeta,
+      clearinghouseState: noState,
+      spotClearinghouseState: { balances: [] },
+      frontendOpenOrders: [order('BTC', 11), order('@107', 12), order('PURR/USDC', 13)],
+      userFills: [],
+    }
+    const { ctx } = venue(() => statuses([]))
+    const view = await hyperliquid.account({
+      ...ctx,
+      fetch: (async (_url: string, init?: RequestInit) =>
+        json(answers[(JSON.parse(init?.body as string) as { type: string }).type] ?? null)) as typeof globalThis.fetch,
+    })
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.orders.map((o) => [o.symbol, o.cancelable])).toEqual([
+      ['BTC', true],
+      ['@107', false],
+      ['PURR/USDC', false],
+    ])
   })
 })
 

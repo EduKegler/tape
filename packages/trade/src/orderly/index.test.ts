@@ -260,6 +260,12 @@ describe('orderly refusals', () => {
     // Codes, statuses and descriptions on Orderly's error codes page.
     const cases = [
       [400, -1101, 'Insufficient margin after the operation.', 'insufficient-margin'],
+      [
+        400,
+        -1101,
+        'Risk exposure is too high. This may be caused by a large order size or low leverage. Check current exposure via the client info endpoint.',
+        'insufficient-margin',
+      ],
       [400, -1103, 'Order price does not match the tick size.', 'invalid-order'],
       [400, -1104, 'Order quantity does not match the step size.', 'invalid-order'],
       [429, -1003, 'Rate limit exceeded.', 'rate-limited'],
@@ -609,6 +615,7 @@ describe('orderly account', () => {
             size: '20',
             reduceOnly: false,
             placedAt: 1653563963000,
+            cancelable: true,
           },
           {
             ref: 'PERP_BTC_USDC:78152',
@@ -619,6 +626,7 @@ describe('orderly account', () => {
             size: '0.01',
             reduceOnly: true,
             placedAt: 1653563964000,
+            cancelable: true,
           },
         ],
         fills: [

@@ -230,11 +230,12 @@ function Orders({
     { header: 'Reduce', cell: (o) => (o.reduceOnly ? 'yes' : '') },
     {
       header: '',
-      cell: (o) => (
-        <Button look="quiet" disabled={busy(o)} onClick={() => onCancel(o)}>
-          Cancel
-        </Button>
-      ),
+      cell: (o) =>
+        o.cancelable && (
+          <Button look="quiet" disabled={busy(o)} onClick={() => onCancel(o)}>
+            Cancel
+          </Button>
+        ),
     },
   ]
   return <Table rows={rows} rowKey={(o) => o.ref} columns={columns} empty="No open orders." />

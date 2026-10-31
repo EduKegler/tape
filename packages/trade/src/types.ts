@@ -106,6 +106,8 @@ export interface OpenOrder {
   readonly size: Decimal
   readonly reduceOnly: boolean
   readonly placedAt: number
+  /** False for an order Tape lists but cannot cancel, such as a Hyperliquid spot order. */
+  readonly cancelable: boolean
 }
 
 export interface Fill {

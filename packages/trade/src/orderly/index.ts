@@ -53,7 +53,8 @@ function fail(error: TradeError): never {
 export function classifyMessage(message: string): TradeError {
   if (/orderly key|signature|not registered|account.*(?:not found|not exist)/i.test(message))
     return { kind: 'needs-setup', detail: message }
-  if (/insufficient|margin|collateral/i.test(message)) return { kind: 'insufficient-margin', detail: message }
+  if (/insufficient|margin|collateral|risk exposure/i.test(message))
+    return { kind: 'insufficient-margin', detail: message }
   if (/price|quantity|notional|tick|size/i.test(message)) return { kind: 'invalid-order', detail: message }
   return { kind: 'rejected', detail: message }
 }
@@ -349,6 +350,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         size: d(o.quantity),
         reduceOnly: o.reduce_only,
         placedAt: Number(o.created_time),
+        cancelable: true,
       })),
       fills: trades.rows.map((t) => ({
         id: t.id,
