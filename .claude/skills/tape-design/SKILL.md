@@ -88,7 +88,7 @@ Screens approved for the visual direction. Layout in them may be ahead of the co
 - `reference/history-error.png`: `/history` when a venue did not answer. Read wording, Retry per venue, and no totals beside the failure.
 - `reference/deposit-summary.png`: the Deposit dialog on `raised`. The summary is the confirmation, and the one button names the amount and the source chain.
 
-Screens from the code, on the replay build. The market panels and the header look like this today.
+Screens from the code, on the replay build. The market panels, the header, the ticket, the Account, `/history` and the Deposit dialog look like this today.
 
 - `reference/market-live.png`: the market panels live at 1440×900. Lockup in the header, last price at 22 px with the side arrow, book mid at 22 px, `▲` and `▼` on trades, `●` on the best venue bid and ask.
 - `reference/market-1280.png`: the same at 1280×800, with all 28 book levels in view.
@@ -96,3 +96,10 @@ Screens from the code, on the replay build. The market panels and the header loo
 - `reference/market-offline.png`: no socket left. Every panel says `Offline` with its age.
 - `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry.
 - `reference/market-focus.png`: the book holds keyboard focus. One Tab stop, and the arrows move the focus ring between levels.
+- `reference/ticket-field-error.png`: a rule error sits on its field in a `warn` rule while typing, and the disabled button says why under the totals.
+- `reference/ticket-unknown.png`: the venue did not answer an order. The outcome sits above the button, says it was sent with no answer, and resend waits on `Checking the venue…`.
+- `reference/ticket-rejected.png`: the venue refused the order. The typed outcome sits right above the button with the venue's own words under it, and the form keeps its values.
+- `reference/account-close.png`: closing a position confirms on its own row, with size, expected price and its own slippage before `Confirm close`.
+- `reference/grid-offline.png`: the whole grid offline at 1440×900. The ticket runs the full height, Account and Venues size to their content, and the status bar says prices are frozen.
+- `reference/history-rows.png`: `/history` with rows. Totals per venue, the fills and funding as one table, and the address and date fields as `InlineInput`.
+- `reference/deposit-signing.png`: the Deposit dialog while the wallet signs. A `warn` rule says Esc stays and closing keeps the deposit, and the button says `Waiting for your wallet…`.
