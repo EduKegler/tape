@@ -507,6 +507,46 @@ describe('hyperliquid account sides', () => {
   })
 })
 
+describe('hyperliquid balances', () => {
+  const noState = { marginSummary: { accountValue: '0.0' }, withdrawable: '0.0', assetPositions: [] }
+  const accountOf = (answers: Record<string, unknown>) =>
+    hyperliquid.account({
+      ...venue(() => statuses([])).ctx,
+      fetch: (async (_url: string, init?: RequestInit) => {
+        const { type } = JSON.parse(init?.body as string) as { type: string }
+        return json(type === 'meta' ? testnetMeta : (answers[type] ?? []))
+      }) as typeof globalThis.fetch,
+    })
+
+  // Account abstraction docs: a unified or portfolio margin account keeps its USDC in spot.
+  it('reads a portfolio margin balance from the USDC row in spot, whatever comes before it', async () => {
+    const spot = {
+      balances: [
+        { coin: 'HYPE', token: 150, total: '12.5' },
+        { coin: 'USDC', token: 0, total: '907.158556' },
+      ],
+      tokenToAvailableAfterMaintenance: [
+        [150, '12.5'],
+        [0, '904.758556'],
+      ],
+    }
+    const portfolio = { userAbstraction: 'portfolioMargin', clearinghouseState: noState }
+    const view = await accountOf({ ...portfolio, spotClearinghouseState: spot })
+    expect(view.kind === 'live' && view.snapshot).toMatchObject({ equity: '907.158556', available: '904.758556' })
+    const { tokenToAvailableAfterMaintenance: _, ...noAvailable } = spot
+    for (const spotState of [noAvailable, { ...noAvailable, tokenToAvailableAfterMaintenance: [[150, '12.5']] }]) {
+      const all = await accountOf({ ...portfolio, spotClearinghouseState: spotState })
+      expect(all.kind === 'live' && all.snapshot).toMatchObject({ equity: '907.158556', available: '907.158556' })
+    }
+  })
+
+  it('reads an account with nothing in it as empty, and one with only past fills as live', async () => {
+    expect(await accountOf({ clearinghouseState: noState })).toEqual({ kind: 'empty' })
+    const fill = { coin: 'BTC', px: '80100.0', sz: '0.02', side: 'B', time: 1793248071468, fee: '0.36', tid: 1 }
+    expect(await accountOf({ clearinghouseState: noState, userFills: [fill] })).toMatchObject({ kind: 'live' })
+  })
+})
+
 describe('hyperliquid setup', () => {
   const builder = { b: '0x1924b8561eef20e70ede628a296175d358be80e5' as Address, f: 10 }
   const day = 86_400_000
