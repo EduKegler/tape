@@ -383,6 +383,21 @@ test('a take profit or stop loss on the wrong side of the touch shows on its fie
   expect(orders(hyperliquid.sent)).toEqual([])
 })
 
+test('an order worth less than the venue minimum shows on the size field while typing', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  const size = ticket.getByRole('textbox', { name: 'Size (BTC)' })
+  // Hyperliquid refuses an order worth under 10 USDC, as its docs on order value say. 0.0001 at 70000 is 7.
+  await size.fill('0.0001')
+  await expect(size).toHaveAccessibleDescription(/^Must be worth at least 10\b/)
+  await size.fill('0.0002')
+  await expect(size).toHaveAccessibleDescription('')
+  expect(orders(hyperliquid.sent)).toEqual([])
+})
+
 const trailingStops = (sent: readonly ExchangeBody[]) =>
   sent.filter((body) => body.action.type === 'trailingStop').map((body) => body.action)
 

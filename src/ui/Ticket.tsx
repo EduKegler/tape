@@ -12,7 +12,6 @@ import {
   buildIntent,
   buildScale,
   checkCount,
-  checkExitPrices,
   checkPrice,
   checkRetracement,
   checkShare,
@@ -26,7 +25,7 @@ import { apportion } from '@tape/trade/scale-order'
 import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
-import type { Bps, Side, Tif, TradeError } from '@tape/trade/types'
+import type { Bps, Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import { useFrame } from '#/client/hooks'
@@ -43,6 +42,39 @@ import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market' | 'scale' | 'trailing'
+const DEFAULT_VALUES = {
+  price: '',
+  size: '',
+  tif: 'gtc' as Tif,
+  reduceOnly: false,
+  takeProfits: [{ price: '', share: '100' }] as TakeProfitDraft[],
+  stopLoss: '',
+  start: '',
+  end: '',
+  count: '5',
+  skew: '1',
+  retracement: '',
+  retracementUnit: 'pct' as 'pct' | 'px',
+  activation: '',
+}
+type TicketValues = typeof DEFAULT_VALUES
+const NO_CAPS: Capabilities = {
+  tif: ['gtc', 'ioc', 'post-only'],
+  triggers: null,
+  leverage: false,
+  scaleOrders: 0,
+  trailingStop: false,
+}
+const NO_ERRORS: Partial<Record<DraftField, string>> = {}
+type FieldShape = {
+  readonly name: string
+  readonly state: { readonly meta: { readonly isTouched: boolean; readonly errors: readonly (string | undefined)[] } }
+}
+const draftField = (name: string): DraftField | null => {
+  const row = /^takeProfits\[(\d+)\]\.price$/.exec(name)
+  if (row) return takeProfitField(Number(row[1]))
+  return name in FIELD_LABEL && name !== 'takeProfits' ? (name as DraftField) : null
+}
 const FIELD_LABEL = {
   price: 'Price',
   size: 'Size',
@@ -131,52 +163,34 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const [sent, setSent] = useState<string | null>(null)
   const draftOf = (values: object) => JSON.stringify([side, kind, protect, values])
   const margin = useMarginReading(ref, spec.venueSymbol)
+  const build = (value: TicketValues) => {
+    const exits = protect && takesExits(kind)
+    const rows = value.takeProfits
+    return buildIntent(
+      spec,
+      {
+        ...value,
+        takeProfits: !exits || (rows.length === 1 && !rows[0]?.price) ? [] : rows,
+        stopLoss: exits ? value.stopLoss : '',
+        side,
+        kind,
+        slippage: slippage as Bps,
+        bid: touch.bid,
+        ask: touch.ask,
+      },
+      caps ?? NO_CAPS,
+    )
+  }
   const form = useForm({
-    defaultValues: {
-      price: '',
-      size: '',
-      tif: 'gtc' as Tif,
-      reduceOnly: false,
-      takeProfits: [{ price: '', share: '100' }] as TakeProfitDraft[],
-      stopLoss: '',
-      start: '',
-      end: '',
-      count: '5',
-      skew: '1',
-      retracement: '',
-      retracementUnit: 'pct' as 'pct' | 'px',
-      activation: '',
-    },
+    defaultValues: DEFAULT_VALUES,
     onSubmit: ({ value }) => {
       if (!ref || !canSend || HOLDS.has(phaseOf(last, sent, draftOf(value)))) return
-      const exits = protect && takesExits(kind)
-      const rows = value.takeProfits
-      const takeProfits = !exits || (rows.length === 1 && !rows[0]?.price) ? [] : rows
-      const result = buildIntent(
-        spec,
-        {
-          ...value,
-          takeProfits,
-          stopLoss: exits ? value.stopLoss : '',
-          side,
-          kind,
-          slippage: slippage as Bps,
-          bid: touch.bid,
-          ask: touch.ask,
-        },
-        caps ?? {
-          tif: ['gtc', 'ioc', 'post-only'],
-          triggers: null,
-          leverage: false,
-          scaleOrders: 0,
-          trailingStop: false,
-        },
-      )
+      const result = build(value)
       if (!result.ok) {
         setBuilt({
           kind: 'invalid-order',
           detail: Object.entries(result.errors)
-            .map(([k, v]) => `${fieldLabel(k as DraftField, rows.length)}: ${v}`)
+            .map(([k, v]) => `${fieldLabel(k as DraftField, value.takeProfits.length)}: ${v}`)
             .join('; '),
         })
         return
@@ -187,20 +201,21 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
     },
   })
 
-  const exitSides = useSelector(
+  const drafted = useSelector(
     form.store,
-    (s) =>
-      checkExitPrices(spec, {
-        side,
-        kind,
-        price: s.values.price,
-        takeProfits: s.values.takeProfits,
-        stopLoss: s.values.stopLoss,
-        bid: touch.bid,
-        ask: touch.ask,
-      }),
+    (s): Partial<Record<DraftField, string>> => {
+      const result = build(s.values)
+      return result.ok ? NO_ERRORS : result.errors
+    },
     { compare: shallow },
   )
+  const fieldError = (field: FieldShape) => {
+    if (!field.state.meta.isTouched) return undefined
+    const own = field.state.meta.errors[0]
+    if (own) return own
+    const name = draftField(field.name)
+    return name ? drafted[name] : undefined
+  }
 
   useEffect(() => {
     if (proposed) form.setFieldValue('price', proposed.price)
@@ -261,7 +276,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                         value={field.state.value}
                         onBlur={field.handleBlur}
                         onChange={field.handleChange}
-                        error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                        error={fieldError(field)}
                         hint={<span className="text-level3">From the best price</span>}
                       />
                     )}
@@ -289,7 +304,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={field.handleChange}
-                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  error={fieldError(field)}
                   hint={<span className="text-level3">Empty to trail at once</span>}
                 />
               )}
@@ -305,7 +320,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={field.handleChange}
-                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                error={fieldError(field)}
                 hint={
                   near ? (
                     <Button look="quiet" onClick={() => field.handleChange(near)}>
@@ -328,7 +343,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={field.handleChange}
-                    error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                    error={fieldError(field)}
                     hint={
                       near ? (
                         <Button look="quiet" onClick={() => field.handleChange(near)}>
@@ -351,7 +366,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={field.handleChange}
-                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  error={fieldError(field)}
                   hint={<span className="text-level3">Up to {caps?.scaleOrders}</span>}
                 />
               )}
@@ -364,7 +379,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={field.handleChange}
-                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  error={fieldError(field)}
                   hint={<span className="text-level3">Last over first</span>}
                 />
               )}
@@ -379,7 +394,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               value={field.state.value}
               onBlur={field.handleBlur}
               onChange={field.handleChange}
-              error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+              error={fieldError(field)}
               hint={<span className="text-level3">Step {formatQty(spec.step, spec.scale)}</span>}
             />
           )}
@@ -452,11 +467,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                                 value={field.state.value}
                                 onBlur={field.handleBlur}
                                 onChange={field.handleChange}
-                                error={
-                                  field.state.meta.isTouched
-                                    ? (field.state.meta.errors[0] ?? exitSides[takeProfitField(i)])
-                                    : undefined
-                                }
+                                error={fieldError(field)}
                                 hint={null}
                               />
                             )}
@@ -475,7 +486,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                                   value={field.state.value}
                                   onBlur={field.handleBlur}
                                   onChange={field.handleChange}
-                                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                                  error={fieldError(field)}
                                   hint={null}
                                 />
                               )}
@@ -528,7 +539,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={field.handleChange}
-                  error={field.state.meta.isTouched ? (field.state.meta.errors[0] ?? exitSides.stopLoss) : undefined}
+                  error={fieldError(field)}
                   hint={null}
                 />
               )}
