@@ -141,6 +141,19 @@ describe('history totals', () => {
     ])
   })
 
+  it('sorts totals by group then asset whatever order they come in', () => {
+    const late = realize([
+      fill('buy', '1', '1', { venue: 'hyperliquid', asset: 'USDH', time: 1 }),
+      fill('buy', '1', '1', { venue: 'hyperliquid', time: 2 }),
+      fill('buy', '1', '1', { time: 3 }),
+    ])
+    expect(summarize(late, [], (e) => e.venue).map((t) => [t.group, t.asset])).toEqual([
+      ['dydx', 'USDC'],
+      ['hyperliquid', 'USDC'],
+      ['hyperliquid', 'USDH'],
+    ])
+  })
+
   it('never adds amounts settled in different assets', () => {
     const other = realize([fill('buy', '1', '1', { fee: '2' as Decimal, asset: 'USDH', time: 1 })])
     expect(summarize([...fills, ...other], [], () => 'all').map((t) => [t.asset, t.fees])).toEqual([
