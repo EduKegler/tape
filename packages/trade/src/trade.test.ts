@@ -250,7 +250,7 @@ describe('order intent', () => {
     for (const retracement of ['abc', '-1', '1.', '1,5', ' 1.5', '1e1'])
       expect(errors({ retracement })).toEqual({ retracement: 'Not a number' })
     expect(errors({ retracementUnit: 'px', retracement: '0' })).toEqual({ retracement: 'Price must be above zero' })
-    expect(errors({ activation: '82000.55' })).toEqual({ activation: 'At most 1 decimals' })
+    expect(errors({ activation: '82000.55' })).toEqual({ activation: 'At most 1 decimal' })
     expect(errors({ takeProfits: [tp('70000')], stopLoss: '85000' })).toEqual({
       takeProfits: 'Not with a trailing stop',
       stopLoss: 'Not with a trailing stop',

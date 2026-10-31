@@ -20,6 +20,9 @@ import type {
 
 const intentOf = (fields: IntentFields, clientId = newClientId()) => ({ ...fields, clientId }) as OrderIntent
 
+const atMost = (places: number) =>
+  places === 0 ? 'No decimals' : `At most ${places} ${places === 1 ? 'decimal' : 'decimals'}`
+
 export function checkPrice(spec: MarketSpec, value: string): string | undefined {
   if (!value) return 'Enter a price'
   try {
@@ -28,8 +31,7 @@ export function checkPrice(spec: MarketSpec, value: string): string | undefined 
     const tick = priceTick(spec, px)
     if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
   } catch (e) {
-    if (e instanceof DecimalError)
-      return e.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
+    if (e instanceof DecimalError) return e.reason === 'precision' ? atMost(spec.scale.px) : 'Not a number'
     throw e
   }
   return undefined
@@ -42,8 +44,7 @@ export function checkSize(spec: MarketSpec, value: string): string | undefined {
     if (qty < spec.step) return `Minimum is ${formatQty(spec.step, spec.scale)}`
     if (qty % spec.step !== 0) return `Size must be a multiple of ${formatQty(spec.step, spec.scale)}`
   } catch (e) {
-    if (e instanceof DecimalError)
-      return e.reason === 'precision' ? `At most ${spec.scale.qty} decimals` : 'Not a number'
+    if (e instanceof DecimalError) return e.reason === 'precision' ? atMost(spec.scale.qty) : 'Not a number'
     throw e
   }
   return undefined
