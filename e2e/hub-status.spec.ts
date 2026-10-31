@@ -89,3 +89,19 @@ test('a dedicated hub counts only its own tab and stays out of the shared one', 
   await expect(footer(shared).getByText('Tabs 1', { exact: true })).toBeVisible()
   await expectAccessible(page)
 })
+
+test('with every socket down the status bar says prices are frozen, in its own height', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const box = () => footer(page).boundingBox()
+  const live = await box()
+  for (const venue of ['binance', 'hyperliquid', 'dydx', 'orderly'] as const) await send(page, { drop: venue })
+  await expect(footer(page).getByText('Sockets 0', { exact: true })).toBeVisible()
+  await expect(
+    footer(page).getByText(
+      'Offline. No venue socket is open, so every price on screen is frozen. Tape keeps retrying.',
+    ),
+  ).toBeVisible()
+  expect(await box()).toEqual(live)
+  await expectAccessible(page)
+})
