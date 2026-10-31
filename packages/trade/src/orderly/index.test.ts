@@ -51,12 +51,21 @@ interface Sent {
   readonly body: string | undefined
 }
 
-function orderlyAt(answer: (sent: Sent) => { status?: number; body: string }) {
+function orderlyAt(
+  answer: (sent: Sent) => { status?: number; body: string },
+  info: (url: string) => Response = () => new Response(INFO),
+) {
   const sent: Sent[] = []
+  const reads: string[] = []
+  const headers: Record<string, string>[] = []
   const fetch = (async (url: string, init?: RequestInit) => {
-    if (url.includes('/v1/public/info/')) return new Response(INFO)
+    if (url.includes('/v1/public/info/')) {
+      reads.push(url)
+      return info(url)
+    }
     const request = { method: init?.method ?? 'GET', url, body: init?.body as string | undefined }
     sent.push(request)
+    headers.push({ ...(init?.headers as Record<string, string> | undefined) })
     const reply = answer(request)
     return new Response(reply.body, { status: reply.status ?? 200 })
   }) as typeof globalThis.fetch
@@ -75,11 +84,11 @@ function orderlyAt(answer: (sent: Sent) => { status?: number; body: string }) {
     },
     fetch,
   }
-  return { ctx, sent }
+  return { ctx, sent, reads, headers }
 }
 
-function intentOf(fields: Partial<typeof draft> | Record<string, string>) {
-  const built = buildIntent(perp, { ...draft, ...fields }, orderly.capabilities)
+function intentOf(fields: Partial<typeof draft> | Record<string, string>, spec = perp) {
+  const built = buildIntent(spec, { ...draft, ...fields }, orderly.capabilities)
   if (!built.ok) throw new Error(JSON.stringify(built.errors))
   return built.intent
 }
@@ -89,6 +98,22 @@ const failureOf = (run: Promise<unknown>) =>
     () => undefined,
     (e: unknown) => (e instanceof TradeFailure ? e.error : e),
   )
+
+const BAD_GATEWAY = () => new Response('<html>502 Bad Gateway</html>', { status: 502 })
+const eth: MarketSpec = {
+  ...perp,
+  key: marketKey('orderly', 'ETH' as Base),
+  base: 'ETH' as Base,
+  venueSymbol: 'PERP_ETH_USDC',
+  scale: { px: 2, qty: 4 },
+}
+const sol: MarketSpec = {
+  ...perp,
+  key: marketKey('orderly', 'SOL' as Base),
+  base: 'SOL' as Base,
+  venueSymbol: 'PERP_SOL_USDC',
+  scale: { px: 3, qty: 2 },
+}
 
 describe('orderly orders', () => {
   it('sends a single order with the side, type, price and size the user chose', async () => {
@@ -213,5 +238,48 @@ describe('orderly cancels', () => {
     expect(all.sent).toEqual([
       { method: 'DELETE', url: 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC', body: undefined },
     ])
+  })
+})
+
+describe('orderly reads', () => {
+  it('calls a market rules read that fails unreachable, sends no order, and reads the rules again', async () => {
+    // quote_tick and base_tick from the recorded api.orderly.org/v1/public/info frames for ETH and SOL.
+    const rules: Record<string, string> = {
+      PERP_ETH_USDC: '{"success":true,"data":{"symbol":"PERP_ETH_USDC","quote_tick":0.01,"base_tick":0.0001}}',
+      PERP_SOL_USDC: '{"success":true,"data":{"symbol":"PERP_SOL_USDC","quote_tick":0.001,"base_tick":0.01}}',
+    }
+    let down = true
+    const { ctx, sent, reads } = orderlyAt(
+      () => ({ body: PLACED }),
+      (url) => (down ? BAD_GATEWAY() : new Response(rules[url.split('/').at(-1) ?? ''])),
+    )
+    const order = { kind: 'place', intent: intentOf({ price: '2330.55', size: '0.01' }, eth) } as const
+    expect(await failureOf(orderly.execute(ctx, order))).toMatchObject({ kind: 'unreachable' })
+    expect(sent).toEqual([])
+    down = false
+    expect(await orderly.execute(ctx, order)).toMatchObject({ kind: 'placed' })
+    await orderly.execute(ctx, { kind: 'place', intent: intentOf({ price: '150.125', size: '0.5' }, sol) })
+    expect(reads).toEqual([
+      'https://testnet-api.orderly.org/v1/public/info/PERP_ETH_USDC',
+      'https://testnet-api.orderly.org/v1/public/info/PERP_ETH_USDC',
+      'https://testnet-api.orderly.org/v1/public/info/PERP_SOL_USDC',
+    ])
+    expect(sent.map((s) => s.url)).toEqual([
+      'https://testnet-api.orderly.org/v1/order',
+      'https://testnet-api.orderly.org/v1/order',
+    ])
+  })
+
+  it('fails a history read Orderly cannot answer instead of calling it empty', async () => {
+    const down = [
+      async () => BAD_GATEWAY(),
+      async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    ]
+    for (const fetch of down) {
+      const read = orderly.history({ network: 'mainnet', address: '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6', fetch })
+      expect(await failureOf(read)).toMatchObject({ kind: 'unreachable' })
+    }
   })
 })
