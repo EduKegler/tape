@@ -146,3 +146,22 @@ for (const path of ['/dydx/xyz:TSLA', '/dydx/xyz%3ATSLA'])
       'page',
     )
   })
+
+test('the venues table is one Tab stop, the arrows walk it and Enter opens a venue', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const venues = panel(page, 'Venues')
+  await venues.getByRole('group', { name: 'Venue list' }).focus()
+  await expect(venues.getByRole('row', { name: /^Binance/ })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(venues.getByRole('row', { name: /^dYdX/ })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/dydx\/BTC\?/)
+})
+
+test('the venues table marks the best bid and the best ask in text', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const venues = panel(page, 'Venues')
+  await expect(venues.getByRole('row', { name: /^Binance/ })).toContainText('Best bid')
+  await expect(venues.getByRole('row', { name: /^Orderly/ })).toContainText('Best ask')
+})

@@ -40,7 +40,10 @@ export function Table<T>({
             <tr
               key={rowKey(row)}
               aria-current={current}
+              data-row={onRowClick ? true : undefined}
+              tabIndex={onRowClick ? -1 : undefined}
               onClick={onRowClick && (() => onRowClick(row))}
+              onKeyDown={onRowClick && ((e) => e.key === 'Enter' && onRowClick(row))}
               className={
                 isCurrent
                   ? 'h-7.5 cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:text-level1'

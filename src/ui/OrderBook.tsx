@@ -4,7 +4,7 @@ import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
-import { Panel } from './Panel'
+import { Panel, useRowKeys } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
@@ -29,6 +29,7 @@ export function OrderBook({
     (f) => ({ group: f?.group ?? group, options: f?.groupOptions.join('|') ?? '', status: f?.status ?? 'syncing' }),
     shallow,
   )
+  const keys = useRowKeys()
   return (
     <Panel
       title="Order book"
@@ -56,16 +57,18 @@ export function OrderBook({
           <span className="text-right">Size</span>
           <span className="text-right">Total</span>
         </div>
-        <div className="flex flex-1 flex-col">
-          {ASK_SLOTS.map((i) => (
-            <Row key={`a${i}`} topic={topic} side="asks" index={i} />
-          ))}
-        </div>
-        <Spread topic={topic} />
-        <div className="flex flex-1 flex-col">
-          {BID_SLOTS.map((i) => (
-            <Row key={`b${i}`} topic={topic} side="bids" index={i} />
-          ))}
+        <div role="group" aria-label="Price levels" {...keys} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
+            {ASK_SLOTS.map((i) => (
+              <Row key={`a${i}`} topic={topic} side="asks" index={i} />
+            ))}
+          </div>
+          <Spread topic={topic} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            {BID_SLOTS.map((i) => (
+              <Row key={`b${i}`} topic={topic} side="bids" index={i} />
+            ))}
+          </div>
         </div>
       </div>
     </Panel>
@@ -78,19 +81,29 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
   return (
     <Button
       look="row"
-      tabIndex={row.px ? 0 : -1}
+      data-row
+      tabIndex={-1}
       aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
-      className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3"
+      className="relative grid min-h-0 w-full flex-1 grid-cols-3 items-center px-3"
     >
       <span
         aria-hidden
         className={`absolute inset-y-0 right-0 w-full origin-right ${ask ? 'bg-ask-wash' : 'bg-bid-wash'}`}
         style={{ transform: `scaleX(${row.fill})` }}
       />
-      <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>{row.px}</span>
-      <span className="relative text-right text-level1">{row.qty}</span>
-      <span className="relative text-right text-level3">{row.cum}</span>
+      <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>
+        <span className="sr-only">{ask ? 'Ask' : 'Bid'} </span>
+        {row.px}
+      </span>
+      <span className="relative text-right text-level1">
+        <span className="sr-only">size </span>
+        {row.qty}
+      </span>
+      <span className="relative text-right text-level3">
+        <span className="sr-only">total </span>
+        {row.cum}
+      </span>
     </Button>
   )
 })
@@ -102,8 +115,8 @@ function Spread({ topic }: { topic: BookTopic }) {
     shallow,
   )
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="text-base text-level1">{s.mid || '—'}</span>
+    <div className="flex h-9 shrink-0 items-center justify-between border-y border-rule px-3">
+      <span className="text-xl leading-none text-level1">{s.mid || '—'}</span>
       <span className="text-xs whitespace-nowrap text-level3">
         {s.status === 'live' && `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`}
       </span>

@@ -85,3 +85,12 @@ Screens approved for the visual direction. Layout in them may be ahead of the co
 - `reference/ticket-warning.png`: a limit price far from the market gets a `warn` line under the field, and the button stays live.
 - `reference/history-error.png`: `/history` when a venue did not answer. Read wording, Retry per venue, and no totals beside the failure.
 - `reference/deposit-summary.png`: the Deposit dialog on `raised`. The summary is the confirmation, and the one button names the amount and the source chain.
+
+Screens from the code, on the replay build. The market panels and the header look like this today.
+
+- `reference/market-live.png`: the market panels live at 1440×900. Lockup in the header, last price at 22 px with the side arrow, book mid at 22 px, `▲` and `▼` on trades, `●` on the best venue bid and ask.
+- `reference/market-1280.png`: the same at 1280×800, with all 28 book levels in view.
+- `reference/market-stale.png`: Hyperliquid went quiet. Each panel keeps its data and says `Reconnecting` with the age.
+- `reference/market-offline.png`: no socket left. Every panel says `Offline` with its age.
+- `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry.
+- `reference/market-focus.png`: the book holds keyboard focus. One Tab stop, and the arrows move the focus ring between levels.

@@ -14,7 +14,7 @@ test('the ticker shows the last trade and the perp stats Hyperliquid recorded', 
     'Funding 1h',
     'Index',
   ])
-  await expect(ticker(page)).toHaveText(['80,589', '-0.40%', '2.11B', '+0.0013%', '80,641.2'])
+  await expect(ticker(page)).toHaveText(['▲Buy 80,589', '-0.40%', '2.11B', '+0.0013%', '80,641.2'])
   await expectAccessible(page)
 })
 
@@ -27,7 +27,7 @@ test("the trade feed lists the newest trade first in the browser's time zone", a
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const trades = panel(page, 'Trades')
   await expect(trades.getByText('Loading…')).toBeHidden()
-  await expect(trades.getByRole('button').first()).toHaveAccessibleName('80,589 0.00062 01:40:06')
+  await expect(trades.getByRole('button').first()).toHaveAccessibleName('Buy 80,589 size 0.00062 at 01:40:06')
 })
 
 test('the depth chart draws the book', async ({ page }) => {

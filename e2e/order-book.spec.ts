@@ -2,7 +2,9 @@ import type { Locator } from '@playwright/test'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 const rowPrices = async (book: Locator) =>
-  [...(await book.ariaSnapshot()).matchAll(/button "([\d,.]+) /g)].map((m) => Number(m[1]?.replaceAll(',', '')))
+  [...(await book.ariaSnapshot()).matchAll(/button "(?:Bid|Ask) ([\d,.]+) /g)].map((m) =>
+    Number(m[1]?.replaceAll(',', '')),
+  )
 
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false })
@@ -25,8 +27,8 @@ test('grouping the book rounds every price to the group and writes it into the U
   await expect(group.getByRole('option')).toHaveText(['1', '2', '5', '10', '25', '50'])
   await group.selectOption('10')
   await expect(page).toHaveURL(/[?&]group=10(&|$)/)
-  await expect(book.getByRole('button', { name: /^80,590 / })).toBeVisible()
-  await expect(book.getByRole('button', { name: /^80,600 / })).toBeVisible()
+  await expect(book.getByRole('button', { name: /^(Bid|Ask) 80,590 / })).toBeVisible()
+  await expect(book.getByRole('button', { name: /^(Bid|Ask) 80,600 / })).toBeVisible()
   const prices = await rowPrices(book)
   expect(prices.length).toBeGreaterThan(0)
   expect(prices.filter((px) => px % 10 !== 0)).toEqual([])
@@ -38,10 +40,30 @@ test('clicking the best bid puts its price into the ticket', async ({ page }) =>
   const ticket = panel(page, 'Order ticket')
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
   await expect(price).toHaveValue('')
-  await expect(ticket.getByRole('button', { name: 'Bid 80595', exact: true })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Bid 80,595', exact: true })).toBeVisible()
   await panel(page, 'Order book')
-    .getByRole('button', { name: /^80,595 / })
+    .getByRole('button', { name: /^Bid 80,595 / })
     .click()
   await expect(price).toHaveValue('80595')
   await expectAccessible(page)
+})
+
+test('the book and the trades are one Tab stop each, and the arrows walk their rows', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const book = panel(page, 'Order book')
+  await book.getByRole('combobox', { name: 'Group' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(book.getByRole('button', { name: /^Ask 80,609 / })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(book.getByRole('button', { name: /^Ask 80,608 / })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(book.getByRole('button', { name: /^Bid 80,57\d / }).last()).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(panel(page, 'Trades').getByRole('button').first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(panel(page, 'Trades').getByRole('button').nth(1)).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(book.getByRole('button', { name: /^Bid 80,57\d / }).last()).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(panel(page, 'Order ticket').getByRole('textbox', { name: 'Price (USDC)' })).toHaveValue(/^8057\d$/)
 })

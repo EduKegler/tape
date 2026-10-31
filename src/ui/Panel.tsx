@@ -1,5 +1,46 @@
-import type { ReactNode } from 'react'
+import { useRef, useState } from 'react'
+import type { FocusEvent, KeyboardEvent, ReactNode } from 'react'
 import { Button } from './primitives'
+
+const rowsIn = (list: HTMLElement) => [...list.querySelectorAll<HTMLElement>('[data-row]:not([aria-hidden="true"])')]
+
+const STEPS: Record<string, (at: number, last: number) => number> = {
+  ArrowDown: (at, last) => Math.min(at + 1, last),
+  ArrowUp: (at) => Math.max(at - 1, 0),
+  Home: () => 0,
+  End: (_, last) => last,
+}
+
+export function useRowKeys() {
+  const [inside, setInside] = useState(false)
+  const last = useRef<HTMLElement | null>(null)
+  return {
+    tabIndex: inside ? -1 : 0,
+    onFocus: (e: FocusEvent<HTMLElement>) => {
+      if (e.target !== e.currentTarget) {
+        last.current = e.target
+        setInside(true)
+        return
+      }
+      const rows = rowsIn(e.currentTarget)
+      const back = last.current && rows.includes(last.current) ? last.current : rows[0]
+      back?.focus()
+    },
+    onBlur: (e: FocusEvent<HTMLElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) setInside(false)
+    },
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      const step = STEPS[e.key]
+      if (!step) return
+      const rows = rowsIn(e.currentTarget)
+      const to = rows[step(rows.indexOf(document.activeElement as HTMLElement), rows.length - 1)]
+      if (!to) return
+      e.preventDefault()
+      to.focus()
+      to.scrollIntoView({ block: 'nearest' })
+    },
+  }
+}
 
 export function Panel({
   title,

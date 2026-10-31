@@ -22,7 +22,7 @@ for (const venue of VENUE_IDS)
   test(`the ${venue} book goes live from the replay with every bid below every ask`, async ({ page }) => {
     await openMarket(page, `/${venue}/BTC?interval=1m`)
     const rows = await panel(page, 'Order book').getByRole('button').allInnerTexts()
-    const prices = rows.map((row) => Number(row.split(/\s+/)[0]?.replaceAll(',', '')))
+    const prices = rows.map((row) => Number(/[\d,.]+/.exec(row)?.[0].replaceAll(',', '')))
     const asks = prices.slice(0, prices.length / 2).filter(Boolean)
     const bids = prices.slice(prices.length / 2).filter(Boolean)
     expect(asks.length).toBeGreaterThan(0)

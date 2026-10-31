@@ -73,16 +73,16 @@ test('the touch hint fills the price with the best bid, or the best ask on a sel
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
-  await ticket.getByRole('button', { name: 'Bid 80595', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Bid 80,595', exact: true }).click()
   await expect(price).toHaveValue('80595')
   await ticket.getByRole('button', { name: 'sell', exact: true }).click()
-  await ticket.getByRole('button', { name: 'Ask 80596', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Ask 80,596', exact: true }).click()
   await expect(price).toHaveValue('80596')
 })
 
 test('clicking a trade puts its price into the ticket', async ({ page }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  await panel(page, 'Trades').getByRole('button', { name: '80,589 0.00062', exact: false }).first().click()
+  await panel(page, 'Trades').getByRole('button', { name: 'Buy 80,589 size 0.00062', exact: false }).first().click()
   await expect(ticketOf(page).getByRole('textbox', { name: 'Price (USDC)' })).toHaveValue('80589')
 })
 
