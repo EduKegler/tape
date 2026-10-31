@@ -3,6 +3,7 @@ import { parseExactJson } from '@tape/core/json'
 import { readOrderlyMarket, readOrderlyMarkets } from './markets'
 import { VenueParseError, chartBar, getExactJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
+import { isPairs, isText } from './wire'
 
 const symbolOf = (base: Base) => `PERP_${base}_USDC`
 const RESOLUTION: Record<Interval, string> = { '1m': '1', '5m': '5', '15m': '15', '1h': '60' }
@@ -10,24 +11,32 @@ const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15
 const KLINE: Record<Interval, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h' }
 const INTERVAL_OF = Object.fromEntries(Object.entries(KLINE).map(([k, v]) => [v, k])) as Record<string, Interval>
 
+interface WireBook {
+  bids: RawLevel[]
+  asks: RawLevel[]
+}
+interface WireTrade {
+  price: string
+  size: string
+  side: 'BUY' | 'SELL'
+}
+interface WireKline {
+  open: string
+  close: string
+  high: string
+  low: string
+  volume: string
+  startTime: string
+}
 type Wire =
-  | { topic: string; ts: string; data: { symbol: string; bids: RawLevel[]; asks: RawLevel[] } }
-  | { topic: string; ts: string; data: { symbol: string; price: string; size: string; side: 'BUY' | 'SELL' } }
-  | {
-      topic: string
-      ts: string
-      data: {
-        symbol: string
-        type: string
-        open: string
-        close: string
-        high: string
-        low: string
-        volume: string
-        startTime: string
-      }
-    }
+  | { topic: string; ts: string; data?: Partial<WireBook & WireTrade & WireKline> | null }
   | { event: 'ping' | 'pong' | 'subscribe' | 'unsubscribe'; success?: boolean; topic?: undefined }
+
+const isBook = (d: Partial<WireBook>): d is WireBook => isPairs(d.bids) && isPairs(d.asks)
+const isTrade = (d: Partial<WireTrade>): d is WireTrade =>
+  isText(d.price) && isText(d.size) && (d.side === 'BUY' || d.side === 'SELL')
+const isKline = (d: Partial<WireKline>): d is WireKline =>
+  [d.open, d.close, d.high, d.low, d.volume, d.startTime].every(isText)
 
 function topicOf(target: StreamTarget): string {
   const symbol = target.spec.venueSymbol
@@ -69,14 +78,15 @@ export function orderly(network: Network): VenueAdapter {
         if (m.event === 'subscribe' && m.success === false) throw new VenueParseError('orderly', null, raw)
         return []
       }
-      const [symbol, stream] = m.topic.split('@') as [string, string]
+      const [symbol = '', stream = ''] = m.topic.split('@')
       const market = symbols(symbol)
       if (!market) return []
+      if (!isText(m.ts)) throw new VenueParseError('orderly', market, raw)
+      const d = m.data ?? {}
       const time = Number(m.ts)
-      if (stream === 'orderbook' && 'bids' in m.data)
-        return [{ kind: 'book-snapshot', market, bids: m.data.bids, asks: m.data.asks, time }]
-      if (stream === 'trade' && 'price' in m.data) {
-        const d = m.data
+      if (stream === 'orderbook' && isBook(d))
+        return [{ kind: 'book-snapshot', market, bids: d.bids, asks: d.asks, time }]
+      if (stream === 'trade' && isTrade(d)) {
         return [
           {
             kind: 'trades',
@@ -93,10 +103,9 @@ export function orderly(network: Network): VenueAdapter {
           },
         ]
       }
-      if (stream.startsWith('kline_') && 'open' in m.data) {
+      if (stream.startsWith('kline_') && isKline(d)) {
         const interval = INTERVAL_OF[stream.slice('kline_'.length)]
         if (!interval) return []
-        const d = m.data
         return [
           {
             kind: 'candle',

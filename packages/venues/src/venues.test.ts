@@ -7,6 +7,7 @@ import type { Base, MarketKey, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedFetch, wsFrames } from './fixtures'
 import { toCandle, toLevels, toTrades } from './normalize'
+import { VenueParseError } from './types'
 import { venues } from './index'
 
 const RECORDED_ON = NETWORKS.find((network) => network === (process.env.NETWORK ?? 'mainnet'))
@@ -296,5 +297,78 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
       orderly: /PERP_ETH_USDC@orderbook.*PERP_ETH_USDC@kline_5m/s,
     }
     expect(frames.join('\n')).toMatch(expected[venue])
+  })
+})
+
+// The fields each recorded message in __fixtures__/*.ws.jsonl carries and Tape reads.
+const REQUIRED: { venue: VenueId; frame: string[]; at: (string | number)[]; fields: (string | number)[] }[] = [
+  { venue: 'binance', frame: ['"e":"depthUpdate"'], at: ['data'], fields: ['E', 'U', 'u', 'b', 'a'] },
+  { venue: 'binance', frame: ['"e":"trade"'], at: ['data'], fields: ['t', 'p', 'q', 'T', 'm'] },
+  { venue: 'binance', frame: ['"e":"kline"'], at: ['data'], fields: ['k'] },
+  { venue: 'binance', frame: ['"e":"kline"'], at: ['data', 'k'], fields: ['t', 'i', 'o', 'h', 'l', 'c', 'v'] },
+  { venue: 'hyperliquid', frame: ['"l2Book"', '"levels"'], at: ['data'], fields: ['time', 'levels'] },
+  { venue: 'hyperliquid', frame: ['"l2Book"', '"levels"'], at: ['data', 'levels'], fields: [1] },
+  { venue: 'hyperliquid', frame: ['"l2Book"', '"levels"'], at: ['data', 'levels', 0, 0], fields: ['px', 'sz'] },
+  { venue: 'hyperliquid', frame: ['"channel":"trades"'], at: ['data', 0], fields: ['side', 'px', 'sz', 'time', 'tid'] },
+  { venue: 'hyperliquid', frame: ['"channel":"candle"'], at: ['data'], fields: ['t', 'i', 'o', 'c', 'h', 'l', 'v'] },
+  { venue: 'dydx', frame: ['"subscribed"', 'v4_orderbook'], at: [], fields: ['contents'] },
+  { venue: 'dydx', frame: ['"subscribed"', 'v4_orderbook'], at: ['contents', 'bids', 0], fields: ['price', 'size'] },
+  { venue: 'dydx', frame: ['"channel_data"', 'v4_orderbook', '"asks"'], at: [], fields: ['contents'] },
+  { venue: 'dydx', frame: ['"channel_data"', 'v4_orderbook', '"asks"'], at: ['contents', 'asks', 0], fields: [1] },
+  { venue: 'dydx', frame: ['"subscribed"', 'v4_trades'], at: ['contents'], fields: ['trades'] },
+  {
+    venue: 'dydx',
+    frame: ['"subscribed"', 'v4_trades'],
+    at: ['contents', 'trades', 0],
+    fields: ['id', 'side', 'size', 'price', 'createdAt'],
+  },
+  {
+    venue: 'dydx',
+    frame: ['"subscribed"', 'v4_candles'],
+    at: ['contents', 'candles', 0],
+    fields: ['startedAt', 'open', 'high', 'low', 'close', 'baseTokenVolume'],
+  },
+  { venue: 'orderly', frame: ['@orderbook"'], at: [], fields: ['ts'] },
+  { venue: 'orderly', frame: ['@orderbook"'], at: ['data'], fields: ['bids', 'asks'] },
+  { venue: 'orderly', frame: ['@trade"'], at: ['data'], fields: ['price', 'size', 'side'] },
+  {
+    venue: 'orderly',
+    frame: ['@kline_1m"'],
+    at: ['data'],
+    fields: ['open', 'close', 'high', 'low', 'volume', 'startTime'],
+  },
+]
+
+function without(raw: string, at: readonly (string | number)[], field: string | number): string {
+  const json = JSON.parse(raw) as Record<string | number, unknown>
+  let parent = json
+  for (const key of at) parent = parent[key] as typeof json
+  if (Array.isArray(parent)) parent.splice(Number(field), 1)
+  else Reflect.deleteProperty(parent, field)
+  return JSON.stringify(json)
+}
+
+describe('a known message missing a field', () => {
+  const cases = REQUIRED.flatMap(({ venue, frame, at, fields }) =>
+    fields.map((field) => ({
+      venue,
+      frame,
+      at,
+      field,
+      name: `${venue} ${frame.join(' ')} without ${[...at, field].join('.')}`,
+    })),
+  )
+  it.each(cases)('$name throws a VenueParseError for its market', async ({ venue, frame, at, field }) => {
+    const { lookup } = await specsOf(venue)
+    const recorded = wsFrames(venue).find((raw) => frame.every((part) => raw.includes(part)))!
+    expect(venues(RECORDED_ON)[venue].parse(recorded, lookup)).not.toEqual([])
+    let error: unknown
+    try {
+      venues(RECORDED_ON)[venue].parse(without(recorded, at, field), lookup)
+    } catch (thrown) {
+      error = thrown
+    }
+    expect(error).toBeInstanceOf(VenueParseError)
+    expect(error).toMatchObject({ venue, market: marketKey(venue, BTC) })
   })
 })

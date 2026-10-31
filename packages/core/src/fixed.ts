@@ -112,13 +112,14 @@ export function formatNotional(value: bigint, scale: Scale, decimals = 2): strin
 }
 
 export function rescalePx(px: Px, from: Decimals, to: Decimals): Px {
-  const units = px * 10 ** (to - from)
-  if (!Number.isSafeInteger(units)) throw new DecimalError(String(px), 'unsafe')
+  const units = to >= from ? px * 10 ** (to - from) : px / 10 ** (from - to)
+  if (!Number.isSafeInteger(units)) throw new DecimalError(String(px), Number.isInteger(units) ? 'unsafe' : 'precision')
   return units as Px
 }
 
-/** (ask - bid) / mid in basis points, exact to 2 dp. */
+/** (ask - bid) / mid in basis points to 2 dp, truncated toward zero. Empty when the mid is zero. */
 export function spreadBps(bid: Px, ask: Px): string {
+  if (bid + ask === 0) return ''
   const hundredths = (BigInt(ask - bid) * 2n * 1_000_000n) / BigInt(bid + ask)
   return formatUnits(hundredths, 2, 2)
 }

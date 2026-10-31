@@ -93,6 +93,26 @@ describe('decimal properties', () => {
       }),
     )
   })
+
+  it('rescales a price on a coarser scale to its exact steps there', () => {
+    fc.assert(
+      fc.property(units, decimals, decimals, (seed, from, to) => {
+        fc.pre(to < from)
+        const step = 10n ** BigInt(from - to)
+        const steps = BigInt(seed) / step
+        expect(rescalePx(Number(steps * step) as Px, from, to)).toBe(Number(steps))
+      }),
+    )
+  })
+
+  it('refuses to rescale to a coarser scale a price between its steps', () => {
+    fc.assert(
+      fc.property(units, decimals, decimals, (value, from, to) => {
+        fc.pre(to < from && BigInt(value) % 10n ** BigInt(from - to) !== 0n)
+        expect(() => rescalePx(value as Px, from, to)).toThrow(new DecimalError(String(value), 'precision'))
+      }),
+    )
+  })
 })
 
 describe('parsePx', () => {
@@ -150,9 +170,17 @@ describe('cross-scale math', () => {
     expect(() => rescalePx(parsePx('100000000', { px: 0, qty: 4 }), 0, 8)).toThrow(DecimalError)
   })
 
-  it('computes spread in basis points', () => {
+  it('rescales to a coarser scale without a float remainder', () => {
+    expect(rescalePx(parsePx('823678.362', { px: 8, qty: 0 }), 8, 3)).toBe(823678362)
+  })
+
+  it('computes spread in basis points, truncated to 2 dp', () => {
     expect(spreadBps(parsePx('100.00', btc), parsePx('100.10', btc))).toBe('9.99')
     expect(spreadBps(parsePx('81029.43', btc), parsePx('81029.44', btc))).toBe('0.00')
+  })
+
+  it('leaves the spread empty when bid and ask are both zero', () => {
+    expect(spreadBps(parsePx('0', btc), parsePx('0', btc))).toBe('')
   })
 
   it('leaves the integer domain only through toDisplayFloat', () => {
