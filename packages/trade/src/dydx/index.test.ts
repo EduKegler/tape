@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
+import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import type { IntentDraft } from '../intent'
@@ -47,9 +48,9 @@ const markets = {
   },
 }
 const btc: MarketSpec = {
-  key: marketKey('dydx', 'BTC'),
+  key: marketKey('dydx', 'BTC' as Base),
   venue: 'dydx',
-  base: 'BTC',
+  base: 'BTC' as Base,
   quote: 'USD',
   kind: 'perp',
   venueSymbol: 'BTC-USD',
@@ -256,15 +257,15 @@ const solMarkets = {
 }
 const eth: MarketSpec = {
   ...btc,
-  key: marketKey('dydx', 'ETH'),
-  base: 'ETH',
+  key: marketKey('dydx', 'ETH' as Base),
+  base: 'ETH' as Base,
   venueSymbol: 'ETH-USD',
   scale: { px: 1, qty: 3 },
 }
 const sol: MarketSpec = {
   ...btc,
-  key: marketKey('dydx', 'SOL'),
-  base: 'SOL',
+  key: marketKey('dydx', 'SOL' as Base),
+  base: 'SOL' as Base,
   venueSymbol: 'SOL-USD',
   scale: { px: 2, qty: 1 },
 }

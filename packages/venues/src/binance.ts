@@ -1,20 +1,9 @@
-import { BASES, marketKey } from '@tape/core/ids'
 import type { Base, Interval, Network } from '@tape/core/ids'
-import { decimalsOf, parsePx, parseQty } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
+import { readBinanceMarket, readBinanceMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
 
 const symbolOf = (base: Base) => `${base}USDT`
-
-interface Filter {
-  filterType: string
-  tickSize?: string
-  stepSize?: string
-}
-interface ExchangeInfo {
-  symbols: { symbol: string; baseAsset: string; filters: Filter[] }[]
-}
 
 type Wire =
   | { e: 'depthUpdate'; E: number; s: string; U: number; u: number; b: RawLevel[]; a: RawLevel[] }
@@ -58,32 +47,8 @@ export function binance(network: Network): VenueAdapter {
     keepalive: null,
     silenceMs: 30_000,
 
-    async fetchSpecs(fetch, signal) {
-      const symbols = encodeURIComponent(JSON.stringify(BASES.map(symbolOf)))
-      const info = await getJson<ExchangeInfo>(fetch, `${rest}/exchangeInfo?symbols=${symbols}`, {
-        signal: signal ?? null,
-      })
-      const specs = new Map<Base, MarketSpec>()
-      for (const base of BASES) {
-        const s = info.symbols.find((x) => x.symbol === symbolOf(base))
-        const tick = s?.filters.find((f) => f.filterType === 'PRICE_FILTER')?.tickSize
-        const step = s?.filters.find((f) => f.filterType === 'LOT_SIZE')?.stepSize
-        if (!s || !tick || !step) continue
-        const scale = { px: decimalsOf(tick), qty: decimalsOf(step) }
-        specs.set(base, {
-          key: marketKey('binance', base),
-          venue: 'binance',
-          base,
-          quote: 'USDT',
-          kind: 'spot',
-          venueSymbol: s.symbol,
-          scale,
-          tick: { kind: 'fixed', tick: parsePx(tick, scale) },
-          step: parseQty(step, scale),
-        })
-      }
-      return specs
-    },
+    fetchMarkets: (fetch, signal) => readBinanceMarkets(fetch, rest, signal),
+    fetchMarket: (base, fetch, signal) => readBinanceMarket(fetch, rest, base, signal),
 
     subscribeFrames: (targets) => control('SUBSCRIBE', targets),
     unsubscribeFrames: (targets) => control('UNSUBSCRIBE', targets),

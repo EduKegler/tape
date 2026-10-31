@@ -29,7 +29,7 @@ const venues = {
     trade: '"stream":"btcusdt@trade"',
     rest: {
       depth: `https://${host.binance.rest}/api/v3/depth?symbol=BTCUSDT&limit=1000`,
-      exchangeInfo: `https://${host.binance.rest}/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
+      markets: `https://${host.binance.rest}/api/v3/exchangeInfo?permissions=SPOT&symbolStatus=TRADING&showPermissionSets=false`,
       klines: `https://${host.binance.rest}/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5`,
       ticker: `https://${host.binance.rest}/api/v3/ticker/24hr?symbol=BTCUSDT`,
     },
@@ -40,9 +40,12 @@ const venues = {
       .map((type) => ({ method: 'subscribe', subscription: { type, coin: 'BTC' } }))
       .concat({ method: 'subscribe', subscription: { type: 'candle', coin: 'BTC', interval: '1m' } }),
     trade: '"channel":"trades"',
+    keepalive: { everyMs: 30_000, frame: '{"method":"ping"}' },
     rest: {},
     post: {
       meta: { type: 'meta' },
+      allPerpMetas: { type: 'allPerpMetas' },
+      perpDexs: { type: 'perpDexs' },
       metaAndAssetCtxs: { type: 'metaAndAssetCtxs' },
       candleSnapshot: {
         type: 'candleSnapshot',
@@ -59,6 +62,7 @@ const venues = {
     ],
     trade: '"channel":"v4_trades"',
     rest: {
+      markets: `https://${host.dydx}/v4/perpetualMarkets`,
       'markets-BTC': `https://${host.dydx}/v4/perpetualMarkets?ticker=BTC-USD`,
       'markets-ETH': `https://${host.dydx}/v4/perpetualMarkets?ticker=ETH-USD`,
       'markets-SOL': `https://${host.dydx}/v4/perpetualMarkets?ticker=SOL-USD`,
@@ -73,10 +77,13 @@ const venues = {
       event: 'subscribe',
     })),
     trade: '"topic":"PERP_BTC_USDC@trade"',
+    keepalive: { everyMs: 10_000, frame: '{"event":"pong"}' },
     rest: {
+      info: `https://${host.orderly.rest}/v1/public/info`,
       'info-BTC': `https://${host.orderly.rest}/v1/public/info/PERP_BTC_USDC`,
       'info-ETH': `https://${host.orderly.rest}/v1/public/info/PERP_ETH_USDC`,
       'info-SOL': `https://${host.orderly.rest}/v1/public/info/PERP_SOL_USDC`,
+      'info-missing': `https://${host.orderly.rest}/v1/public/info/PERP_NOTAMARKET_USDC`,
       futures: `https://${host.orderly.rest}/v1/public/futures/PERP_BTC_USDC`,
       history: `https://${host.orderly.rest}/v1/tv/history?symbol=PERP_BTC_USDC&resolution=1&from=${Math.floor(Date.now() / 1000) - 300}&to=${Math.floor(Date.now() / 1000)}`,
     },
@@ -91,19 +98,24 @@ const firstDiffSeen = new Promise((resolve) => (firstDiff = resolve))
 const waitForTrade = network === 'mainnet'
 const secondsAtMost = seconds * 4
 
-function record(name, { url, subscribe, trade }) {
+function record(name, { url, subscribe, trade, keepalive }) {
   return new Promise((resolve) => {
     const frames = []
     let traded = !waitForTrade
     let longEnough = false
+    let beat
     const ws = new WebSocket(url)
     const cap = setTimeout(stop, secondsAtMost * 1000)
     function stop() {
       clearTimeout(cap)
+      clearInterval(beat)
       ws.close()
       resolve(frames)
     }
-    ws.onopen = () => subscribe.forEach((s) => ws.send(JSON.stringify(s)))
+    ws.onopen = () => {
+      subscribe.forEach((s) => ws.send(JSON.stringify(s)))
+      if (keepalive) beat = setInterval(() => ws.send(keepalive.frame), keepalive.everyMs)
+    }
     ws.onmessage = (e) => {
       const frame = String(e.data)
       frames.push(frame)
@@ -122,7 +134,7 @@ function record(name, { url, subscribe, trade }) {
 
 async function reply(name, key, response) {
   if (!response.ok) throw new Error(`${name} ${key} answered ${response.status}: ${await response.text()}`)
-  return [key, await response.json()]
+  return [key, await response.text()]
 }
 
 await mkdir(out, { recursive: true })
@@ -151,7 +163,7 @@ await Promise.all(
       ])
       const kept = name === 'dydx' ? frames.slice(0, dydxLines) : frames
       await writeFile(new URL(`${name}.ws.jsonl`, out), kept.join('\n') + '\n')
-      for (const [k, json] of rest) await writeFile(new URL(`${name}.${k}.json`, out), JSON.stringify(json))
+      for (const [k, body] of rest) await writeFile(new URL(`${name}.${k}.json`, out), body)
       console.log(name, frames.length, 'frames', rest.map(([k]) => k).join(','))
     }),
 )

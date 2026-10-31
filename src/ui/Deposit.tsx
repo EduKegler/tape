@@ -114,8 +114,8 @@ function DepositForm({
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!amount || !quote.ready || !quote.fee || !quote.calls || send.isPending) return
-        send.mutate({ route, amount, fee: quote.fee, calls: quote.calls }, { onSuccess: onSent })
+        if (!amount || !quote.ready || !quote.terms || !quote.calls || send.isPending) return
+        send.mutate({ route, amount, terms: quote.terms, calls: quote.calls }, { onSuccess: onSent })
       }}
     >
       <div className="flex flex-col gap-1">
@@ -175,7 +175,7 @@ function DepositForm({
         {text !== '' && amount === null && <span className="text-ask">A positive amount, at most 6 decimals.</span>}
       </div>
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
-      {amount !== null && <Issues issues={quote.issues} route={route} />}
+      {amount !== null && <Issues issues={quote.issues} route={route} messenger={quote.terms?.message?.via ?? null} />}
       <Button look="primary" size="lg" type="submit" disabled={!quote.ready || send.isPending}>
         {send.isPending
           ? 'Confirm in your wallet…'
@@ -204,12 +204,16 @@ function Summary({
   amount: bigint | null
   quote: DepositQuote
 }) {
-  const fee = quote.fee
-  const free = fee !== null && fee.max === 0n
+  const fee = quote.terms?.fee ?? null
+  const message = quote.terms?.message ?? null
+  const charges = [
+    ...(fee && fee.max > 0n ? [feeText(fee)] : []),
+    ...(message ? [`${gasText(message.wei, route.chainId)} to ${message.via}`] : []),
+  ]
   const rows: [string, string][] = [
     ['Route', [chainName(route.chainId), ...route.hops, venue.destination].join(' → ')],
     ['Credited to', `${shortAddress(account.owner)}, the same address`],
-    ['Fee', fee ? (free ? 'None' : feeText(fee)) : quote.feeError ? 'Unavailable' : '…'],
+    ['Fee', quote.terms ? charges.join(' and ') || 'None' : quote.termsError ? 'Unavailable' : '…'],
     [
       'You receive',
       quote.issues.some((i) => i.kind === 'below-minimum' && i.lost)
@@ -246,7 +250,7 @@ function Summary({
   )
 }
 
-function issueText(issue: DepositIssue, route: DepositRoute): string {
+function issueText(issue: DepositIssue, route: DepositRoute, messenger: string | null): string {
   const chain = chainName(route.chainId)
   switch (issue.kind) {
     case 'below-minimum':
@@ -258,28 +262,39 @@ function issueText(issue: DepositIssue, route: DepositRoute): string {
     case 'insufficient-usdc':
       return `The wallet has ${usdc(issue.balance)} USDC on ${chain}.`
     case 'insufficient-gas':
-      return `Gas needs about ${gasText(issue.need, route.chainId)} on ${chain}. The wallet has ${gasText(issue.have, route.chainId)}.`
+      return `${messenger ? `Gas and the ${messenger} fee need` : 'Gas needs'} about ${gasText(issue.need, route.chainId)} on ${chain}. The wallet has ${gasText(issue.have, route.chainId)}.`
     case 'contract-wallet':
       return `This address is a contract on ${chain}. The venue credits the same address, and a contract wallet cannot sign there. Deposit from a regular wallet.`
     case 'chain-rejects':
       return `${chain} would reject this transaction: ${issue.reason}. Nothing was sent.`
     case 'high-fee':
       return `The fee is ${(issue.bps / 100).toFixed(2)}% of this deposit.`
+    case 'no-account':
+      return 'The venue has no account for this address yet. Enable trading first, which registers it, then deposit.'
+    case 'over-limit':
+      return `The venue's vault on ${chain} takes ${usdc(issue.room)} USDC more right now. Send less, or deposit from another chain.`
   }
 }
 
-function Issues({ issues, route }: { issues: readonly DepositIssue[]; route: DepositRoute }) {
+function Issues({
+  issues,
+  route,
+  messenger,
+}: {
+  issues: readonly DepositIssue[]
+  route: DepositRoute
+  messenger: string | null
+}) {
   if (issues.length === 0) return null
   return (
     <ul className="flex flex-col gap-1">
       {issues.map((issue) => (
         <li
           key={issue.kind}
-          role={blocksDeposit(issue) ? 'alert' : 'status'}
           data-deposit-issue={issue.kind}
           className={`rounded-sm border p-2 ${blocksDeposit(issue) ? 'border-ask/40 text-ask' : 'border-rule text-level2'}`}
         >
-          {issueText(issue, route)}
+          <span role={blocksDeposit(issue) ? 'alert' : 'status'}>{issueText(issue, route, messenger)}</span>
         </li>
       ))}
     </ul>
@@ -322,8 +337,9 @@ const stageText = (status: DepositStatus, chain: string, destination: string) =>
     case 'replaced':
       return `The wallet replaced this transaction on ${chain}. Nothing was deposited`
     case 'relaying':
-    case 'stuck':
       return status.detail
+    case 'unresolved':
+      return `Check manually. ${status.detail}`
     case 'credited':
       return `Credited to ${destination} at ${clock(status.at)}`
   }
@@ -335,6 +351,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   const chain = chainName(record.chainId)
   const credited = status.stage === 'credited' ? status : null
   const failed = status.stage === 'reverted' || status.stage === 'replaced'
+  const ended = credited !== null || failed || status.stage === 'unresolved'
   const rows: [string, React.ReactNode][] = [
     ['Sent', `${usdc(record.amount)} USDC from ${chain} at ${clock(record.sentAt)}`],
     ['Transaction', <TxLink key="tx" chainId={record.chainId} hash={sentHash(record)} />],
@@ -349,12 +366,13 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   return (
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
       <p
-        role={failed || status.stage === 'stuck' ? 'alert' : 'status'}
+        role={failed || status.stage === 'unresolved' ? 'alert' : 'status'}
         className={status.stage === 'credited' ? 'text-bid' : failed ? 'text-ask' : 'text-level1'}
       >
         {stageText(status, chain, venue.destination)}
       </p>
-      {late && route && status.stage !== 'credited' && !failed && (
+      {status.stage === 'unresolved' && <CheckManually check={status.check} hash={sentHash(record)} />}
+      {late && route && !ended && (
         <p role="alert" data-deposit-late className="rounded-sm border border-ask/40 p-2 text-level2">
           Not credited after {minutes(route.eta.worst)} min, longer than this route takes.{' '}
           {status.stage === 'confirming'
@@ -371,6 +389,21 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
         ))}
       </dl>
     </section>
+  )
+}
+
+function CheckManually({ check, hash }: { check: { label: string; url: string }; hash: string }) {
+  return (
+    <div className="rounded-sm border border-ask/40 p-2 text-level2">
+      <p>
+        Open the{' '}
+        <a href={check.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+          {check.label}
+        </a>
+        , or give support the source transaction hash:
+      </p>
+      <p className="num mt-1 text-xs break-all text-level1">{hash}</p>
+    </div>
   )
 }
 
@@ -416,9 +449,11 @@ function RecentRow({
         ? 'Reverted'
         : status.stage === 'replaced'
           ? 'Replaced'
-          : late || status.stage === 'stuck'
-            ? 'Late'
-            : 'In progress'
+          : status.stage === 'unresolved'
+            ? 'Check manually'
+            : late
+              ? 'Late'
+              : 'In progress'
   return (
     <li>
       <Button

@@ -1,7 +1,5 @@
-import { BASES, marketKey } from '@tape/core/ids'
 import type { Base, Interval, MarketKey, Network } from '@tape/core/ids'
-import { decimalsOf, parsePx, parseQty } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
+import { readDydxMarket, readDydxMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawCandle, RawLevel, RawTrade, StreamTarget, VenueAdapter, VenueEvent } from './types'
 
@@ -105,32 +103,8 @@ export function dydx(network: Network): VenueAdapter {
     keepalive: null,
     silenceMs: 45_000,
 
-    async fetchSpecs(fetch, signal) {
-      const specs = new Map<Base, MarketSpec>()
-      await Promise.all(
-        BASES.map(async (base) => {
-          const ticker = tickerOf(base)
-          const json = await getJson<{
-            markets: Record<string, { tickSize: string; stepSize: string; status: string }>
-          }>(fetch, `${indexer}/perpetualMarkets?ticker=${ticker}`, { signal: signal ?? null })
-          const m = json.markets[ticker]
-          if (m?.status !== 'ACTIVE') return
-          const scale = { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) }
-          specs.set(base, {
-            key: marketKey('dydx', base),
-            venue: 'dydx',
-            base,
-            quote: 'USD',
-            kind: 'perp',
-            venueSymbol: ticker,
-            scale,
-            tick: { kind: 'fixed', tick: parsePx(m.tickSize, scale) },
-            step: parseQty(m.stepSize, scale),
-          })
-        }),
-      )
-      return specs
-    },
+    fetchMarkets: (fetch, signal) => readDydxMarkets(fetch, indexer, signal),
+    fetchMarket: (base, fetch, signal) => readDydxMarket(fetch, indexer, base, signal),
 
     subscribeFrames: (targets) =>
       targets.map((t) => JSON.stringify({ type: 'subscribe', ...channelOf(t), batched: false })),

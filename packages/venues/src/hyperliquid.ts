@@ -1,12 +1,9 @@
-import { BASES, marketKey } from '@tape/core/ids'
-import type { Base, Interval, Network } from '@tape/core/ids'
-import { parsePx } from '@tape/core/fixed'
-import type { Decimals } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
+import { splitBase } from '@tape/core/ids'
+import type { Interval, Network } from '@tape/core/ids'
+import { readHyperliquidMarket, readHyperliquidMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
 
-const MIN_ORDER_USDC = '10'
 const HOST: Record<Network, string> = { mainnet: 'api.hyperliquid.xyz', testnet: 'api.hyperliquid-testnet.xyz' }
 const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000 }
 
@@ -50,33 +47,8 @@ export function hyperliquid(network: Network): VenueAdapter {
     keepalive: { everyMs: 30_000, frame: '{"method":"ping"}' },
     silenceMs: 60_000,
 
-    async fetchSpecs(fetch, signal) {
-      const meta = await getJson<{ universe: { name: string; szDecimals: number }[] }>(
-        fetch,
-        INFO,
-        post({ type: 'meta' }, signal),
-      )
-      const specs = new Map<Base, MarketSpec>()
-      for (const base of BASES) {
-        const asset = meta.universe.find((u) => u.name === base)
-        if (!asset) continue
-        const qty = asset.szDecimals as Decimals
-        const scale = { px: (6 - qty) as Decimals, qty }
-        specs.set(base, {
-          key: marketKey('hyperliquid', base),
-          venue: 'hyperliquid',
-          base,
-          quote: 'USDC',
-          kind: 'perp',
-          venueSymbol: base,
-          scale,
-          tick: { kind: 'sigfig', figures: 5 },
-          step: 1 as MarketSpec['step'],
-          minNotional: parsePx(MIN_ORDER_USDC, scale),
-        })
-      }
-      return specs
-    },
+    fetchMarkets: (fetch, signal) => readHyperliquidMarkets(fetch, INFO, signal),
+    fetchMarket: (base, fetch, signal) => readHyperliquidMarket(fetch, INFO, base, signal),
 
     subscribeFrames: (targets) =>
       targets.map((t) => JSON.stringify({ method: 'subscribe', subscription: subscription(t) })),
@@ -131,7 +103,7 @@ export function hyperliquid(network: Network): VenueAdapter {
       const [meta, ctxs] = await getJson<[{ universe: { name: string }[] }, Ctx[]]>(
         fetch,
         INFO,
-        post({ type: 'metaAndAssetCtxs' }, signal),
+        post({ type: 'metaAndAssetCtxs', dex: splitBase(base).dex }, signal),
       )
       const ctx = ctxs[meta.universe.findIndex((u) => u.name === base)]
       if (!ctx) throw new Error(`no ${base} on hyperliquid`)

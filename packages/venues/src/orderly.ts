@@ -1,21 +1,8 @@
-import { BASES, marketKey } from '@tape/core/ids'
 import type { Base, Interval, Network } from '@tape/core/ids'
-import { DecimalError, decimalsOf, parsePx, parseQty, plainDecimal } from '@tape/core/fixed'
-import type { Scale } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
 import { parseExactJson } from '@tape/core/json'
+import { readOrderlyMarket, readOrderlyMarkets } from './markets'
 import { VenueParseError, chartBar, getExactJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
-
-function minNotionalOf(value: string | undefined, scale: Scale): Pick<MarketSpec, 'minNotional'> {
-  if (!value) return {}
-  try {
-    return { minNotional: parsePx(plainDecimal(value), scale) }
-  } catch (e) {
-    if (e instanceof DecimalError) return {}
-    throw e
-  }
-}
 
 const symbolOf = (base: Base) => `PERP_${base}_USDC`
 const RESOLUTION: Record<Interval, string> = { '1m': '1', '5m': '5', '15m': '15', '1h': '60' }
@@ -70,32 +57,8 @@ export function orderly(network: Network): VenueAdapter {
     keepalive: { everyMs: 10_000, frame: '{"event":"pong"}' },
     silenceMs: 30_000,
 
-    async fetchSpecs(fetch, signal) {
-      const specs = new Map<Base, MarketSpec>()
-      await Promise.all(
-        BASES.map(async (base) => {
-          const json = await getExactJson<{
-            data?: { quote_tick: string; base_tick: string; min_notional?: string; status: string }
-          }>(fetch, `${rest}/public/info/${symbolOf(base)}`, { signal: signal ?? null })
-          const m = json.data
-          if (m?.status !== 'ACTIVE') return
-          const scale = { px: decimalsOf(m.quote_tick), qty: decimalsOf(m.base_tick) }
-          specs.set(base, {
-            key: marketKey('orderly', base),
-            venue: 'orderly',
-            base,
-            quote: 'USDC',
-            kind: 'perp',
-            venueSymbol: symbolOf(base),
-            scale,
-            tick: { kind: 'fixed', tick: parsePx(m.quote_tick, scale) },
-            step: parseQty(m.base_tick, scale),
-            ...minNotionalOf(m.min_notional, scale),
-          })
-        }),
-      )
-      return specs
-    },
+    fetchMarkets: (fetch, signal) => readOrderlyMarkets(fetch, rest, signal),
+    fetchMarket: (base, fetch, signal) => readOrderlyMarket(fetch, rest, base, signal),
 
     subscribeFrames: frame('subscribe'),
     unsubscribeFrames: frame('unsubscribe'),

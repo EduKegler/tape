@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
+import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import { TradeFailure } from '../types'
@@ -8,9 +9,9 @@ import type { Bps, OrderRef, VenueContext } from '../types'
 import { orderly } from '.'
 
 const perp: MarketSpec = {
-  key: marketKey('orderly', 'BTC'),
+  key: marketKey('orderly', 'BTC' as Base),
   venue: 'orderly',
-  base: 'BTC',
+  base: 'BTC' as Base,
   quote: 'USDC',
   kind: 'perp',
   venueSymbol: 'PERP_BTC_USDC',

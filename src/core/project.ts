@@ -3,7 +3,7 @@ import type { BookSide, BookSync } from '@tape/core/book'
 import { formatMid, formatPx, formatQty, rescalePx, spreadBps, toDisplayFloat } from '@tape/core/fixed'
 import type { Decimals, Px, Qty } from '@tape/core/fixed'
 import { VENUE_IDS } from '@tape/core/ids'
-import type { Base, Interval, TopicKey, VenueId } from '@tape/core/ids'
+import type { Interval, TopicKey, VenueId } from '@tape/core/ids'
 import { effectiveTick, groupDecimals, groupOptions, snapGroup } from '@tape/core/market'
 import type { Candle, MarketSpec, TradeTape } from '@tape/core/market'
 import { BOOK_ROWS, EMPTY_ROW } from './topics'
@@ -170,8 +170,8 @@ export function projectCandle(key: TopicKey, market: MarketView, interval: Inter
 
 export function projectCompare(
   key: TopicKey,
-  _base: Base,
   markets: Readonly<Partial<Record<VenueId, MarketView>>>,
+  unlisted: ReadonlySet<VenueId>,
   version: number,
 ): CompareFrame {
   const fine = Math.max(...Object.values(markets).map((m) => m.spec.scale.px), 0) as Decimals
@@ -196,7 +196,7 @@ export function projectCompare(
     if (!m || bid === null) {
       return {
         venue,
-        status: m?.status ?? 'syncing',
+        status: unlisted.has(venue) ? 'unlisted' : (m?.status ?? 'syncing'),
         bid: '',
         ask: '',
         mid: '',
