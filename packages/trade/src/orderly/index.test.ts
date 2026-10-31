@@ -217,6 +217,35 @@ describe('orderly refusals', () => {
       detail: 'Too Many Requests',
     })
   })
+
+  it("refuses an order off this network's tick or step before signing", async () => {
+    const near: MarketSpec = { ...sol, venueSymbol: 'PERP_NEAR_USDC' }
+    const { ctx, sent } = orderlyAt(
+      () => ({ body: PLACED }),
+      () => new Response('{"success":true,"data":{"symbol":"PERP_NEAR_USDC","quote_tick":0.05,"base_tick":0.2}}'),
+    )
+    const order = (fields: Record<string, string>) =>
+      failureOf(
+        orderly.execute(ctx, { kind: 'place', intent: intentOf({ price: '150', size: '0.4', ...fields }, near) }),
+      )
+    expect(await order({ size: '0.3' })).toEqual({
+      kind: 'invalid-order',
+      detail: 'Size 0.3: Size must be a multiple of 0.2 on this network',
+    })
+    expect(await order({ price: '150.01' })).toEqual({
+      kind: 'invalid-order',
+      detail: 'Price 150.01: Price must be a multiple of 0.05 on this network',
+    })
+    expect(await order({ kind: 'scale', start: '150', end: '150.01', count: '2' })).toEqual({
+      kind: 'invalid-order',
+      detail: 'Order 2 at 150.01: Price must be a multiple of 0.05 on this network',
+    })
+    expect(await order({ kind: 'scale', size: '0.6', start: '150', end: '150.05', count: '2' })).toEqual({
+      kind: 'invalid-order',
+      detail: 'Order 1 at 150: Size must be a multiple of 0.2 on this network',
+    })
+    expect(sent).toEqual([])
+  })
 })
 
 describe('orderly lookup', () => {
