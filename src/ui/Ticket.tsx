@@ -36,7 +36,7 @@ import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
-import { Button, Checkbox, Input } from './primitives'
+import { Button, Checkbox, Input, Select } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
@@ -424,12 +424,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             {(field) => (
               <label className="flex items-center justify-between text-sm text-level3">
                 Time in force
-                <select
-                  name="tif"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value as Tif)}
-                  className="rounded-sm border border-edge bg-inset px-1.5 py-1 text-sm text-level1"
-                >
+                <Select size="md" name="tif" value={field.state.value} onChange={(v) => field.handleChange(v as Tif)}>
                   {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
                     .filter((t) => kind !== 'scale' || t !== 'ioc')
                     .map((t) => (
@@ -437,7 +432,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                         {TIF_LABEL[t]}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
             )}
           </form.Field>

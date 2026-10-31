@@ -153,7 +153,7 @@ export default [
   {
     ...jsxA11y.configs.recommended,
     files: ['src/**/*.tsx'],
-    settings: { 'jsx-a11y-x': { components: { Button: 'button', InlineInput: 'input' } } },
+    settings: { 'jsx-a11y-x': { components: { Button: 'button', InlineInput: 'input', Select: 'select' } } },
   },
   {
     ...reactHooks.configs.flat['recommended-latest'],
