@@ -21,6 +21,22 @@ describe('market search', () => {
     expect(names(searchMarkets([group(null, ['AEVO', 'ENA', 'ETH'])], 'e'))).toEqual([[null, ['ETH', 'ENA', 'AEVO']]])
   })
 
+  it('matches a HIP-3 market on its symbol too, apart from the main market of the same symbol', () => {
+    const hyperliquid = [
+      group(null, ['ETH', 'BTC']),
+      group('XYZ', ['xyz:CRCL', 'xyz:BTC', 'xyz:RCL']),
+      group('Paragon', ['para:BTCD']),
+    ]
+    expect(names(searchMarkets(hyperliquid, 'btc'))).toEqual([
+      [null, ['BTC']],
+      ['XYZ', ['xyz:BTC']],
+      ['Paragon', ['para:BTCD']],
+    ])
+    expect(names(searchMarkets(hyperliquid, 'rcl'))).toEqual([['XYZ', ['xyz:RCL', 'xyz:CRCL']]])
+    expect(names(searchMarkets(hyperliquid, 'rc'))).toEqual([['XYZ', ['xyz:RCL', 'xyz:CRCL']]])
+    expect(names(searchMarkets(hyperliquid, 'xyz'))).toEqual([['XYZ', ['xyz:BTC', 'xyz:CRCL', 'xyz:RCL']]])
+  })
+
   it('says nothing matches with no group at all', () => {
     expect(searchMarkets([group(null, ['BTC', 'ETH'])], 'zzzz')).toEqual([])
   })
