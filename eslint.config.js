@@ -250,6 +250,10 @@ export default [
           message: 'Use the primitives in src/ui/primitives.',
         },
         { selector: "JSXOpeningElement[name.name='button']", message: 'Use Button from src/ui/primitives.' },
+        {
+          selector: 'JSXOpeningElement[name.name=/^(input|textarea)$/]',
+          message: 'Use Input, InlineInput or Checkbox from src/ui/primitives.',
+        },
         { selector: "JSXOpeningElement[name.name='table']", message: 'Use Table from src/ui/primitives.' },
         { selector: "JSXOpeningElement[name.name='dialog']", message: 'Use Dialog from src/ui/primitives.' },
         {
