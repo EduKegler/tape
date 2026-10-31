@@ -52,7 +52,8 @@ function fail(error: TradeError): never {
 export function classifyMessage(message: string): TradeError {
   if (/orderly key|signature|not registered|account.*(?:not found|not exist)/i.test(message))
     return { kind: 'needs-setup', detail: message }
-  if (/insufficient|margin|collateral/i.test(message)) return { kind: 'insufficient-margin', detail: message }
+  if (/insufficient|margin|collateral|risk exposure/i.test(message))
+    return { kind: 'insufficient-margin', detail: message }
   if (/price|quantity|notional|tick|size/i.test(message)) return { kind: 'invalid-order', detail: message }
   return { kind: 'rejected', detail: message }
 }
