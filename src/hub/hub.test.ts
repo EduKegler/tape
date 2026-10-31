@@ -227,8 +227,10 @@ describe('hub', () => {
     expect(socket.sent.some((s) => s.includes('unsubscribe'))).toBe(false)
     await vi.advanceTimersByTimeAsync(10_000)
     const unsubs = socket.sent.filter((s) => s.includes('unsubscribe'))
-    expect(unsubs).toHaveLength(1)
-    expect(unsubs[0]).toContain('l2Book')
+    expect(unsubs).toEqual([
+      '{"method":"unsubscribe","subscription":{"type":"l2Book","coin":"BTC"}}',
+      '{"method":"unsubscribe","subscription":{"type":"l2Book","coin":"BTC","fast":true}}',
+    ])
     expect(hub.inspect().tabs).toBe(1)
     hub.dispose()
   })
