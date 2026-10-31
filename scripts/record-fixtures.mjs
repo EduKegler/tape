@@ -30,6 +30,7 @@ const venues = {
     rest: {
       depth: `https://${host.binance.rest}/api/v3/depth?symbol=BTCUSDT&limit=1000`,
       exchangeInfo: `https://${host.binance.rest}/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
+      markets: `https://${host.binance.rest}/api/v3/exchangeInfo?permissions=SPOT&symbolStatus=TRADING&showPermissionSets=false`,
       klines: `https://${host.binance.rest}/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5`,
       ticker: `https://${host.binance.rest}/api/v3/ticker/24hr?symbol=BTCUSDT`,
     },
@@ -59,6 +60,7 @@ const venues = {
     ],
     trade: '"channel":"v4_trades"',
     rest: {
+      markets: `https://${host.dydx}/v4/perpetualMarkets`,
       'markets-BTC': `https://${host.dydx}/v4/perpetualMarkets?ticker=BTC-USD`,
       'markets-ETH': `https://${host.dydx}/v4/perpetualMarkets?ticker=ETH-USD`,
       'markets-SOL': `https://${host.dydx}/v4/perpetualMarkets?ticker=SOL-USD`,
@@ -74,9 +76,11 @@ const venues = {
     })),
     trade: '"topic":"PERP_BTC_USDC@trade"',
     rest: {
+      info: `https://${host.orderly.rest}/v1/public/info`,
       'info-BTC': `https://${host.orderly.rest}/v1/public/info/PERP_BTC_USDC`,
       'info-ETH': `https://${host.orderly.rest}/v1/public/info/PERP_ETH_USDC`,
       'info-SOL': `https://${host.orderly.rest}/v1/public/info/PERP_SOL_USDC`,
+      'info-missing': `https://${host.orderly.rest}/v1/public/info/PERP_NOTAMARKET_USDC`,
       futures: `https://${host.orderly.rest}/v1/public/futures/PERP_BTC_USDC`,
       history: `https://${host.orderly.rest}/v1/tv/history?symbol=PERP_BTC_USDC&resolution=1&from=${Math.floor(Date.now() / 1000) - 300}&to=${Math.floor(Date.now() / 1000)}`,
     },
