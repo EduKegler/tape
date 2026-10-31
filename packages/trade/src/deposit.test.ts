@@ -3,8 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPublicClient, custom } from 'viem'
 import type { Address, Hex } from 'viem'
 import { burnToHyperCore } from './cctp'
-import { depositIssues, parseUsdc } from './deposit'
-import type { DepositFee, DepositReadings, DepositRoute, DepositTerms, ProgressIo, SentDeposit } from './deposit'
+import { blocksDeposit, depositIssues, parseUsdc } from './deposit'
+import type {
+  DepositFee,
+  DepositIssue,
+  DepositReadings,
+  DepositRoute,
+  DepositTerms,
+  ProgressIo,
+  SentDeposit,
+} from './deposit'
 import type { TradeConfig } from './types'
 import { DEPOSITS } from './index'
 
@@ -118,6 +126,21 @@ describe('deposit issues', () => {
     expect(depositIssues(bridge, 60_000_000n, { ...known, rejected: 'transfer amount exceeds balance' })).toEqual([
       { kind: 'insufficient-usdc', balance: 50_000_000n },
     ])
+  })
+
+  it('lets a high fee through as a warning and blocks every other deposit issue', () => {
+    const blocking: DepositIssue[] = [
+      { kind: 'below-minimum', minimum: 5_000_000n, lost: true },
+      { kind: 'fee-exceeds-amount', fee: 200_000n },
+      { kind: 'insufficient-usdc', balance: 0n },
+      { kind: 'insufficient-gas', need: 2n, have: 1n },
+      { kind: 'contract-wallet' },
+      { kind: 'chain-rejects', reason: 'paused' },
+      { kind: 'no-account' },
+      { kind: 'over-limit', room: 0n },
+    ]
+    expect(blocking.map(blocksDeposit)).toEqual(blocking.map(() => true))
+    expect(blocksDeposit({ kind: 'high-fee', bps: 150 })).toBe(false)
   })
 
   it('waits for readings it does not have yet', () => {
