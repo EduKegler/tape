@@ -120,6 +120,25 @@ describe('a market the venue does not list', () => {
     const refuse: typeof fetch = () => Promise.reject(new Error('asked'))
     expect(await VENUES[venue].fetchMarket('xyz:TSLA' as Base, refuse)).toBeNull()
   })
+
+  it('reads a name outside the symbols Binance accepts as null without asking', async () => {
+    const refuse: typeof fetch = () => Promise.reject(new Error('asked'))
+    expect(await VENUES.binance.fetchMarket('kPEPE' as Base, refuse)).toBeNull()
+  })
+
+  it("looks in Binance's whole list when a browser hides its 400", async () => {
+    const hidden: typeof fetch = (input, init) =>
+      (input instanceof Request ? input.url : input.toString()).includes('exchangeInfo?symbol=')
+        ? Promise.reject(new TypeError('Failed to fetch'))
+        : recordedFetch(input, init)
+    expect(await VENUES.binance.fetchMarket('NOTAMARKET' as Base, hidden)).toBeNull()
+    expect((await VENUES.binance.fetchMarket(BTC, hidden))?.venueSymbol).toBe('BTCUSDT')
+  })
+
+  it('still fails when the whole Binance list does not come either', async () => {
+    const down: typeof fetch = () => Promise.reject(new TypeError('Failed to fetch'))
+    await expect(VENUES.binance.fetchMarket('NOTAMARKET' as Base, down)).rejects.toThrow('Failed to fetch')
+  })
 })
 
 describe('hyperliquid adapter', () => {
