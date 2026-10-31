@@ -137,3 +137,16 @@ test('Cancel all BTC asks first, then sends one cancel for the BTC orders', asyn
     { type: 'cancel', cancels: [{ a: BTC, o: 41 }] },
   ])
 })
+
+test('forgetting the trading key sits in the account bar and asks first', async ({ page, wallet: _wallet }) => {
+  const { account } = await holding(page)
+  const ticket = panel(page, 'Order ticket')
+  await expect(ticket.getByRole('button', { name: /Forget/ })).toHaveCount(0)
+  await account.getByRole('button', { name: 'Forget trading key' }).click()
+  const step = account.getByRole('group', { name: 'Forget the trading key for Hyperliquid on this device?' })
+  await expect(step.getByRole('button', { name: 'Forget key' })).toBeFocused()
+  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+
+  await step.getByRole('button', { name: 'Forget key' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()
+})

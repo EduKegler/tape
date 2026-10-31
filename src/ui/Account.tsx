@@ -42,6 +42,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           account={ref}
           base={base}
           leverage={session.status === 'ready' && session.capabilities.leverage}
+          forget={session.status === 'ready' ? session.forget : null}
         />
       ) : (
         <div className="p-3 text-sm text-level3">{message(session)}</div>
@@ -57,7 +58,17 @@ function message(session: TradeSession) {
   return 'Trading is not available here.'
 }
 
-function AccountBody({ account, base, leverage }: { account: AccountRef; base: Base; leverage: boolean }) {
+function AccountBody({
+  account,
+  base,
+  leverage,
+  forget,
+}: {
+  account: AccountRef
+  base: Base
+  leverage: boolean
+  forget: (() => void) | null
+}) {
   const [tab, setTab] = useState<Tab>('positions')
   const { view, error } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
@@ -107,6 +118,17 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
           />
         )}
         {leverage && symbol && <LeverageControl onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })} />}
+        {forget && (
+          <span className="ml-auto">
+            <ConfirmAction
+              label="Forget trading key"
+              question={`Forget the trading key for ${venue} on this device?`}
+              confirm="Forget key"
+              keep="Keep key"
+              onConfirm={forget}
+            />
+          </span>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {error && (

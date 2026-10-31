@@ -767,14 +767,7 @@ function SubmitArea({
         </>
       )
     case 'ready':
-      return (
-        <>
-          {button}
-          <Button look="quiet" onClick={session.forget} className="self-end">
-            Forget trading key on this device
-          </Button>
-        </>
-      )
+      return button
   }
 }
 
