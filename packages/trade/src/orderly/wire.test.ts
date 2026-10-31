@@ -33,20 +33,6 @@ describe('orderly wire', () => {
     )
   })
 
-  it('leaves the price out of a market order', () => {
-    expect(
-      orderBody({
-        symbol: 'PERP_ETH_USDC',
-        clientOrderId: 'x',
-        type: 'MARKET',
-        side: 'SELL',
-        price: null,
-        quantity: '1',
-        reduceOnly: true,
-      }),
-    ).not.toContain('order_price')
-  })
-
   it('refuses anything that is not a plain decimal', () => {
     expect(() =>
       orderBody({

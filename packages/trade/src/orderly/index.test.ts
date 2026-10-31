@@ -123,7 +123,6 @@ describe('orderly orders', () => {
   it('sends a single order with the side, type, price and size the user chose', async () => {
     const cases = [
       [{}, 'LIMIT', '"order_price":80000,', 'BUY', 'resting'],
-      [{ side: 'sell', kind: 'market', price: '' }, 'MARKET', '', 'SELL', 'accepted'],
       [{ tif: 'ioc' }, 'IOC', '"order_price":80000,', 'BUY', 'accepted'],
       [{ side: 'sell', tif: 'post-only', price: '80020' }, 'POST_ONLY', '"order_price":80020,', 'SELL', 'resting'],
     ] as const
@@ -143,6 +142,52 @@ describe('orderly orders', () => {
         },
       ])
     }
+  })
+
+  it('sends a market order as an IOC limit at the far touch moved by the slippage', async () => {
+    // The example reply on Orderly's public orderbook query page.
+    const book =
+      '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":"77338.35","spread":"1.70","asks":[{"price":"77339.20","quantity":"0.45"}],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123},"ts":1779269143700}'
+    // 1% past the far touch, then onto the 0.1 tick inside it: 77339.2 × 1.01 = 78112.592 down to 78112.5,
+    // and 77337.5 × 0.99 = 76564.125 up to 76564.2.
+    const cases = [
+      ['buy', 'BUY', '78112.5'],
+      ['sell', 'SELL', '76564.2'],
+    ] as const
+    for (const [side, wire, limit] of cases) {
+      const { ctx, sent } = orderlyAt((s) => ({ body: s.url.endsWith('/v1/public/query') ? book : PLACED }))
+      const intent = intentOf({ side, kind: 'market', price: '' })
+      expect(await orderly.execute(ctx, { kind: 'place', intent })).toEqual({
+        kind: 'placed',
+        status: 'accepted',
+        detail: 'Order 13',
+      })
+      expect(sent).toEqual([
+        {
+          method: 'POST',
+          url: 'https://testnet-api.orderly.org/v1/public/query',
+          body: '{"type":"orderbook","symbol":"PERP_BTC_USDC","max_level":1}',
+        },
+        {
+          method: 'POST',
+          url: 'https://testnet-api.orderly.org/v1/order',
+          body: `{"symbol":"PERP_BTC_USDC","client_order_id":"${intent.clientId}","order_type":"IOC","order_price":${limit},"order_quantity":0.001,"side":"${wire}","reduce_only":false}`,
+        },
+      ])
+    }
+  })
+
+  it('refuses a market order against an empty side of the book and sends no order', async () => {
+    const { ctx, sent } = orderlyAt(() => ({
+      body: '{"success":true,"data":{"symbol":"PERP_BTC_USDC","mid_price":null,"spread":null,"asks":[],"bids":[{"price":"77337.50","quantity":"0.32"}],"ts":1714900000123}}',
+    }))
+    expect(
+      await failureOf(orderly.execute(ctx, { kind: 'place', intent: intentOf({ kind: 'market', price: '' }) })),
+    ).toEqual({
+      kind: 'invalid-order',
+      detail: 'The book on this network is empty',
+    })
+    expect(sent.map((s) => s.url)).toEqual(['https://testnet-api.orderly.org/v1/public/query'])
   })
 
   it('refuses an intent carrying a take profit or stop loss and sends nothing', async () => {

@@ -1,10 +1,10 @@
 import { bytesToHex, hexToBytes } from 'viem'
 import type { Hex } from 'viem'
 import { decimalsOf, parsePx, parseQty, plainDecimal, wireDecimal } from '@tape/core/fixed'
-import type { Scale } from '@tape/core/fixed'
+import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
-import { checkPrice, checkSize } from '../intent'
+import { checkPrice, checkSize, worstPrice } from '../intent'
 import { post, send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure } from '../types'
@@ -18,6 +18,7 @@ import type {
   OrderLookup,
   OrderRef,
   SetupStep,
+  Side,
   StepId,
   TradeConfig,
   TradeError,
@@ -143,6 +144,20 @@ function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
   return cached
 }
 
+async function farTouch(ctx: VenueContext, spec: MarketSpec, side: Side): Promise<Px> {
+  const { data } = await send<{ data: { asks: { price: string }[]; bids: { price: string }[] } }>(
+    'orderly',
+    ctx.fetch,
+    `${API[ctx.ref.network]}/v1/public/query`,
+    { ...post({ type: 'orderbook', symbol: spec.venueSymbol, max_level: 1 }), mutates: false },
+    unsuccessful,
+  )
+  const far = (side === 'buy' ? data.asks : data.bids)[0]
+  return far
+    ? parsePx(plainDecimal(far.price), spec.scale)
+    : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+}
+
 async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
   try {
     const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${clientId}`)
@@ -216,13 +231,16 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
       const sizeIssue = checkSize(spec, quantity)
       if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
-      let price: string | null = null
+      let price: string
       if (intent.order.kind === 'limit') {
         price = wireDecimal(intent.order.px, intent.spec.scale.px)
         const issue = checkPrice(spec, price)
         if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
+      } else {
+        const far = await farTouch(ctx, spec, intent.side)
+        price = wireDecimal(worstPrice(spec, intent.side, far, intent.order.slippage), spec.scale.px)
       }
-      const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : 'MARKET'
+      const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : 'IOC'
       const body = orderBody({
         symbol,
         clientOrderId: intent.clientId,
@@ -235,7 +253,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       const data = await signed<{ order_id: string }>(ctx, 'POST', '/v1/order', body)
       return {
         kind: 'placed',
-        status: type === 'MARKET' || type === 'IOC' ? 'accepted' : 'resting',
+        status: type === 'IOC' ? 'accepted' : 'resting',
         detail: `Order ${data.order_id}`,
       }
     }
