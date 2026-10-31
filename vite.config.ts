@@ -27,7 +27,7 @@ function sourceMaps(): Plugin {
     host: process.env.POSTHOG_HOST || undefined,
     sourcemaps: {
       releaseName: 'tape',
-      releaseVersion: process.env.VERCEL_GIT_COMMIT_SHA || undefined,
+      releaseVersion: process.env.GITHUB_SHA || undefined,
       releaseMode: 'symbol-set',
     },
   }) as unknown as Plugin
