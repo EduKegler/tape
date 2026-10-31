@@ -621,7 +621,7 @@ function oldBookNote(book: { readonly live: boolean; readonly at: number | null 
   if (book.at === null || (book.live && now - book.at <= STALE_AFTER_MS)) return null
   const seconds = Math.max(0, Math.floor((now - book.at) / 1000))
   const age = seconds < 120 ? `${seconds} s` : `${Math.round(seconds / 60)} min`
-  return `From a book ${age} old. Check it against the market.`
+  return `Book ${age} old. Check the market.`
 }
 
 type Preview = Entry & { readonly notional: bigint }

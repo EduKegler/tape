@@ -114,7 +114,9 @@ test('a book row from a stale book warns under the price without blocking', asyn
   await expect(panel(page, 'Order book').getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
   await page.clock.fastForward(20_000)
   await row.click()
-  await expect(price).toHaveAccessibleDescription(/^From a book 2\d s old\. Check it against the market\.$/)
+  await expect(price).toHaveAccessibleDescription(/^Book 2\d s old\. Check the market\.$/)
+  const note = ticket.getByText(/^Book 2\d s old/)
+  expect(await note.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
   await expect(price).toHaveAttribute('aria-invalid', 'false')
 
   await price.fill('80590')
@@ -135,7 +137,7 @@ test('a book row from a market opened after its venue dropped warns under the pr
   await book.getByRole('button', { name: /^Bid / }).first().click()
   const price = ticketOf(page).getByRole('textbox', { name: 'Price (USDC)' })
   await expect(price).not.toHaveValue('')
-  await expect(price).toHaveAccessibleDescription(/^From a book 2\d s old\. Check it against the market\.$/)
+  await expect(price).toHaveAccessibleDescription(/^Book 2\d s old\. Check the market\.$/)
 })
 
 test('a market buy hides the price, offers slippage and prices the notional at the ask', async ({ page }) => {
