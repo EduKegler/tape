@@ -7,6 +7,7 @@ import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
+import { recordedWrite } from '../fixtures'
 import { buildIntent } from '../intent'
 import { TradeFailure } from '../types'
 import type { Bps, Eip712, KeySlot, OrderRef, StepId, StoredKey, VenueContext } from '../types'
@@ -266,8 +267,6 @@ describe('orderly refusals', () => {
         'Risk exposure is too high. This may be caused by a large order size or low leverage. Check current exposure via the client info endpoint.',
         'insufficient-margin',
       ],
-      [400, -1103, 'Order price does not match the tick size.', 'invalid-order'],
-      [400, -1104, 'Order quantity does not match the step size.', 'invalid-order'],
       [429, -1003, 'Rate limit exceeded.', 'rate-limited'],
     ] as const
     for (const [status, code, message, kind] of cases) {
@@ -282,6 +281,22 @@ describe('orderly refusals', () => {
       kind: 'rate-limited',
       detail: 'Too Many Requests',
     })
+  })
+
+  it('classifies the refusals Orderly testnet sent by code and message', async () => {
+    for (const [name, kind] of [
+      ['insufficientMargin', 'insufficient-margin'],
+      ['offTick', 'invalid-order'],
+      ['offStep', 'invalid-order'],
+      ['unregistered', 'needs-setup'],
+    ] as const) {
+      const { status, response } = recordedWrite('orderly', name).exchanges[0]!
+      const { ctx } = orderlyAt(() => ({ status, body: JSON.stringify(response) }))
+      expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent: intentOf({}) }))).toEqual({
+        kind,
+        detail: (response as { message: string }).message,
+      })
+    }
   })
 
   it("refuses an order off this network's tick or step before signing", async () => {
@@ -694,18 +709,18 @@ describe('orderly setup', () => {
   // in packages/trade/src/__fixtures__/history.orderly.json.
   const owner = '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6'
   const account = '0xd96bacbff940748d1215f933fc6c04d6798eb9fbd8926fe2388d02eb31003655'
+  /** Orderly testnet's replies while a fresh wallet registered, added a key and read both back. */
+  const [, nonceReply, registerReply, keyReply] = recordedWrite('orderly', 'enable').exchanges.map((e) => e.response)
+  const keyRead = recordedWrite('orderly', 'stepsDone').exchanges[1]!.response as { data: Record<string, unknown> }
+  const UNREGISTERED = JSON.stringify(recordedWrite('orderly', 'steps').exchanges[0]!.response)
   // Recorded from testnet-api.orderly.org and api.orderly.org on 2026-10-31.
-  const UNREGISTERED = '{"success":false,"code":-1607,"message":"Account not found."}'
   const REGISTERED = `{"success":true,"data":{"user_id":1476258,"account_id":"${account}"},"timestamp":1793452555211}`
-  const NONCE = '{"success":true,"data":{"registration_nonce":"154330517462"},"timestamp":1793452555582}'
   const NO_KEY = '{"success":false,"code":-1617,"message":"orderlyKey is not exist"}'
-  // The example replies of GET /v1/get_orderly_key, POST /v1/register_account and POST /v1/orderly_key in
-  // Orderly's OpenAPI spec. The key example expired in 2023.
-  const keyUntil = (expiration: number) =>
-    `{"success":true,"timestamp":1702989203989,"data":{"orderly_key":"ed25519:7tEoJo5hMBKBrQsqmc8yw1xNfoQCFQBVwQT1eFafRNRf","scope":"read,trading","expiration":${expiration},"tag":"<string>"}}`
-  const REGISTER = `{"success":true,"timestamp":1702989203989,"data":{"account_id":"${account}"}}`
-  const KEY_ADDED =
-    '{"success":true,"timestamp":1702989203989,"data":{"id":123,"orderly_key":"ed25519:FRXntsPJBCy6dzKv9WPw4eYSw3rKU9Npz3T6UmvvJc9Z"}}'
+  const NONCE = JSON.stringify(nonceReply)
+  const nonce = (nonceReply as { data: { registration_nonce: string } }).data.registration_nonce
+  const keyUntil = (expiration: number) => JSON.stringify({ ...keyRead, data: { ...keyRead.data, expiration } })
+  const REGISTER = JSON.stringify(registerReply)
+  const KEY_ADDED = JSON.stringify(keyReply)
   const now = Date.UTC(2026, 9, 31, 12)
   const SIGNATURE: Hex = `0x${'ab'.repeat(65)}`
   const secret: Hex = `0x${'11'.repeat(32)}`
@@ -815,7 +830,7 @@ describe('orderly setup', () => {
       { status: 'linked', public: { key: id }, secret: drafted?.secret },
     ])
     expect(linked?.secret).toMatch(/^0x[0-9a-f]{64}$/)
-    const registration = { brokerId: 'flipper', chainId: 421614, timestamp: now, registrationNonce: '154330517462' }
+    const registration = { brokerId: 'flipper', chainId: 421614, timestamp: now, registrationNonce: nonce }
     const addKey = {
       brokerId: 'flipper',
       chainId: 421614,
