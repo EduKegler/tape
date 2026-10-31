@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
+import { recordedWrite } from '@tape/trade/fixtures'
 
 const API: Record<Network, string> = {
   mainnet: 'https://api.hyperliquid.xyz',
@@ -48,9 +49,20 @@ const EMPTY_ACCOUNT: Record<string, unknown> = {
 }
 
 export const ACCEPTED = { json: { status: 'ok', response: { type: 'default' } } } as const
-export const resting = (oid: number) => ({
-  json: { status: 'ok', response: { type: 'order', data: { statuses: [{ resting: { oid } }] } } },
-})
+
+/** Hyperliquid testnet's reply to one recorded write or orderStatus. */
+const recorded = (name: string) => recordedWrite('hyperliquid', name).exchanges[0]!.response
+
+export const UNKNOWN_OID = recorded('lookupUnknown')
+
+type RestingReply = { response: { data: { statuses: [{ resting: { oid: number } }] } } }
+
+/** The recorded reply to an order that rests, with the oid a spec tells apart. */
+export function resting(oid: number) {
+  const reply = structuredClone(recorded('rest')) as RestingReply
+  reply.response.data.statuses[0].resting.oid = oid
+  return { json: reply }
+}
 
 export async function fakeHyperliquid(page: Page, network: Network) {
   const sent: ExchangeBody[] = []
@@ -58,7 +70,7 @@ export async function fakeHyperliquid(page: Page, network: Network) {
     sent,
     exchangeUrl: `${API[network]}/exchange`,
     exchange: (_body: ExchangeBody): Answer | Promise<Answer> => ACCEPTED,
-    orderStatus: (_cloid: string): unknown => ({ status: 'unknownOid' }),
+    orderStatus: (_cloid: string): unknown => UNKNOWN_OID,
     book: { bid: '79990', ask: '80000' },
     account: { ...EMPTY_ACCOUNT },
   }
