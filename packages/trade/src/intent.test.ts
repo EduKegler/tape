@@ -6,7 +6,7 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec, TickRule } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
-import { buildIntent, checkPrice, checkSize, closeIntent, worstPrice } from './intent'
+import { buildIntent, checkCount, checkPrice, checkSize, checkSkew, closeIntent, worstPrice } from './intent'
 import type { IntentDraft } from './intent'
 import type { Bps, Capabilities, Decimal, Position } from './types'
 import { TRADING } from './index'
@@ -101,6 +101,33 @@ describe('order intent', () => {
     expect(errorsOf({ side: 'sell', takeProfits: at })).toEqual({ takeProfit1: 'Must be below the price' })
     expect(errorsOf({ stopLoss: '80000' })).toEqual({ stopLoss: 'Must be below the price' })
     expect(errorsOf({ side: 'sell', stopLoss: '80000' })).toEqual({ stopLoss: 'Must be above the price' })
+  })
+
+  it('accepts an order worth exactly the venue minimum', () => {
+    expect(errorsOf({ price: '100000', size: '0.0001' }, { ...hl, minNotional: 100 as Px })).toEqual({})
+  })
+
+  it('refuses an empty, unreadable or off-tick field instead of throwing', () => {
+    const ten = { ...hl, minNotional: 100 as Px }
+    expect(errorsOf({ price: '' })).toEqual({ price: 'Enter a price' })
+    expect(errorsOf({ size: '' })).toEqual({ size: 'Enter a size' })
+    expect(errorsOf({ price: 'abc' })).toEqual({ price: 'Not a number' })
+    expect(errorsOf({ size: 'abc' })).toEqual({ size: 'Not a number' })
+    expect(errorsOf({ price: '80000.55' })).toEqual({ price: 'At most 1 decimals' })
+    expect(errorsOf({ size: '0.000015' })).toEqual({ size: 'At most 5 decimals' })
+    expect(errorsOf({ size: '0.000015' }, ten)).toEqual({ size: 'At most 5 decimals' })
+    expect(errorsOf({ price: '101234.5' })).toEqual({ price: 'Price must be a multiple of 1.0' })
+    expect(errorsOf({ stopLoss: '71234.5' })).toEqual({ stopLoss: 'Price must be a multiple of 1.0' })
+    expect(errorsOf({ size: '0' })).toEqual({ size: 'Minimum is 0.00001' })
+  })
+
+  it("takes from 2 to the venue's max orders and a skew from 0.1 to 10, both ends included", () => {
+    expect(checkCount('2', 20)).toBeUndefined()
+    expect(checkCount('20', 20)).toBeUndefined()
+    expect(checkSkew('0.1')).toBeUndefined()
+    expect(checkSkew('10')).toBeUndefined()
+    expect(checkSkew('10.1')).toBe('Between 0.1 and 10')
+    expect(checkSkew('0.09')).toBe('Between 0.1 and 10')
   })
 })
 
