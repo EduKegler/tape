@@ -6,8 +6,10 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec, TickRule } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
-import { checkPrice, checkSize, closeIntent, worstPrice } from './intent'
-import type { Bps, Decimal, Position } from './types'
+import { buildIntent, checkPrice, checkSize, closeIntent, worstPrice } from './intent'
+import type { IntentDraft } from './intent'
+import type { Bps, Capabilities, Decimal, Position } from './types'
+import { TRADING } from './index'
 
 const hl: MarketSpec = {
   key: marketKey('hyperliquid', 'BTC' as Base),
@@ -21,6 +23,36 @@ const hl: MarketSpec = {
   step: 1 as Qty,
 }
 const dydx: MarketSpec = { ...hl, venue: 'dydx', scale: { px: 0, qty: 4 }, tick: { kind: 'fixed', tick: 1 as Px } }
+
+const draft: IntentDraft = {
+  side: 'buy',
+  kind: 'limit',
+  price: '80000',
+  size: '0.001',
+  tif: 'gtc',
+  reduceOnly: false,
+  takeProfits: [],
+  stopLoss: '',
+  slippage: 100 as Bps,
+  bid: '',
+  ask: '',
+  start: '',
+  end: '',
+  count: '',
+  skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
+}
+
+const errorsOf = (
+  overrides: Partial<IntentDraft>,
+  spec = hl,
+  caps: Capabilities = TRADING.hyperliquid.capabilities,
+) => {
+  const built = buildIntent(spec, { ...draft, ...overrides }, caps)
+  return built.ok ? {} : built.errors
+}
 
 describe('order intent', () => {
   it('rejects prices off the tick and sizes off the step', () => {
@@ -39,6 +71,15 @@ describe('order intent', () => {
   it('floors a market sell at the slippage and rounds it up onto the tick', () => {
     expect(worstPrice(dydx, 'sell', 80_000 as Px, 50)).toBe(79_600)
     expect(worstPrice(dydx, 'sell', 80_001 as Px, 50)).toBe(79_601)
+  })
+
+  it('refuses a stop loss on a venue that cannot send triggers', () => {
+    for (const venue of [TRADING.dydx, TRADING.orderly]) {
+      expect(errorsOf({ stopLoss: '70000' }, hl, venue.capabilities)).toEqual({ stopLoss: 'Not offered on this venue' })
+      expect(
+        errorsOf({ kind: 'market', bid: '79990', ask: '80010', stopLoss: '70000' }, hl, venue.capabilities),
+      ).toEqual({ stopLoss: 'Not offered on this venue' })
+    }
   })
 })
 
