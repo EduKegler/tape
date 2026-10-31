@@ -160,11 +160,14 @@ VITE_NETWORK=testnet pnpm dev
 ```bash
 pnpm verify   # package boundaries, typecheck of each package and the app, no notes in the public repo, import cycles, lint, format, unused code, tests
 pnpm verify:commits # pnpm verify on each commit since origin/main, as the pre-push hook and CI run it
+pnpm e2e # Playwright journeys on the testnet and mainnet production builds over the recorded replay, with all outside network blocked
 pnpm build
 pnpm fixtures # re-record venue fixtures
 pnpm fixtures:history # re-record trade history fixtures
 node scripts/capture.mjs # screenshot and social preview from a running preview server
 ```
+
+Every night `.github/workflows/nightly.yml` records each venue on mainnet and testnet and replays it through the parsers, opens the testnet build against the live venues, and runs `pnpm e2e` in Firefox and WebKit.
 
 `pnpm preview` serves the last build with `wrangler dev`, in workerd, the runtime Cloudflare runs.
 
