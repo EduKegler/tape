@@ -150,3 +150,23 @@ test('forgetting the trading key sits in the account bar and asks first', async 
   await step.getByRole('button', { name: 'Forget key' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()
 })
+
+test('leverage starts at the position leverage and refuses a value out of range in the field', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, account } = await holding(page)
+  const field = account.getByRole('textbox', { name: 'Leverage' })
+  await expect(field).toHaveValue('20')
+  const set = account.getByRole('button', { name: 'Set', exact: true })
+  await field.fill('80')
+  await expect(field).toHaveAccessibleDescription('Whole number from 1 to 50')
+  await expect(set).toBeDisabled()
+
+  await field.fill('10')
+  await expect(field).toHaveAccessibleDescription('')
+  await set.click()
+  await expect
+    .poll(() => writes(hyperliquid.sent).map((body) => body.action))
+    .toEqual([{ type: 'updateLeverage', asset: BTC, isCross: true, leverage: 10 }])
+})

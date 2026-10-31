@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, MarketKey, VenueId } from '@tape/core/ids'
@@ -76,6 +76,7 @@ function AccountBody({
   const slippage = useSelector(closeSlippageBps, (s) => s) as Bps
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
+  const held = /^\d+/.exec(snapshot?.positions.find((p) => p.symbol === symbol)?.leverage ?? '')?.[0] ?? null
   const busy = (c: Command) => inFlight.some((x) => JSON.stringify(x) === JSON.stringify(c))
   const [closeError, setCloseError] = useState<string | null>(null)
   const venue = VENUES[account.venue].label
@@ -117,7 +118,13 @@ function AccountBody({
             onConfirm={() => run({ kind: 'cancel-all', symbol })}
           />
         )}
-        {leverage && symbol && <LeverageControl onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })} />}
+        {leverage && symbol && (
+          <LeverageControl
+            key={held ?? ''}
+            current={held ?? ''}
+            onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })}
+          />
+        )}
         {forget && (
           <span className="ml-auto">
             <ConfirmAction
@@ -182,26 +189,45 @@ function cancelAllQuestion(count: number, base: Base, venue: string) {
   return `Cancel ${count === 1 ? `1 ${base} order` : `all ${count} ${base} orders`} on ${venue}?`
 }
 
-function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
-  const [value, setValue] = useState('5')
+const LEVERAGE_RANGE = { min: 1, max: 50 }
+
+function leverageError(value: string): string | undefined {
   const n = Number(value)
+  return value && !(Number.isInteger(n) && n >= LEVERAGE_RANGE.min && n <= LEVERAGE_RANGE.max)
+    ? `Whole number from ${LEVERAGE_RANGE.min} to ${LEVERAGE_RANGE.max}`
+    : undefined
+}
+
+function LeverageControl({ current, onSet }: { current: string; onSet: (n: number) => void }) {
+  const [value, setValue] = useState(current)
+  const error = leverageError(value)
+  const id = useId()
   return (
     <form
-      className="flex items-center gap-1 text-level3"
+      className="flex items-center gap-1.5 text-level3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (Number.isInteger(n) && n >= 1 && n <= 50) onSet(n)
+        if (value && !error) onSet(Number(value))
       }}
     >
-      <label htmlFor="leverage">Leverage</label>
+      <label htmlFor={id}>Leverage</label>
       <input
-        id="leverage"
+        id={id}
         inputMode="numeric"
+        autoComplete="off"
+        placeholder="—"
         value={value}
         onChange={(e) => setValue(e.target.value.trim())}
-        className="num w-10 rounded-sm border border-rule bg-surface px-1 text-level1"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
+        className="num h-6 w-10 rounded-sm border border-edge bg-inset px-1 text-level1 outline-none focus:border-accent aria-invalid:border-warn"
       />
-      <Button look="quiet" type="submit">
+      {error && (
+        <span id={`${id}-error`} className="border-l-2 border-warn pl-1.5 text-level1">
+          {error}
+        </span>
+      )}
+      <Button look="quiet" type="submit" disabled={!value || Boolean(error)}>
         Set
       </Button>
     </form>
