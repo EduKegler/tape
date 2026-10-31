@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
+import { CONTROL } from './replay/control'
+import type { Command } from './replay/control'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 const ticketOf = (page: Page) => panel(page, 'Order ticket')
@@ -87,6 +89,36 @@ test('clicking a trade puts its price into the ticket', async ({ page }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   await panel(page, 'Trades').getByRole('button', { name: 'Buy 80,589 size 0.00062', exact: false }).first().click()
   await expect(ticketOf(page).getByRole('textbox', { name: 'Price (USDC)' })).toHaveValue('80589')
+})
+
+const replay = (page: Page, command: Command) =>
+  page.evaluate(
+    ({ control, message }) => {
+      const channel = new BroadcastChannel(control)
+      channel.postMessage(message)
+      channel.close()
+    },
+    { control: CONTROL, message: command },
+  )
+
+test('a book row from a stale book warns under the price without blocking', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const ticket = ticketOf(page)
+  const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
+  const row = panel(page, 'Order book').getByRole('button', { name: /^Bid 80,595 / })
+  await row.click()
+  await expect(price).toHaveValue('80595')
+  await expect(price).toHaveAccessibleDescription('')
+
+  await replay(page, { drop: 'hyperliquid' })
+  await expect(panel(page, 'Order book').getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
+  await page.clock.fastForward(20_000)
+  await row.click()
+  await expect(price).toHaveAccessibleDescription(/^From a book 2\d s old\. Check it against the market\.$/)
+  await expect(price).toHaveAttribute('aria-invalid', 'false')
+
+  await price.fill('80590')
+  await expect(price).toHaveAccessibleDescription('')
 })
 
 test('a market buy hides the price, offers slippage and prices the notional at the ask', async ({ page }) => {

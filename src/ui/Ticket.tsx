@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
@@ -28,12 +28,13 @@ import type { Entry } from '@tape/trade/liquidation'
 import type { Bps, Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
-import { useFrame } from '#/client/hooks'
+import { useFrame, useFrameEffect } from '#/client/hooks'
 import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
+import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
 import { Button, Input } from './primitives'
 import { marketQuery } from './queries'
@@ -218,8 +219,15 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
     return name ? drafted[name] : undefined
   }
 
+  const book = useRef<{ readonly live: boolean; readonly at: number | null }>({ live: false, at: null })
+  useFrameEffect({ kind: 'book', market: spec.key, group }, (f) => {
+    book.current = f.status === 'live' ? { live: true, at: Date.now() } : { live: false, at: book.current.at }
+  })
+  const [priceNote, setPriceNote] = useState<string | null>(null)
   useEffect(() => {
-    if (proposed) form.setFieldValue('price', proposed.price)
+    if (!proposed) return
+    form.setFieldValue('price', proposed.price)
+    setPriceNote(oldBookNote(book.current, proposed.at))
   }, [proposed, form])
 
   return (
@@ -320,12 +328,22 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
-                onChange={field.handleChange}
+                onChange={(v) => {
+                  setPriceNote(null)
+                  field.handleChange(v)
+                }}
                 error={fieldError(field)}
+                warning={priceNote}
                 messageLine
                 hint={
                   near ? (
-                    <Button look="quiet" onClick={() => field.handleChange(near)}>
+                    <Button
+                      look="quiet"
+                      onClick={() => {
+                        setPriceNote(null)
+                        field.handleChange(near)
+                      }}
+                    >
                       {side === 'buy' ? 'Bid' : 'Ask'} {groupThousands(near)}
                     </Button>
                   ) : null
@@ -603,6 +621,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       </div>
     </form>
   )
+}
+
+function oldBookNote(book: { readonly live: boolean; readonly at: number | null }, now: number): string | null {
+  if (book.at === null || (book.live && now - book.at <= STALE_AFTER_MS)) return null
+  const seconds = Math.max(0, Math.floor((now - book.at) / 1000))
+  const age = seconds < 120 ? `${seconds} s` : `${Math.round(seconds / 60)} min`
+  return `From a book ${age} old. Check it against the market.`
 }
 
 type Preview = Entry & { readonly notional: bigint }
