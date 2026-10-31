@@ -29,12 +29,12 @@ export function StatusBar() {
       ) : (
         <span>Starting hub…</span>
       )}
-      <span className="ml-auto font-sans">
+      <span className="ml-auto">
         {SITE_READ_ONLY
           ? 'Market data comes straight from the venues. Tape has no server in between.'
           : 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'}
       </span>
-      <a className="font-sans hover:text-level1" href="https://github.com/EduKegler/tape">
+      <a className="hover:text-level1" href="https://github.com/EduKegler/tape">
         Source
       </a>
     </footer>

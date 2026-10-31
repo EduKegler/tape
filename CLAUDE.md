@@ -22,6 +22,10 @@ Our own code explains itself through names, types and tests. A comment stays onl
 
 A why about our own design is a rename, an extracted function or a type instead. `/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */` was deleted for that. `/** Not found comes back as success: false, sometimes with a 200, so reads treat it as rejected. */` stays, because Orderly decides it. Naming the outside party is not enough on its own: the four comments #5 added and #7 deleted named TanStack Router, Vite, Safari and Firefox, but `src/router.tsx` already states the Router fact where it applies, and `V8_STACK`, `JSC_STACK` and `GECKO_STACK` already say which engine wrote each stack. No lint can tell these apart, so read each comment you add against this rule before you commit.
 
+## Design
+
+Load the `tape-design` skill before changing how a screen looks or reads. Its tokens and primitives win over any other design skill.
+
 ## Tests
 
 A test goes in the one layer that can catch its kind of mistake. A test that repeats another layer's proof stays out.
@@ -61,7 +65,8 @@ Before a venue ships, its tests prove these:
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
 | No unused files, exports or dependencies | knip in `pnpm verify` |
 | Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter | `no-restricted-*` rules in `eslint.config.js` |
-| Type, spacing, radius, z-index and duration come from the tokens in `src/styles.css`, and buttons, tables and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-restricted-classes` and `no-restricted-*` rules in `eslint.config.js` |
+| Color, type, weight, spacing, radius, z-index, duration and animation come from the tokens in `src/styles.css`, motion plays only under `motion-safe:`, and buttons, tables and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-unknown-classes` and `no-restricted-classes`, and the `no-restricted-*` rules in `eslint.config.js` |
+| Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
 | Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |

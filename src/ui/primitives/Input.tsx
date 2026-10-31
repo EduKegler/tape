@@ -29,10 +29,10 @@ export function Input(props: {
         onBlur={props.onBlur}
         aria-invalid={Boolean(props.error)}
         aria-describedby={props.error ? `${id}-error` : undefined}
-        className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
+        className="num h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1 outline-none focus:border-accent aria-invalid:border-warn"
       />
       {props.error && (
-        <span id={`${id}-error`} className="text-ask">
+        <span id={`${id}-error`} className="border-l-2 border-warn pl-2 text-level1">
           {props.error}
         </span>
       )}

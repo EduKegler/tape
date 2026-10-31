@@ -4,6 +4,7 @@ import { useFrame } from '#/client/hooks'
 import type { CompareRow } from '#/core/topics'
 import { VENUES } from '#/site'
 import { Panel } from './Panel'
+import { TopicStatus } from './PanelStatus'
 import { Table } from './primitives'
 import type { Column } from './primitives'
 
@@ -29,7 +30,11 @@ export function Compare({ base, current }: { base: Base; current: VenueId }) {
   const rows = useFrame({ kind: 'compare', base }, (f) => (f?.rows as CompareRow[] | undefined) ?? NO_ROWS)
   const navigate = useNavigate()
   return (
-    <Panel title="Venues" aside={<span className="text-xs text-level3">{base} · basis in bps</span>}>
+    <Panel
+      title="Venues"
+      status={<TopicStatus topic={{ kind: 'compare', base }} />}
+      aside={<span className="text-xs text-level3">{base} · basis in bps</span>}
+    >
       <Table
         rows={rows}
         rowKey={(r) => r.venue}

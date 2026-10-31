@@ -3,6 +3,7 @@ import type { MarketKey } from '@tape/core/ids'
 import { useFrameEffect } from '#/client/hooks'
 import type { DepthFrame, DepthSide } from '#/core/topics'
 import { Panel } from './Panel'
+import { TopicStatus } from './PanelStatus'
 
 function cssVar(el: Element, name: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim()
@@ -58,7 +59,7 @@ function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
   area(f.bids, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
   area(f.asks, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
   ctx.fillStyle = cssVar(canvas, '--level3')
-  ctx.font = `11px ${cssVar(canvas, '--font-mono')}`
+  ctx.font = `11px ${cssVar(canvas, '--font-sans')}`
   ctx.textAlign = 'left'
   ctx.fillText(lo.toLocaleString('en-US', { maximumFractionDigits: 2 }), 6, h - 6)
   ctx.textAlign = 'right'
@@ -82,7 +83,7 @@ export function DepthChart({ market }: { market: MarketKey }) {
     return () => observer.disconnect()
   }, [])
   return (
-    <Panel title="Depth">
+    <Panel title="Depth" status={<TopicStatus topic={{ kind: 'depth', market }} ageLimit />}>
       <canvas ref={canvas} className="absolute inset-0 size-full" aria-label="Cumulative order book depth" role="img" />
     </Panel>
   )

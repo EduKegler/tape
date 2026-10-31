@@ -93,7 +93,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
-          <Button look="danger" onClick={() => run({ kind: 'cancel-all', symbol })}>
+          <Button look="quiet" onClick={() => run({ kind: 'cancel-all', symbol })}>
             Cancel all {base}
           </Button>
         )}
@@ -158,7 +158,7 @@ function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
         onChange={(e) => setValue(e.target.value.trim())}
         className="num w-10 rounded-sm border border-rule bg-surface px-1 text-level1"
       />
-      <Button look="inline" type="submit">
+      <Button look="quiet" type="submit">
         Set
       </Button>
     </form>
@@ -188,7 +188,7 @@ function Positions({
     {
       header: '',
       cell: (p) => (
-        <Button look="danger" disabled={busy} onClick={() => onClose(p)}>
+        <Button look="quiet" disabled={busy} onClick={() => onClose(p)}>
           Close
         </Button>
       ),
@@ -216,7 +216,7 @@ function Orders({
     {
       header: '',
       cell: (o) => (
-        <Button look="danger" disabled={busy(o)} onClick={() => onCancel(o)}>
+        <Button look="quiet" disabled={busy(o)} onClick={() => onCancel(o)}>
           Cancel
         </Button>
       ),

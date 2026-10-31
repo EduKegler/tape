@@ -5,6 +5,7 @@ import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
 import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty, toDisplayFloat } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
+import { marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import {
@@ -31,6 +32,7 @@ import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
+import { TopicStatus } from './PanelStatus'
 import { Button, Input } from './primitives'
 import { marketQuery } from './queries'
 import { TradeNote } from './TradeNote'
@@ -78,7 +80,18 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
     </span>
   )
   return (
-    <Panel title="Order ticket" aside={aside}>
+    <Panel
+      title="Order ticket"
+      status={
+        <TopicStatus
+          topic={{ kind: 'book', market: marketKey(venue, base), group }}
+          ageLimit
+          error={specs.isError ? 'Could not load market rules.' : null}
+          onRetry={() => void specs.refetch()}
+        />
+      }
+      aside={aside}
+    >
       {spec ? (
         <TicketForm
           key={`${spec.key}:${'ref' in session ? session.ref.owner : ''}`}
@@ -181,7 +194,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         void form.handleSubmit()
       }}
     >
-      <div className="grid grid-cols-2 gap-1 rounded-full border border-rule p-0.5">
+      <div className="grid grid-cols-2 gap-1 rounded-sm border border-rule p-0.5">
         {(['buy', 'sell'] as const).map((s) => (
           <Button
             key={s}
@@ -443,7 +456,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                       )}
                       {count > 1 && (
                         <Button
-                          look="danger"
+                          look="quiet"
                           className="pb-1.5"
                           aria-label={`Remove take profit ${i + 1}`}
                           onClick={() => {
@@ -458,7 +471,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   ))}
                   {count < (caps.triggers?.takeProfits ?? 0) && (
                     <Button
-                      look="quiet-sm"
+                      look="quiet"
                       className="self-start"
                       onClick={() => {
                         rows.pushValue({ price: '', share: '' })
@@ -641,7 +654,7 @@ function SubmitArea({
       return (
         <>
           {button}
-          <Button look="quiet-xs" onClick={session.forget} className="self-end">
+          <Button look="quiet" onClick={session.forget} className="self-end">
             Forget trading key on this device
           </Button>
         </>

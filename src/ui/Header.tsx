@@ -9,6 +9,7 @@ import { WalletButton } from '#/wallet/Wallet'
 import { formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
 import { MarketSearch } from './MarketSearch'
+import { TopicStatus } from './PanelStatus'
 import { statsQuery } from './queries'
 
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
@@ -24,7 +25,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             params={{ venue, base: b }}
             search={(s) => s}
             aria-current={b === base ? 'page' : undefined}
-            className="rounded-full px-2.5 py-1 text-base text-level3 hover:text-level1 aria-[current=page]:bg-level1/12 aria-[current=page]:text-level1"
+            className="px-2.5 py-1 text-base text-level3 hover:text-level1 aria-[current=page]:text-level1 aria-[current=page]:inset-shadow-selected"
           >
             {b}
           </Link>
@@ -39,10 +40,10 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             params={{ venue: v, base }}
             search={(s) => s}
             aria-current={v === venue ? 'page' : undefined}
-            className="flex flex-col rounded-sm px-2 py-0.5 leading-tight text-level3 hover:text-level1 aria-[current=page]:bg-level1/8 aria-[current=page]:text-level1"
+            className="flex flex-col px-2 py-0.5 leading-tight text-level3 hover:text-level1 aria-[current=page]:text-level1 aria-[current=page]:inset-shadow-selected"
           >
             <span className="text-base">{VENUES[v].label}</span>
-            <span className="text-2xs text-level3">{VENUES[v].chain}</span>
+            <span className="text-xs text-level3">{VENUES[v].chain}</span>
           </Link>
         ))}
       </nav>
@@ -57,49 +58,53 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
 
 export function Brand() {
   return (
-    <Link to="/" className="flex items-baseline gap-2 font-display text-3xl leading-none text-level1">
+    <Link to="/" className="flex items-baseline gap-2 text-xl leading-none text-level1">
       Tape
       {NETWORK === 'testnet' && (
-        <span className="rounded-full bg-level1/12 px-2 py-0.5 font-sans text-xs text-level1">Testnet</span>
+        <span className="rounded-sm bg-level1/12 px-2 py-0.5 text-xs text-level1">Testnet</span>
       )}
     </Link>
   )
 }
 
 function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
-  const last = useFrame(
-    { kind: 'trades', market: marketKey(venue, base) },
-    (f) => ({ px: f?.last ?? '', side: f?.lastSide ?? null }),
-    shallow,
-  )
+  const topic = { kind: 'trades', market: marketKey(venue, base) } as const
+  const last = useFrame(topic, (f) => ({ px: f?.last ?? '', side: f?.lastSide ?? null }), shallow)
   const stats = useQuery(statsQuery(venue, base))
   const s = stats.data
   return (
-    <dl className="num flex items-baseline gap-5 text-sm">
-      <div>
-        <dt className="sr-only">Last price</dt>
-        <dd
-          className={`text-xl ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
-        >
-          {last.px || '—'}
-        </dd>
-      </div>
-      <Stat
-        label="24h"
-        value={s ? formatPct(s.changePct) : '—'}
-        tone={s ? (s.changePct >= 0 ? 'text-bid' : 'text-ask') : ''}
+    <div className="flex items-baseline gap-3">
+      <dl className="num flex items-baseline gap-5 text-sm">
+        <div>
+          <dt className="sr-only">Last price</dt>
+          <dd
+            className={`text-lg ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+          >
+            {last.px || '—'}
+          </dd>
+        </div>
+        <Stat
+          label="24h"
+          value={s ? formatPct(s.changePct) : '—'}
+          tone={s ? (s.changePct >= 0 ? 'text-bid' : 'text-ask') : ''}
+        />
+        <Stat label="Volume" value={s ? formatCompact(s.volumeQuote) : '—'} />
+        {s?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(s.fundingRate * 100, 4)} />}
+        {s?.indexPrice != null && <Stat label="Index" value={s.indexPrice.toLocaleString('en-US')} />}
+      </dl>
+      <TopicStatus
+        topic={topic}
+        error={stats.isError ? 'Could not load 24h stats.' : null}
+        onRetry={() => void stats.refetch()}
       />
-      <Stat label="Volume" value={s ? formatCompact(s.volumeQuote) : '—'} />
-      {s?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(s.fundingRate * 100, 4)} />}
-      {s?.indexPrice != null && <Stat label="Index" value={s.indexPrice.toLocaleString('en-US')} />}
-    </dl>
+    </div>
   )
 }
 
 function Stat({ label, value, tone = '' }: { label: string; value: string; tone?: string }) {
   return (
     <div className="flex flex-col leading-tight">
-      <dt className="font-sans text-2xs text-level3">{label}</dt>
+      <dt className="text-xs text-level3">{label}</dt>
       <dd className={tone || 'text-level2'}>{value}</dd>
     </div>
   )

@@ -8,7 +8,7 @@ The order book shows 28 ask rows above a spread line and 28 bid rows below it, e
 - `book-group` regroups the book from the `Group` select and writes `group=<n>` into the URL.
 - `book-group-url` restores the grouping from a URL that already has `group=<n>`.
 - `book-click` puts a clicked level's price into the ticket's limit price.
-- `book-status` shows `Syncing…` before data and `Reconnecting…` when the feed goes stale.
+- `book-status` shows `Loading…` beside the panel title before data and `Reconnecting · <n> s old` when the feed goes stale.
 
 ## How to get to it (user POV)
 

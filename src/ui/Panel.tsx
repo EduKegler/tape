@@ -3,19 +3,24 @@ import { Button } from './primitives'
 
 export function Panel({
   title,
+  status,
   aside,
   children,
   className = '',
 }: {
   title: string
+  status?: ReactNode
   aside?: ReactNode
   children: ReactNode
   className?: string
 }) {
   return (
-    <section className={`flex h-full min-h-0 flex-col border border-rule bg-panel ${className}`}>
-      <header className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-rule px-3">
-        <h2 className="font-display text-lg text-level1">{title}</h2>
+    <section className={`flex h-full min-h-0 flex-col border border-rule bg-surface ${className}`}>
+      <header className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <h2 className="text-base whitespace-nowrap text-level1">{title}</h2>
+          {status}
+        </div>
         {aside}
       </header>
       <div className="relative min-h-0 flex-1">{children}</div>
@@ -35,11 +40,11 @@ export function Segmented<T extends string>({
   label: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex rounded-full border border-rule p-0.5">
+    <div role="radiogroup" aria-label={label} className="flex items-center gap-3">
       {options.map((o) => (
         <Button
           key={o.value}
-          look="segment"
+          look="toggle"
           role="radio"
           aria-checked={o.value === value}
           onClick={() => onChange(o.value)}

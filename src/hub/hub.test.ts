@@ -256,6 +256,29 @@ describe('hub', () => {
     hub.dispose()
   })
 
+  it('marks the venue comparison stale once every venue socket drops', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([{ kind: 'compare', base: 'BTC' as Base }])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(a.frames.get('compare|BTC')?.status).toBe('live')
+
+    sockets[0]!.closed = true
+    sockets[0]!.onclose?.()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(a.frames.get('compare|BTC')?.status).toBe('live')
+
+    for (const s of sockets.slice(1)) {
+      s.closed = true
+      s.onclose?.()
+    }
+    await vi.advanceTimersByTimeAsync(300)
+    expect(a.frames.get('compare|BTC')?.status).toBe('stale')
+    hub.dispose()
+  })
+
   it('stops sending frames to a hidden tab and catches it up when it returns', async () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')

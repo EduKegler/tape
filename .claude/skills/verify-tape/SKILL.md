@@ -83,7 +83,7 @@ A testnet build opens the testnets instead: `stream.testnet.binance.vision` and 
 
 Testnet books are thin. The Orderly testnet sometimes sends a book with no asks for a few seconds, so wait for the state you need rather than reading the first frame.
 
-A venue outage shows up like this: `doctor` exits 2 for that venue, the book panel stays at `Syncing…` (or `Reconnecting…` after it was live), the `Sockets` count in the status bar is below 4, the Venues row for that venue shows `—`, the ticket says `Market rules unavailable.`, and the chart says `Could not load history.`. Prove the feature on another venue and report the outage.
+A venue outage shows up like this: `doctor` exits 2 for that venue, the book panel title says `Loading…` (or `Reconnecting · <n> s old` after it was live), the `Sockets` count in the status bar is below 4, the Venues row for that venue shows `—`, the ticket says `Market rules unavailable.`, and the chart says `Could not load history.`. Prove the feature on another venue and report the outage.
 
 ## Drive
 

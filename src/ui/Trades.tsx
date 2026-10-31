@@ -1,10 +1,12 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { shallow } from '@tanstack/store'
 import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import type { TradeRow } from '#/core/topics'
 import { formatClock } from './format'
 import { Panel } from './Panel'
+import { TopicStatus } from './PanelStatus'
 import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
 
@@ -12,7 +14,8 @@ const ROW = 20
 const NO_ROWS: readonly TradeRow[] = []
 
 export function Trades({ market }: { market: MarketKey }) {
-  const rows = useFrame({ kind: 'trades', market }, (f) => f?.rows ?? NO_ROWS)
+  const topic = { kind: 'trades', market } as const
+  const { rows, live } = useFrame(topic, (f) => ({ rows: f?.rows ?? NO_ROWS, live: f?.status === 'live' }), shallow)
   const scroller = useRef<HTMLDivElement>(null)
   const virtual = useVirtualizer({
     count: rows.length,
@@ -22,7 +25,7 @@ export function Trades({ market }: { market: MarketKey }) {
     getItemKey: (i) => rows[i]?.id ?? i,
   })
   return (
-    <Panel title="Trades">
+    <Panel title="Trades" status={<TopicStatus topic={topic} />}>
       <div className="num flex h-full flex-col text-sm">
         <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-xs text-level3">
           <span>Price</span>
@@ -30,7 +33,7 @@ export function Trades({ market }: { market: MarketKey }) {
           <span className="w-16 text-right">Time</span>
         </div>
         <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
-          {rows.length === 0 && <p className="px-3 py-2 text-level3">Waiting for trades…</p>}
+          {live && rows.length === 0 && <p className="px-3 py-2 text-level3">No trades yet.</p>}
           <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
             {virtual.getVirtualItems().map((item) => {
               const t = rows[item.index]

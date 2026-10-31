@@ -7,6 +7,7 @@ import type { Base, Interval, VenueId } from '@tape/core/ids'
 import { useFrameEffect } from '#/client/hooks'
 import { formatChartTick, formatChartTime } from './format'
 import { Panel, Segmented } from './Panel'
+import { TopicStatus } from './PanelStatus'
 import { candlesQuery, marketQuery } from './queries'
 
 const MARKS = {
@@ -50,7 +51,7 @@ export function CandleChart({
       layout: {
         background: { color: 'transparent' },
         textColor: css('--level3'),
-        fontFamily: css('--font-mono'),
+        fontFamily: css('--font-sans'),
         fontSize: 11,
         attributionLogo: false,
       },
@@ -146,6 +147,13 @@ export function CandleChart({
   return (
     <Panel
       title="Chart"
+      status={
+        <TopicStatus
+          topic={{ kind: 'candle', market: marketKey(venue, base), interval }}
+          error={history.isError ? 'Could not load history.' : null}
+          onRetry={() => void history.refetch()}
+        />
+      }
       aside={
         <Segmented
           label="Interval"
@@ -156,7 +164,6 @@ export function CandleChart({
       }
     >
       <div ref={host} className="absolute inset-0" />
-      {history.isError && <p className="absolute inset-x-0 top-1/2 text-center text-level3">Could not load history.</p>}
     </Panel>
   )
 }

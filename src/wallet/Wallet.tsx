@@ -57,7 +57,8 @@ export function WalletButton() {
           {connectors.map((connector) => (
             <Button
               key={connector.uid}
-              look="primary-connect"
+              look="primary"
+              size="md"
               disabled={isPending}
               onClick={() => {
                 setChosen(connector)
@@ -88,7 +89,7 @@ export function WalletButton() {
         id="chain"
         value={chainId}
         onChange={(e) => switchChain({ chainId: Number(e.target.value) as (typeof chains)[number]['id'] })}
-        className="rounded-full border border-rule bg-panel px-2 py-1 text-sm text-level2"
+        className="rounded-sm border border-rule bg-inset px-2 py-1 text-sm text-level2"
       >
         {chains.map((c) => (
           <option key={c.id} value={c.id}>
@@ -96,7 +97,7 @@ export function WalletButton() {
           </option>
         ))}
       </select>
-      <Button look="outline-wallet" onClick={() => disconnect()} title="Disconnect">
+      <Button look="secondary" size="md" className="num" onClick={() => disconnect()} title="Disconnect">
         {shortAddress(address)}
       </Button>
     </div>

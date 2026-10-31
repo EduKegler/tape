@@ -139,7 +139,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
         <Panel
           title="Fills and funding"
           aside={
-            <Button look="outline" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
+            <Button look="secondary" size="sm" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
               Export CSV
             </Button>
           }
@@ -196,7 +196,7 @@ function Addresses({
           className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
-      <Button look="outline" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
+      <Button look="secondary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
         Read history
       </Button>
     </form>
@@ -297,7 +297,7 @@ function Filters({
         {presets(now).map((p) => (
           <Button
             key={p.label}
-            look="preset"
+            look="toggle"
             aria-pressed={search.from === p.from && search.to === p.to}
             onClick={() => set({ from: p.from, to: p.to })}
           >
@@ -400,7 +400,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
         aria-label="History rows"
         className="min-h-0 min-w-240 flex-1 overflow-y-auto"
       >
-        {rows.length === 0 && <p className="px-3 py-2 font-sans text-sm text-level3">No fills or funding here.</p>}
+        {rows.length === 0 && <p className="px-3 py-2 text-sm text-level3">No fills or funding here.</p>}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
             const r = rows[item.index]
@@ -416,9 +416,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
                 <span role="cell" className="whitespace-nowrap">
                   {utcTime(r.time)}
                 </span>
-                <span role="cell" className="font-sans">
-                  {VENUES[e.venue].label}
-                </span>
+                <span role="cell">{VENUES[e.venue].label}</span>
                 <span role="cell" className="truncate text-level1">
                   {e.symbol}
                 </span>
@@ -435,9 +433,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
 function FillCells({ fill }: { fill: RealizedFill }) {
   return (
     <>
-      <span role="cell" className="font-sans">
-        {fill.liquidation ? 'Liquidation' : 'Fill'}
-      </span>
+      <span role="cell">{fill.liquidation ? 'Liquidation' : 'Fill'}</span>
       <span role="cell" className={fill.side === 'buy' ? 'text-bid' : 'text-ask'}>
         {fill.side}
       </span>
@@ -466,9 +462,7 @@ function FillCells({ fill }: { fill: RealizedFill }) {
 function FundingCells({ payment }: { payment: FundingPayment }) {
   return (
     <>
-      <span role="cell" className="font-sans">
-        Funding
-      </span>
+      <span role="cell">Funding</span>
       <span role="cell" />
       <span role="cell" className="text-right">
         {payment.position ?? ''}
