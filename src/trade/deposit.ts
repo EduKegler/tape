@@ -14,15 +14,13 @@ import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
 import { rejectionMessage } from '@tape/trade/wallet'
 import { track } from '#/analytics/track'
-import { switchOrAddChain, wagmiConfig } from '#/wallet/config'
+import { switchOrAddChain, toChainId, wagmiConfig } from '#/wallet/config'
+import type { ChainId } from '#/wallet/config'
 import { TRADE_CONFIG } from './config'
 import { addDeposit, depositsSnapshot, keySlot, parseDeposits, subscribeVault, updateDeposit } from './vault'
 import type { DepositRecord } from './vault'
 
 const watchEnded = (progress: DepositProgress | undefined) => progress?.stage === 'unresolved'
-
-type ChainId = (typeof wagmiConfig.chains)[number]['id']
-const wagmiChain = (id: number) => id as ChainId
 
 interface Eip1193 {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
@@ -42,7 +40,7 @@ export function useRouteBalances(ref: AccountRef, routes: readonly DepositRoute[
       abi: erc20Abi,
       functionName: 'balanceOf',
       args: [ref.owner],
-      chainId: wagmiChain(route.chainId),
+      chainId: toChainId(route.chainId),
     })),
   })
   return routes.map((_, index) => {
@@ -92,7 +90,7 @@ async function l1DataFee(chainId: ChainId, owner: Address, calls: readonly Depos
 }
 
 export function useDepositQuote(ref: AccountRef, route: DepositRoute, amount: bigint | null): DepositQuote {
-  const chainId = wagmiChain(route.chainId)
+  const chainId = toChainId(route.chainId)
   const usdc = useReadContract({
     address: route.token,
     abi: erc20Abi,
@@ -220,7 +218,7 @@ export function useSendDeposit(ref: AccountRef) {
       for (const call of calls) {
         if (call.kind === 'approve') {
           const receipt = await waitForTransactionReceipt(wagmiConfig, {
-            chainId: wagmiChain(route.chainId),
+            chainId: toChainId(route.chainId),
             hash: await send(call),
           })
           if (receipt.status !== 'success') throw new Error('The approval reverted. Nothing was deposited')
@@ -299,7 +297,7 @@ export const sentHash = (record: DepositRecord) => record.replacement ?? record.
 /** Follows one deposit from the source chain's receipt to the venue's credit, and stores each step on the record. */
 export function useDepositStatus(ref: AccountRef, record: DepositRecord): { status: DepositStatus; late: boolean } {
   const route = depositRoutes(ref).find((candidate) => candidate.chainId === record.chainId)
-  const chainId = wagmiChain(record.chainId)
+  const chainId = toChainId(record.chainId)
   const others = useDeposits(ref)
   const claimed = new Set(
     others.flatMap((other) =>

@@ -14,7 +14,7 @@ import { isRecord } from '@tape/core/json'
 import { shortAddress } from '#/ui/format'
 import { Button } from '#/ui/primitives'
 import { track } from '#/analytics/track'
-import { USDC, chains } from './config'
+import { USDC, chains, isChainId } from './config'
 import { PairingQr } from './PairingQr'
 
 const LABEL: Record<string, string> = { injected: 'Connect wallet', walletConnect: 'WalletConnect' }
@@ -91,7 +91,10 @@ export function WalletButton() {
       <select
         id="chain"
         value={chainId}
-        onChange={(event) => switchChain({ chainId: Number(event.target.value) as (typeof chains)[number]['id'] })}
+        onChange={(event) => {
+          const id = Number(event.target.value)
+          if (isChainId(id)) switchChain({ chainId: id })
+        }}
         className="rounded-sm border border-rule bg-inset px-2 py-1 text-sm text-level2"
       >
         {chains.map((chain) => (
@@ -109,7 +112,7 @@ export function WalletButton() {
 
 export function useUsdcBalance(): { readonly chain: string; readonly amount: string } | null {
   const { address, chainId, chain } = useConnection()
-  const token = chainId ? USDC[chainId as keyof typeof USDC] : undefined
+  const token = chainId ? USDC[chainId] : undefined
   const { data } = useReadContract({
     address: token,
     abi: erc20Abi,
