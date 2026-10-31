@@ -165,6 +165,7 @@ pnpm e2e # Playwright journeys on the testnet and mainnet production builds over
 pnpm build
 pnpm fixtures # re-record venue fixtures
 pnpm fixtures:history # re-record trade history fixtures
+RECORD_WRITES=dydx pnpm fixtures:writes # re-record one venue's testnet write replies, Hyperliquid also takes RECORD_WRITES_HL_KEY_FILE
 node scripts/capture.mjs # screenshot and social preview from a running preview server
 ```
 
