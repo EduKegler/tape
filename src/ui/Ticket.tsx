@@ -206,371 +206,401 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
 
   return (
     <form
-      className="flex flex-col gap-3 p-3"
+      className="flex h-full min-h-0 flex-col"
       onSubmit={(e) => {
         e.preventDefault()
         void form.handleSubmit()
       }}
     >
-      <div className="grid grid-cols-2 gap-1 rounded-sm border border-rule p-0.5">
-        {(['buy', 'sell'] as const).map((s) => (
-          <Button
-            key={s}
-            look={s === 'buy' ? 'side-buy' : 'side-sell'}
-            aria-pressed={side === s}
-            onClick={() => setSide(s)}
-          >
-            {s}
-          </Button>
-        ))}
-      </div>
-      <Segmented
-        label="Order type"
-        value={kind}
-        onChange={(k) => {
-          if (k === 'trailing' || kind === 'trailing') form.setFieldValue('reduceOnly', k === 'trailing')
-          setKind(k)
-          if (k === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
-        }}
-        options={[
-          { value: 'limit', label: 'Limit' },
-          { value: 'market', label: 'Market' },
-          ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
-          ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
-        ]}
-      />
-      {kind === 'trailing' && (
-        <div className="flex flex-col gap-2">
-          <form.Field name="retracementUnit">
-            {(unit) => (
-              <>
-                <form.Field
-                  name="retracement"
-                  validators={{
-                    onChangeListenTo: ['retracementUnit'],
-                    onChange: ({ value }) => checkRetracement(spec, form.getFieldValue('retracementUnit'), value),
-                  }}
-                >
-                  {(field) => (
-                    <Input
-                      label={`${FIELD_LABEL.retracement} (${unit.state.value === 'pct' ? '%' : spec.quote})`}
-                      name={field.name}
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={field.handleChange}
-                      error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-                      hint={<span className="text-level3">From the best price</span>}
-                    />
-                  )}
-                </form.Field>
-                <Segmented
-                  label="Retracement in"
-                  value={unit.state.value}
-                  onChange={unit.handleChange}
-                  options={[
-                    { value: 'pct', label: 'Percent' },
-                    { value: 'px', label: spec.quote },
-                  ]}
-                />
-              </>
-            )}
-          </form.Field>
-          <form.Field
-            name="activation"
-            validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
-          >
-            {(field) => (
-              <Input
-                label={`${FIELD_LABEL.activation} (${spec.quote})`}
-                name={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={field.handleChange}
-                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-                hint={<span className="text-level3">Empty to trail at once</span>}
-              />
-            )}
-          </form.Field>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+        <div className="grid grid-cols-2 gap-1 rounded-sm border border-rule p-0.5">
+          {(['buy', 'sell'] as const).map((s) => (
+            <Button
+              key={s}
+              look={s === 'buy' ? 'side-buy' : 'side-sell'}
+              aria-pressed={side === s}
+              onClick={() => setSide(s)}
+            >
+              {s}
+            </Button>
+          ))}
         </div>
-      )}
-      {kind === 'limit' && (
-        <form.Field name="price" validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
-          {(field) => (
-            <Input
-              label={`Price (${spec.quote})`}
-              name={field.name}
-              value={field.state.value}
-              onBlur={field.handleBlur}
-              onChange={field.handleChange}
-              error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-              hint={
-                near ? (
-                  <Button look="quiet" onClick={() => field.handleChange(near)}>
-                    {side === 'buy' ? 'Bid' : 'Ask'} {groupThousands(near)}
-                  </Button>
-                ) : null
-              }
-            />
-          )}
-        </form.Field>
-      )}
-      {kind === 'scale' && (
-        <div className="grid grid-cols-2 gap-2">
-          {(['start', 'end'] as const).map((name) => (
-            <form.Field key={name} name={name} validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
+        <Segmented
+          label="Order type"
+          value={kind}
+          onChange={(k) => {
+            if (k === 'trailing' || kind === 'trailing') form.setFieldValue('reduceOnly', k === 'trailing')
+            setKind(k)
+            if (k === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
+          }}
+          options={[
+            { value: 'limit', label: 'Limit' },
+            { value: 'market', label: 'Market' },
+            ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
+            ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
+          ]}
+        />
+        {kind === 'trailing' && (
+          <div className="flex flex-col gap-2">
+            <form.Field name="retracementUnit">
+              {(unit) => (
+                <>
+                  <form.Field
+                    name="retracement"
+                    validators={{
+                      onChangeListenTo: ['retracementUnit'],
+                      onChange: ({ value }) => checkRetracement(spec, form.getFieldValue('retracementUnit'), value),
+                    }}
+                  >
+                    {(field) => (
+                      <Input
+                        label={`${FIELD_LABEL.retracement} (${unit.state.value === 'pct' ? '%' : spec.quote})`}
+                        name={field.name}
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={field.handleChange}
+                        error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                        hint={<span className="text-level3">From the best price</span>}
+                      />
+                    )}
+                  </form.Field>
+                  <Segmented
+                    label="Retracement in"
+                    value={unit.state.value}
+                    onChange={unit.handleChange}
+                    options={[
+                      { value: 'pct', label: 'Percent' },
+                      { value: 'px', label: spec.quote },
+                    ]}
+                  />
+                </>
+              )}
+            </form.Field>
+            <form.Field
+              name="activation"
+              validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
+            >
               {(field) => (
                 <Input
-                  label={FIELD_LABEL[name]}
+                  label={`${FIELD_LABEL.activation} (${spec.quote})`}
                   name={field.name}
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={field.handleChange}
                   error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-                  hint={
-                    near ? (
-                      <Button look="quiet" onClick={() => field.handleChange(near)}>
-                        {side === 'buy' ? 'Bid' : 'Ask'}
-                      </Button>
-                    ) : null
-                  }
+                  hint={<span className="text-level3">Empty to trail at once</span>}
                 />
               )}
             </form.Field>
-          ))}
-          <form.Field name="count" validators={{ onChange: ({ value }) => checkCount(value, caps?.scaleOrders ?? 0) }}>
-            {(field) => (
-              <Input
-                label={FIELD_LABEL.count}
-                name={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={field.handleChange}
-                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-                hint={<span className="text-level3">Up to {caps?.scaleOrders}</span>}
-              />
-            )}
-          </form.Field>
-          <form.Field name="skew" validators={{ onChange: ({ value }) => checkSkew(value) }}>
-            {(field) => (
-              <Input
-                label={FIELD_LABEL.skew}
-                name={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={field.handleChange}
-                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-                hint={<span className="text-level3">Last over first</span>}
-              />
-            )}
-          </form.Field>
-        </div>
-      )}
-      <form.Field name="size" validators={{ onChange: ({ value }) => checkSize(spec, value) }}>
-        {(field) => (
-          <Input
-            label={`${kind === 'scale' ? 'Total size' : 'Size'} (${spec.base})`}
-            name={field.name}
-            value={field.state.value}
-            onBlur={field.handleBlur}
-            onChange={field.handleChange}
-            error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-            hint={<span className="text-level3">Step {formatQty(spec.step, spec.scale)}</span>}
-          />
+          </div>
         )}
-      </form.Field>
-      {kind === 'trailing' ? null : kind !== 'market' ? (
-        <form.Field name="tif">
-          {(field) => (
-            <label className="flex items-center justify-between text-sm text-level3">
-              Time in force
-              <select
-                name="tif"
+        {kind === 'limit' && (
+          <form.Field name="price" validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
+            {(field) => (
+              <Input
+                label={`Price (${spec.quote})`}
+                name={field.name}
                 value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value as Tif)}
-                className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-sm text-level1"
-              >
-                {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
-                  .filter((t) => kind !== 'scale' || t !== 'ioc')
-                  .map((t) => (
-                    <option key={t} value={t}>
-                      {TIF_LABEL[t]}
-                    </option>
-                  ))}
-              </select>
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                hint={
+                  near ? (
+                    <Button look="quiet" onClick={() => field.handleChange(near)}>
+                      {side === 'buy' ? 'Bid' : 'Ask'} {groupThousands(near)}
+                    </Button>
+                  ) : null
+                }
+              />
+            )}
+          </form.Field>
+        )}
+        {kind === 'scale' && (
+          <div className="grid grid-cols-2 gap-2">
+            {(['start', 'end'] as const).map((name) => (
+              <form.Field key={name} name={name} validators={{ onChange: ({ value }) => checkPrice(spec, value) }}>
+                {(field) => (
+                  <Input
+                    label={FIELD_LABEL[name]}
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={field.handleChange}
+                    error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                    hint={
+                      near ? (
+                        <Button look="quiet" onClick={() => field.handleChange(near)}>
+                          {side === 'buy' ? 'Bid' : 'Ask'}
+                        </Button>
+                      ) : null
+                    }
+                  />
+                )}
+              </form.Field>
+            ))}
+            <form.Field
+              name="count"
+              validators={{ onChange: ({ value }) => checkCount(value, caps?.scaleOrders ?? 0) }}
+            >
+              {(field) => (
+                <Input
+                  label={FIELD_LABEL.count}
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  hint={<span className="text-level3">Up to {caps?.scaleOrders}</span>}
+                />
+              )}
+            </form.Field>
+            <form.Field name="skew" validators={{ onChange: ({ value }) => checkSkew(value) }}>
+              {(field) => (
+                <Input
+                  label={FIELD_LABEL.skew}
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                  hint={<span className="text-level3">Last over first</span>}
+                />
+              )}
+            </form.Field>
+          </div>
+        )}
+        <form.Field name="size" validators={{ onChange: ({ value }) => checkSize(spec, value) }}>
+          {(field) => (
+            <Input
+              label={`${kind === 'scale' ? 'Total size' : 'Size'} (${spec.base})`}
+              name={field.name}
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={field.handleChange}
+              error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+              hint={<span className="text-level3">Step {formatQty(spec.step, spec.scale)}</span>}
+            />
+          )}
+        </form.Field>
+        {kind === 'trailing' ? null : kind !== 'market' ? (
+          <form.Field name="tif">
+            {(field) => (
+              <label className="flex items-center justify-between text-sm text-level3">
+                Time in force
+                <select
+                  name="tif"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value as Tif)}
+                  className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-sm text-level1"
+                >
+                  {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
+                    .filter((t) => kind !== 'scale' || t !== 'ioc')
+                    .map((t) => (
+                      <option key={t} value={t}>
+                        {TIF_LABEL[t]}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
+          </form.Field>
+        ) : (
+          <SlippageField />
+        )}
+        <form.Field name="reduceOnly">
+          {(field) => (
+            <label className="flex items-center gap-2 text-sm text-level2">
+              <input
+                type="checkbox"
+                name="reduceOnly"
+                checked={field.state.value}
+                onChange={(e) => field.handleChange(e.target.checked)}
+              />
+              Reduce only
             </label>
           )}
         </form.Field>
-      ) : (
-        <SlippageField />
-      )}
-      <form.Field name="reduceOnly">
-        {(field) => (
+        {caps?.triggers && takesExits(kind) && (
           <label className="flex items-center gap-2 text-sm text-level2">
-            <input
-              type="checkbox"
-              name="reduceOnly"
-              checked={field.state.value}
-              onChange={(e) => field.handleChange(e.target.checked)}
-            />
-            Reduce only
+            <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
+            Take profit and stop loss
           </label>
         )}
-      </form.Field>
-      {caps?.triggers && takesExits(kind) && (
-        <label className="flex items-center gap-2 text-sm text-level2">
-          <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
-          Take profit and stop loss
-        </label>
-      )}
-      {caps?.triggers && takesExits(kind) && protect && (
-        <div className="flex flex-col gap-2">
-          <form.Field name="takeProfits" mode="array">
-            {(rows) => {
-              const count = rows.state.value.length
-              const reshare = (next: number) =>
-                evenShares(next).forEach((share, i) => form.setFieldValue(`takeProfits[${i}].share`, share))
-              return (
-                <>
-                  {rows.state.value.map((_, i) => (
-                    // eslint-disable-next-line @eslint-react/no-array-index-key -- TanStack Form names array fields by index, so a row is its index
-                    <div key={i} className="flex items-end gap-2">
-                      <div className="min-w-0 flex-1">
-                        <form.Field
-                          name={`takeProfits[${i}].price`}
-                          validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
-                        >
-                          {(field) => (
-                            <Input
-                              label={takeProfitLabel(i, count)}
-                              name={field.name}
-                              value={field.state.value}
-                              onBlur={field.handleBlur}
-                              onChange={field.handleChange}
-                              error={
-                                field.state.meta.isTouched
-                                  ? (field.state.meta.errors[0] ?? exitSides[takeProfitField(i)])
-                                  : undefined
-                              }
-                              hint={null}
-                            />
-                          )}
-                        </form.Field>
-                      </div>
-                      {count > 1 && (
-                        <div className="w-20 shrink-0">
+        {caps?.triggers && takesExits(kind) && protect && (
+          <div className="flex flex-col gap-2">
+            <form.Field name="takeProfits" mode="array">
+              {(rows) => {
+                const count = rows.state.value.length
+                const reshare = (next: number) =>
+                  evenShares(next).forEach((share, i) => form.setFieldValue(`takeProfits[${i}].share`, share))
+                return (
+                  <>
+                    {rows.state.value.map((_, i) => (
+                      // eslint-disable-next-line @eslint-react/no-array-index-key -- TanStack Form names array fields by index, so a row is its index
+                      <div key={i} className="flex items-end gap-2">
+                        <div className="min-w-0 flex-1">
                           <form.Field
-                            name={`takeProfits[${i}].share`}
-                            validators={{ onChange: ({ value }) => checkShare(value) }}
+                            name={`takeProfits[${i}].price`}
+                            validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
                           >
                             {(field) => (
                               <Input
-                                label={`Size ${i + 1} (%)`}
+                                label={takeProfitLabel(i, count)}
                                 name={field.name}
                                 value={field.state.value}
                                 onBlur={field.handleBlur}
                                 onChange={field.handleChange}
-                                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                                error={
+                                  field.state.meta.isTouched
+                                    ? (field.state.meta.errors[0] ?? exitSides[takeProfitField(i)])
+                                    : undefined
+                                }
                                 hint={null}
                               />
                             )}
                           </form.Field>
                         </div>
-                      )}
-                      {count > 1 && (
-                        <Button
-                          look="quiet"
-                          className="h-9 shrink-0"
-                          aria-label={`Remove take profit ${i + 1}`}
-                          onClick={() => {
-                            rows.removeValue(i)
-                            reshare(count - 1)
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <form.Subscribe selector={(s) => s.values.stopLoss !== ''}>
-                    {(withStop) =>
-                      count + (withStop ? 1 : 0) < (caps.triggers?.orders ?? 0) && (
-                        <Button
-                          look="quiet"
-                          className="self-start"
-                          onClick={() => {
-                            rows.pushValue({ price: '', share: '' })
-                            reshare(count + 1)
-                          }}
-                        >
-                          Add take profit
-                        </Button>
-                      )
-                    }
-                  </form.Subscribe>
-                </>
-              )
-            }}
-          </form.Field>
-          <form.Field
-            name="stopLoss"
-            validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
-          >
-            {(field) => (
-              <Input
-                label="Stop loss"
-                name={field.name}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={field.handleChange}
-                error={field.state.meta.isTouched ? (field.state.meta.errors[0] ?? exitSides.stopLoss) : undefined}
-                hint={null}
-              />
-            )}
-          </form.Field>
-        </div>
-      )}
-      <form.Subscribe selector={(s) => [s.values, s.canSubmit] as const}>
-        {([values, canSubmit]) => {
-          const scale = kind === 'scale' ? buildScale(spec, { ...values, side }, caps?.scaleOrders ?? 0) : null
-          const legs = scale?.ok ? scale.legs : null
-          const px = kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
-          const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
-          const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
-          return (
-            <>
-              <dl className="num grid grid-cols-2 gap-y-1 text-sm">
-                <dt className="text-level3">Notional</dt>
-                <dd className="text-right text-level1">{total}</dd>
-                {margin.status !== 'no-estimate' && (
-                  <>
-                    <dt className="text-level3">Est. liquidation</dt>
-                    <dd className="text-right text-level1">{liquidationText(spec, margin, entry)}</dd>
+                        {count > 1 && (
+                          <div className="w-20 shrink-0">
+                            <form.Field
+                              name={`takeProfits[${i}].share`}
+                              validators={{ onChange: ({ value }) => checkShare(value) }}
+                            >
+                              {(field) => (
+                                <Input
+                                  label={`Size ${i + 1} (%)`}
+                                  name={field.name}
+                                  value={field.state.value}
+                                  onBlur={field.handleBlur}
+                                  onChange={field.handleChange}
+                                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                                  hint={null}
+                                />
+                              )}
+                            </form.Field>
+                          </div>
+                        )}
+                        {count > 1 && (
+                          <Button
+                            look="quiet"
+                            className="h-9 shrink-0"
+                            aria-label={`Remove take profit ${i + 1}`}
+                            onClick={() => {
+                              rows.removeValue(i)
+                              reshare(count - 1)
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <form.Subscribe selector={(s) => s.values.stopLoss !== ''}>
+                      {(withStop) =>
+                        count + (withStop ? 1 : 0) < (caps.triggers?.orders ?? 0) && (
+                          <Button
+                            look="quiet"
+                            className="self-start"
+                            onClick={() => {
+                              rows.pushValue({ price: '', share: '' })
+                              reshare(count + 1)
+                            }}
+                          >
+                            Add take profit
+                          </Button>
+                        )
+                      }
+                    </form.Subscribe>
                   </>
-                )}
-                {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
-              </dl>
-              {legs && <ScaleLegs spec={spec} legs={legs} />}
-              {protect && takesExits(kind) && values.takeProfits.length > 1 && (
-                <TakeProfitSplit spec={spec} size={values.size} rows={values.takeProfits} />
+                )
+              }}
+            </form.Field>
+            <form.Field
+              name="stopLoss"
+              validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
+            >
+              {(field) => (
+                <Input
+                  label="Stop loss"
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  error={field.state.meta.isTouched ? (field.state.meta.errors[0] ?? exitSides.stopLoss) : undefined}
+                  hint={null}
+                />
               )}
-              <SubmitArea
-                session={session}
-                venue={VENUES[spec.venue].label}
-                side={side}
-                base={spec.base}
-                canSubmit={canSubmit && canSend && !sending}
-              />
-            </>
-          )
-        }}
-      </form.Subscribe>
-      {built && <TradeNote error={built} />}
-      {last.command?.kind === 'place' && <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />}
+            </form.Field>
+          </div>
+        )}
+        <form.Subscribe selector={(s) => s.values}>
+          {(values) => {
+            const legs = scaleLegs(spec, kind, side, values, caps?.scaleOrders ?? 0)
+            return (
+              <>
+                {legs && <ScaleLegs spec={spec} legs={legs} />}
+                {protect && takesExits(kind) && values.takeProfits.length > 1 && (
+                  <TakeProfitSplit spec={spec} size={values.size} rows={values.takeProfits} />
+                )}
+              </>
+            )
+          }}
+        </form.Subscribe>
+      </div>
+      <div className="flex shrink-0 flex-col gap-2 border-t border-rule p-3">
+        <form.Subscribe selector={(s) => [s.values, s.canSubmit] as const}>
+          {([values, canSubmit]) => {
+            const legs = scaleLegs(spec, kind, side, values, caps?.scaleOrders ?? 0)
+            const px =
+              kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
+            const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
+            const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
+            return (
+              <>
+                <dl className="num grid grid-cols-2 gap-y-1 text-sm">
+                  <dt className="text-level3">Notional</dt>
+                  <dd className="text-right text-level1">{total}</dd>
+                  {margin.status !== 'no-estimate' && (
+                    <>
+                      <dt className="text-level3">Est. liquidation</dt>
+                      <dd className="text-right text-level1">{liquidationText(spec, margin, entry)}</dd>
+                    </>
+                  )}
+                  {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
+                </dl>
+                {built && <TradeNote error={built} />}
+                {last.command?.kind === 'place' && (
+                  <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
+                )}
+                <SubmitArea
+                  session={session}
+                  venue={VENUES[spec.venue].label}
+                  side={side}
+                  base={spec.base}
+                  canSubmit={canSubmit && canSend && !sending}
+                />
+              </>
+            )
+          }}
+        </form.Subscribe>
+      </div>
     </form>
   )
 }
 
 type Preview = Entry & { readonly notional: bigint }
+
+function scaleLegs(
+  spec: MarketSpec,
+  kind: Kind,
+  side: Side,
+  values: Omit<Parameters<typeof buildScale>[1], 'side'>,
+  most: number,
+): readonly Slice[] | null {
+  if (kind !== 'scale') return null
+  const scale = buildScale(spec, { ...values, side }, most)
+  return scale.ok ? scale.legs : null
+}
 
 function singleEntry(spec: MarketSpec, side: Side, px: string, size: string): Preview | null {
   if (!px || !size || checkSize(spec, size)) return null
