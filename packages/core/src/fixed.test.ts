@@ -115,7 +115,7 @@ describe('decimal properties', () => {
   })
 })
 
-describe('parsePx', () => {
+describe('parsePx parsing', () => {
   it('reads venue strings at the market scale', () => {
     expect(parsePx('80798.01000000', btc)).toBe(8079801)
     expect(parsePx('80798', btc)).toBe(8079800)
