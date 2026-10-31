@@ -238,7 +238,9 @@ describe('Orderly deposit credit', () => {
   })
 
   it('keeps relaying while Orderly lists the deposit as on its way', async () => {
-    for (const status of ['NEW', 'CONFIRM', 'PROCESSING', 'PENDING_REBALANCE']) {
+    /** Orderly's Get asset history docs: PENDING, PENDING_REBALANCE and PROCESSING from the reply's `trans_status` enum, NEW and CONFIRM from the `status` filter. */
+    const onTheWay = ['PENDING', 'PENDING_REBALANCE', 'PROCESSING', 'NEW', 'CONFIRM']
+    for (const status of onTheWay) {
       const { fetch } = orderlyAnswering(history([row(status)]))
       expect(await arbitrum().progress({ fetch, keys: keys(linked) }, sent)).toEqual({
         stage: 'relaying',
@@ -269,5 +271,14 @@ describe('Orderly deposit credit', () => {
         check: { label: 'LayerZero message', url: lane },
       })
     }
+  })
+
+  it('sends a testnet deposit to the testnet LayerZero Scan', async () => {
+    const sepolia = routes('testnet')[0]!
+    const { fetch } = orderlyAnswering(history([{ ...row('FAILED'), chain_id: '421614' }]))
+    const onTestnet = { ...sent, ref: { ...sent.ref, network: 'testnet' as const }, chainId: 421614 }
+    expect(await sepolia.progress({ fetch, keys: keys(linked) }, onTestnet)).toMatchObject({
+      check: { url: `https://testnet.layerzeroscan.com/tx/${hash}` },
+    })
   })
 })

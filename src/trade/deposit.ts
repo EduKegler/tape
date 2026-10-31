@@ -226,6 +226,7 @@ export function useSendDeposit(ref: AccountRef) {
           chainId: route.chainId,
           amount,
           fee: terms.fee,
+          message: terms.message,
           hash,
           replacement: null,
           sentAt: Date.now(),

@@ -4,7 +4,7 @@ import { formatEther, formatUnits } from 'viem'
 import type { Hex } from 'viem'
 import { DEPOSITS } from '@tape/trade'
 import { USDC_DECIMALS, blocksDeposit, parseUsdc } from '@tape/trade/deposit'
-import type { DepositFee, DepositIssue, DepositRoute, DepositVenue } from '@tape/trade/deposit'
+import type { DepositFee, DepositIssue, DepositRoute, DepositTerms, DepositVenue } from '@tape/trade/deposit'
 import type { AccountRef } from '@tape/trade/types'
 import {
   depositRoutes,
@@ -191,6 +191,12 @@ function DepositForm({
 const feeText = (fee: DepositFee) =>
   fee.expected === fee.max ? `${usdc(fee.max)} USDC` : `≈${usdc(fee.expected)} USDC, at most ${usdc(fee.max)}`
 
+const chargesText = (fee: DepositFee, message: DepositTerms['message'], chainId: number) =>
+  [
+    ...(fee.max > 0n ? [feeText(fee)] : []),
+    ...(message ? [`${gasText(message.wei, chainId)} to ${message.via}`] : []),
+  ].join(' and ') || 'None'
+
 function Summary({
   account,
   venue,
@@ -205,15 +211,17 @@ function Summary({
   quote: DepositQuote
 }) {
   const fee = quote.terms?.fee ?? null
-  const message = quote.terms?.message ?? null
-  const charges = [
-    ...(fee && fee.max > 0n ? [feeText(fee)] : []),
-    ...(message ? [`${gasText(message.wei, route.chainId)} to ${message.via}`] : []),
-  ]
   const rows: [string, string][] = [
     ['Route', [chainName(route.chainId), ...route.hops, venue.destination].join(' → ')],
     ['Credited to', `${shortAddress(account.owner)}, the same address`],
-    ['Fee', quote.terms ? charges.join(' and ') || 'None' : quote.termsError ? 'Unavailable' : '…'],
+    [
+      'Fee',
+      quote.terms
+        ? chargesText(quote.terms.fee, quote.terms.message, route.chainId)
+        : quote.termsError
+          ? 'Unavailable'
+          : '…',
+    ],
     [
       'You receive',
       quote.issues.some((i) => i.kind === 'below-minimum' && i.lost)
@@ -352,14 +360,12 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
   const credited = status.stage === 'credited' ? status : null
   const failed = status.stage === 'reverted' || status.stage === 'replaced'
   const ended = credited !== null || failed || status.stage === 'unresolved'
+  const kept = credited ? record.amount - credited.amount : null
   const rows: [string, React.ReactNode][] = [
     ['Sent', `${usdc(record.amount)} USDC from ${chain} at ${clock(record.sentAt)}`],
     ['Transaction', <TxLink key="tx" chainId={record.chainId} hash={sentHash(record)} />],
     ['Gas paid', record.gasPaid !== null ? gasText(record.gasPaid, record.chainId) : '…'],
-    [
-      'Fee',
-      credited ? `${usdc(record.amount - credited.amount)} USDC` : record.fee.max === 0n ? 'None' : feeText(record.fee),
-    ],
+    ['Fee', chargesText(kept === null ? record.fee : { expected: kept, max: kept }, record.message, record.chainId)],
     ['Credited', credited ? `${usdc(credited.amount)} USDC` : '…'],
     ...(credited ? [['Venue record', shortAddress(credited.receipt)] as [string, string]] : []),
   ]

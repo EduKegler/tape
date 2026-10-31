@@ -17,6 +17,10 @@ import type { Classify } from '../send'
 import { accountId, orderlyKey, signRequest } from './sign'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
+const LAYERZERO_SCAN: Record<Network, string> = {
+  mainnet: 'https://layerzeroscan.com',
+  testnet: 'https://testnet.layerzeroscan.com',
+}
 
 interface Source {
   readonly chainId: number
@@ -96,7 +100,7 @@ const History = z.object({
 })
 
 /** Orderly's `trans_status` values for a deposit it has seen and not yet credited. */
-const CREDITING = new Set(['NEW', 'CONFIRM', 'PROCESSING', 'PENDING_REBALANCE'])
+const CREDITING = new Set(['PENDING', 'PENDING_REBALANCE', 'PROCESSING', 'NEW', 'CONFIRM'])
 /** The wallet's clock and Orderly's can disagree. */
 const HISTORY_SLACK_MS = 10 * 60_000
 
@@ -131,7 +135,7 @@ async function progress(
       row.trans_status === 'FAILED'
         ? 'Orderly reports the deposit as failed'
         : `Orderly reports the deposit as ${row.trans_status}, a state Tape does not know`,
-    check: { label: 'LayerZero message', url: `https://layerzeroscan.com/tx/${sent.hash}` },
+    check: { label: 'LayerZero message', url: `${LAYERZERO_SCAN[network]}/tx/${sent.hash}` },
   }
 }
 
