@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
+import { port } from './port'
 
-const origin = 'http://127.0.0.1:4620'
+const origin = `http://127.0.0.1:${port(2)}`
 
 export default defineConfig({
   testDir: '.',
