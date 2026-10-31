@@ -117,6 +117,7 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   return (
     <Panel
       title="Order ticket"
+      tone="ticket"
       status={
         <TopicStatus
           topic={{ kind: 'book', market: marketKey(venue, base), group }}
@@ -408,7 +409,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   name="tif"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value as Tif)}
-                  className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-sm text-level1"
+                  className="rounded-sm border border-edge bg-inset px-1.5 py-1 text-sm text-level1"
                 >
                   {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
                     .filter((t) => kind !== 'scale' || t !== 'ioc')
