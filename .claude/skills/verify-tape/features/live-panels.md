@@ -22,7 +22,7 @@ Preconditions:
 - The book is live. Run `vt wait --js "document.querySelector('section div[data-status]')?.dataset.status === 'live'"`.
 
 - **Ticker.** Run `vt text --css "header dl"`. It has `Last price` (screen reader only) with a price, `24h`, `Volume`, `Funding 1h` and `Index`. On `/binance/BTC` the last two are absent, since Binance is spot.
-- **Trades.** Run `vt wait --panel Trades --text "Waiting for trades" --state hidden`, then `vt text --panel Trades`. Rows read `<price> <size> <hh:mm:ss>`. Run it again a few seconds later and the first row changes on a busy market.
+- **Trades.** Run `vt wait --panel Trades --text "Loading…" --state hidden`, then `vt text --panel Trades`. Rows read `<price> <size> <hh:mm:ss>`. Run it again a few seconds later and the first row changes on a busy market.
 - **Depth.** Run `vt wait --js "(() => { const c = document.querySelector('canvas[aria-label=\"Cumulative order book depth\"]'); return c && c.width > 0 && c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some(v => v) })()"`. Then `vt shot --panel Depth --path live/depth.png`. Green area on the left, red on the right, two price labels at the bottom.
 - **Candles.** Run `vt wait --panel Chart --text "Could not load history" --state hidden` and `vt shot --panel Chart --path live/candles-1m.png`. Click `vt click --role radio --name 1h --exact` and take `live/candles-1h.png`. The bars are wider apart in time.
 - **Proof.** Run `vt shot --path live/page.png`. All four panels show data.

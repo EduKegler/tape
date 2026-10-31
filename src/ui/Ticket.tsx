@@ -5,6 +5,7 @@ import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
 import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty, toDisplayFloat } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
+import { marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent, buildScale, checkCount, checkPrice, checkSize, checkSkew } from '@tape/trade/intent'
@@ -20,6 +21,7 @@ import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
+import { TopicStatus } from './PanelStatus'
 import { Button, Input } from './primitives'
 import { specsQuery } from './queries'
 import { TradeNote } from './TradeNote'
@@ -54,7 +56,18 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
     </span>
   )
   return (
-    <Panel title="Order ticket" aside={aside}>
+    <Panel
+      title="Order ticket"
+      status={
+        <TopicStatus
+          topic={{ kind: 'book', market: marketKey(venue, base), group }}
+          ageLimit
+          error={specs.isError ? 'Could not load market rules.' : null}
+          onRetry={() => void specs.refetch()}
+        />
+      }
+      aside={aside}
+    >
       {spec ? (
         <TicketForm
           key={`${spec.key}:${'ref' in session ? session.ref.owner : ''}`}

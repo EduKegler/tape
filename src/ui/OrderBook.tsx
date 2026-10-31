@@ -5,6 +5,7 @@ import { useFrame } from '#/client/hooks'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
 import { Panel } from './Panel'
+import { TopicStatus } from './PanelStatus'
 import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
 
@@ -31,13 +32,14 @@ export function OrderBook({
   return (
     <Panel
       title="Order book"
+      status={<TopicStatus topic={topic} ageLimit />}
       aside={
-        <label className="flex items-center gap-1.5 text-sm text-level3">
-          Group
+        <label className="flex items-center text-sm">
+          <span className="sr-only">Group</span>
           <select
             value={head.group}
             onChange={(e) => onGroup(e.target.value)}
-            className="num rounded-sm border border-rule bg-inset px-1 py-0.5 text-level2"
+            className="num rounded-sm border border-rule bg-inset py-0.5 pl-1 text-level2"
           >
             {(head.options ? head.options.split('|') : [head.group]).map((o) => (
               <option key={o} value={o.replaceAll(',', '')}>
@@ -103,11 +105,7 @@ function Spread({ topic }: { topic: BookTopic }) {
     <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
       <span className="text-base text-level1">{s.mid || '—'}</span>
       <span className="text-xs whitespace-nowrap text-level3">
-        {s.status === 'live'
-          ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`
-          : s.status === 'stale'
-            ? 'Reconnecting…'
-            : 'Syncing…'}
+        {s.status === 'live' && `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`}
       </span>
     </div>
   )

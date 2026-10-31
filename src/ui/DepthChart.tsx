@@ -3,6 +3,7 @@ import type { MarketKey } from '@tape/core/ids'
 import { useFrameEffect } from '#/client/hooks'
 import type { DepthFrame, DepthSide } from '#/core/topics'
 import { Panel } from './Panel'
+import { TopicStatus } from './PanelStatus'
 
 function cssVar(el: Element, name: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim()
@@ -82,7 +83,7 @@ export function DepthChart({ market }: { market: MarketKey }) {
     return () => observer.disconnect()
   }, [])
   return (
-    <Panel title="Depth">
+    <Panel title="Depth" status={<TopicStatus topic={{ kind: 'depth', market }} ageLimit />}>
       <canvas ref={canvas} className="absolute inset-0 size-full" aria-label="Cumulative order book depth" role="img" />
     </Panel>
   )

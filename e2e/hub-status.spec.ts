@@ -30,7 +30,7 @@ async function openTab(context: BrowserContext, path: string, { pagehide = true 
 
 async function expectBookRecovers(page: Page) {
   await send(page, { drop: 'hyperliquid' })
-  await expect(panel(page, 'Order book').getByText('Reconnecting…')).toBeVisible()
+  await expect(panel(page, 'Order book').getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
   await send(page, { restore: 'hyperliquid' })
   await expect(spread(page)).toBeVisible()
 }

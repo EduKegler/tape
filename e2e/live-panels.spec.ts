@@ -26,7 +26,7 @@ test('a spot ticker has no funding or index', async ({ page }) => {
 test("the trade feed lists the newest trade first in the browser's time zone", async ({ page }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const trades = panel(page, 'Trades')
-  await expect(trades.getByText('Waiting for trades…')).toBeHidden()
+  await expect(trades.getByText('Loading…')).toBeHidden()
   await expect(trades.getByRole('button').first()).toHaveAccessibleName('80,589 0.00062 01:40:06')
 })
 

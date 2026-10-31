@@ -7,9 +7,9 @@ const rowPrices = async (book: Locator) =>
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false })
 
-  test('the book says it is syncing before any data', async ({ page }) => {
+  test('the book says it is loading before any data', async ({ page }) => {
     await page.goto('/hyperliquid/BTC?interval=1m')
-    await expect(panel(page, 'Order book').getByText('Syncing…')).toBeVisible()
+    await expect(panel(page, 'Order book').getByText('Loading…')).toBeVisible()
   })
 
   test('a group in the URL is selected on first paint', async ({ page }) => {

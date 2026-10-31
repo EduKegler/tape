@@ -8,6 +8,7 @@ import { NETWORK, VENUES } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
 import { formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
+import { TopicStatus } from './PanelStatus'
 import { statsQuery } from './queries'
 
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
@@ -66,32 +67,36 @@ export function Brand() {
 }
 
 function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
-  const last = useFrame(
-    { kind: 'trades', market: marketKey(venue, base) },
-    (f) => ({ px: f?.last ?? '', side: f?.lastSide ?? null }),
-    shallow,
-  )
+  const topic = { kind: 'trades', market: marketKey(venue, base) } as const
+  const last = useFrame(topic, (f) => ({ px: f?.last ?? '', side: f?.lastSide ?? null }), shallow)
   const stats = useQuery(statsQuery(venue, base))
   const s = stats.data
   return (
-    <dl className="num flex items-baseline gap-5 text-sm">
-      <div>
-        <dt className="sr-only">Last price</dt>
-        <dd
-          className={`text-lg ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
-        >
-          {last.px || '—'}
-        </dd>
-      </div>
-      <Stat
-        label="24h"
-        value={s ? formatPct(s.changePct) : '—'}
-        tone={s ? (s.changePct >= 0 ? 'text-bid' : 'text-ask') : ''}
+    <div className="flex items-baseline gap-3">
+      <dl className="num flex items-baseline gap-5 text-sm">
+        <div>
+          <dt className="sr-only">Last price</dt>
+          <dd
+            className={`text-lg ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+          >
+            {last.px || '—'}
+          </dd>
+        </div>
+        <Stat
+          label="24h"
+          value={s ? formatPct(s.changePct) : '—'}
+          tone={s ? (s.changePct >= 0 ? 'text-bid' : 'text-ask') : ''}
+        />
+        <Stat label="Volume" value={s ? formatCompact(s.volumeQuote) : '—'} />
+        {s?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(s.fundingRate * 100, 4)} />}
+        {s?.indexPrice != null && <Stat label="Index" value={s.indexPrice.toLocaleString('en-US')} />}
+      </dl>
+      <TopicStatus
+        topic={topic}
+        error={stats.isError ? 'Could not load 24h stats.' : null}
+        onRetry={() => void stats.refetch()}
       />
-      <Stat label="Volume" value={s ? formatCompact(s.volumeQuote) : '—'} />
-      {s?.fundingRate != null && <Stat label="Funding 1h" value={formatPct(s.fundingRate * 100, 4)} />}
-      {s?.indexPrice != null && <Stat label="Index" value={s.indexPrice.toLocaleString('en-US')} />}
-    </dl>
+    </div>
   )
 }
 
