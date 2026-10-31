@@ -259,6 +259,34 @@ describe('history selection', () => {
     expect(december.fills[0]?.pnl).toBe('10')
   })
 
+  it('drops funding outside the period, venue or market', () => {
+    const payments = {
+      fills: [],
+      funding: [
+        funding('1', Date.parse('2025-11-15T00:00:00Z'), { symbol: 'X' }),
+        funding('1', Date.parse('2025-12-05T00:00:00Z'), { symbol: 'Y', venue: 'hyperliquid' }),
+        funding('1', Date.parse('2025-12-06T00:00:00Z'), { symbol: 'Z' }),
+        funding('1', Date.parse('2025-12-07T00:00:00Z'), { symbol: 'ETH-USD' }),
+      ],
+      gaps: [],
+    }
+    const december = { ...all, venue: 'dydx', market: 'Z', from: '2025-12-01', to: '2025-12-31' } as const
+    expect(selectHistory([payments], december).funding.map((p) => p.symbol)).toEqual(['Z'])
+  })
+
+  it("lists only the chosen venue's markets, sorted", () => {
+    const mixed = {
+      fills: [
+        fill('buy', '1', '1', { symbol: 'SOL-USD', venue: 'hyperliquid' }),
+        fill('buy', '1', '1', { symbol: 'ETH-USD' }),
+        fill('buy', '1', '1', { symbol: 'BTC-USD' }),
+      ],
+      funding: [funding('1', 1, { symbol: 'AVAX-USD' })],
+      gaps: [],
+    }
+    expect(selectHistory([mixed], { ...all, venue: 'dydx' }).markets).toEqual(['AVAX-USD', 'BTC-USD', 'ETH-USD'])
+  })
+
   it('filters by venue and market, and lists the markets of the venue', () => {
     const dydx = selectHistory([history], { ...all, venue: 'dydx', market: 'BTC-USD' })
     expect(dydx.fills.map((f) => f.id)).toEqual(['open', 'close'])
