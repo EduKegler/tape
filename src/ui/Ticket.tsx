@@ -559,9 +559,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
             return (
               <>
-                <dl className="num grid grid-cols-2 gap-y-1 text-sm">
+                <dl className="num grid grid-cols-2 items-baseline gap-y-1 text-sm">
                   <dt className="text-level3">Notional</dt>
-                  <dd className="text-right text-level1">{total}</dd>
+                  <dd className="text-right text-lg text-level1">{total}</dd>
                   {margin.status !== 'no-estimate' && (
                     <>
                       <dt className="text-level3">Est. liquidation</dt>

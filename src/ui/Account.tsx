@@ -105,7 +105,7 @@ function AccountBody({
         {tab === 'fills' && <HistoryLink className="text-level3 hover:text-level1">Full history</HistoryLink>}
         {snapshot && (
           <span className="num text-level3">
-            Equity <span className="text-level1">{snapshot.equity}</span> · Available{' '}
+            Equity <span className="text-lg text-level1">{snapshot.equity}</span> · Available{' '}
             <span className="text-level1">{snapshot.available}</span>
           </span>
         )}
