@@ -310,7 +310,7 @@ function legsOutcome(statuses: readonly OrderStatus[]): CommandOutcome {
 }
 
 type Trailing = Extract<IntentFields['order'], { kind: 'trailing' }>
-const percent = (bps: Bps) => `${bps / 100}%`
+const percent = (bps: Bps): `${number}%` => `${bps / 100}%`
 
 async function placeTrailing(ctx: VenueContext, intent: OrderIntent, order: Trailing): Promise<CommandOutcome> {
   if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)

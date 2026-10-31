@@ -63,8 +63,7 @@ export function leverageAction(asset: number, isCross: boolean, leverage: number
   return { type: 'updateLeverage', asset, isCross, leverage }
 }
 
-/** A percent string such as `1.5%`, or a distance in price. */
-type Retracement = { readonly pct: string } | { readonly px: string }
+type Retracement = { readonly pct: `${number}%` } | { readonly px: string }
 
 /** Keys in the order of the exchange endpoint docs, which no SDK carries yet. */
 export function trailingStopAction(
