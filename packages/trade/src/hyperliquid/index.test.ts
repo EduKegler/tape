@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address } from 'viem'
 import type { Qty } from '@tape/core/fixed'
@@ -159,6 +159,21 @@ describe('hyperliquid time in force', () => {
     const { ctx, posts } = venue(() => statuses([{ filled: { totalSz: '0.001', avgPx: '80010' } }]))
     await hyperliquid.execute(ctx, place({ tif: 'ioc', price: '80010' }))
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80010', false, { limit: { tif: 'Ioc' } }]] })
+  })
+})
+
+describe('hyperliquid nonces', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // Nonce docs: the signer's nonces must grow and stay within a day or two of the block time.
+  it('signs each action with the current millisecond, or one above the last within the same millisecond', async () => {
+    const now = Date.now() + 3_600_000
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    await hyperliquid.execute(ctx, place({}))
+    await hyperliquid.execute(ctx, place({}))
+    expect(posts().map((p) => p.body.nonce)).toEqual([now, now + 1])
   })
 })
 
