@@ -153,6 +153,15 @@ describe('hyperliquid sells', () => {
   })
 })
 
+describe('hyperliquid time in force', () => {
+  // Order type docs: tif is Alo, Ioc or Gtc, and an order with no TP/SL goes under grouping na.
+  it('sends an IOC limit as Ioc, alone under grouping na', async () => {
+    const { ctx, posts } = venue(() => statuses([{ filled: { totalSz: '0.001', avgPx: '80010' } }]))
+    await hyperliquid.execute(ctx, place({ tif: 'ioc', price: '80010' }))
+    expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80010', false, { limit: { tif: 'Ioc' } }]] })
+  })
+})
+
 describe('hyperliquid writes without a readable reply', () => {
   it('calls a 5xx, a dropped connection or a reply it cannot parse on a write an unknown outcome', async () => {
     const replies: (() => Response | Promise<Response>)[] = [
