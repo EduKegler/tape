@@ -29,6 +29,61 @@ describe('orderly signing', () => {
     expect(typedDataDigest(data)).toBe(hashTypedData(data as Viem))
   })
 
+  it('hashes Registration and AddOrderlyKey with the domain and fields Orderly documents', () => {
+    // The off-chain domain and the message types on Orderly's EIP-712 page and in its account and key examples.
+    const domain = {
+      name: 'Orderly',
+      version: '1',
+      chainId: 421614,
+      verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC',
+    } as const
+    expect(typedDataDigest(registrationTypedData('woofi_dex', 421614, '194528949540', 1685973017064))).toBe(
+      hashTypedData({
+        domain,
+        primaryType: 'Registration',
+        types: {
+          Registration: [
+            { name: 'brokerId', type: 'string' },
+            { name: 'chainId', type: 'uint256' },
+            { name: 'timestamp', type: 'uint64' },
+            { name: 'registrationNonce', type: 'uint256' },
+          ],
+        },
+        message: {
+          brokerId: 'woofi_dex',
+          chainId: 421614n,
+          timestamp: 1685973017064n,
+          registrationNonce: 194528949540n,
+        },
+      }),
+    )
+    const key = {
+      brokerId: 'woofi_dex',
+      chainId: 421614,
+      orderlyKey: 'ed25519:7tEoJo5hMBKBrQsqmc8yw1xNfoQCFQBVwQT1eFafRNRf',
+      scope: 'read,trading',
+      timestamp: 1685973017064,
+      expiration: 1685973017064 + 365 * 86_400_000,
+    }
+    expect(typedDataDigest(addKeyTypedData(key))).toBe(
+      hashTypedData({
+        domain,
+        primaryType: 'AddOrderlyKey',
+        types: {
+          AddOrderlyKey: [
+            { name: 'brokerId', type: 'string' },
+            { name: 'chainId', type: 'uint256' },
+            { name: 'orderlyKey', type: 'string' },
+            { name: 'scope', type: 'string' },
+            { name: 'timestamp', type: 'uint64' },
+            { name: 'expiration', type: 'uint64' },
+          ],
+        },
+        message: { ...key, chainId: 421614n, timestamp: 1685973017064n, expiration: 1717509017064n },
+      }),
+    )
+  })
+
   it('derives one account id per address and broker', () => {
     expect(accountId(wallet.address, 'woofi_pro')).toMatch(/^0x[0-9a-f]{64}$/)
     expect(accountId(wallet.address, 'woofi_pro')).not.toBe(accountId(wallet.address, 'orderly'))

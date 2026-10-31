@@ -6,7 +6,7 @@ import type { MarketSpec } from '@tape/core/market'
 import { buildIntent } from '../intent'
 import type { IntentDraft } from '../intent'
 import { TradeFailure } from '../types'
-import type { Bps, OrderRef, VenueContext } from '../types'
+import type { Bps, Eip712, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { dydx } from '.'
 
 const chain = vi.hoisted(() => {
@@ -15,13 +15,15 @@ const chain = vi.hoisted(() => {
     if (state.reply instanceof Error) throw state.reply
     return state.reply
   }
-  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer) })
+  const deriveKey = vi.fn(async (signature: string) => ({ mnemonic: `words of ${signature}`, address: 'dydx1derived' }))
+  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer), deriveKey })
 })
 
 vi.mock('./client', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   // SHORT_BLOCK_FORWARD in build/esm/src/clients/constants.js of v4-client-js 3.6.0.
   sdk: async () => ({ SubaccountInfo: { forLocalWallet: () => ({}) }, SHORT_BLOCK_FORWARD: 15 }),
+  deriveKey: chain.deriveKey,
   walletOf: async () => ({ address: 'dydx1test' }),
   validatorOf: async () => ({
     get: { latestBlockHeight: async () => 1 },
@@ -447,5 +449,294 @@ describe('dydx builder fee', () => {
     chain.reply = { code: 0, hash: 'A1' }
     await dydx.execute({ ...ctx, config: { ...ctx.config, dydx: { builder } } }, place)
     expect(chain.placeOrder.mock.calls[0]?.[15]).toEqual(builder)
+  })
+})
+
+describe('dydx account', () => {
+  // The SubaccountResponseObject, OrderResponseObject and FillResponseObject fields in the indexer's
+  // api-documentation.md in dydxprotocol/v4-chain. The indexer passes the position size through signed:
+  // getUnrealizedPnl in indexer/packages/postgres takes size times oracle minus entry, so a short is negative.
+  const sub = {
+    subaccount: {
+      address: 'dydx1test',
+      subaccountNumber: 0,
+      equity: '1500.25',
+      freeCollateral: '1200.5',
+      openPerpetualPositions: {
+        'BTC-USD': {
+          market: 'BTC-USD',
+          status: 'OPEN',
+          side: 'SHORT',
+          size: '-0.002',
+          entryPrice: '80000',
+          unrealizedPnl: '3.5',
+        },
+        'ETH-USD': {
+          market: 'ETH-USD',
+          status: 'OPEN',
+          side: 'LONG',
+          size: '0.5',
+          entryPrice: '2330.5',
+          unrealizedPnl: '-1.25',
+        },
+      },
+    },
+  }
+  const orders = [
+    {
+      id: 'a',
+      clientId: '11',
+      clobPairId: '0',
+      ticker: 'BTC-USD',
+      side: 'SELL',
+      size: '0.001',
+      price: '81000',
+      type: 'LIMIT',
+      reduceOnly: true,
+      orderFlags: '64',
+      updatedAt: '2026-10-30T12:00:00.000Z',
+    },
+    {
+      id: 'b',
+      clientId: '12',
+      clobPairId: '1',
+      ticker: 'ETH-USD',
+      side: 'BUY',
+      size: '0.01',
+      price: '2300',
+      type: 'LIMIT',
+      reduceOnly: false,
+      orderFlags: '0',
+    },
+  ]
+  const fills = {
+    fills: [
+      {
+        id: 'f1',
+        market: 'BTC-USD',
+        side: 'SELL',
+        price: '80000',
+        size: '0.002',
+        fee: '0.08',
+        createdAt: '2026-10-30T11:00:00.000Z',
+      },
+      {
+        id: 'f2',
+        market: 'ETH-USD',
+        side: 'BUY',
+        price: '2330.5',
+        size: '0.5',
+        fee: '0.58',
+        createdAt: '2026-10-30T11:30:00.000Z',
+      },
+    ],
+  }
+  const replies = (url: string) =>
+    url.includes('/addresses/') ? sub : url.includes('/orders?') ? orders : url.includes('/fills?') ? fills : null
+
+  it('shows a dYdX short position as short with an unsigned size, and open orders with refs that cancel', async () => {
+    const { urls, ctx: live } = indexer(replies)
+    expect(await dydx.account(live)).toEqual({
+      kind: 'live',
+      snapshot: {
+        equity: '1500.25',
+        available: '1200.5',
+        positions: [
+          {
+            symbol: 'BTC-USD',
+            side: 'short',
+            size: '0.002',
+            entry: '80000',
+            unrealizedPnl: '3.5',
+            liquidation: null,
+            leverage: null,
+          },
+          {
+            symbol: 'ETH-USD',
+            side: 'long',
+            size: '0.5',
+            entry: '2330.5',
+            unrealizedPnl: '-1.25',
+            liquidation: null,
+            leverage: null,
+          },
+        ],
+        orders: [
+          {
+            ref: 'BTC-USD:11:64:0',
+            symbol: 'BTC-USD',
+            side: 'sell',
+            kind: 'LIMIT',
+            px: '81000',
+            size: '0.001',
+            reduceOnly: true,
+            placedAt: Date.UTC(2026, 9, 30, 12),
+          },
+          {
+            ref: 'ETH-USD:12:0:1',
+            symbol: 'ETH-USD',
+            side: 'buy',
+            kind: 'LIMIT',
+            px: '2300',
+            size: '0.01',
+            reduceOnly: false,
+            placedAt: 0,
+          },
+        ],
+        fills: [
+          {
+            id: 'f1',
+            symbol: 'BTC-USD',
+            side: 'sell',
+            px: '80000',
+            size: '0.002',
+            fee: '0.08',
+            time: Date.UTC(2026, 9, 30, 11),
+          },
+          {
+            id: 'f2',
+            symbol: 'ETH-USD',
+            side: 'buy',
+            px: '2330.5',
+            size: '0.5',
+            fee: '0.58',
+            time: Date.UTC(2026, 9, 30, 11, 30),
+          },
+        ],
+      },
+    })
+    expect(urls).toEqual([
+      'https://indexer.v4testnet.dydx.exchange/v4/addresses/dydx1test/subaccountNumber/0',
+      'https://indexer.v4testnet.dydx.exchange/v4/orders?address=dydx1test&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50',
+      'https://indexer.v4testnet.dydx.exchange/v4/fills?address=dydx1test&subaccountNumber=0&limit=20',
+    ])
+  })
+
+  it('calls an address the indexer has no subaccount for empty, a failed read unreachable, and no key unknown', async () => {
+    // Recorded from indexer.v4testnet.dydx.exchange on 2026-10-31.
+    const missing = {
+      errors: [{ msg: 'No subaccount found with address dydx1test and subaccountNumber 0' }],
+    }
+    const { ctx: none } = indexer(() => new Response(JSON.stringify(missing), { status: 404 }))
+    expect(await dydx.account(none)).toEqual({ kind: 'empty' })
+    const { ctx: down } = indexer(() => new Response('Bad Gateway', { status: 502 }))
+    expect(await failure(dydx.account(down))).toMatchObject({ kind: 'unreachable' })
+    const { urls, ctx: open } = indexer(replies)
+    expect(await dydx.account({ ...open, keys: locked.keys })).toEqual({ kind: 'unknown' })
+    expect(urls).toEqual([])
+  })
+})
+
+describe('dydx setup', () => {
+  const SIGNATURE = `0x${'ab'.repeat(65)}` as const
+
+  function tab(initial: StoredKey | null) {
+    let key = initial
+    const writes: StoredKey[] = []
+    return {
+      writes,
+      read: () => key,
+      write: (k: StoredKey) => {
+        key = k
+        writes.push(k)
+      },
+      clear: () => {
+        key = null
+      },
+    }
+  }
+
+  function wallet(chainId: number) {
+    let active = chainId
+    const signed: Eip712[] = []
+    return {
+      signed,
+      address: ctx.ref.owner,
+      chainId: async () => active,
+      switchChain: vi.fn(async (id: number) => {
+        active = id
+      }),
+      signTypedData: async (typed: Eip712) => {
+        signed.push(typed)
+        return SIGNATURE
+      },
+    }
+  }
+
+  it('asks a tab without the dYdX key to unlock it, and a tab holding it for nothing', async () => {
+    const step = (done: boolean) => [{ id: 'derive-key', label: 'Unlock your dYdX key in this tab', done }]
+    expect(await dydx.steps(locked)).toEqual(step(false))
+    expect(await dydx.steps(ctx)).toEqual(step(true))
+  })
+
+  it('derives the dYdX key on the Sepolia onboarding chain for a testnet account, and keeps it linked in the tab', async () => {
+    const keys = tab(null)
+    const signer = wallet(1)
+    const steps: StepId[] = []
+    await dydx.enable({ ...ctx, keys }, signer, (s) => steps.push(s))
+    expect(steps).toEqual(['derive-key'])
+    // ethereumChainId of the testnet in v4-web's public/configs/v1/env.json.
+    expect(signer.switchChain.mock.calls).toEqual([[11_155_111]])
+    expect(signer.signed.map((s) => [s.primaryType, s.domain, s.message])).toEqual([
+      ['dYdX', { name: 'dYdX Chain', chainId: 11_155_111 }, { action: 'dYdX Chain Onboarding' }],
+    ])
+    expect(chain.deriveKey.mock.calls).toEqual([[SIGNATURE]])
+    expect(keys.writes).toEqual([
+      { status: 'linked', public: { address: 'dydx1derived' }, secret: `words of ${SIGNATURE}` },
+    ])
+  })
+
+  it('signs nothing for a tab that already holds the dYdX key, and stays on the chain the wallet is on', async () => {
+    const keys = tab({ status: 'linked', public: { address: 'dydx1test' }, secret: 'mnemonic' })
+    const signer = wallet(11_155_111)
+    await dydx.enable({ ...ctx, keys }, signer, () => {})
+    expect(signer.signed).toEqual([])
+    expect(keys.writes).toEqual([])
+    const fresh = tab(null)
+    await dydx.enable({ ...ctx, keys: fresh }, signer, () => {})
+    expect(signer.switchChain).not.toHaveBeenCalled()
+    expect(fresh.writes).toHaveLength(1)
+  })
+})
+
+describe('dydx history', () => {
+  it('fails a history read the indexer cannot answer instead of calling it empty', async () => {
+    const down = [
+      async () => new Response('Bad Gateway', { status: 502 }),
+      async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    ]
+    for (const fetch of down)
+      expect(await failure(dydx.history({ network: 'testnet', address: 'dydx1test', fetch }))).toMatchObject({
+        kind: 'unreachable',
+      })
+  })
+})
+
+describe('dydx account sequence', () => {
+  it('signs two long-term cancels one after the other', async () => {
+    const events: string[] = []
+    let release = () => {}
+    chain.cancelOrder.mockImplementationOnce(async () => {
+      events.push('first signs')
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      events.push('first done')
+      return { code: 0, hash: 'A1' }
+    })
+    chain.cancelOrder.mockImplementationOnce(async () => {
+      events.push('second signs')
+      return { code: 0, hash: 'A2' }
+    })
+    const first = dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef })
+    const second = dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:8:64:0' as OrderRef })
+    await vi.waitFor(() => expect(events).toEqual(['first signs']))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(events).toEqual(['first signs'])
+    release()
+    await Promise.all([first, second])
+    expect(events).toEqual(['first signs', 'first done', 'second signs'])
   })
 })
