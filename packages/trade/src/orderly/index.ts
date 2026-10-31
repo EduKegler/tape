@@ -71,11 +71,14 @@ const classify: Classify = (status, body, text) => {
     : classifyMessage(b.message ?? text)
 }
 
-/** Orderly's code for data not found on the server, as when cancelling an order that is already CANCELLED. */
+/**
+ * Orderly's code for data not found on the server, as when cancelling an order that is already CANCELLED, or
+ * looking up a client order id it never took.
+ */
 const NOT_FOUND = '-1006'
-const gone: TradeError = { kind: 'rejected', detail: 'The order is no longer open' }
-const classifyCancel: Classify = (status, body, text) =>
-  (body as { code?: unknown } | null)?.code === NOT_FOUND ? gone : classify(status, body, text)
+const notFound: TradeError = { kind: 'rejected', detail: 'Orderly holds no such order' }
+const classifyOrder: Classify = (status, body, text) =>
+  (body as { code?: unknown } | null)?.code === NOT_FOUND ? notFound : classify(status, body, text)
 
 /** Not found comes back as `success: false`, sometimes with a 200, so reads treat it as rejected. */
 const unsuccessful: Classify = (_s, body, text) => {
@@ -161,15 +164,11 @@ async function farTouch(ctx: VenueContext, spec: MarketSpec, side: Side): Promis
 
 async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
   try {
-    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${clientId}`)
+    const order = await signed<{ status: string }>(ctx, 'GET', `/v1/client/order/${clientId}`, '', classifyOrder)
     return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
   } catch (e) {
-    if (
-      e instanceof TradeFailure
-      && e.error.kind === 'rejected'
-      && /order.*(?:not exist|not found)/i.test(e.error.detail)
-    )
-      return { kind: 'absent', detail: e.error.detail }
+    if (e instanceof TradeFailure && e.error === notFound)
+      return { kind: 'absent', detail: 'Orderly has no order with this client id' }
     throw e
   }
 }
@@ -261,9 +260,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
     case 'cancel': {
       const [symbol, id] = command.order.split(':') as [string, string]
       try {
-        await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)), '', classifyCancel)
+        await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)), '', classifyOrder)
       } catch (e) {
-        if (!(e instanceof TradeFailure && e.error === gone)) throw e
+        if (!(e instanceof TradeFailure && e.error === notFound)) throw e
       }
       return { kind: 'done', detail: 'Canceled' }
     }

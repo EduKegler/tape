@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-10-31T18:59:16.857Z",
+  "request": {
+    "method": "GET",
+    "path": "/v1/client/order/0x1a67bdf89cc73ca1c90045a93b84eb8b"
+  },
+  "status": 400,
+  "body": {
+    "success": false,
+    "code": -1006,
+    "message": "The order can not be found."
+  }
+}
