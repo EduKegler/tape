@@ -221,7 +221,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               aria-pressed={side === s}
               onClick={() => setSide(s)}
             >
-              {s}
+              {s === 'buy' ? 'Buy / Long' : 'Sell / Short'}
             </Button>
           ))}
         </div>

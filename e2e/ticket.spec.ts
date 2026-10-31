@@ -19,7 +19,7 @@ async function touchField(page: Page, name: string, value: string) {
 test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
   await openMarket(page, '/binance/BTC?interval=1m')
   const ticket = ticketOf(page)
-  await expect(ticket.getByRole('button', { name: 'buy', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(ticket.getByRole('button', { name: 'Buy / Long', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(ticket.getByRole('radio', { name: 'Limit', exact: true })).toBeChecked()
   await expect(ticket.getByRole('combobox', { name: 'Time in force' }).getByRole('option')).toHaveText([
     'Good til canceled',
@@ -75,7 +75,7 @@ test('the touch hint fills the price with the best bid, or the best ask on a sel
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
   await ticket.getByRole('button', { name: 'Bid 80,595', exact: true }).click()
   await expect(price).toHaveValue('80595')
-  await ticket.getByRole('button', { name: 'sell', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Sell / Short', exact: true }).click()
   await ticket.getByRole('button', { name: 'Ask 80,596', exact: true }).click()
   await expect(price).toHaveValue('80596')
 })

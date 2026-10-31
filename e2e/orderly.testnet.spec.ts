@@ -90,7 +90,7 @@ test('an Orderly limit order goes out with the side, price and size the ticket s
   wallet: _wallet,
 }) => {
   const { orderly, ticket } = await enable(page)
-  await ticket.getByRole('button', { name: 'sell', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Sell / Short', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('90000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
   const price = await ticket.getByRole('textbox', { name: 'Price (USDC)' }).inputValue()

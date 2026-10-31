@@ -36,7 +36,8 @@ const orders = (sent: readonly ExchangeBody[]) => sent.filter((body) => body.act
 
 async function shownOnTicket(ticket: Locator) {
   return {
-    buy: (await ticket.getByRole('button', { name: 'buy', exact: true }).getAttribute('aria-pressed')) === 'true',
+    buy:
+      (await ticket.getByRole('button', { name: 'Buy / Long', exact: true }).getAttribute('aria-pressed')) === 'true',
     price: await ticket.getByRole('textbox', { name: 'Price (USDC)' }).inputValue(),
     size: await ticket.getByRole('textbox', { name: 'Size (BTC)' }).inputValue(),
     tif: TIF[await ticket.getByRole('combobox').locator('option:checked').innerText()],
@@ -118,7 +119,7 @@ for (const side of ['Buy', 'Sell'] as const)
   }) => {
     const { hyperliquid, ticket } = await enable(page)
     hyperliquid.exchange = () => resting(7)
-    await ticket.getByRole('button', { name: side.toLowerCase(), exact: true }).click()
+    await ticket.getByRole('button', { name: side === 'Buy' ? 'Buy / Long' : 'Sell / Short', exact: true }).click()
     await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill(side === 'Buy' ? '70000' : '90000')
     await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
     await expect(ticket.getByText('Notional')).toBeVisible()
@@ -391,7 +392,7 @@ test('a trailing stop goes out as a native trailingStop action with the retracem
 }) => {
   const { hyperliquid, ticket } = await enable(page)
   hyperliquid.exchange = () => ({ json: { status: 'ok', response: { type: 'trailingStop', data: { oid: 77738308 } } } })
-  await ticket.getByRole('button', { name: 'sell', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Sell / Short', exact: true }).click()
   await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
   await expect(ticket.getByRole('checkbox', { name: 'Reduce only' })).toBeChecked()
   await expect(ticket.getByRole('combobox')).toHaveCount(0)
