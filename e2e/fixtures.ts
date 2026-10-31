@@ -5,10 +5,12 @@ import type { Page } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
 import { RECORDED_AT } from './replay/clock'
 import { restRecording } from './replay/feed'
+import { installWallet } from './wallet'
+import type { Wallet } from './wallet'
 
 const fixtures = new URL('../packages/venues/src/__fixtures__/', import.meta.url)
 
-export const test = base.extend<{ network: Network; escaped: string[]; consoleErrors: string[] }>({
+export const test = base.extend<{ network: Network; escaped: string[]; consoleErrors: string[]; wallet: Wallet }>({
   network: ['mainnet', { option: true }],
   escaped: [
     async ({ context }, use) => {
@@ -45,6 +47,11 @@ export const test = base.extend<{ network: Network; escaped: string[]; consoleEr
     },
     { auto: true },
   ],
+  wallet: async ({ context }, use) => {
+    const wallet = await installWallet(context)
+    await use(wallet)
+    expect(wallet.unanswered(), 'wallet methods the app called that the test wallet does not answer').toEqual([])
+  },
   page: async ({ page }, use) => {
     await page.clock.install({ time: RECORDED_AT })
     await use(page)
