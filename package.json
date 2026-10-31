@@ -2,7 +2,7 @@
   "name": "tape",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@10.34.9",
   "imports": {
     "#/*": "./src/*"
   },
@@ -95,13 +95,6 @@
     "vite": "^8.0.0",
     "vitest": "^5.0.5",
     "wrangler": "^4.156.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@posthog/cli",
-      "esbuild",
-      "lightningcss"
-    ]
   },
   "intent": {
     "skills": [
