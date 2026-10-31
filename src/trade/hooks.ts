@@ -21,7 +21,7 @@ import type {
   TradeVenueId,
   VenueContext,
 } from '@tape/trade/types'
-import { rejectionMessage, walletSigner } from '@tape/trade/wallet'
+import { rejectionMessage, toEip1193, walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
@@ -126,7 +126,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
     networkMode: 'always',
     mutationFn: async () => {
       const account = ref!
-      const provider = (await connector!.getProvider()) as Parameters<typeof walletSigner>[0]
+      const provider = toEip1193(await connector!.getProvider())
       const onStep = (step: StepId) => {
         setProgress(step)
         track({ event: 'trading_enable_step', venue: account.venue, step })
@@ -245,7 +245,7 @@ export function useTradeCommands(ref: AccountRef | null) {
   })
   const inFlight = useMutationState({
     filters: { mutationKey: commandKey, status: 'pending' },
-    select: (pending) => pending.state.variables as Command,
+    select: (pending) => pending.state.variables,
   })
   // Hyperliquid's trailingStop action takes no client id, so no lookup can find a trailing stop by one.
   const unknown =

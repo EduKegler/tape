@@ -37,10 +37,10 @@ const columns: Column<CompareRow>[] = [
   { header: 'Ask', cell: (row) => listed(row) && <Quote value={row.ask} best={row.bestAsk} side="ask" /> },
   { header: 'Basis', cell: (row) => listed(row) && (row.basisBps || '—') },
 ]
-const NO_ROWS: CompareRow[] = []
+const NO_ROWS: readonly CompareRow[] = []
 
 export function Compare({ base, current }: { base: Base; current: VenueId }) {
-  const rows = useFrame({ kind: 'compare', base }, (frame) => (frame?.rows as CompareRow[] | undefined) ?? NO_ROWS)
+  const rows = useFrame({ kind: 'compare', base }, (frame) => frame?.rows ?? NO_ROWS)
   const navigate = useNavigate()
   const keys = useRowKeys()
   return (

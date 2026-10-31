@@ -42,7 +42,7 @@ export function Search<T>(props: {
             </Autocomplete.Empty>
             <Autocomplete.List className="max-h-[min(24rem,var(--available-height))] overflow-y-auto overscroll-contain py-1 data-empty:p-0">
               {(group: SearchGroup<T>) => (
-                <Autocomplete.Group key={group.key} items={group.items as T[]}>
+                <Autocomplete.Group key={group.key} items={group.items}>
                   {group.label !== null && (
                     <Autocomplete.GroupLabel className="px-2 pt-2 pb-1 text-xs text-level3">
                       {group.label}

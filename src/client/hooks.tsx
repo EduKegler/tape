@@ -20,11 +20,17 @@ export function HubProvider({ children }: { readonly children: ReactNode }) {
 
 const identity = <T,>(value: T) => value
 
-export function useFrame<T extends Topic, TSelected = FrameOf<T> | null>(
+export function useFrame<T extends Topic>(topic: T): FrameOf<T> | null
+export function useFrame<T extends Topic, TSelected>(
   topic: T,
-  select: (frame: FrameOf<T> | null) => TSelected = identity as never,
+  select: (frame: FrameOf<T> | null) => TSelected,
   compare?: (a: TSelected, b: TSelected) => boolean,
-): TSelected {
+): TSelected
+export function useFrame<T extends Topic>(
+  topic: T,
+  select: (frame: FrameOf<T> | null) => unknown = identity,
+  compare?: (a: unknown, b: unknown) => boolean,
+): unknown {
   const client = useContext(HubContext)
   const key = topicKey(topic)
   const store = client ? client.store(topic) : NOTHING

@@ -4,9 +4,18 @@ import { isRecord } from '@tape/core/json'
 import { keysOf } from '@tape/core/record'
 import type { Eip712, WalletSigner } from './types'
 
-interface Eip1193 {
+export interface Eip1193 {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }
+
+/** A wallet provider with EIP-1193's `request`. Throws on anything else. */
+export function toEip1193(provider: unknown): Eip1193 {
+  if (!isEip1193(provider)) throw new Error('The wallet has no EIP-1193 provider')
+  return provider
+}
+
+const isEip1193 = (provider: unknown): provider is Eip1193 =>
+  isRecord(provider) && typeof provider.request === 'function'
 
 const DOMAIN_TYPES = {
   name: 'string',

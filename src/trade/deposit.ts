@@ -12,7 +12,8 @@ import { claim, release } from '@tape/trade/in-flight'
 import type { DepositCall, DepositIssue, DepositProgress, DepositRoute, DepositTerms } from '@tape/trade/deposit'
 import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
-import { rejectionMessage } from '@tape/trade/wallet'
+import { rejectionMessage, toEip1193 } from '@tape/trade/wallet'
+import type { Eip1193 } from '@tape/trade/wallet'
 import { track } from '#/analytics/track'
 import { switchOrAddChain, toChainId, wagmiConfig } from '#/wallet/config'
 import type { ChainId } from '#/wallet/config'
@@ -21,10 +22,6 @@ import { addDeposit, depositsSnapshot, keySlot, parseDeposits, subscribeVault, u
 import type { DepositRecord } from './vault'
 
 const watchEnded = (progress: DepositProgress | undefined) => progress?.stage === 'unresolved'
-
-interface Eip1193 {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-}
 
 const browserFetch: typeof globalThis.fetch = (input, init) => fetch(input, init)
 
@@ -45,7 +42,7 @@ export function useRouteBalances(ref: AccountRef, routes: readonly DepositRoute[
   })
   return routes.map((_, index) => {
     const read = data?.[index]
-    return read?.status === 'success' ? (read.result as bigint) : null
+    return read?.status === 'success' && typeof read.result === 'bigint' ? read.result : null
   })
 }
 
@@ -196,7 +193,7 @@ export function useSendDeposit(ref: AccountRef) {
     networkMode: 'always',
     mutationFn: async ({ route, amount, terms, calls }) => {
       if (!connector) throw new Error('No wallet connected')
-      const provider = (await connector.getProvider()) as Eip1193
+      const provider = toEip1193(await connector.getProvider())
       const send = async (call: DepositCall) => {
         await onChain(provider, route.chainId)
         const hash = await provider.request({

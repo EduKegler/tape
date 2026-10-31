@@ -24,6 +24,10 @@ const SECRETS: readonly (readonly [RegExp, string])[] = [
   [/\bdydx1[02-9ac-hj-np-z]{38,}/g, 'dydx1…'],
 ]
 
+declare global {
+  var _posthogChunkIds: Readonly<Record<string, string>> | undefined
+}
+
 interface Page {
   readonly origin: string
   /** The PostHog build plugin keys each chunk's id by a `new Error().stack` taken inside that chunk. */
@@ -32,7 +36,7 @@ interface Page {
 
 const here = (): Page => ({
   origin: location.origin,
-  chunkIds: (globalThis as { _posthogChunkIds?: Record<string, string> })._posthogChunkIds ?? {},
+  chunkIds: globalThis._posthogChunkIds ?? {},
 })
 
 function scriptUrl(raw: string): string | null {
