@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { ed25519 } from '@noble/curves/ed25519'
+import { base58, base64url } from '@scure/base'
+import { hexToBytes, stringToBytes } from 'viem'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
@@ -229,6 +232,34 @@ describe('orderly key', () => {
       })
     expect(await failureOf(orderly.lookup(bare, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
     expect(sent).toEqual([])
+  })
+})
+
+describe('orderly signing', () => {
+  it("signs each request as the owner's Orderly account with this device's key", async () => {
+    // The address and the account id Orderly gives it under the flipper broker, from the recorded accountState
+    // in packages/trade/src/__fixtures__/history.orderly.json.
+    const owner = '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6'
+    const account = '0xd96bacbff940748d1215f933fc6c04d6798eb9fbd8926fe2388d02eb31003655'
+    const { ctx, sent, headers } = orderlyAt(() => ({ body: PLACED }))
+    const flipper: VenueContext = {
+      ...ctx,
+      ref: { ...ctx.ref, owner },
+      config: { ...ctx.config, orderly: { brokerId: { mainnet: null, testnet: 'flipper' } } },
+    }
+    await orderly.execute(flipper, { kind: 'place', intent: intentOf({}) })
+    await orderly.execute(flipper, { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef })
+    const pub = ed25519.getPublicKey(hexToBytes(`0x${'11'.repeat(32)}`))
+    const types = ['application/json', 'application/x-www-form-urlencoded']
+    expect(headers.map((h) => [h['orderly-account-id'], h['orderly-key'], h['content-type']])).toEqual(
+      types.map((type) => [account, `ed25519:${base58.encode(pub)}`, type]),
+    )
+    sent.forEach(({ method, url, body }, i) => {
+      const h = headers[i] ?? {}
+      const { pathname, search } = new URL(url)
+      const message = `${h['orderly-timestamp']}${method}${pathname}${search}${body ?? ''}`
+      expect(ed25519.verify(base64url.decode(h['orderly-signature'] ?? ''), stringToBytes(message), pub)).toBe(true)
+    })
   })
 })
 
