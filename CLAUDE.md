@@ -22,6 +22,10 @@ Our own code explains itself through names, types and tests. A comment stays onl
 
 A why about our own design is a rename, an extracted function or a type instead. `/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */` was deleted for that. `/** Not found comes back as success: false, sometimes with a 200, so reads treat it as rejected. */` stays, because Orderly decides it. Naming the outside party is not enough on its own: the four comments #5 added and #7 deleted named TanStack Router, Vite, Safari and Firefox, but `src/router.tsx` already states the Router fact where it applies, and `V8_STACK`, `JSC_STACK` and `GECKO_STACK` already say which engine wrote each stack. No lint can tell these apart, so read each comment you add against this rule before you commit.
 
+## Design
+
+Load the `tape-design` skill before changing how a screen looks or reads. Its tokens and primitives win over any other design skill.
+
 ## Tests
 
 A test goes in the one layer that can catch its kind of mistake. A test that repeats another layer's proof stays out.
