@@ -72,8 +72,8 @@ const classify: Classify = (status, body, text) => {
 }
 
 /**
- * Orderly's code for data not found on the server, as when cancelling an order that is already CANCELLED, or
- * looking up a client order id it never took.
+ * Orderly's code for data not found on the server, as when cancelling an order that is already CANCELLED or FILLED,
+ * or looking up a client order id it never took.
  */
 const NOT_FOUND = '-1006'
 const notFound: TradeError = { kind: 'rejected', detail: 'Orderly holds no such order' }

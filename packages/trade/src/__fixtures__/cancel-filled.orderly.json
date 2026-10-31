@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-10-31T20:00:48.997Z",
+  "request": {
+    "method": "DELETE",
+    "path": "/v1/order?order_id=3935676899&symbol=PERP_BTC_USDC"
+  },
+  "status": 400,
+  "body": {
+    "success": false,
+    "code": -1006,
+    "message": "The order is completed"
+  }
+}
