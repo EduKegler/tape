@@ -56,6 +56,7 @@ const PAIRS = [
   ['Focus ring', 'accent', 'surface', 'graphic'],
   ['Focus ring, in the ticket', 'accent', 'ticket', 'graphic'],
   ['Focus ring, in a dialog', 'accent', 'raised', 'graphic'],
+  ['Ticket body text', 'level2', 'ticket', 'text'],
 ]
 
 // WebAIM's published ratio for #767676 on white, so a wrong formula fails before it measures anything.

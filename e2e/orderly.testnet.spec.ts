@@ -90,7 +90,7 @@ test('an Orderly limit order goes out with the side, price and size the ticket s
   wallet: _wallet,
 }) => {
   const { orderly, ticket } = await enable(page)
-  await ticket.getByRole('button', { name: 'sell', exact: true }).click()
+  await ticket.getByRole('button', { name: 'Sell / Short', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('90000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
   const price = await ticket.getByRole('textbox', { name: 'Price (USDC)' }).inputValue()
@@ -111,4 +111,14 @@ test('an Orderly limit order goes out with the side, price and size the ticket s
       reduce_only: false,
     },
   ])
+})
+
+test('a setup step already done reads done in text', async ({ page, wallet: _wallet }) => {
+  const orderly = await fakeOrderly(page, 'testnet')
+  orderly.registered.value = true
+  await openMarket(page, '/orderly/BTC?interval=1m')
+  const ticket = panel(page, 'Order ticket')
+  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  const steps = ticket.getByRole('listitem')
+  await expect(steps).toHaveText(['✓Register an Orderly account, done', 'Add a trading key'])
 })

@@ -1,26 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Button } from './primitives'
 
 export function ConfirmAction({
   label,
   question,
+  confirm = 'Confirm',
+  keep = 'Cancel',
   disabled,
   onConfirm,
+  children,
 }: {
   label: string
   question: string
+  confirm?: string
+  keep?: string
   disabled?: boolean
   onConfirm: () => void
+  children?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const step = useRef<HTMLSpanElement>(null)
-  const confirm = useRef<HTMLButtonElement>(null)
+  const confirmButton = useRef<HTMLButtonElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const backToTrigger = useRef(false)
 
   useEffect(() => {
     if (open) {
-      confirm.current?.focus()
+      confirmButton.current?.focus()
       const outside = (e: PointerEvent) => {
         if (!step.current?.contains(e.target as Node)) setOpen(false)
       }
@@ -51,11 +58,12 @@ export function ConfirmAction({
       ref={step}
       role="group"
       aria-label={question}
-      className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-level1"
+      className="inline-flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-level1"
     >
       <span>{question}</span>
+      {children}
       <Button
-        ref={confirm}
+        ref={confirmButton}
         look="primary"
         size="sm"
         onClick={() => {
@@ -63,7 +71,7 @@ export function ConfirmAction({
           onConfirm()
         }}
       >
-        Confirm
+        {confirm}
       </Button>
       <Button
         look="quiet"
@@ -72,7 +80,7 @@ export function ConfirmAction({
           setOpen(false)
         }}
       >
-        Cancel
+        {keep}
       </Button>
     </span>
   )

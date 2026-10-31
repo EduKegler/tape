@@ -117,7 +117,7 @@ test('the search lists each dex once when two dexes share a full name', async ({
   expect(options.every((o) => /TR/i.test(o))).toBe(true)
   expect(new Set(options).size).toBe(options.length)
   const dexesShown = new Set(options.map((o) => (o.includes(':') ? o.split(':')[0] : '')))
-  await expect(page.getByRole('group')).toHaveCount(dexesShown.size)
+  await expect(page.getByRole('listbox').getByRole('group')).toHaveCount(dexesShown.size)
 })
 
 const failMarketList = (route: Route) =>

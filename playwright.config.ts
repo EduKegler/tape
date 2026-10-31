@@ -1,8 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 import { NETWORKS } from '@tape/core/ids'
 import type { Network } from '@tape/core/ids'
+import { port } from './e2e/port'
 
-const origin = (network: Network) => `http://127.0.0.1:${4610 + NETWORKS.indexOf(network)}`
+const origin = (network: Network) => `http://127.0.0.1:${port(NETWORKS.indexOf(network))}`
 
 const BROWSERS = {
   chromium: {

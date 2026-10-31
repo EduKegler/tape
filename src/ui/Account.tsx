@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
-import type { Base, VenueId } from '@tape/core/ids'
+import type { Base, MarketKey, VenueId } from '@tape/core/ids'
 import { closeIntent } from '@tape/trade/intent'
 import type { AccountRef, Bps, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
+import { useFrame } from '#/client/hooks'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
@@ -14,9 +15,9 @@ import { ConfirmAction } from './ConfirmAction'
 import { Button, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
-import { slippageBps } from './ticket-store'
+import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
-import { TradeNote } from './TradeNote'
+import { OrderNote, TradeNote } from './TradeNote'
 
 type Tab = 'positions' | 'orders' | 'fills'
 
@@ -41,6 +42,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           account={ref}
           base={base}
           leverage={session.status === 'ready' && session.capabilities.leverage}
+          forget={session.status === 'ready' ? session.forget : null}
         />
       ) : (
         <div className="p-3 text-sm text-level3">{message(session)}</div>
@@ -56,14 +58,25 @@ function message(session: TradeSession) {
   return 'Trading is not available here.'
 }
 
-function AccountBody({ account, base, leverage }: { account: AccountRef; base: Base; leverage: boolean }) {
+function AccountBody({
+  account,
+  base,
+  leverage,
+  forget,
+}: {
+  account: AccountRef
+  base: Base
+  leverage: boolean
+  forget: (() => void) | null
+}) {
   const [tab, setTab] = useState<Tab>('positions')
   const { view, error } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
-  const slippage = useSelector(slippageBps, (s) => s) as Bps
+  const slippage = useSelector(closeSlippageBps, (s) => s) as Bps
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
+  const held = /^\d+/.exec(snapshot?.positions.find((p) => p.symbol === symbol)?.leverage ?? '')?.[0] ?? null
   const busy = (c: Command) => inFlight.some((x) => JSON.stringify(x) === JSON.stringify(c))
   const [closeError, setCloseError] = useState<string | null>(null)
   const venue = VENUES[account.venue].label
@@ -92,18 +105,37 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
         {tab === 'fills' && <HistoryLink className="text-level3 hover:text-level1">Full history</HistoryLink>}
         {snapshot && (
           <span className="num text-level3">
-            Equity <span className="text-level1">{snapshot.equity}</span> · Available{' '}
+            Equity <span className="text-lg text-level1">{snapshot.equity}</span> · Available{' '}
             <span className="text-level1">{snapshot.available}</span>
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
           <ConfirmAction
             label={`Cancel all ${base}`}
+            confirm="Confirm cancel all"
+            keep="Keep orders"
             question={cancelAllQuestion(snapshot.orders.filter((o) => o.symbol === symbol).length, base, venue)}
             onConfirm={() => run({ kind: 'cancel-all', symbol })}
           />
         )}
-        {leverage && symbol && <LeverageControl onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })} />}
+        {leverage && symbol && (
+          <LeverageControl
+            key={held ?? ''}
+            current={held ?? ''}
+            onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })}
+          />
+        )}
+        {forget && (
+          <span className="ml-auto">
+            <ConfirmAction
+              label="Forget trading key"
+              question={`Forget the trading key for ${venue} on this device?`}
+              confirm="Forget key"
+              keep="Keep key"
+              onConfirm={forget}
+            />
+          </span>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {error && (
@@ -126,6 +158,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
             rows={snapshot.positions}
             busy={last.pending}
             question={(p) => `Close ${p.size} ${specOf(p)?.base ?? p.symbol} ${p.side} on ${venue}?`}
+            market={(p) => specOf(p)?.key ?? null}
             onClose={close}
           />
         )}
@@ -140,12 +173,12 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
       </div>
       {last.command && last.command.kind !== 'place' && (
         <div className="shrink-0 p-2">
-          <TradeNote error={last.error} outcome={last.outcome} />
+          <OrderNote error={last.error} outcome={last.outcome} />
         </div>
       )}
       {last.command?.kind === 'place' && last.command.intent.reduceOnly && (
         <div className="shrink-0 p-2">
-          <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
+          <OrderNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
         </div>
       )}
     </div>
@@ -156,45 +189,68 @@ function cancelAllQuestion(count: number, base: Base, venue: string) {
   return `Cancel ${count === 1 ? `1 ${base} order` : `all ${count} ${base} orders`} on ${venue}?`
 }
 
-function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
-  const [value, setValue] = useState('5')
+const LEVERAGE_RANGE = { min: 1, max: 50 }
+
+function leverageError(value: string): string | undefined {
   const n = Number(value)
+  return value && !(Number.isInteger(n) && n >= LEVERAGE_RANGE.min && n <= LEVERAGE_RANGE.max)
+    ? `Whole number from ${LEVERAGE_RANGE.min} to ${LEVERAGE_RANGE.max}`
+    : undefined
+}
+
+function LeverageControl({ current, onSet }: { current: string; onSet: (n: number) => void }) {
+  const [value, setValue] = useState(current)
+  const error = leverageError(value)
+  const id = useId()
   return (
     <form
-      className="flex items-center gap-1 text-level3"
+      className="flex items-center gap-1.5 text-level3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (Number.isInteger(n) && n >= 1 && n <= 50) onSet(n)
+        if (value && !error) onSet(Number(value))
       }}
     >
-      <label htmlFor="leverage">Leverage</label>
+      <label htmlFor={id}>Leverage</label>
       <input
-        id="leverage"
+        id={id}
         inputMode="numeric"
+        autoComplete="off"
+        placeholder="—"
         value={value}
         onChange={(e) => setValue(e.target.value.trim())}
-        className="num w-10 rounded-sm border border-rule bg-surface px-1 text-level1"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
+        className="num h-6 w-10 rounded-sm border border-edge bg-inset px-1 text-level1 outline-none focus:border-accent aria-invalid:border-warn"
       />
-      <Button look="quiet" type="submit">
+      {error && (
+        <span id={`${id}-error`} className="border-l-2 border-warn pl-1.5 text-level1">
+          {error}
+        </span>
+      )}
+      <Button look="quiet" type="submit" disabled={!value || Boolean(error)}>
         Set
       </Button>
     </form>
   )
 }
 
-const side = (s: 'long' | 'short' | 'buy' | 'sell') => (
-  <span className={s === 'long' || s === 'buy' ? 'text-bid' : 'text-ask'}>{s}</span>
+const SIDE_WORD = { long: 'Long', short: 'Short', buy: 'Buy', sell: 'Sell' } as const
+
+const side = (s: keyof typeof SIDE_WORD) => (
+  <span className={s === 'long' || s === 'buy' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[s]}</span>
 )
 
 function Positions({
   rows,
   busy,
   question,
+  market,
   onClose,
 }: {
   rows: readonly Position[]
   busy: boolean
   question: (p: Position) => string
+  market: (p: Position) => MarketKey | null
   onClose: (p: Position) => void
 }) {
   const columns: Column<Position>[] = [
@@ -206,10 +262,47 @@ function Positions({
     { header: 'Liq.', cell: (p) => p.liquidation ?? '—' },
     {
       header: '',
-      cell: (p) => <ConfirmAction label="Close" question={question(p)} disabled={busy} onConfirm={() => onClose(p)} />,
+      cell: (p) => (
+        <ConfirmAction
+          label="Close"
+          question={question(p)}
+          confirm="Confirm close"
+          keep="Keep position"
+          disabled={busy}
+          onConfirm={() => onClose(p)}
+        >
+          <CloseTerms position={p} market={market(p)} />
+        </ConfirmAction>
+      ),
     },
   ]
   return <Table rows={rows} rowKey={(p) => p.symbol} columns={columns} empty="No open positions." />
+}
+
+function CloseTerms({ position, market }: { position: Position; market: MarketKey | null }) {
+  const slippage = useSelector(closeSlippageBps, (s) => s)
+  return (
+    <>
+      <span className="num text-level3">
+        Size <span className="text-level1">{position.size.replace(/^-/, '')}</span> · Expected{' '}
+        {market ? <ExpectedPrice market={market} sell={position.side === 'long'} /> : <span>—</span>}
+      </span>
+      <span className="flex items-center gap-2 text-level3">
+        Slippage
+        <Segmented
+          label="Close slippage"
+          value={String(slippage)}
+          onChange={(v) => closeSlippageBps.setState(() => Number(v))}
+          options={SLIPPAGE_STEPS.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
+        />
+      </span>
+    </>
+  )
+}
+
+function ExpectedPrice({ market, sell }: { market: MarketKey; sell: boolean }) {
+  const px = useFrame({ kind: 'book', market, group: '' }, (f) => (sell ? f?.touch.bid : f?.touch.ask) ?? null)
+  return <span className="text-level1">{px ?? '—'}</span>
 }
 
 function Orders({

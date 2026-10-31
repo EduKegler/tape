@@ -89,6 +89,23 @@ test('one click on Close only asks, and Confirm sends one reduce-only close', as
   ])
 })
 
+test('the close step shows its size, the bid it sells into and its own slippage', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page)
+  await account.getByRole('button', { name: 'Close', exact: true }).click()
+  const step = account.getByRole('group', { name: 'Close 0.01 BTC long on Hyperliquid?' })
+  await expect(step).toContainText(/Size 0\.01 · Expected \d{2},\d{3}/)
+  await expect(step.getByRole('radio', { name: '1%', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await step.getByRole('radio', { name: '0.5%', exact: true }).click()
+
+  await step.getByRole('button', { name: 'Confirm close' }).click()
+  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
+  // The bid 79990 less 0.5% is 79590.05, rounded up to the whole dollar five significant figures allow: 79591.
+  expect(writes(hyperliquid.sent).map((body) => body.action.orders?.[0]?.p)).toEqual(['79591'])
+  const ticket = panel(page, 'Order ticket')
+  await ticket.getByRole('radio', { name: 'Market', exact: true }).click()
+  await expect(ticket.getByRole('radio', { name: '1%', exact: true })).toHaveAttribute('aria-checked', 'true')
+})
+
 test('Escape and a click outside put Close back and send nothing', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, account } = await holding(page)
   const close = account.getByRole('button', { name: 'Close', exact: true })
@@ -107,6 +124,13 @@ test('Escape and a click outside put Close back and send nothing', async ({ page
   expect(writes(hyperliquid.sent)).toEqual([])
 })
 
+test('positions and orders spell their side out', async ({ page, wallet: _wallet }) => {
+  const { account } = await holding(page)
+  await expect(account.getByRole('row', { name: /^BTC Long 0\.01 / })).toBeVisible()
+  await account.getByRole('radio', { name: 'Orders 1' }).click()
+  await expect(account.getByRole('row', { name: /^BTC Buy / })).toBeVisible()
+})
+
 test('Cancel all BTC asks first, then sends one cancel for the BTC orders', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, account } = await holding(page)
   await account.getByRole('button', { name: 'Cancel all BTC' }).click()
@@ -119,4 +143,37 @@ test('Cancel all BTC asks first, then sends one cancel for the BTC orders', asyn
   expect(writes(hyperliquid.sent).map((body) => body.action)).toEqual([
     { type: 'cancel', cancels: [{ a: BTC, o: 41 }] },
   ])
+})
+
+test('forgetting the trading key sits in the account bar and asks first', async ({ page, wallet: _wallet }) => {
+  const { account } = await holding(page)
+  const ticket = panel(page, 'Order ticket')
+  await expect(ticket.getByRole('button', { name: /Forget/ })).toHaveCount(0)
+  await account.getByRole('button', { name: 'Forget trading key' }).click()
+  const step = account.getByRole('group', { name: 'Forget the trading key for Hyperliquid on this device?' })
+  await expect(step.getByRole('button', { name: 'Forget key' })).toBeFocused()
+  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+
+  await step.getByRole('button', { name: 'Forget key' }).click()
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()
+})
+
+test('leverage starts at the position leverage and refuses a value out of range in the field', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, account } = await holding(page)
+  const field = account.getByRole('textbox', { name: 'Leverage' })
+  await expect(field).toHaveValue('20')
+  const set = account.getByRole('button', { name: 'Set', exact: true })
+  await field.fill('80')
+  await expect(field).toHaveAccessibleDescription('Whole number from 1 to 50')
+  await expect(set).toBeDisabled()
+
+  await field.fill('10')
+  await expect(field).toHaveAccessibleDescription('')
+  await set.click()
+  await expect
+    .poll(() => writes(hyperliquid.sent).map((body) => body.action))
+    .toEqual([{ type: 'updateLeverage', asset: BTC, isCross: true, leverage: 10 }])
 })
