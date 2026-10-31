@@ -771,4 +771,10 @@ describe('orderly setup', () => {
     expect(wallet.switchChain).not.toHaveBeenCalled()
     expect(keys.writes).toEqual([{ ...unlinked, status: 'linked' }])
   })
+
+  it('reports Orderly unavailable on a network with no broker id', () => {
+    const config = { ...orderlyAt(() => ({ body: '' })).ctx.config, mainnet: true }
+    expect(orderly.unavailable('mainnet', config)).toBe('No Orderly broker id is configured')
+    expect(orderly.unavailable('testnet', config)).toBeNull()
+  })
 })
