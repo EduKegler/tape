@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 import { CONTROL } from './replay/control'
 import type { Command } from './replay/control'
 import { expect, openMarket, panel, test } from './fixtures'
@@ -56,4 +56,23 @@ test('at 1280×800 the header keeps one line, also while the ticker says it is r
   await expect(header.getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
   await expectOneLine(page)
   expect(await header.boundingBox()).toEqual(live)
+})
+
+const failRead = (route: Route) => route.fulfill({ status: 503, body: '' })
+
+const barHeights = (page: Page) =>
+  page.locator('section > header').evaluateAll((bars) => bars.map((b) => b.getBoundingClientRect().height))
+
+test('every panel title bar keeps one height while a panel says a read failed or its data is old', async ({ page }) => {
+  await page.route('**/info', failRead)
+  await page.goto('/hyperliquid/BTC?interval=1m')
+  const book = panel(page, 'Order book')
+  await expect(book.getByText(/^Spread .* bps$/)).toBeVisible()
+  const ticket = panel(page, 'Order ticket')
+  await expect(ticket.getByText('Could not load market rules.')).toBeVisible({ timeout: 20_000 })
+  await expect(ticket.getByRole('button', { name: 'Retry' })).toBeVisible()
+  expect(new Set(await barHeights(page)).size).toBe(1)
+  await send(page, { drop: 'hyperliquid' })
+  await expect(book.getByText(/^Reconnecting · \d+ s old$/)).toBeVisible()
+  expect(new Set(await barHeights(page)).size).toBe(1)
 })
