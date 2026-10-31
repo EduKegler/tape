@@ -34,5 +34,10 @@ export function Button({
   ...props
 }: Omit<ComponentProps<'button'>, 'className'> & Look & { className?: string }) {
   const own = size ? `${classes[look]} ${sizes[size]}` : classes[look]
-  return <BaseButton {...props} className={className ? `${own} ${className}` : own} />
+  const all = className ? `${own} ${className}` : own
+  return look === 'row' ? (
+    <button type="button" {...props} className={all} />
+  ) : (
+    <BaseButton {...props} className={all} />
+  )
 }
