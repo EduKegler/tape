@@ -29,7 +29,7 @@ Data and connection are two axes. Data is live, stale, empty or error. Connectio
 A panel fed by a hub topic passes `<TopicStatus topic={…} />` to `Panel`'s `status` slot, beside the title. Pass `ageLimit` where an old frame misleads, as in the book, the depth and the ticket's price hint. Pass `error` and `onRetry` for a failed read.
 
 - Old data stays readable, with its age beside the title.
-- A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text.
+- A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text. Outside a hub panel it goes through `ReadNote`, which takes its reason from `readFailure`.
 - Before the first frame the panel says `Loading…` and shows no placeholder number. With the socket down it names the venue it waits for.
 - A legitimately empty result is plain `level3` text in place of the data.
 - The panel state speaks through `aria-live="polite"` with no role, because the ticket's order outcome owns `role="status"` and `role="alert"`.

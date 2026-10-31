@@ -17,7 +17,7 @@ import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
-import { OrderNote, TradeNote } from './TradeNote'
+import { OrderNote, ReadNote, TradeNote } from './TradeNote'
 
 type Tab = 'positions' | 'orders' | 'fills'
 
@@ -70,7 +70,7 @@ function AccountBody({
   forget: (() => void) | null
 }) {
   const [tab, setTab] = useState<Tab>('positions')
-  const { view, error } = useAccountView(account)
+  const { view, error, isFetching, retry } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
   const slippage = useSelector(closeSlippageBps, (s) => s) as Bps
@@ -139,8 +139,8 @@ function AccountBody({
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {error && (
-          <div className="p-2">
-            <TradeNote error={error} />
+          <div className="p-2 text-sm">
+            <ReadNote what="the account" error={error} onRetry={retry} busy={isFetching} />
           </div>
         )}
         {!view && !error && <p className="p-3 text-sm text-level3">Loading account…</p>}

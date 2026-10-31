@@ -7,13 +7,14 @@ import type { Address } from 'viem'
 import { selectHistory, summarize, toCsv } from '@tape/trade/history'
 import type { FundingPayment, RealizedFill, Totals } from '@tape/trade/history'
 import { amount, format } from '@tape/trade/money'
-import type { TradeError, TradeVenueId } from '@tape/trade/types'
+import type { TradeVenueId } from '@tape/trade/types'
 import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { Button, InlineInput, Table } from './primitives'
 import type { Column } from './primitives'
+import { ReadNote } from './TradeNote'
 
 const WALLET = /^0x[0-9a-fA-F]{40}$/
 const DYDX_ADDRESS = /^dydx1[0-9a-z]{38}$/
@@ -247,17 +248,7 @@ function VenueStatus({
       )}
       {address && <p className="num text-xs break-all text-level3">{address}</p>}
       {result.error && (
-        <p role="alert" className="border-l-2 border-warn pl-2 text-level1">
-          Could not read {label} history. {readFailure(result.error.error)}{' '}
-          <Button
-            look="quiet"
-            onClick={onRefresh}
-            disabled={result.isFetching}
-            className="underline underline-offset-2"
-          >
-            Retry
-          </Button>
-        </p>
+        <ReadNote what={`${label} history`} error={result.error.error} onRetry={onRefresh} busy={result.isFetching} />
       )}
       {h && (
         <p className="num text-level2">
@@ -272,14 +263,6 @@ function VenueStatus({
     </li>
   )
 }
-
-const READ_FAILURES: Partial<Record<TradeError['kind'], string>> = {
-  unreachable: 'The venue did not answer.',
-  'rate-limited': 'The venue is limiting requests. Retry in a few seconds.',
-  rejected: 'The venue refused the request.',
-}
-
-const readFailure = (error: TradeError) => READ_FAILURES[error.kind] ?? 'Tape could not read the answer.'
 
 function Filters({
   search,
