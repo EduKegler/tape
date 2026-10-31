@@ -297,6 +297,92 @@ describe('hyperliquid refusals before signing', () => {
     })
     expect(posts()).toEqual([])
   })
+
+  it('refuses a take profit finer than the 2 szDecimals SOL has on this network, naming it', async () => {
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const takeProfits = [
+      { price: '160', share: '50' },
+      { price: '170', share: '50' },
+    ]
+    const bracket = place({ ...sol, size: '0.03', takeProfits }, spec('SOL'))
+    expect(await failureOf(hyperliquid.execute(ctx, bracket))).toMatchObject({
+      kind: 'invalid-order',
+      detail: expect.stringMatching(/^Take profit 1 size 0\.015: .+ on this network$/) as string,
+    })
+    expect(posts()).toEqual([])
+  })
+
+  it('refuses a scale order that carries a take profit or a stop loss', async () => {
+    const { ctx, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const command = place({ kind: 'scale', size: '0.003', start: '80000', end: '79000', count: '3' })
+    if (command.kind !== 'place') throw new Error('place')
+    for (const triggers of [
+      { takeProfits: [{ px: 820_000 as Px, size: 300 as Qty }], stopLoss: null },
+      { takeProfits: [], stopLoss: 780_000 as Px },
+    ]) {
+      expect(
+        await failureOf(hyperliquid.execute(ctx, { kind: 'place', intent: { ...command.intent, triggers } })),
+      ).toEqual({ kind: 'invalid-order', detail: 'A scale order carries no take profit or stop loss' })
+    }
+    expect(posts()).toEqual([])
+  })
+})
+
+describe('hyperliquid trailing stops', () => {
+  const trailing = { kind: 'trailing', price: '', retracement: '1.5' }
+  const oid = () => json({ status: 'ok', response: { type: 'trailingStop', data: { oid: 77738308 } } })
+
+  // The trailingStop action of the exchange endpoint docs.
+  it('sends a trailing buy as isBuy true', async () => {
+    const { ctx, posts } = venue(oid)
+    expect(await hyperliquid.execute(ctx, place(trailing))).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Resting as order 77738308',
+    })
+    expect(posts()[0]?.body.action).toEqual({
+      type: 'trailingStop',
+      asset: 3,
+      isBuy: true,
+      sz: '0.001',
+      reduceOnly: false,
+      retracement: { pct: '1.5%' },
+      activationPx: null,
+    })
+  })
+
+  it('refuses a trailing stop that carries a take profit or a stop loss, before reading the market', async () => {
+    const { ctx, sent } = venue(oid)
+    const command = place(trailing)
+    if (command.kind !== 'place') throw new Error('place')
+    for (const triggers of [
+      { takeProfits: [{ px: 820_000 as Px, size: 100 as Qty }], stopLoss: null },
+      { takeProfits: [], stopLoss: 780_000 as Px },
+    ]) {
+      expect(
+        await failureOf(hyperliquid.execute(ctx, { kind: 'place', intent: { ...command.intent, triggers } })),
+      ).toEqual({ kind: 'invalid-order', detail: 'A trailing stop carries no take profit or stop loss' })
+    }
+    expect(sent).toEqual([])
+  })
+
+  // BTC prices carry 6 - szDecimals = 1 decimal on Hyperliquid, so 123.45 is off this network.
+  it('refuses a retracement or an activation price with more decimals than this network allows, naming which', async () => {
+    const { ctx, posts } = venue(oid)
+    const command = place(trailing)
+    if (command.kind !== 'place') throw new Error('place')
+    const finer = { ...command.intent, spec: { ...btc, scale: { px: 2, qty: 5 } } } as typeof command.intent
+    for (const [order, detail] of [
+      [{ kind: 'trailing', retracement: { px: 12_345 as Px }, activation: null }, 'Retracement 123.45'],
+      [{ kind: 'trailing', retracement: { pct: 150 as Bps }, activation: 12_345 as Px }, 'Activation price 123.45'],
+    ] as const) {
+      expect(await failureOf(hyperliquid.execute(ctx, { kind: 'place', intent: { ...finer, order } }))).toEqual({
+        kind: 'invalid-order',
+        detail: `${detail}: At most 1 decimals on this network`,
+      })
+    }
+    expect(posts()).toEqual([])
+  })
 })
 
 describe('hyperliquid order outcomes', () => {
@@ -437,6 +523,26 @@ describe('hyperliquid exits', () => {
       detail: 'At most 2 take profits and stop losses on one order',
     })
     expect(sent).toEqual([])
+  })
+
+  it('refuses a limit order whose second take profit is not above its price, naming it, before signing', async () => {
+    const { ctx, posts } = venue(() => statuses([]))
+    const command = place({})
+    if (command.kind !== 'place') throw new Error('place')
+    const triggers = {
+      takeProfits: [
+        { px: 820_000 as Px, size: 50 as Qty },
+        { px: 790_000 as Px, size: 50 as Qty },
+      ],
+      stopLoss: null,
+    }
+    expect(
+      await failureOf(hyperliquid.execute(ctx, { kind: 'place', intent: { ...command.intent, triggers } })),
+    ).toEqual({
+      kind: 'invalid-order',
+      detail: 'Take profit 2: Must be above the price on this network',
+    })
+    expect(posts()).toEqual([])
   })
 })
 

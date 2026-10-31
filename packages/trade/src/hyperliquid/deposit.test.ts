@@ -64,6 +64,15 @@ describe('Hyperliquid bridge terms', () => {
       refusal: null,
     })
   })
+
+  // The info endpoint docs serve testnet at api.hyperliquid-testnet.xyz.
+  it('reads the testnet bridge deposit from the testnet ledger', async () => {
+    const [bridge] = hyperliquidDeposit.routes('testnet', config)
+    const { fetch, asked } = answer(null, [])
+    const deposit = { ...sent(), ref: { ...sent().ref, network: 'testnet' as const } }
+    expect(await bridge!.progress(io(fetch), deposit)).toMatchObject({ stage: 'relaying' })
+    expect(asked).toEqual(['https://api.hyperliquid-testnet.xyz/info'])
+  })
 })
 
 describe('Hyperliquid CCTP credit', () => {
