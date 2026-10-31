@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import type { VenueId } from '@tape/core/ids'
 
 const dir = new URL('./__fixtures__/', import.meta.url)
-const json = (name: string): unknown => JSON.parse(readFileSync(new URL(name, dir), 'utf8'))
 
 /** Recorded WebSocket frames, in arrival order. */
 export function wsFrames(venue: VenueId): string[] {
@@ -36,5 +35,8 @@ export const recordedFetch: typeof globalThis.fetch = async (input, init) => {
     file = `hyperliquid.${body.type}.json`
   }
   if (!file) throw new Error(`no recording for ${url}`)
-  return new Response(JSON.stringify(json(file)), { status: 200, headers: { 'content-type': 'application/json' } })
+  return new Response(readFileSync(new URL(file, dir), 'utf8'), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
 }

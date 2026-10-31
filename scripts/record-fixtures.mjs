@@ -122,7 +122,7 @@ function record(name, { url, subscribe, trade }) {
 
 async function reply(name, key, response) {
   if (!response.ok) throw new Error(`${name} ${key} answered ${response.status}: ${await response.text()}`)
-  return [key, await response.json()]
+  return [key, await response.text()]
 }
 
 await mkdir(out, { recursive: true })
@@ -151,7 +151,7 @@ await Promise.all(
       ])
       const kept = name === 'dydx' ? frames.slice(0, dydxLines) : frames
       await writeFile(new URL(`${name}.ws.jsonl`, out), kept.join('\n') + '\n')
-      for (const [k, json] of rest) await writeFile(new URL(`${name}.${k}.json`, out), JSON.stringify(json))
+      for (const [k, body] of rest) await writeFile(new URL(`${name}.${k}.json`, out), body)
       console.log(name, frames.length, 'frames', rest.map(([k]) => k).join(','))
     }),
 )
