@@ -47,13 +47,14 @@ describe('market keys', () => {
     expect(
       [
         'kraken:BTC',
+        'dydxB',
         'dydx:',
         'hyperliquid:tndex:A B:C/../中',
         'dydx:ETH',
         'hyperliquid:kPEPE',
         'hyperliquid:xyz:TSLA',
       ].map(parseMarketKey),
-    ).toEqual([null, null, null, 'dydx:ETH', 'hyperliquid:kPEPE', 'hyperliquid:xyz:TSLA'])
+    ).toEqual([null, null, null, null, 'dydx:ETH', 'hyperliquid:kPEPE', 'hyperliquid:xyz:TSLA'])
   })
 })
 
