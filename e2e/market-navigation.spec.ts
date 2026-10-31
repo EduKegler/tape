@@ -134,3 +134,15 @@ test('the search says when the market list fails and tries again when it opens',
   await search.click()
   await expect(page.getByRole('option', { name: 'BTC', exact: true })).toBeVisible()
 })
+
+for (const path of ['/dydx/xyz:TSLA', '/dydx/xyz%3ATSLA'])
+  test(`${path} marks its market and venue as current`, async ({ page }) => {
+    await page.goto(path)
+    await expect(
+      page.getByRole('navigation', { name: 'Market' }).getByRole('link', { name: 'xyz:TSLA', exact: true }),
+    ).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('navigation', { name: 'Venue' }).getByRole('link', { name: /^dYdX/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })

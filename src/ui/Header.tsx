@@ -23,8 +23,8 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             to="/$venue/$base"
             params={{ venue, base: b }}
             search={(s) => s}
-            className="rounded-full px-2.5 py-1 text-base text-level3 hover:text-level1"
-            activeProps={{ className: 'bg-level1/12 text-level1', 'aria-current': 'page' }}
+            aria-current={b === base ? 'page' : undefined}
+            className="rounded-full px-2.5 py-1 text-base text-level3 hover:text-level1 aria-[current=page]:bg-level1/12 aria-[current=page]:text-level1"
           >
             {b}
           </Link>
@@ -38,8 +38,8 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
             to="/$venue/$base"
             params={{ venue: v, base }}
             search={(s) => s}
-            className="flex flex-col rounded-sm px-2 py-0.5 leading-tight text-level3 hover:text-level1"
-            activeProps={{ className: 'bg-level1/8 text-level1', 'aria-current': 'page' }}
+            aria-current={v === venue ? 'page' : undefined}
+            className="flex flex-col rounded-sm px-2 py-0.5 leading-tight text-level3 hover:text-level1 aria-[current=page]:bg-level1/8 aria-[current=page]:text-level1"
           >
             <span className="text-base">{VENUES[v].label}</span>
             <span className="text-2xs text-level3">{VENUES[v].chain}</span>
