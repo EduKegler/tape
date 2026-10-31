@@ -61,7 +61,7 @@ Before a venue ships, its tests prove these:
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
 | No unused files, exports or dependencies | knip in `pnpm verify` |
 | Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter | `no-restricted-*` rules in `eslint.config.js` |
-| Type, spacing, radius, z-index and duration come from the tokens in `src/styles.css`, and buttons, tables and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-restricted-classes` and `no-restricted-*` rules in `eslint.config.js` |
+| Color, type, weight, spacing, radius, z-index and duration come from the tokens in `src/styles.css`, and buttons, tables and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-unknown-classes` and `no-restricted-classes`, and the `no-restricted-*` rules in `eslint.config.js` |
 | Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |

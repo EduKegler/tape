@@ -21,14 +21,13 @@ const shot = await app.screenshot({ path: `${root}docs/screenshot.png` })
 
 const card = await browser.newPage({ viewport: { width: 1280, height: 640 } })
 await card.setContent(`<!doctype html><style>
-@font-face { font-family: Brygada; src: url(data:font/woff2;base64,${font('brygada-1918', 'brygada-1918-latin-wght-normal.woff2')}) }
-@font-face { font-family: Atkinson; src: url(data:font/woff2;base64,${font('atkinson-hyperlegible-next', 'atkinson-hyperlegible-next-latin-wght-normal.woff2')}) }
+@font-face { font-family: Inter; src: url(data:font/woff2;base64,${font('inter', 'inter-latin-wght-normal.woff2')}) }
 * { margin: 0; box-sizing: border-box }
-body { width: 1280px; height: 640px; overflow: hidden; position: relative; font-family: Atkinson; color: #2f314c;
+body { width: 1280px; height: 640px; overflow: hidden; position: relative; font-family: Inter; color: #2f314c;
   background: linear-gradient(133deg, rgb(255 180 176 / .16), rgb(255 221 201 / .12) 22%, #fff 48%, rgb(189 238 254 / .14) 74%, rgb(191 185 255 / .2)) }
 .copy { position: absolute; left: 80px; top: 158px; width: 440px }
 .repo { font-size: 22px; color: #444659 } .repo b { color: #2f314c }
-h1 { font-family: Brygada; font-weight: 400; font-size: 84px; line-height: 1; margin: 34px 0 30px }
+h1 { font-weight: 500; font-size: 84px; line-height: 1; margin: 34px 0 30px }
 p { font-size: 25px; line-height: 1.5; color: #444659 }
 a { display: block; margin-top: 30px; font-size: 22px; color: #2a44c2; text-decoration: none }
 img { position: absolute; left: 578px; top: 72px; width: 820px; border-radius: 14px; border: 1px solid rgb(47 49 76 / .14);

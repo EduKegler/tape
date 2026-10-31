@@ -88,7 +88,7 @@ export function WalletButton() {
         id="chain"
         value={chainId}
         onChange={(e) => switchChain({ chainId: Number(e.target.value) as (typeof chains)[number]['id'] })}
-        className="rounded-full border border-rule bg-panel px-2 py-1 text-sm text-level2"
+        className="rounded-sm border border-rule bg-inset px-2 py-1 text-sm text-level2"
       >
         {chains.map((c) => (
           <option key={c.id} value={c.id}>

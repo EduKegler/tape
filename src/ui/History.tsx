@@ -400,7 +400,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
         aria-label="History rows"
         className="min-h-0 min-w-240 flex-1 overflow-y-auto"
       >
-        {rows.length === 0 && <p className="px-3 py-2 font-sans text-sm text-level3">No fills or funding here.</p>}
+        {rows.length === 0 && <p className="px-3 py-2 text-sm text-level3">No fills or funding here.</p>}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
             const r = rows[item.index]
@@ -416,9 +416,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
                 <span role="cell" className="whitespace-nowrap">
                   {utcTime(r.time)}
                 </span>
-                <span role="cell" className="font-sans">
-                  {VENUES[e.venue].label}
-                </span>
+                <span role="cell">{VENUES[e.venue].label}</span>
                 <span role="cell" className="truncate text-level1">
                   {e.symbol}
                 </span>
@@ -435,9 +433,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
 function FillCells({ fill }: { fill: RealizedFill }) {
   return (
     <>
-      <span role="cell" className="font-sans">
-        {fill.liquidation ? 'Liquidation' : 'Fill'}
-      </span>
+      <span role="cell">{fill.liquidation ? 'Liquidation' : 'Fill'}</span>
       <span role="cell" className={fill.side === 'buy' ? 'text-bid' : 'text-ask'}>
         {fill.side}
       </span>
@@ -466,9 +462,7 @@ function FillCells({ fill }: { fill: RealizedFill }) {
 function FundingCells({ payment }: { payment: FundingPayment }) {
   return (
     <>
-      <span role="cell" className="font-sans">
-        Funding
-      </span>
+      <span role="cell">Funding</span>
       <span role="cell" />
       <span role="cell" className="text-right">
         {payment.position ?? ''}

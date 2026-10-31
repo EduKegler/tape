@@ -137,7 +137,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         void form.handleSubmit()
       }}
     >
-      <div className="grid grid-cols-2 gap-1 rounded-full border border-rule p-0.5">
+      <div className="grid grid-cols-2 gap-1 rounded-sm border border-rule p-0.5">
         {(['buy', 'sell'] as const).map((s) => (
           <Button
             key={s}

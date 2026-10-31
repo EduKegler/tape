@@ -58,7 +58,7 @@ function draw(canvas: HTMLCanvasElement, f: DepthFrame): void {
   area(f.bids, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
   area(f.asks, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
   ctx.fillStyle = cssVar(canvas, '--level3')
-  ctx.font = `11px ${cssVar(canvas, '--font-mono')}`
+  ctx.font = `11px ${cssVar(canvas, '--font-sans')}`
   ctx.textAlign = 'left'
   ctx.fillText(lo.toLocaleString('en-US', { maximumFractionDigits: 2 }), 6, h - 6)
   ctx.textAlign = 'right'

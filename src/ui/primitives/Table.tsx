@@ -45,10 +45,7 @@ export function Table<T>({
             }
           >
             {columns.map((c, i) => (
-              <td
-                key={c.header}
-                className={i > 0 ? 'pr-3 text-right' : isCurrent ? 'pl-3 font-sans' : 'pl-3 font-sans text-level1'}
-              >
+              <td key={c.header} className={i > 0 ? 'pr-3 text-right' : isCurrent ? 'pl-3' : 'pl-3 text-level1'}>
                 {c.cell(row)}
               </td>
             ))}

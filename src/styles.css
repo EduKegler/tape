@@ -1,64 +1,84 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/brygada-1918';
-@import '@fontsource-variable/atkinson-hyperlegible-next';
-@import '@fontsource-variable/atkinson-hyperlegible-mono';
+@import '@fontsource-variable/inter';
 
 :root {
-  --surface: #12141e;
-  --panel: #171a27;
-  --rule: rgb(200 202 222 / 0.08);
-  --level1: #c8cade;
-  --level2: #a8aac0;
-  --level3: #8888a0;
-  --ink: #a9b8ff;
-  --ink-contrast: #12141e;
-  --bid: #6fd8b2;
-  --ask: #ff938c;
-  --bid-wash: rgb(111 216 178 / 0.13);
-  --ask-wash: rgb(255 147 140 / 0.13);
-  --selection: #2f3a7a;
-  --gradient-opacity: 0.05;
-}
-
-@theme inline {
-  --color-surface: var(--surface);
-  --color-panel: var(--panel);
-  --color-rule: var(--rule);
-  --color-level1: var(--level1);
-  --color-level2: var(--level2);
-  --color-level3: var(--level3);
-  --color-ink: var(--ink);
-  --color-ink-contrast: var(--ink-contrast);
-  --color-bid: var(--bid);
-  --color-ask: var(--ask);
-  --color-bid-wash: var(--bid-wash);
-  --color-ask-wash: var(--ask-wash);
-  --font-display: 'Brygada 1918 Variable', Georgia, serif;
-  --font-sans: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
-  --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
+  --surface: #19151f;
+  --raised: #231e2a;
+  --ticket: #211a2b;
+  --inset: #141019;
+  --rule: rgb(255 255 255 / 0.08);
+  --edge: #6f6978;
+  --level1: #eeecf1;
+  --level2: #c4bfcb;
+  --level3: #958f9e;
+  --ink: #eeecf1;
+  --ink-contrast: #19151f;
+  --accent: #9d8cff;
+  --bid: #5ad6a4;
+  --ask: #ff7f7c;
+  --bid-wash: rgb(90 214 164 / 0.12);
+  --ask-wash: rgb(255 127 124 / 0.12);
+  --warn: #e8b04f;
+  --selection: rgb(238 236 241 / 0.2);
 }
 
 @theme {
+  --color-*: initial;
+  --color-black: #000;
+  --color-white: #fff;
+
+  --font-*: initial;
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+
   --text-*: initial;
-  --text-2xs: 10px;
   --text-xs: 11px;
   --text-sm: 12px;
   --text-base: 13px;
-  --text-md: 14px;
-  --text-lg: 15px;
-  --text-xl: 16px;
-  --text-2xl: 17px;
-  --text-3xl: 22px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
 
   --spacing: 0.25rem;
 
   --radius-*: initial;
   --radius-sm: 0.25rem;
-  --radius-lg: 0.5rem;
+
+  --shadow-*: initial;
+  --drop-shadow-*: initial;
+  --blur-*: initial;
+  --inset-shadow-*: initial;
+  --inset-shadow-selected: inset 0 -2px var(--accent);
+  --inset-shadow-current: inset 2px 0 var(--accent);
 
   --z-index-dialog: 50;
 
-  --transition-duration-fast: 150ms;
+  --ease-*: initial;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-duration-fast: 120ms;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ticket: var(--ticket);
+  --color-inset: var(--inset);
+  --color-rule: var(--rule);
+  --color-edge: var(--edge);
+  --color-level1: var(--level1);
+  --color-level2: var(--level2);
+  --color-level3: var(--level3);
+  --color-ink: var(--ink);
+  --color-ink-contrast: var(--ink-contrast);
+  --color-accent: var(--accent);
+  --color-bid: var(--bid);
+  --color-ask: var(--ask);
+  --color-bid-wash: var(--bid-wash);
+  --color-ask-wash: var(--ask-wash);
+  --color-warn: var(--warn);
 }
 
 * {
@@ -70,26 +90,14 @@ html {
   color: var(--level2);
   font-family: var(--font-sans);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   color-scheme: dark;
 }
 
-html::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: var(--gradient-opacity);
-  background: linear-gradient(
-    133.07deg,
-    rgb(255 180 176) 0%,
-    rgb(255 221 201) 22%,
-    rgb(255 255 255 / 0) 48%,
-    rgb(189 238 254) 74%,
-    rgb(191 185 255) 100%
-  );
+body {
+  margin: 0;
+  font-size: var(--text-sm);
 }
 
 ::selection {
@@ -97,16 +105,10 @@ html::before {
 }
 
 :focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-body {
-  margin: 0;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .num {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }

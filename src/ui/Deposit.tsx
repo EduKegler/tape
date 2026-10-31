@@ -60,10 +60,10 @@ function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue
         role="dialog"
         aria-modal
         aria-labelledby={titleId}
-        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-lg border border-rule bg-panel p-4 text-sm"
+        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-sm border border-rule bg-raised p-4 text-sm"
       >
         <div className="flex items-center justify-between">
-          <h2 id={titleId} className="font-display text-lg text-level1">
+          <h2 id={titleId} className="text-base text-level1">
             Deposit USDC to {venue.destination}
           </h2>
           <Button look="quiet" onClick={onClose} aria-label="Close">

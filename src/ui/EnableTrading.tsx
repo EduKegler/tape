@@ -11,7 +11,7 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
           <li key={s.id} className={`flex items-center gap-2 ${s.done ? 'text-level3 line-through' : 'text-level1'}`}>
             <span
               aria-hidden
-              className={`inline-block size-1.5 rounded-full ${s.id === session.progress ? 'bg-ink' : s.done ? 'bg-bid' : 'bg-level3'}`}
+              className={`inline-block size-1.5 rounded-sm ${s.id === session.progress ? 'bg-ink' : s.done ? 'bg-bid' : 'bg-level3'}`}
             />
             {s.label}
           </li>

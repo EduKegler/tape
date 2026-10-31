@@ -109,13 +109,17 @@ export default [
           restrict: [
             {
               pattern:
-                '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|z|duration)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
+                '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|(?:inset-|drop-)?shadow|z|duration)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
               message: 'Use a token from src/styles.css, not an arbitrary or bare value.',
             },
             {
               pattern:
                 '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition-duration)',
               message: 'Use a token from src/styles.css, not an arbitrary property.',
+            },
+            {
+              pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
+              message: 'Use rounded-sm. The radius scale has one step.',
             },
           ],
         },

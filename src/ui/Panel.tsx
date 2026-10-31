@@ -13,9 +13,9 @@ export function Panel({
   className?: string
 }) {
   return (
-    <section className={`flex h-full min-h-0 flex-col border border-rule bg-panel ${className}`}>
+    <section className={`flex h-full min-h-0 flex-col border border-rule bg-surface ${className}`}>
       <header className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-rule px-3">
-        <h2 className="font-display text-lg text-level1">{title}</h2>
+        <h2 className="text-base text-level1">{title}</h2>
         {aside}
       </header>
       <div className="relative min-h-0 flex-1">{children}</div>
@@ -35,7 +35,7 @@ export function Segmented<T extends string>({
   label: string
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex rounded-full border border-rule p-0.5">
+    <div role="radiogroup" aria-label={label} className="flex rounded-sm border border-rule p-0.5">
       {options.map((o) => (
         <Button
           key={o.value}

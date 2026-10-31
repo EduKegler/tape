@@ -50,7 +50,7 @@ export function CandleChart({
       layout: {
         background: { color: 'transparent' },
         textColor: css('--level3'),
-        fontFamily: css('--font-mono'),
+        fontFamily: css('--font-sans'),
         fontSize: 11,
         attributionLogo: false,
       },

@@ -37,7 +37,7 @@ export function OrderBook({
           <select
             value={head.group}
             onChange={(e) => onGroup(e.target.value)}
-            className="num rounded-sm border border-rule bg-panel px-1 py-0.5 text-level2"
+            className="num rounded-sm border border-rule bg-inset px-1 py-0.5 text-level2"
           >
             {(head.options ? head.options.split('|') : [head.group]).map((o) => (
               <option key={o} value={o.replaceAll(',', '')}>
@@ -101,7 +101,7 @@ function Spread({ topic }: { topic: BookTopic }) {
   )
   return (
     <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="text-md text-level1">{s.mid || '—'}</span>
+      <span className="text-base text-level1">{s.mid || '—'}</span>
       <span className="text-xs whitespace-nowrap text-level3">
         {s.status === 'live'
           ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`
