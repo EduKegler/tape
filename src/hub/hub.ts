@@ -80,17 +80,18 @@ interface TabState {
   readonly sent: Map<TopicKey, number>
 }
 
+type NotShown = null
+type RetryAt = number
+
 interface VenueState {
   readonly adapter: VenueAdapter
   conn: ConnState
   socket: SocketLike | null
   lastMessageAt: number
   opened: number
-  /** null for a market the venue does not list. */
-  readonly specs: Map<MarketKey, MarketSpec | null>
+  readonly specs: Map<MarketKey, MarketSpec | NotShown>
   readonly bySymbol: Map<string, MarketKey>
-  /** A spec read in flight, or the time a failed one may retry. */
-  readonly specReads: Map<MarketKey, 'loading' | number>
+  readonly specReads: Map<MarketKey, 'loading' | RetryAt>
 }
 
 export function createHub(deps: HubDeps): Hub {
