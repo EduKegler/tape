@@ -7,7 +7,7 @@ import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import { checkPrice } from './intent'
-import { apportion, scaleLegs } from './scale-order'
+import { apportion, lookupSummary, scaleLegs } from './scale-order'
 
 const fixed: MarketSpec = {
   key: marketKey('dydx', 'ETH' as Base),
@@ -88,6 +88,13 @@ describe('scale order', () => {
   it('refuses a leg below one step', () => {
     const tiny = scaleLegs(fixed, 'buy', { start: 30_000 as Px, end: 29_000 as Px, count: 5, skew: 1 }, 4 as Qty)
     expect(tiny).toEqual({ ok: false, field: 'size', message: 'Each order needs at least 0.001' })
+  })
+})
+
+describe('scale order lookup', () => {
+  it('calls a scale order absent when no leg is on the venue, with the first reason', () => {
+    const absent = { kind: 'absent', detail: 'unknownOid' } as const
+    expect(lookupSummary([absent, absent])).toEqual({ kind: 'absent', detail: 'None of the 2 orders. unknownOid' })
   })
 })
 
