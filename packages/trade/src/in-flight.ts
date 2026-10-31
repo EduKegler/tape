@@ -7,17 +7,19 @@ import type { AccountRef, Command } from './types'
  */
 const sending = new Set<string>()
 
-const lane = (command: Command) => (command.kind === 'place' ? 'every order' : JSON.stringify(command))
+type Write = Command | { readonly kind: 'deposit' }
 
-const slot = (ref: AccountRef, command: Command) => `${accountKey(ref)}|${lane(command)}`
+const lane = (write: Write) => (write.kind === 'place' ? 'every order' : JSON.stringify(write))
 
-export function claim(ref: AccountRef, command: Command): boolean {
-  const key = slot(ref, command)
+const slot = (ref: AccountRef, write: Write) => `${accountKey(ref)}|${lane(write)}`
+
+export function claim(ref: AccountRef, write: Write): boolean {
+  const key = slot(ref, write)
   if (sending.has(key)) return false
   sending.add(key)
   return true
 }
 
-export function release(ref: AccountRef, command: Command): void {
-  sending.delete(slot(ref, command))
+export function release(ref: AccountRef, write: Write): void {
+  sending.delete(slot(ref, write))
 }

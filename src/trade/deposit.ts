@@ -7,6 +7,7 @@ import type { Address, Chain, Client, Hex, Transport } from 'viem'
 import { estimateL1Fee } from 'viem/op-stack'
 import { DEPOSITS, TRADING } from '@tape/trade'
 import { blocksDeposit, depositIssues } from '@tape/trade/deposit'
+import { claim, release } from '@tape/trade/in-flight'
 import type { DepositCall, DepositIssue, DepositProgress, DepositRoute, DepositTerms } from '@tape/trade/deposit'
 import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
@@ -177,15 +178,21 @@ export function sendFailure(error: unknown): SendFailure {
   return { kind: 'failed', detail: e instanceof Error ? e.message.split('\n')[0]! : String(e), approved }
 }
 
-/** Sends the calls from the route's chain, waiting for an approval to land before the deposit. Resolves with the deposit's hash once the wallet sends it. */
+interface DepositRequest {
+  readonly route: DepositRoute
+  readonly amount: bigint
+  readonly terms: DepositTerms
+  readonly calls: readonly DepositCall[]
+}
+
+const DEPOSIT = { kind: 'deposit' } as const
+
+/** Sends the calls from the route's chain, waiting for an approval to land before the deposit. Hands over the deposit's hash once the wallet sends it. */
 export function useSendDeposit(ref: AccountRef) {
   const { connector } = useConnection()
   const queryClient = useQueryClient()
-  return useMutation<
-    Hex,
-    Error,
-    { route: DepositRoute; amount: bigint; terms: DepositTerms; calls: readonly DepositCall[] }
-  >({
+  const mutation = useMutation<Hex, Error, DepositRequest>({
+    networkMode: 'always',
     mutationFn: async ({ route, amount, terms, calls }) => {
       if (!connector) throw new Error('No wallet connected')
       const provider = (await connector.getProvider()) as Eip1193
@@ -246,7 +253,16 @@ export function useSendDeposit(ref: AccountRef) {
         chain: route.chainId,
         reason: sendFailure(failure).kind === 'wallet-rejected' ? 'wallet-rejected' : 'send',
       }),
+    onSettled: () => release(ref, DEPOSIT),
   })
+  return {
+    send: (request: DepositRequest, onSent: (hash: Hex) => void) => {
+      if (claim(ref, DEPOSIT)) mutation.mutate(request, { onSuccess: onSent })
+    },
+    pending: mutation.isPending,
+    error: mutation.error,
+    reset: mutation.reset,
+  }
 }
 
 export function useDeposits(ref: AccountRef): readonly DepositRecord[] {

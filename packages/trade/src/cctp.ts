@@ -96,7 +96,11 @@ async function iris(venue: TradeVenueId, fetch: typeof globalThis.fetch, path: s
   }
   if (response.status === 404) return null
   if (!response.ok) throw new TradeFailure(venue, { kind: 'unreachable', detail: `Circle ${response.status}` })
-  return response.json()
+  try {
+    return await response.json()
+  } catch {
+    throw new TradeFailure(venue, { kind: 'unreachable', detail: 'Circle sent an unreadable reply' })
+  }
 }
 
 /** Circle's fast fee for the amount, padded by a fifth as Circle advises, plus its high HyperCore forwarding quote. Circle takes the whole maxFee when it forwards, so the quote is what the deposit pays. */

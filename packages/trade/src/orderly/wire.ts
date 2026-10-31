@@ -4,7 +4,7 @@
  * through a float.
  */
 
-export type OrderType = 'LIMIT' | 'MARKET' | 'IOC' | 'FOK' | 'POST_ONLY'
+export type OrderType = 'LIMIT' | 'IOC' | 'POST_ONLY'
 
 export interface Raw {
   readonly raw: string
@@ -28,7 +28,7 @@ export interface OrderFields {
   readonly clientOrderId: string
   readonly type: OrderType
   readonly side: 'BUY' | 'SELL'
-  readonly price: string | null
+  readonly price: string
   readonly quantity: string
   readonly reduceOnly: boolean
 }
@@ -38,7 +38,7 @@ export function orderBody(o: OrderFields): string {
     symbol: o.symbol,
     client_order_id: o.clientOrderId,
     order_type: o.type,
-    order_price: o.price === null ? undefined : raw(o.price),
+    order_price: raw(o.price),
     order_quantity: raw(o.quantity),
     side: o.side,
     reduce_only: o.reduceOnly,
