@@ -12,7 +12,7 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { Button, InlineInput, Table } from './primitives'
+import { Button, InlineInput, NoData, Select, Table } from './primitives'
 import type { Column } from './primitives'
 import { ReadNote } from './TradeNote'
 
@@ -295,18 +295,14 @@ function Filters({
       />
       <label className="flex items-center gap-1 text-level3">
         Market
-        <select
-          value={search.market ?? ''}
-          onChange={(e) => set({ market: e.target.value || undefined })}
-          className="h-6 rounded-sm border border-edge bg-inset px-1 text-level1"
-        >
+        <Select size="sm" value={search.market ?? ''} onChange={(v) => set({ market: v || undefined })}>
           <option value="">All</option>
           {markets.map((m) => (
             <option key={m} value={m}>
               {m}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <div role="group" aria-label="Period" className="flex items-center gap-1 text-level3">
         {presets(now).map((p) => (
@@ -339,7 +335,7 @@ function Filters({
 const TOTALS_HEIGHT = 'h-36'
 
 function TotalsTable({ rows, first, empty }: { rows: Totals[]; first: string; empty: string }) {
-  if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>{empty}</p>
+  if (rows.length === 0) return <NoData className={TOTALS_HEIGHT}>{empty}</NoData>
   const columns: Column<Totals>[] = [
     {
       header: first,

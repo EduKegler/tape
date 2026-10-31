@@ -11,7 +11,7 @@ import {
 import type { Connector, CreateConnectorFn } from 'wagmi'
 import { UserRejectedRequestError, erc20Abi, formatUnits } from 'viem'
 import { shortAddress } from '#/ui/format'
-import { Button } from '#/ui/primitives'
+import { Button, Select } from '#/ui/primitives'
 import { track } from '#/analytics/track'
 import { USDC, chains } from './config'
 import { PairingQr } from './PairingQr'
@@ -85,18 +85,18 @@ export function WalletButton() {
       <label className="sr-only" htmlFor="chain">
         Network
       </label>
-      <select
+      <Select
+        size="md"
         id="chain"
         value={chainId}
-        onChange={(e) => switchChain({ chainId: Number(e.target.value) as (typeof chains)[number]['id'] })}
-        className="rounded-sm border border-rule bg-inset px-2 py-1 text-sm text-level2"
+        onChange={(v) => switchChain({ chainId: Number(v) as (typeof chains)[number]['id'] })}
       >
         {chains.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
           </option>
         ))}
-      </select>
+      </Select>
       <Button look="secondary" size="md" className="num" onClick={() => disconnect()} title="Disconnect">
         {shortAddress(address)}
       </Button>

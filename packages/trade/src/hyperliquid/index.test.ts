@@ -381,7 +381,7 @@ describe('hyperliquid trailing stops', () => {
     ] as const) {
       expect(await failureOf(hyperliquid.execute(ctx, { kind: 'place', intent: { ...finer, order } }))).toEqual({
         kind: 'invalid-order',
-        detail: `${detail}: At most 1 decimals on this network`,
+        detail: `${detail}: At most 1 decimal on this network`,
       })
     }
     expect(posts()).toEqual([])

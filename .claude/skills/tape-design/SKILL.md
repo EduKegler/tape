@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `Search` and `Table`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Search`, `Select`, `Table` and `TextLink`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 
@@ -28,10 +28,12 @@ Data and connection are two axes. Data is live, stale, empty or error. Connectio
 
 A panel fed by a hub topic passes `<TopicStatus topic={…} />` to `Panel`'s `status` slot, beside the title. Pass `ageLimit` where an old frame misleads, as in the book, the depth and the ticket's price hint. Pass `error` and `onRetry` for a failed read.
 
+The title bar is one line, 29 px high, in every state, so panels side by side keep their bodies aligned. A state text that does not fit beside the title stacks under it inside the same height, and its Retry is a link, never a boxed button. The aside never wraps.
+
 - Old data stays readable, with its age beside the title.
 - A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text. Outside a hub panel it goes through `ReadNote`, which takes its reason from `readFailure`.
 - Before the first frame the panel says `Loading…` and shows no placeholder number. With the socket down it names the venue it waits for.
-- A legitimately empty result is plain `level3` text in place of the data.
+- A legitimately empty result is plain `level3` text in place of the data, drawn by `NoData`.
 - The panel state speaks through `aria-live="polite"` with no role, because the ticket's order outcome owns `role="status"` and `role="alert"`.
 
 ## Orders and confirmation
@@ -52,7 +54,9 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 
 - arbitrary values and properties, such as `text-[13px]`, `z-[60]` or `[transition:…]`;
 - `rounded-full`, shadows, and any class outside the closed scales;
-- a raw `<button>`, `<input>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
+- a padding, margin or gap off the steps in `SPACING_STEPS` of `eslint.config.js`. Sizes such as `w-` and `h-` stay free;
+- a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
+- an `underline` outside `src/ui/primitives`. A link is `TextLink`, or `Button` with look `link`;
 - a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
 - a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn` or `accent`;
 - an animation without `motion-safe:`.
@@ -93,9 +97,9 @@ Screens from the code, on the replay build. The market panels, the header, the t
 
 - `reference/market-live.png`: the market panels live at 1440×900. Lockup in the header, last price at 22 px with the side arrow, book mid at 22 px, `▲` and `▼` on trades, `●` on the best venue bid and ask.
 - `reference/market-1280.png`: the same at 1280×800, with all 28 book levels in view.
-- `reference/market-stale.png`: Hyperliquid went quiet. Each panel keeps its data and says `Reconnecting` with the age.
+- `reference/market-stale.png`: Hyperliquid went quiet. Each panel keeps its data and says `Reconnecting` with the age. The book's state stacks under its title, and every title bar keeps one height.
 - `reference/market-offline.png`: no socket left. Every panel says `Offline` with its age.
-- `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry.
+- `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry as a link.
 - `reference/market-focus.png`: the book holds keyboard focus. One Tab stop, and the arrows move the focus ring between levels.
 - `reference/ticket-field-error.png`: a rule error sits on its field in a `warn` rule while typing, and the disabled button says why under the totals.
 - `reference/ticket-unknown.png`: the venue did not answer an order. The outcome sits above the button, says it was sent with no answer, and resend waits on `Checking the venue…`.

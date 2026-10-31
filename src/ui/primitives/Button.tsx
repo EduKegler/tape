@@ -8,6 +8,7 @@ const classes = {
   buy: 'h-10 rounded-sm bg-bid text-base font-medium text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   sell: 'h-10 rounded-sm bg-ask text-base font-medium text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   quiet: 'text-level3 hover:text-level1 disabled:opacity-40',
+  link: 'text-level1 underline underline-offset-2 disabled:opacity-40',
   toggle:
     'h-6 px-1 text-sm text-level3 hover:text-level1 aria-checked:text-level1 aria-checked:inset-shadow-selected aria-pressed:text-level1 aria-pressed:inset-shadow-selected',
   'side-buy':
