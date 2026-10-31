@@ -681,7 +681,8 @@ function TakeProfitSplit({ spec, size, rows }: { spec: MarketSpec; size: string;
   if (checkSize(spec, size) || rows.some((r) => checkShare(r.share))) return null
   const shares = rows.map((r) => Number(r.share))
   const total = shares.reduce((sum, share) => sum + share, 0)
-  if (total !== 100) return <p className="text-sm text-ask">Sizes add up to {total}%, not 100%</p>
+  if (total !== 100)
+    return <p className="border-l-2 border-warn pl-2 text-sm text-level1">Sizes add up to {total}%, not 100%</p>
   const sizes = splitSize(spec, parseQty(size, spec.scale), shares)
   return (
     <ol aria-label="Take profit sizes" className="num flex flex-col gap-0.5 text-sm">
