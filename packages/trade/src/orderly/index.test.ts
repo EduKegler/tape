@@ -401,3 +401,188 @@ describe('orderly reads', () => {
     }
   })
 })
+
+describe('orderly account', () => {
+  // The example rows of GET /v1/positions, /v1/orders and /v1/trades in Orderly's OpenAPI spec, plus a closed
+  // position, a long with no liquidation price, a market sell order and a sell fill.
+  const positions = {
+    total_collateral_value: 489865.71329,
+    free_collateral: 450315.09115,
+    rows: [
+      {
+        symbol: 'PERP_BTC_USDC',
+        position_qty: -5,
+        average_open_price: 27908.14386047,
+        unsettled_pnl: 354.858492,
+        est_liq_price: 117335.92899428,
+      },
+      { symbol: 'PERP_ETH_USDC', position_qty: 0, average_open_price: 0, unsettled_pnl: 0, est_liq_price: 0 },
+      {
+        symbol: 'PERP_SOL_USDC',
+        position_qty: 2.5,
+        average_open_price: 150.125,
+        unsettled_pnl: -1.5,
+        est_liq_price: 0,
+      },
+    ],
+  }
+  const orders = {
+    rows: [
+      {
+        order_id: 78151,
+        symbol: 'PERP_WOO_USDC',
+        side: 'BUY',
+        type: 'LIMIT',
+        price: 0.67772,
+        quantity: 20,
+        reduce_only: false,
+        created_time: 1653563963000,
+      },
+      {
+        order_id: 78152,
+        symbol: 'PERP_BTC_USDC',
+        side: 'SELL',
+        type: 'MARKET',
+        price: null,
+        quantity: 0.01,
+        reduce_only: true,
+        created_time: 1653563964000,
+      },
+    ],
+  }
+  const trades = {
+    rows: [
+      {
+        id: 2,
+        symbol: 'PERP_BTC_USDC',
+        side: 'BUY',
+        executed_price: 123,
+        executed_quantity: 0.05,
+        fee: 0.0001,
+        executed_timestamp: 1567382401000,
+      },
+      {
+        id: 3,
+        symbol: 'PERP_BTC_USDC',
+        side: 'SELL',
+        executed_price: 124.5,
+        executed_quantity: 0.05,
+        fee: 0.0001,
+        executed_timestamp: 1567382402000,
+      },
+    ],
+  }
+  const replies = (p: unknown, o: unknown, t: unknown) => (sent: Sent) => {
+    const { pathname } = new URL(sent.url)
+    const data = pathname === '/v1/positions' ? p : pathname === '/v1/orders' ? o : t
+    return { body: JSON.stringify({ success: true, timestamp: 1702989203989, data }) }
+  }
+
+  it('reads positions, open orders and recent fills from the replies Orderly documents', async () => {
+    const { ctx, sent } = orderlyAt(replies(positions, orders, trades))
+    expect(await orderly.account(ctx)).toEqual({
+      kind: 'live',
+      snapshot: {
+        equity: '489865.71329',
+        available: '450315.09115',
+        positions: [
+          {
+            symbol: 'PERP_BTC_USDC',
+            side: 'short',
+            size: '5',
+            entry: '27908.14386047',
+            unrealizedPnl: '354.858492',
+            liquidation: '117335.92899428',
+            leverage: null,
+          },
+          {
+            symbol: 'PERP_SOL_USDC',
+            side: 'long',
+            size: '2.5',
+            entry: '150.125',
+            unrealizedPnl: '-1.5',
+            liquidation: null,
+            leverage: null,
+          },
+        ],
+        orders: [
+          {
+            ref: 'PERP_WOO_USDC:78151',
+            symbol: 'PERP_WOO_USDC',
+            side: 'buy',
+            kind: 'LIMIT',
+            px: '0.67772',
+            size: '20',
+            reduceOnly: false,
+            placedAt: 1653563963000,
+          },
+          {
+            ref: 'PERP_BTC_USDC:78152',
+            symbol: 'PERP_BTC_USDC',
+            side: 'sell',
+            kind: 'MARKET',
+            px: null,
+            size: '0.01',
+            reduceOnly: true,
+            placedAt: 1653563964000,
+          },
+        ],
+        fills: [
+          {
+            id: '2',
+            symbol: 'PERP_BTC_USDC',
+            side: 'buy',
+            px: '123',
+            size: '0.05',
+            fee: '0.0001',
+            time: 1567382401000,
+          },
+          {
+            id: '3',
+            symbol: 'PERP_BTC_USDC',
+            side: 'sell',
+            px: '124.5',
+            size: '0.05',
+            fee: '0.0001',
+            time: 1567382402000,
+          },
+        ],
+      },
+    })
+    expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual([
+      'GET https://testnet-api.orderly.org/v1/positions',
+      'GET https://testnet-api.orderly.org/v1/orders?status=INCOMPLETE',
+      'GET https://testnet-api.orderly.org/v1/trades?size=20',
+    ])
+  })
+
+  it('calls an account with nothing in it empty, and one with any balance, position, order or fill live', async () => {
+    const [position] = positions.rows
+    const [order] = orders.rows
+    const [fill] = trades.rows
+    const flat = { total_collateral_value: 0, free_collateral: 0, rows: [positions.rows[1]] }
+    const cases = [
+      [flat, [], [], 'empty'],
+      [{ ...flat, total_collateral_value: 10 }, [], [], 'live'],
+      [{ ...flat, rows: [position] }, [], [], 'live'],
+      [flat, [order], [], 'live'],
+      [flat, [], [fill], 'live'],
+    ] as const
+    for (const [p, o, t, kind] of cases) {
+      const { ctx } = orderlyAt(replies(p, { rows: o }, { rows: t }))
+      expect((await orderly.account(ctx)).kind).toBe(kind)
+    }
+  })
+
+  it('reads no account until this device holds a linked Orderly key', async () => {
+    const { ctx, sent } = orderlyAt(replies(positions, orders, trades))
+    const secret = `0x${'11'.repeat(32)}`
+    for (const key of [
+      null,
+      { status: 'draft', public: {}, secret },
+      { status: 'linked', public: {}, secret: null },
+    ] as const)
+      expect(await orderly.account({ ...ctx, keys: { ...ctx.keys, read: () => key } })).toEqual({ kind: 'unknown' })
+    expect(sent).toEqual([])
+  })
+})
