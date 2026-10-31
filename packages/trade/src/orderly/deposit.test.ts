@@ -1,3 +1,5 @@
+import { ed25519 } from '@noble/curves/ed25519'
+import { base64url } from '@scure/base'
 import { describe, expect, it } from 'vitest'
 import {
   bytesToHex,
@@ -14,6 +16,7 @@ import {
 import type { Address, Hex } from 'viem'
 import { DEPOSITS } from '../index'
 import type { DepositRoute, DepositTerms, ProgressIo, SentDeposit } from '../deposit'
+import { TradeFailure } from '../types'
 import type { StoredKey, TradeConfig } from '../types'
 import { vaultDeposit } from './deposit'
 import { accountId, orderlyKey } from './sign'
@@ -120,6 +123,18 @@ describe('Orderly Vault deposit', () => {
     expect(routes('testnet').map((r) => r.chainId)).toEqual([421614])
   })
 
+  it('takes the USDC and Vault Orderly lists for each chain', () => {
+    // Orderly's smart contract addresses page, build-on-omnichain/addresses.
+    expect(routes('mainnet').map((r) => [r.chainId, r.token, r.spender])).toEqual([
+      [42161, ARBITRUM_USDC, VAULT],
+      [8453, '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', VAULT],
+      [10, '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', VAULT],
+    ])
+    expect(routes('testnet').map((r) => [r.chainId, r.token, r.spender])).toEqual([
+      [421614, '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', '0x0EaC556c0C2321BA25b9DC01e4e3c95aD5CDCd2f'],
+    ])
+  })
+
   it('offers no route on a network the build has no broker for', () => {
     expect(routes('mainnet', null)).toEqual([])
   })
@@ -151,6 +166,24 @@ describe('Orderly Vault deposit', () => {
     expect(terms.refusal).toEqual({ kind: 'no-account' })
   })
 
+  it('asks the testnet API whether a testnet owner is registered', async () => {
+    const { fetch, asked } = orderlyAnswering(ACCOUNT.registered)
+    const { chain } = chainAnswering(VAULT_READS)
+    await routes('testnet')[0]!.terms({ fetch, chain }, recorded.owner, recorded.amount)
+    expect(asked.map((a) => a.url)).toEqual([
+      `https://testnet-api.orderly.org/v1/get_account?address=${recorded.owner}&broker_id=demo`,
+    ])
+  })
+
+  it('calls a registration read that gets a 502 unreachable, since nothing was sent', async () => {
+    const fetch = (async () => new Response('Bad Gateway', { status: 502 })) as typeof globalThis.fetch
+    const { chain } = chainAnswering(VAULT_READS)
+    const error = await arbitrum()
+      .terms({ fetch, chain }, recorded.owner, recorded.amount)
+      .catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error).toEqual({ kind: 'unreachable', detail: '502 Bad Gateway' })
+  })
+
   it('refuses a deposit that takes the Vault past its USDC limit, and says how much still fits', async () => {
     const { fetch } = orderlyAnswering(ACCOUNT.registered)
     const { chain } = chainAnswering({ ...VAULT_READS, [DEPOSIT_LIMIT]: 1_000_000_000n, [BALANCE_OF]: 900_000_000n })
@@ -159,6 +192,15 @@ describe('Orderly Vault deposit', () => {
     expect((await route.terms({ fetch, chain }, recorded.owner, 100_000_001n)).refusal).toEqual({
       kind: 'over-limit',
       room: 100_000_000n,
+    })
+  })
+
+  it('says nothing fits once the Vault already holds more than its limit', async () => {
+    const { fetch } = orderlyAnswering(ACCOUNT.registered)
+    const { chain } = chainAnswering({ ...VAULT_READS, [DEPOSIT_LIMIT]: 1_000_000_000n, [BALANCE_OF]: 1_200_000_000n })
+    expect((await arbitrum().terms({ fetch, chain }, recorded.owner, 1n)).refusal).toEqual({
+      kind: 'over-limit',
+      room: 0n,
     })
   })
 
@@ -235,6 +277,27 @@ describe('Orderly deposit credit', () => {
     })
     expect(asked[0]!.url).toBe(`https://api.orderly.org/v1/asset/history?side=DEPOSIT&start_t=${sent.sentAt - 600_000}`)
     expect(asked[0]!.headers).toMatchObject({ 'orderly-account-id': recorded.account, 'orderly-key': key.id })
+    const { 'orderly-timestamp': at, 'orderly-signature': signature } = asked[0]!.headers
+    const path = `/v1/asset/history?side=DEPOSIT&start_t=${sent.sentAt - 600_000}`
+    expect(
+      ed25519.verify(base64url.decode(signature!), stringToBytes(`${at}GET${path}`), ed25519.getPublicKey(key.secret)),
+    ).toBe(true)
+  })
+
+  it('calls an asset history read Orderly refuses rejected, and one that gets a 502 unreachable', async () => {
+    const refused = orderlyAnswering({ success: false, code: -1002, message: 'Orderly key not found' })
+    const error = await arbitrum()
+      .progress({ fetch: refused.fetch, keys: keys(linked) }, sent)
+      .catch((e: unknown) => e)
+    expect(error instanceof TradeFailure && error.error.kind).toBe('rejected')
+    const down = (async () => new Response('Bad Gateway', { status: 502 })) as typeof globalThis.fetch
+    const unreachable = await arbitrum()
+      .progress({ fetch: down, keys: keys(linked) }, sent)
+      .catch((e: unknown) => e)
+    expect(unreachable instanceof TradeFailure && unreachable.error).toEqual({
+      kind: 'unreachable',
+      detail: '502 Bad Gateway',
+    })
   })
 
   it('keeps relaying while Orderly lists the deposit as on its way', async () => {
@@ -250,7 +313,14 @@ describe('Orderly deposit credit', () => {
   })
 
   it('credits the amount Orderly lists once the deposit is COMPLETED', async () => {
-    const { fetch } = orderlyAnswering(history([{ ...row('COMPLETED'), tx_id: '0x01' }, row('COMPLETED')]))
+    const other = {
+      ...row('COMPLETED'),
+      id: '251030030500001',
+      tx_id: '0x01',
+      amount: 10,
+      updated_time: 1_793_399_000_000,
+    }
+    const { fetch } = orderlyAnswering(history([other, row('COMPLETED')]))
     expect(await arbitrum().progress({ fetch, keys: keys(linked) }, sent)).toEqual({
       stage: 'credited',
       amount: 33_049_576_128n,

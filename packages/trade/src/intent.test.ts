@@ -6,7 +6,17 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec, TickRule } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
-import { buildIntent, checkCount, checkPrice, checkSize, checkSkew, closeIntent, worstPrice } from './intent'
+import {
+  buildIntent,
+  checkCount,
+  checkExitPrices,
+  checkPrice,
+  checkShare,
+  checkSize,
+  checkSkew,
+  closeIntent,
+  worstPrice,
+} from './intent'
 import type { IntentDraft } from './intent'
 import type { Bps, Capabilities, Decimal, Position } from './types'
 import { TRADING } from './index'
@@ -128,6 +138,63 @@ describe('order intent', () => {
     expect(checkSkew('10')).toBeUndefined()
     expect(checkSkew('10.1')).toBe('Between 0.1 and 10')
     expect(checkSkew('0.09')).toBe('Between 0.1 and 10')
+  })
+})
+
+describe('order intent exits and time in force', () => {
+  const touch = { kind: 'market', price: '', bid: '79990', ask: '80010' } as const
+
+  it('takes a take profit share from 1 to 100%, whole percents only', () => {
+    expect(checkShare('1')).toBeUndefined()
+    expect(checkShare('100')).toBeUndefined()
+    for (const share of ['0', '101', '1.5', 'abc', '']) expect(checkShare(share)).toBe('From 1 to 100%')
+  })
+
+  it('names the size a short take profit leaves, on the step', () => {
+    const coarse = { ...hl, step: 10 as Qty }
+    expect(errorsOf({ takeProfits: [{ price: '82000', share: '60' }] }, coarse)).toEqual({
+      takeProfits: 'Sizes add up to 60%, so 0.00040 BTC has no take profit',
+    })
+  })
+
+  it('reports only the size while it is invalid, even with take profits that add up', () => {
+    const halves = [
+      { price: '81000', share: '50' },
+      { price: '82000', share: '50' },
+    ]
+    expect(errorsOf({ size: '', takeProfits: halves })).toEqual({ size: 'Enter a size' })
+  })
+
+  it('checks a take profit with no stop loss', () => {
+    expect(
+      checkExitPrices(hl, { ...touch, side: 'buy', takeProfits: [{ price: '80000', share: '100' }], stopLoss: '' }),
+    ).toStrictEqual({ takeProfit1: 'Must be above the ask' })
+  })
+
+  it('checks a market order against the touch, not a stale price left in the field', () => {
+    const stale = { ...touch, side: 'buy', price: '79000', stopLoss: '' } as const
+    expect(checkExitPrices(hl, { ...stale, takeProfits: [{ price: '79500', share: '100' }] })).toEqual({
+      takeProfit1: 'Must be above the ask',
+    })
+  })
+
+  it('treats a touch it cannot read as no price on the book', () => {
+    const exits = { ...touch, side: 'buy', bid: '79990.55', takeProfits: [], stopLoss: '79000' } as const
+    expect(checkExitPrices(hl, exits)).toEqual({ stopLoss: 'No price on the book yet' })
+  })
+
+  it('reports only the price while a limit has none, even with a take profit', () => {
+    expect(errorsOf({ price: 'abc', takeProfits: [{ price: '82000', share: '100' }] })).toEqual({
+      price: 'Not a number',
+    })
+  })
+
+  it('refuses a time in force the venue does not offer on a resting order only', () => {
+    const gtcOnly: Capabilities = { ...TRADING.hyperliquid.capabilities, tif: ['gtc'] }
+    expect(errorsOf({ tif: 'post-only' }, hl, gtcOnly)).toEqual({ tif: 'Not offered on this venue' })
+    const scale = { kind: 'scale', tif: 'post-only', start: '79000', end: '78000', count: '2' } as const
+    expect(errorsOf(scale, hl, gtcOnly)).toEqual({ tif: 'Not offered on this venue' })
+    expect(errorsOf({ ...touch, tif: 'post-only' }, hl, gtcOnly)).toEqual({})
   })
 })
 

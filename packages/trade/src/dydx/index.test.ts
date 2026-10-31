@@ -367,6 +367,7 @@ describe('dydx contract', () => {
       errors: { stopLoss: 'Not offered on this venue' },
     })
     expect(buildIntent(btc, { ...draft, tif: 'ioc' }, dydx.capabilities).ok).toBe(true)
+    expect(buildIntent(btc, { ...draft, tif: 'post-only' }, dydx.capabilities).ok).toBe(true)
   })
 
   it('refuses an intent carrying a take profit or stop loss and broadcasts nothing', async () => {
