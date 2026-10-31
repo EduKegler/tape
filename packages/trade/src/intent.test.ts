@@ -118,7 +118,7 @@ describe('order intent properties', () => {
                   size: units,
                   reduceOnly: true,
                   order: { kind: 'market', slippage },
-                  triggers: { takeProfit: null, stopLoss: null },
+                  triggers: { takeProfits: [], stopLoss: null },
                 }
               : null,
           )

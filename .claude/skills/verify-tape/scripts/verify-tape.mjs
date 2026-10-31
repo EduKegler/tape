@@ -9,6 +9,7 @@ import { createConnection } from 'node:net'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
+import { readFundedKey } from './funded-key.mjs'
 
 const SKILL = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = resolve(SKILL, '../../..')
@@ -122,6 +123,13 @@ async function up(flags) {
 
   const network = flags.network ?? 'mainnet'
   if (network !== 'mainnet' && network !== 'testnet') die(`--network takes mainnet or testnet, not ${network}`)
+  const funded = Boolean(process.env.VERIFY_TAPE_KEY_FILE)
+  if (funded)
+    try {
+      readFundedKey(process.env.VERIFY_TAPE_KEY_FILE, { network, watch: process.env.VERIFY_TAPE_WATCH })
+    } catch (e) {
+      die(e.message)
+    }
   const replay = Boolean(flags.replay)
   const build = `${network}${replay ? ' replay' : ''}`
   const runId = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', '')
@@ -234,6 +242,7 @@ async function up(flags) {
       String(WALLET_PORT),
       join(STATE_DIR, 'wallet-key.json'),
       join(ARTIFACTS, runId, 'wallet.jsonl'),
+      network,
     ],
     { cwd: REPO, detached: true, stdio: ['ignore', walletLog, walletLog] },
   )
@@ -246,9 +255,10 @@ async function up(flags) {
       address = JSON.parse(readFileSync(join(STATE_DIR, 'wallet-key.json'), 'utf8')).address
   }
   if (!address) die('the test wallet did not start. Log: .state/wallet.log. Run `down`.')
-  record(s, { cmd: 'up', base: BASE, sha: s.sha, network, replay, wallet: address })
+  writeFileSync(STATE, JSON.stringify({ ...readState(), wallet: address, funded }, null, 2))
+  record(s, { cmd: 'up', base: BASE, sha: s.sha, network, replay, wallet: address, funded })
   console.log(
-    `up: run ${runId}\n  app     ${BASE} (${build})\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
+    `up: run ${runId}\n  app     ${BASE} (${build})\n  cdp     http://127.0.0.1:${CDP_PORT}\n  server  pid ${server.pid}, log ${serverLog}\n  chrome  pid ${chrome.pid}\n  wallet  ${address}${funded ? ' (funded)' : ''}, pid ${wallet.pid}, port ${WALLET_PORT}\n  evidence ${join(ARTIFACTS, runId)}`,
   )
 }
 
@@ -310,7 +320,7 @@ async function doctor() {
     check(
       'test wallet process',
       Boolean(s.walletPid) && alive(s.walletPid),
-      `pid ${s.walletPid ?? 'none'}, port ${s.walletPort ?? 'none'}`,
+      `pid ${s.walletPid ?? 'none'}, port ${s.walletPort ?? 'none'}, address ${s.wallet ?? 'unknown'}${s.funded ? ' (funded)' : ''}`,
     )
     const owners = listenerPids(s.port)
     check(

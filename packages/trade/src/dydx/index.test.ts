@@ -80,7 +80,7 @@ const draft: IntentDraft = {
   size: '0.001',
   tif: 'gtc',
   reduceOnly: false,
-  takeProfit: '',
+  takeProfits: [],
   stopLoss: '',
   slippage: 100 as Bps,
   bid: '',
@@ -89,6 +89,9 @@ const draft: IntentDraft = {
   end: '',
   count: '',
   skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
 }
 function intentOf(spec: MarketSpec, changes: Partial<IntentDraft> = {}) {
   const built = buildIntent(spec, { ...draft, ...changes }, dydx.capabilities)

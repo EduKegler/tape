@@ -47,8 +47,21 @@ export type IntentFields = {
     | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
     | { readonly kind: 'market'; readonly slippage: Bps }
     | { readonly kind: 'scale'; readonly tif: Exclude<Tif, 'ioc'>; readonly legs: readonly ScaleLeg[] }
-  readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
+    | { readonly kind: 'trailing'; readonly retracement: Retracement; readonly activation: Px | null }
+  readonly triggers: { readonly takeProfits: readonly TakeProfit[]; readonly stopLoss: Px | null }
 }
+
+/** One reduce-only trigger that closes `size` of the order at `px`. The sizes of an intent's take profits sum to its size. */
+export interface TakeProfit {
+  readonly px: Px
+  readonly size: Qty
+}
+
+/**
+ * How far the price comes back from its best since activation before the venue fires the stop: a
+ * share of that best price, or a distance in price. The venue holds the best price, not the browser.
+ */
+export type Retracement = { readonly pct: Bps } | { readonly px: Px }
 
 /** One limit order of a scale order. The first leg carries the intent's clientId. */
 export interface ScaleLeg {
@@ -128,10 +141,13 @@ export interface SetupStep {
 
 export interface Capabilities {
   readonly tif: readonly Tif[]
-  readonly triggers: boolean
+  /** Null where the venue takes no take profit or stop loss with an order. */
+  readonly triggers: { readonly takeProfits: number } | null
   readonly leverage: boolean
   /** The most legs one scale order sends, all in one request. 0 where the venue takes no such request. */
   readonly scaleOrders: number
+  /** The venue keeps a stop that trails the price, so it fires with the browser closed. */
+  readonly trailingStop: boolean
 }
 
 export type TradeError =

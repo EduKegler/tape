@@ -62,3 +62,17 @@ export function cancelAction(cancels: readonly { readonly asset: number; readonl
 export function leverageAction(asset: number, isCross: boolean, leverage: number) {
   return { type: 'updateLeverage', asset, isCross, leverage }
 }
+
+type Retracement = { readonly pct: `${number}%` } | { readonly px: string }
+
+/** Keys in the order of the exchange endpoint docs, which no SDK carries yet. */
+export function trailingStopAction(
+  asset: number,
+  isBuy: boolean,
+  sz: string,
+  reduceOnly: boolean,
+  retracement: Retracement,
+  activationPx: string | null,
+) {
+  return { type: 'trailingStop', asset, isBuy, sz, reduceOnly, retracement, activationPx }
+}

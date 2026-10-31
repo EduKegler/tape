@@ -206,6 +206,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   switch (command.kind) {
     case 'place': {
       const intent = command.intent
+      if (intent.order.kind === 'trailing')
+        fail({ kind: 'unsupported', detail: 'Orderly takes no trailing stop from Tape' })
       const symbol = intent.spec.venueSymbol
       const spec = await networkSpec(ctx, symbol)
       if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
@@ -529,7 +531,13 @@ export const orderly = {
   id: 'orderly',
   label: 'Orderly',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true, scaleOrders: BATCH_ORDERS },
+  capabilities: {
+    tif: ['gtc', 'ioc', 'post-only'],
+    triggers: null,
+    leverage: true,
+    scaleOrders: BATCH_ORDERS,
+    trailingStop: false,
+  },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {
     if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'

@@ -140,6 +140,7 @@ function recheckPx(m: Market, intent: OrderIntent, px: Px): Px {
 }
 
 async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  if (intent.order.kind === 'trailing') fail({ kind: 'unsupported', detail: 'dYdX has no trailing stop' })
   const m = await market(ctx, intent.spec.venueSymbol)
   const size = wireDecimal(intent.size, intent.spec.scale.qty)
   const sizeIssue = checkSize(m.spec, size)
@@ -501,7 +502,13 @@ export const dydx = {
   id: 'dydx',
   label: 'dYdX',
   secrets: 'tab',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false, scaleOrders: 0 },
+  capabilities: {
+    tif: ['gtc', 'ioc', 'post-only'],
+    triggers: null,
+    leverage: false,
+    scaleOrders: 0,
+    trailingStop: false,
+  },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
