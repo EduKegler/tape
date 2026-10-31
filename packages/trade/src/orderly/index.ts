@@ -28,7 +28,7 @@ import type {
 } from '../types'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { amount, negate, plain } from '../money'
-import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
+import { clientIdsOf, lookupSummary, scaleOutcome, toTick } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
 import { batchBody, cancelPath, orderBody } from './wire'
@@ -125,27 +125,59 @@ async function signed<T>(
   return fail(mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })
 }
 
-const specs = new Map<string, Promise<MarketSpec>>()
+interface NetworkRules {
+  readonly spec: MarketSpec
+  readonly priceRange: string | null
+}
 
-function networkSpec(ctx: VenueContext, symbol: string): Promise<MarketSpec> {
+const rulesCache = new Map<string, Promise<NetworkRules>>()
+
+function networkRules(ctx: VenueContext, symbol: string): Promise<NetworkRules> {
   const cacheKey = `${ctx.ref.network}:${symbol}`
-  let cached = specs.get(cacheKey)
+  let cached = rulesCache.get(cacheKey)
   if (!cached) {
-    cached = publicGet<{ quote_tick: string; base_tick: string }>(ctx, `/v1/public/info/${symbol}`).then(({ data }) => {
+    cached = publicGet<{ quote_tick: string; base_tick: string; price_range?: string }>(
+      ctx,
+      `/v1/public/info/${symbol}`,
+    ).then(({ data }) => {
       const quoteTick = plainDecimal(data.quote_tick)
       const baseTick = plainDecimal(data.base_tick)
       const scale: Scale = { px: decimalsOf(quoteTick), qty: decimalsOf(baseTick) }
-      return {
+      const spec = {
         venueSymbol: symbol,
         scale,
         tick: { kind: 'fixed', tick: parsePx(quoteTick, scale) },
         step: parseQty(baseTick, scale),
       } as unknown as MarketSpec
+      return { spec, priceRange: data.price_range == null ? null : plainDecimal(data.price_range) }
     })
-    cached.catch(() => specs.delete(cacheKey))
-    specs.set(cacheKey, cached)
+    cached.catch(() => rulesCache.delete(cacheKey))
+    rulesCache.set(cacheKey, cached)
   }
   return cached
+}
+
+async function markPrice(ctx: VenueContext, symbol: string): Promise<string> {
+  const { data } = await publicGet<{ mark_price?: string }>(ctx, `/v1/public/futures/${symbol}`)
+  return data.mark_price == null
+    ? fail({ kind: 'unreachable', detail: `Orderly sent no mark price for ${symbol}` })
+    : plainDecimal(data.mark_price)
+}
+
+function exactDecimal(decimal: string): { units: bigint; scale: bigint } {
+  const [whole, fraction = ''] = decimal.split('.') as [string, string?]
+  return { units: BigInt(`${whole}${fraction}`), scale: 10n ** BigInt(fraction.length) }
+}
+
+/** Orderly's Order Price Limit page: a buy at most mark × (1 + price range), a sell at least mark × (1 − price range). */
+function insidePriceRange(spec: MarketSpec, side: Side, price: Px, mark: string, priceRange: string): Px {
+  const m = exactDecimal(mark)
+  const r = exactDecimal(priceRange)
+  const numerator = m.units * (side === 'buy' ? r.scale + r.units : r.scale - r.units) * 10n ** BigInt(spec.scale.px)
+  const denominator = m.scale * r.scale
+  const units = side === 'buy' ? numerator / denominator : (numerator + denominator - 1n) / denominator
+  const bound = toTick(spec, side, Number(units))
+  return (side === 'buy' ? Math.min(price, bound) : Math.max(price, bound)) as Px
 }
 
 async function farTouch(ctx: VenueContext, spec: MarketSpec, side: Side): Promise<Px> {
@@ -226,7 +258,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
         fail({ kind: 'unsupported', detail: 'Orderly takes no take profit or stop loss from Tape' })
       const symbol = intent.spec.venueSymbol
-      const spec = await networkSpec(ctx, symbol)
+      const { spec, priceRange } = await networkRules(ctx, symbol)
       if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
       const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
       const sizeIssue = checkSize(spec, quantity)
@@ -237,8 +269,10 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
         const issue = checkPrice(spec, price)
         if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
       } else {
-        const far = await farTouch(ctx, spec, intent.side)
-        price = wireDecimal(worstPrice(spec, intent.side, far, intent.order.slippage), spec.scale.px)
+        const range = priceRange ?? fail({ kind: 'unreachable', detail: `Orderly sent no price range for ${symbol}` })
+        const [far, mark] = await Promise.all([farTouch(ctx, spec, intent.side), markPrice(ctx, symbol)])
+        const worst = worstPrice(spec, intent.side, far, intent.order.slippage)
+        price = wireDecimal(insidePriceRange(spec, intent.side, worst, mark, range), spec.scale.px)
       }
       const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : 'IOC'
       const body = orderBody({
