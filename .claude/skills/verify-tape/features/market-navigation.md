@@ -1,6 +1,6 @@
 # Market navigation
 
-A user picks a market on one of four venues from the `Market` nav or the header search: a Binance spot pair quoted in USDT, or a perp that Hyperliquid, dYdX or Orderly list. Hyperliquid's HIP-3 markets carry their dex, as in `xyz:TSLA`, and only dexes settled in USDC show. Orderly's Community Listed markets and markets whose tick needs more than 8 decimals, such as dYdX `PEPE-USD`, stay out. The route is `/$venue/$base`, the page title follows it, and `interval` and `group` ride along in the URL. `/` redirects to Hyperliquid BTC. An unknown venue or a name no venue could list shows `Not Found`. A market the venue does not list, or that Tape leaves out, says Tape does not show it.
+A user picks a market on one of four venues from the `Market` nav or the header search: a Binance spot pair quoted in USDT, or a perp that Hyperliquid, dYdX or Orderly list. Hyperliquid's HIP-3 markets carry their dex, as in `xyz:TSLA`, and only dexes settled in USDC show. Orderly's Community Listed markets and markets whose tick or step needs more than 8 decimals, such as dYdX `PEPE-USD`, stay out. The route is `/$venue/$base`, the page title follows it, and `interval` and `group` ride along in the URL. `/` redirects to Hyperliquid BTC. An unknown venue or a name no venue could list shows `Not Found`. A market the venue does not list, or that Tape leaves out, says Tape does not show it.
 
 ## Sub-features
 
