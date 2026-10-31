@@ -18,16 +18,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'node .output/server/index.mjs',
+    command: `wrangler dev -c .output/server/wrangler.json --ip 127.0.0.1 --port ${new URL(origin).port}`,
     cwd: '..',
     url: `${origin}/`,
-    env: {
-      HOST: '127.0.0.1',
-      NITRO_HOST: '127.0.0.1',
-      PORT: new URL(origin).port,
-      NITRO_PORT: new URL(origin).port,
-      POSTHOG_KEY: '',
-    },
     reuseExistingServer: false,
   },
 })

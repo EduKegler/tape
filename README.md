@@ -76,7 +76,7 @@ The production server sends a Content Security Policy with a nonce per request. 
 
 Analytics run no third-party script. The page queues events from a fixed list in `src/analytics/events.ts` and sends them with `sendBeacon` to `/r1` on its own origin. The server validates the batch and forwards it to PostHog's batch API with `POSTHOG_KEY`, and `POSTHOG_HOST` (default EU cloud). Events make no person profile and carry no wallet address. Each is keyed by a page load id that lives in memory and tagged with the build's network. The visitor's IP goes along for GeoIP, unless the PostHog project discards it. Without `POSTHOG_KEY` the route drops everything.
 
-Errors take the same route to PostHog error tracking. The page sends uncaught errors, unhandled rejections, route errors, unexpected trade failures and errors in the hub worker as `$exception`, each with its stack and a message cleared of addresses and keys. An uncaught error with no frame on the site's own origin, like one from a wallet extension, stays on the page. Each JS context sends an error once, and 10 at most. When the build has `POSTHOG_PERSONAL_API_KEY`, a personal key that can write error tracking, and `POSTHOG_PROJECT_ID`, it marks each browser chunk with an id, uploads the source maps to `POSTHOG_HOST` (default US cloud) as release `tape` at `VERCEL_GIT_COMMIT_SHA`, and deletes them. A failed upload fails the build. Without both variables the build has no source maps.
+Errors take the same route to PostHog error tracking. The page sends uncaught errors, unhandled rejections, route errors, unexpected trade failures and errors in the hub worker as `$exception`, each with its stack and a message cleared of addresses and keys. An uncaught error with no frame on the site's own origin, like one from a wallet extension, stays on the page. Each JS context sends an error once, and 10 at most. When the build has `POSTHOG_PERSONAL_API_KEY`, a personal key that can write error tracking, and `POSTHOG_PROJECT_ID`, it marks each browser chunk with an id, uploads the source maps to `POSTHOG_HOST` (default US cloud) as release `tape` at `GITHUB_SHA`, and deletes them. A failed upload fails the build. Without both variables the build has no source maps.
 
 ### 6. History that adds up to the venue's number
 
@@ -89,6 +89,7 @@ The tests replay recorded history of public mainnet accounts in `packages/trade/
 ## Stack
 
 - TanStack Start on TanStack Redact, the alternative React runtime
+- Nitro's `cloudflare-module` preset, one Cloudflare Worker per network
 - TanStack Router with typed params and validated search, Query for market rules, stats and candle history, Store, Pacer, Virtual for the trade feed, Form for the ticket, Table v9 for the venues table
 - wagmi and viem for the wallet, the dYdX client for its chain, msgpack and noble curves for Hyperliquid and Orderly signing
 - lightweight-charts for candles
@@ -164,6 +165,12 @@ pnpm fixtures # re-record venue fixtures
 pnpm fixtures:history # re-record trade history fixtures
 node scripts/capture.mjs # screenshot and social preview from a running preview server
 ```
+
+`pnpm preview` serves the last build with `wrangler dev`, in workerd, the runtime Cloudflare runs.
+
+## Deploy
+
+Mainnet is the Worker `tape` and testnet is `tape-testnet`. A push to `main` that passes `verify` and `e2e` runs the `deploy` job in `.github/workflows/verify.yml`, which builds each network and runs `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The build reads every `VITE_` variable of the GitHub environment named after the network. The Worker reads `POSTHOG_KEY` and `POSTHOG_HOST` from its own variables in Cloudflare, which a deploy keeps.
 
 ## Layout
 

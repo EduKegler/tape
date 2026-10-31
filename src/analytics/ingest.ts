@@ -92,7 +92,8 @@ export async function ingest(request: Request, network: Network, env: Env, send:
   const batch = Batch.safeParse(raw)
   if (!batch.success) return new Response(null, { status: 400 })
   if (!env.POSTHOG_KEY) return new Response(null, { status: 204 })
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null
+  // Cloudflare appends to the X-Forwarded-For a client sends, and puts only the visitor in CF-Connecting-IP.
+  const ip = request.headers.get('cf-connecting-ip') || null
   const body = toPostHog(batch.data, env.POSTHOG_KEY, { network, origin, ip, now: Date.now() })
   await send(new URL('/batch/', env.POSTHOG_HOST), {
     method: 'POST',

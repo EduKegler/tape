@@ -58,3 +58,47 @@ jobs:
         with:
           name: e2e-results
           path: e2e/results
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: [verify, e2e]
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [mainnet, testnet]
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.network }}
+    concurrency: deploy-${{ matrix.network }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: the build variables of the network's environment
+        env:
+          VARS: ${{ toJSON(vars) }}
+          NETWORK: ${{ matrix.network }}
+        run: |
+          jq -r 'to_entries[] | select(.key | startswith("VITE_")) | "\(.key)<<VITE_VALUE\n\(.value)\nVITE_VALUE"' <<< "$VARS" >> "$GITHUB_ENV"
+          echo "VITE_NETWORK=$NETWORK" >> "$GITHUB_ENV"
+      - run: pnpm build
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+      - name: main still points at this commit
+        id: head
+        run: |
+          if [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main moved past $GITHUB_SHA, so its run deploys instead."
+          fi
+      - if: steps.head.outputs.latest == 'true'
+        run: pnpm exec wrangler deploy -c .output/server/wrangler.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
