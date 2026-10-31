@@ -13,7 +13,8 @@ import type {
   ProgressIo,
   SentDeposit,
 } from './deposit'
-import type { TradeConfig } from './types'
+import type { TradeConfig, TradeError } from './types'
+import { TradeFailure } from './types'
 import { DEPOSITS } from './index'
 
 const owner: Address = '0x2e5346477b01397553df3ec9a637f3e535325d6d'
@@ -266,6 +267,37 @@ describe('Hyperliquid CCTP deposit', () => {
     }) as typeof globalThis.fetch
     expect(await base.terms({ fetch, chain: noChain }, owner, 100_000_000n)).toEqual(fee)
     expect(asked).toEqual(['https://iris-api.circle.com/v2/burn/USDC/fees/6/19?forward=true&hyperCoreDeposit=true'])
+  })
+
+  it('quotes the Fast Transfer tier wherever Circle lists it', async () => {
+    const fetch = (async () =>
+      new Response(
+        JSON.stringify([
+          { finalityThreshold: 2000, minimumFee: 0, forwardFee: { low: 236453, med: 250890, high: 265327 } },
+          { finalityThreshold: 1000, minimumFee: 1.3, forwardFee: { low: 236453, med: 250890, high: 265327 } },
+        ]),
+      )) as typeof globalThis.fetch
+    expect(await base.terms({ fetch, chain: noChain }, owner, 100_000_000n)).toEqual(fee)
+  })
+
+  it('calls Circle unreachable when it fails, errs or sends no Fast Transfer fee', async () => {
+    const failure = (fetch: typeof globalThis.fetch) =>
+      base.terms({ fetch, chain: noChain }, owner, 100_000_000n).then(
+        () => null,
+        (e: unknown): TradeError | null => (e instanceof TradeFailure ? e.error : null),
+      )
+    const replying = (body: unknown, status = 200) =>
+      (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof globalThis.fetch
+    const offline = (async () => {
+      throw new Error('offline')
+    }) as unknown as typeof globalThis.fetch
+    const noFast = { kind: 'unreachable', detail: 'Circle sent no Fast Transfer fee' }
+    expect(await failure(offline)).toEqual({ kind: 'unreachable', detail: 'offline' })
+    expect(await failure(replying({ error: 'busy' }, 500))).toEqual({ kind: 'unreachable', detail: 'Circle 500' })
+    expect(await failure(replying([{ finalityThreshold: 2000, minimumFee: 0, forwardFee: { high: 265327 } }]))).toEqual(
+      noFast,
+    )
+    expect(await failure(replying({ code: 0 }))).toEqual(noFast)
   })
 
   it('takes the first matching CCTP credit after the send that no other deposit claimed', async () => {
