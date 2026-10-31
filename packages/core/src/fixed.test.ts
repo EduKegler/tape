@@ -179,6 +179,10 @@ describe('cross-scale math', () => {
     expect(spreadBps(parsePx('81029.43', btc), parsePx('81029.44', btc))).toBe('0.00')
   })
 
+  it('leaves the spread empty when bid and ask are both zero', () => {
+    expect(spreadBps(parsePx('0', btc), parsePx('0', btc))).toBe('')
+  })
+
   it('leaves the integer domain only through toDisplayFloat', () => {
     expect(toDisplayFloat(parsePx('80798.01', btc), 2)).toBe(80798.01)
   })

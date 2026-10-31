@@ -117,8 +117,9 @@ export function rescalePx(px: Px, from: Decimals, to: Decimals): Px {
   return units as Px
 }
 
-/** (ask - bid) / mid in basis points to 2 dp, truncated toward zero. */
+/** (ask - bid) / mid in basis points to 2 dp, truncated toward zero. Empty when the mid is zero. */
 export function spreadBps(bid: Px, ask: Px): string {
+  if (bid + ask === 0) return ''
   const hundredths = (BigInt(ask - bid) * 2n * 1_000_000n) / BigInt(bid + ask)
   return formatUnits(hundredths, 2, 2)
 }
