@@ -150,6 +150,23 @@ describe('hub', () => {
     hub.dispose()
   })
 
+  it('marks the venues that do not list a market as unlisted in the venues table', async () => {
+    const { hub } = setup()
+    const a = tab(hub, 'a')
+    a.want([{ kind: 'compare', base: 'kPEPE' as Base }])
+    await vi.advanceTimersByTimeAsync(1500)
+
+    const compare = a.frames.get('compare|kPEPE')
+    const rows = compare?.kind === 'compare' ? compare.rows : []
+    expect(Object.fromEntries(rows.map((r) => [r.venue, r.status === 'unlisted']))).toEqual({
+      binance: true,
+      hyperliquid: false,
+      dydx: true,
+      orderly: true,
+    })
+    hub.dispose()
+  })
+
   it('sends the exact touch in a book grouped wider than the spread', async () => {
     const { hub, sockets } = setup()
     const a = tab(hub, 'a')

@@ -134,6 +134,7 @@ export function createHub(deps: HubDeps): Hub {
   }
 
   const specOf = (key: MarketKey) => venues[splitMarketKey(key).venue].specs.get(key) ?? null
+  const unlisted = (key: MarketKey) => venues[splitMarketKey(key).venue].specs.get(key) === null
 
   function statusOf(m: MarketState): FrameStatus {
     const v = venues[m.venue]
@@ -159,9 +160,10 @@ export function createHub(deps: HubDeps): Hub {
           ]
         : []
     })
-    if (views.length === 0) return null
+    const missing = keys.filter(unlisted)
+    if (views.length === 0 && (topic.kind !== 'compare' || missing.length === 0)) return null
     const signature = keys
-      .map((k) => `${markets.get(k)?.version ?? -1}:${markets.get(k) ? statusOf(markets.get(k)!) : ''}`)
+      .map((k) => `${markets.get(k)?.version ?? -1}:${markets.get(k) ? statusOf(markets.get(k)!) : unlisted(k)}`)
       .join('|')
     const cached = topics.get(key)
     if (cached?.signature === signature) return cached.frame
@@ -182,7 +184,12 @@ export function createHub(deps: HubDeps): Hub {
         frame = projectCandle(key, view, topic.interval, version)
         break
       case 'compare':
-        frame = projectCompare(key, topic.base, Object.fromEntries(views.map((v) => [v.spec.venue, v])), version)
+        frame = projectCompare(
+          key,
+          Object.fromEntries(views.map((v) => [v.spec.venue, v])),
+          new Set(missing.map((k) => splitMarketKey(k).venue)),
+          version,
+        )
         break
     }
     topics.set(key, { frame, signature })

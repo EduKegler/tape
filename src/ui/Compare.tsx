@@ -7,11 +7,21 @@ import { Panel } from './Panel'
 import { Table } from './primitives'
 import type { Column } from './primitives'
 
+const listed = (r: CompareRow) => r.status !== 'unlisted'
+
 const columns: Column<CompareRow>[] = [
   { header: 'Venue', cell: (r) => VENUES[r.venue].label },
-  { header: 'Bid', cell: (r) => <span className={r.bestBid ? 'text-bid' : ''}>{r.bid || '—'}</span> },
-  { header: 'Ask', cell: (r) => <span className={r.bestAsk ? 'text-ask' : ''}>{r.ask || '—'}</span> },
-  { header: 'Basis', cell: (r) => r.basisBps || '—' },
+  {
+    header: 'Bid',
+    cell: (r) =>
+      listed(r) ? (
+        <span className={r.bestBid ? 'text-bid' : ''}>{r.bid || '—'}</span>
+      ) : (
+        <span className="font-sans text-level3">Not listed</span>
+      ),
+  },
+  { header: 'Ask', cell: (r) => listed(r) && <span className={r.bestAsk ? 'text-ask' : ''}>{r.ask || '—'}</span> },
+  { header: 'Basis', cell: (r) => listed(r) && (r.basisBps || '—') },
 ]
 const NO_ROWS: CompareRow[] = []
 
@@ -25,7 +35,9 @@ export function Compare({ base, current }: { base: Base; current: VenueId }) {
         rowKey={(r) => r.venue}
         columns={columns}
         isCurrent={(r) => r.venue === current}
-        onRowClick={(r) => void navigate({ to: '/$venue/$base', params: { venue: r.venue, base }, search: (s) => s })}
+        onRowClick={(r) =>
+          listed(r) && void navigate({ to: '/$venue/$base', params: { venue: r.venue, base }, search: (s) => s })
+        }
       />
     </Panel>
   )

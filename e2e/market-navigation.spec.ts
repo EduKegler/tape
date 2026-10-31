@@ -47,3 +47,19 @@ for (const path of ['/kraken/BTC', '/hyperliquid/a b'])
     await expect(page).toHaveTitle('Tape')
     await expectAccessible(page)
   })
+
+test('a market the venue does not list says so', async ({ page }) => {
+  await page.goto('/hyperliquid/NOTAMARKET')
+  await expect(page.getByRole('heading', { name: 'NOTAMARKET is not listed on Hyperliquid' })).toBeVisible()
+  await expect(panel(page, 'Order book')).toHaveCount(0)
+  await expectAccessible(page)
+})
+
+test('the venues table marks the venues that do not list the market', async ({ page }) => {
+  await page.goto('/hyperliquid/kPEPE')
+  const venues = panel(page, 'Venues')
+  for (const venue of ['Binance', 'dYdX', 'Orderly'])
+    await expect(venues.getByRole('row', { name: new RegExp(`^${venue}`) })).toContainText('Not listed')
+  await venues.getByRole('row', { name: /^Binance/ }).click()
+  await expect(page).toHaveURL(/\/hyperliquid\/kPEPE/)
+})

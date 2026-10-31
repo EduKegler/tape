@@ -120,7 +120,7 @@ export interface CandleFrame extends FrameBase {
 
 export interface CompareRow {
   readonly venue: VenueId
-  readonly status: FrameStatus
+  readonly status: FrameStatus | 'unlisted'
   readonly bid: string
   readonly ask: string
   readonly mid: string
