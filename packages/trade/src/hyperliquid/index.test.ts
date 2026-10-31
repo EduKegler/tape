@@ -213,6 +213,29 @@ describe('hyperliquid refusals', () => {
   })
 })
 
+describe('hyperliquid order outcomes', () => {
+  it('reports an order Hyperliquid answered with a status it does not name as accepted, not as a failure', async () => {
+    for (const [status, detail] of [
+      ['waitingForFill', 'waitingForFill'],
+      [{ other: 'x' }, '{"other":"x"}'],
+    ] as const) {
+      const { ctx } = venue(() => statuses([status]))
+      expect(await hyperliquid.execute(ctx, place({}))).toEqual({ kind: 'placed', status: 'accepted', detail })
+    }
+  })
+
+  it('calls a scale order filled when every leg filled', async () => {
+    const fill = { filled: { totalSz: '0.001', avgPx: '80020' } }
+    const { ctx } = venue(() => statuses([fill, fill, fill]))
+    const scale = place({ kind: 'scale', size: '0.003', start: '80100', end: '80020', count: '3' })
+    expect(await hyperliquid.execute(ctx, scale)).toEqual({
+      kind: 'placed',
+      status: 'filled',
+      detail: '3 of 3 orders placed: 0 resting, 3 filled',
+    })
+  })
+})
+
 describe('hyperliquid cancels', () => {
   const cancel: Command = { kind: 'cancel', order: '3:42' as OrderRef }
   // The cancel action shape, `success` and the text for an order that is gone are from the exchange endpoint docs.
