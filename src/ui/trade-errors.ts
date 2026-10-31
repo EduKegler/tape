@@ -47,3 +47,13 @@ const ORDER_RESULT: Record<TradeError['kind'], string> = {
 export function orderResult(error: TradeError): string {
   return ORDER_RESULT[error.kind]
 }
+
+const READ_FAILURES: Partial<Record<TradeError['kind'], string>> = {
+  unreachable: 'The venue did not answer.',
+  'rate-limited': 'The venue is limiting requests. Retry in a few seconds.',
+  rejected: 'The venue refused the request.',
+}
+
+export function readFailure(error: TradeError): string {
+  return READ_FAILURES[error.kind] ?? 'Tape could not read the answer.'
+}

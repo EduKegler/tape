@@ -1,5 +1,6 @@
 import type { CommandOutcome, OrderLookup, TradeError } from '@tape/trade/types'
-import { describeError, orderResult } from './trade-errors'
+import { Button } from './primitives'
+import { describeError, orderResult, readFailure } from './trade-errors'
 
 export function TradeNote({ error }: { error: TradeError | null }) {
   if (!error) return null
@@ -68,6 +69,17 @@ function LookupLine({ lookup }: { lookup: Lookup }) {
       className={`num text-level1 ${blocks ? 'font-medium' : ''}`}
     >
       {text}
+    </p>
+  )
+}
+
+export function ReadNote(props: { what: string; error: TradeError; onRetry: () => void; busy: boolean }) {
+  return (
+    <p role="alert" className="border-l-2 border-warn pl-2 text-level1">
+      Could not read {props.what}. {readFailure(props.error)}{' '}
+      <Button look="link" onClick={props.onRetry} disabled={props.busy}>
+        Retry
+      </Button>
     </p>
   )
 }

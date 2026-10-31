@@ -60,6 +60,7 @@ interface FrameBase {
   readonly key: TopicKey
   readonly version: number
   readonly status: FrameStatus
+  readonly liveAt: number | null
 }
 
 export interface BookRow {

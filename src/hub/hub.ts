@@ -71,6 +71,7 @@ interface MarketState {
   readonly trades: TradeTape
   readonly candles: Map<Interval, readonly Candle[]>
   version: number
+  liveAt: number | null
 }
 
 interface TabState {
@@ -127,6 +128,7 @@ export function createHub(deps: HubDeps): Hub {
         trades: emptyTape(),
         candles: new Map(),
         version: 0,
+        liveAt: null,
       }
       markets.set(key, state)
     }
@@ -155,6 +157,7 @@ export function createHub(deps: HubDeps): Hub {
               trades: state.trades,
               candles: state.candles,
               status: statusOf(state),
+              liveAt: state.liveAt,
             } satisfies MarketView,
           ]
         : []
@@ -220,6 +223,7 @@ export function createHub(deps: HubDeps): Hub {
 
   const touch = (state: MarketState) => {
     state.version++
+    if (statusOf(state) === 'live') state.liveAt = deps.now()
     flush()
   }
 

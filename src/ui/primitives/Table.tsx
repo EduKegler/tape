@@ -1,4 +1,5 @@
 import type { Key, ReactNode } from 'react'
+import { NoData } from './NoData'
 
 export interface Column<T> {
   header: string
@@ -21,7 +22,7 @@ export function Table<T>({
   columns: readonly Column<T>[]
   empty?: string
 } & RowAction<T>) {
-  if (empty !== undefined && rows.length === 0) return <p className="p-3 text-sm text-level3">{empty}</p>
+  if (empty !== undefined && rows.length === 0) return <NoData>{empty}</NoData>
   return (
     <table className="num w-full text-sm">
       <thead>

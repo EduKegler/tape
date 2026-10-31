@@ -193,7 +193,12 @@ export function useAccountView(ref: AccountRef | null) {
       refetchInterval: ACCOUNT_POLL_MS,
     }),
   )
-  return { view: query.data, error: query.error?.error ?? null, isFetching: query.isFetching }
+  return {
+    view: query.data,
+    error: query.error?.error ?? null,
+    isFetching: query.isFetching,
+    retry: () => void query.refetch(),
+  }
 }
 
 export type MarginReading =

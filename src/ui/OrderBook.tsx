@@ -6,7 +6,7 @@ import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
 import { Panel, useRowKeys } from './Panel'
 import { TopicStatus } from './PanelStatus'
-import { Button } from './primitives'
+import { Button, Select } from './primitives'
 import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
@@ -41,17 +41,13 @@ export function OrderBook({
       aside={
         <label className="flex items-center text-sm">
           <span className="sr-only">Group</span>
-          <select
-            value={head.group}
-            onChange={(event) => onGroup(event.target.value)}
-            className="num rounded-sm border border-rule bg-inset py-0.5 pl-1 text-level2"
-          >
+          <Select size="sm" value={head.group} onChange={onGroup}>
             {(head.options ? head.options.split('|') : [head.group]).map((step) => (
               <option key={step} value={step.replaceAll(',', '')}>
                 {step}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       }
     >

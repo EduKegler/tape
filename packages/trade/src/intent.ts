@@ -22,6 +22,9 @@ import type {
 // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an OrderIntent is made, from checked fields
 const intentOf = (fields: IntentFields, clientId = newClientId()) => ({ ...fields, clientId }) as OrderIntent
 
+const atMost = (places: number) =>
+  places === 0 ? 'No decimals' : `At most ${places} ${places === 1 ? 'decimal' : 'decimals'}`
+
 export function checkPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, value: string): string | undefined {
   if (!value) return 'Enter a price'
   try {
@@ -30,8 +33,7 @@ export function checkPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, value: stri
     const tick = priceTick(spec, px)
     if (px % tick !== 0) return `Price must be a multiple of ${formatPx(tick, spec.scale)}`
   } catch (error) {
-    if (error instanceof DecimalError)
-      return error.reason === 'precision' ? `At most ${spec.scale.px} decimals` : 'Not a number'
+    if (error instanceof DecimalError) return error.reason === 'precision' ? atMost(spec.scale.px) : 'Not a number'
     throw error
   }
   return undefined
@@ -44,8 +46,7 @@ export function checkSize(spec: Pick<MarketSpec, 'scale' | 'step'>, value: strin
     if (qty < spec.step) return `Minimum is ${formatQty(spec.step, spec.scale)}`
     if (qty % spec.step !== 0) return `Size must be a multiple of ${formatQty(spec.step, spec.scale)}`
   } catch (error) {
-    if (error instanceof DecimalError)
-      return error.reason === 'precision' ? `At most ${spec.scale.qty} decimals` : 'Not a number'
+    if (error instanceof DecimalError) return error.reason === 'precision' ? atMost(spec.scale.qty) : 'Not a number'
     throw error
   }
   return undefined

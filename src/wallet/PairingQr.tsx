@@ -24,7 +24,11 @@ function Pairing({ connector, onCancel }: { connector: Connector; onCancel: () =
   return (
     <>
       <p className="text-level2">Scan with your phone wallet</p>
-      {uri ? <Qr text={uri} /> : <p className="self-center py-24 text-level3">Opening a pairing link…</p>}
+      {uri ? (
+        <Qr text={uri} />
+      ) : (
+        <p className="flex size-60 items-center justify-center self-center text-level3">Opening a pairing link…</p>
+      )}
       <div className="flex w-full justify-between">
         <Button look="quiet" disabled={!uri} onClick={() => uri && void navigator.clipboard.writeText(uri)}>
           Copy link

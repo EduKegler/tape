@@ -24,6 +24,56 @@ const KEY_IMPORT_EXPRESSIONS = {
   message: 'Keys are made and used only in packages/trade.',
 }
 
+const SPACING_STEPS = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '4', '5', '8']
+
+const TOKEN_CLASSES = [
+  {
+    pattern:
+      '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|(?:inset-|drop-)?shadow|z|duration|animate|ease)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
+    message: 'Use a token from src/styles.css, not an arbitrary or bare value.',
+  },
+  {
+    pattern:
+      '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition|animation)',
+    message: 'Use a token from src/styles.css, not an arbitrary property.',
+  },
+  {
+    pattern: `^(?:[^:]+:)*!?-?(?:(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy])-(?!(?:${SPACING_STEPS.join('|').replaceAll('.', '\\.')})$)\\d`,
+    message: `Use a spacing step: ${SPACING_STEPS.join(', ')}.`,
+  },
+  {
+    pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
+    message: 'Use rounded-sm. The radius scale has one step.',
+  },
+  {
+    pattern: '^(?!(?:[^:]+:)*motion-safe:)(?:[^:]+:)*!?(?:animate|transition)(?:-|$)',
+    message: 'Put motion behind motion-safe: so prefers-reduced-motion turns it off.',
+  },
+]
+
+const SIDE_CLASSES = {
+  pattern:
+    '^(?:[^:]+:)*!?(?:text|bg|border(?:-[xytrblse])?|fill|stroke|outline|ring|decoration|accent|caret|from|via|to|divide|placeholder)-(?:bid|ask)(?:-wash)?(?:/[\\d.]+)?$',
+  message: 'bid and ask mean side. A file that shows a side goes on SIDE_FILES, and a warning or an error uses warn.',
+}
+
+const LINK_CLASSES = {
+  pattern: '^(?:[^:]+:)*!?underline(?:-offset-\\d+)?$',
+  message: 'An underline marks a link. Use TextLink, or Button with look link, from src/ui/primitives.',
+}
+
+const PRIMITIVES = 'src/ui/primitives/**'
+
+const SIDE_FILES = [
+  'src/ui/Account.tsx',
+  'src/ui/Compare.tsx',
+  'src/ui/Header.tsx',
+  'src/ui/History.tsx',
+  'src/ui/OrderBook.tsx',
+  'src/ui/Trades.tsx',
+  'src/ui/primitives/Button.tsx',
+]
+
 export default [
   ...tanstackConfig,
   {
@@ -103,37 +153,37 @@ export default [
       'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
       // Plain classes from src/styles.css: num for tabular figures.
       'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['num'] }],
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: TOKEN_CLASSES }],
+    },
+  },
+  {
+    files: ['src/**/*.tsx'],
+    ignores: SIDE_FILES,
+    rules: {
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: [...TOKEN_CLASSES, SIDE_CLASSES] }],
+    },
+  },
+  {
+    files: ['src/**/*.tsx'],
+    ignores: [...SIDE_FILES, PRIMITIVES],
+    rules: {
       'better-tailwindcss/no-restricted-classes': [
         'error',
-        {
-          restrict: [
-            {
-              pattern:
-                '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|(?:inset-|drop-)?shadow|z|duration|animate|ease)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
-              message: 'Use a token from src/styles.css, not an arbitrary or bare value.',
-            },
-            {
-              pattern:
-                '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition|animation)',
-              message: 'Use a token from src/styles.css, not an arbitrary property.',
-            },
-            {
-              pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
-              message: 'Use rounded-sm. The radius scale has one step.',
-            },
-            {
-              pattern: '^(?!(?:[^:]+:)*motion-safe:)(?:[^:]+:)*!?(?:animate|transition)(?:-|$)',
-              message: 'Put motion behind motion-safe: so prefers-reduced-motion turns it off.',
-            },
-          ],
-        },
+        { restrict: [...TOKEN_CLASSES, SIDE_CLASSES, LINK_CLASSES] },
       ],
+    },
+  },
+  {
+    files: SIDE_FILES,
+    ignores: [PRIMITIVES],
+    rules: {
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: [...TOKEN_CLASSES, LINK_CLASSES] }],
     },
   },
   {
     ...jsxA11y.configs.recommended,
     files: ['src/**/*.tsx'],
-    settings: { 'jsx-a11y-x': { components: { Button: 'button' } } },
+    settings: { 'jsx-a11y-x': { components: { Button: 'button', InlineInput: 'input', Select: 'select' } } },
   },
   {
     ...reactHooks.configs.flat['recommended-latest'],
@@ -235,6 +285,10 @@ export default [
           message: 'Use the primitives in src/ui/primitives.',
         },
         { selector: "JSXOpeningElement[name.name='button']", message: 'Use Button from src/ui/primitives.' },
+        {
+          selector: 'JSXOpeningElement[name.name=/^(input|select|textarea)$/]',
+          message: 'Use Input, InlineInput, Checkbox or Select from src/ui/primitives.',
+        },
         { selector: "JSXOpeningElement[name.name='table']", message: 'Use Table from src/ui/primitives.' },
         { selector: "JSXOpeningElement[name.name='dialog']", message: 'Use Dialog from src/ui/primitives.' },
         {

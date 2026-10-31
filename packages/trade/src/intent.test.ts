@@ -71,6 +71,8 @@ describe('order intent', () => {
     expect(checkPrice(hl, '0')).toBe('Price must be above zero')
     expect(checkSize(dydx, '0.0001')).toBeUndefined()
     expect(checkSize(dydx, '0.00015')).toBe('At most 4 decimals')
+    expect(checkPrice(hl, '101234.55')).toBe('At most 1 decimal')
+    expect(checkPrice(dydx, '101234.5')).toBe('No decimals')
   })
 
   it('caps a market buy at the slippage and keeps it on a Hyperliquid tick', () => {
@@ -123,7 +125,7 @@ describe('order intent', () => {
     expect(errorsOf({ size: '' })).toEqual({ size: 'Enter a size' })
     expect(errorsOf({ price: 'abc' })).toEqual({ price: 'Not a number' })
     expect(errorsOf({ size: 'abc' })).toEqual({ size: 'Not a number' })
-    expect(errorsOf({ price: '80000.55' })).toEqual({ price: 'At most 1 decimals' })
+    expect(errorsOf({ price: '80000.55' })).toEqual({ price: 'At most 1 decimal' })
     expect(errorsOf({ size: '0.000015' })).toEqual({ size: 'At most 5 decimals' })
     expect(errorsOf({ size: '0.000015' }, ten)).toEqual({ size: 'At most 5 decimals' })
     expect(errorsOf({ price: '101234.5' })).toEqual({ price: 'Price must be a multiple of 1.0' })

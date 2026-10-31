@@ -47,7 +47,7 @@ import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
-import { Button, Input } from './primitives'
+import { Button, Checkbox, Input, Select, TextLink } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
@@ -234,7 +234,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
 
   const book = useRef<{ readonly live: boolean; readonly at: number | null }>({ live: false, at: null })
   useFrameEffect({ kind: 'book', market: spec.key, group }, (frame) => {
-    book.current = frame.status === 'live' ? { live: true, at: Date.now() } : { live: false, at: book.current.at }
+    book.current = { live: frame.status === 'live', at: frame.liveAt }
   })
   const [priceNote, setPriceNote] = useState<string | null>(null)
   useEffect(() => {
@@ -438,14 +438,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             {(field) => (
               <label className="flex items-center justify-between text-sm text-level3">
                 Time in force
-                <select
+                <Select
+                  size="md"
                   name="tif"
                   value={field.state.value}
-                  onChange={(event) => {
-                    const tif = event.target.value
-                    if (isTif(tif)) field.handleChange(tif)
+                  onChange={(value) => {
+                    if (isTif(value)) field.handleChange(value)
                   }}
-                  className="rounded-sm border border-edge bg-inset px-1.5 py-1 text-sm text-level1"
                 >
                   {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
                     .filter((tif) => kind !== 'scale' || tif !== 'ioc')
@@ -454,7 +453,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                         {TIF_LABEL[tif]}
                       </option>
                     ))}
-                </select>
+                </Select>
               </label>
             )}
           </form.Field>
@@ -463,27 +462,16 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         )}
         <form.Field name="reduceOnly">
           {(field) => (
-            <label className="flex items-center gap-2 text-sm text-level2">
-              <input
-                type="checkbox"
-                name="reduceOnly"
-                checked={field.state.value}
-                onChange={(event) => field.handleChange(event.target.checked)}
-              />
-              Reduce only
-            </label>
+            <Checkbox
+              label="Reduce only"
+              name="reduceOnly"
+              checked={field.state.value}
+              onChange={(checked) => field.handleChange(checked)}
+            />
           )}
         </form.Field>
         {caps?.triggers && takesExits(kind) && (
-          <label className="flex items-center gap-2 text-sm text-level2">
-            <input
-              type="checkbox"
-              name="protect"
-              checked={protect}
-              onChange={(event) => setProtect(event.target.checked)}
-            />
-            Take profit and stop loss
-          </label>
+          <Checkbox label="Take profit and stop loss" name="protect" checked={protect} onChange={setProtect} />
         )}
         {caps?.triggers && takesExits(kind) && protect && (
           <div className="flex flex-col gap-2">
@@ -649,7 +637,7 @@ function oldBookNote(book: { readonly live: boolean; readonly at: number | null 
   if (book.at === null || (book.live && now - book.at <= STALE_AFTER_MS)) return null
   const seconds = Math.max(0, Math.floor((now - book.at) / 1000))
   const age = seconds < 120 ? `${seconds} s` : `${Math.round(seconds / 60)} min`
-  return `From a book ${age} old. Check it against the market.`
+  return `Book ${age} old. Check the market.`
 }
 
 type Preview = Entry & { readonly notional: bigint }
@@ -703,7 +691,8 @@ function TakeProfitSplit({ spec, size, rows }: { spec: MarketSpec; size: string;
   if (checkSize(spec, size) || rows.some((row) => checkShare(row.share))) return null
   const shares = rows.map((row) => Number(row.share))
   const total = shares.reduce((sum, share) => sum + share, 0)
-  if (total !== 100) return <p className="text-sm text-ask">Sizes add up to {total}%, not 100%</p>
+  if (total !== 100)
+    return <p className="border-l-2 border-warn pl-2 text-sm text-level1">Sizes add up to {total}%, not 100%</p>
   const sizes = splitSize(spec, parseQty(size, spec.scale), shares)
   return (
     <ol aria-label="Take profit sizes" className="num flex flex-col gap-0.5 text-sm">
@@ -847,11 +836,7 @@ export function SiteReadOnly() {
       Mainnet is read only in Tape.{' '}
       {TESTNET_SITE && (
         <>
-          Trading runs on{' '}
-          <a href={TESTNET_SITE} className="text-level1 underline underline-offset-2">
-            testnet
-          </a>
-          .
+          Trading runs on <TextLink href={TESTNET_SITE}>testnet</TextLink>.
         </>
       )}
     </p>

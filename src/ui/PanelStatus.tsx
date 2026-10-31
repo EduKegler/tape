@@ -10,7 +10,7 @@ import { Button } from './primitives'
 
 function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => void }) {
   return (
-    <span className="flex min-w-0 items-baseline gap-2 text-xs whitespace-nowrap">
+    <span className="flex min-w-0 items-baseline gap-2 text-xs/tight whitespace-nowrap">
       <span
         aria-live="polite"
         data-panel-state={state.data}
@@ -24,7 +24,7 @@ function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => vo
         )}
       </span>
       {state.data === 'error' && onRetry && (
-        <Button look="secondary" size="sm" onClick={onRetry}>
+        <Button look="link" onClick={onRetry}>
           Retry
         </Button>
       )}
@@ -56,9 +56,8 @@ export function TopicStatus({
   const key = topicKey(topic)
   const status = useFrame(topic, (frame) => frame?.status ?? null)
   const [live, setLive] = useState<{ key: string; at: number } | null>(null)
-  useFrameEffect(topic, (frame) => {
-    if (frame.status !== 'live') return
-    const at = Date.now()
+  useFrameEffect(topic, ({ liveAt: at }) => {
+    if (at === null) return
     setLive((prev) => (prev?.key === key && at - prev.at < 1000 ? prev : { key, at }))
   })
   const liveAt = live?.key === key ? live.at : null

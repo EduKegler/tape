@@ -13,12 +13,12 @@ import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { ConfirmAction } from './ConfirmAction'
-import { Button, Table } from './primitives'
+import { Button, InlineInput, NoData, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
-import { OrderNote, TradeNote } from './TradeNote'
+import { OrderNote, ReadNote, TradeNote } from './TradeNote'
 
 type Tab = 'positions' | 'orders' | 'fills'
 
@@ -46,7 +46,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           forget={session.status === 'ready' ? session.forget : null}
         />
       ) : (
-        <div className="p-3 text-sm text-level3">{message(session)}</div>
+        <NoData>{message(session)}</NoData>
       )}
     </Panel>
   )
@@ -71,7 +71,7 @@ function AccountBody({
   forget: (() => void) | null
 }) {
   const [tab, setTab] = useState<Tab>('positions')
-  const { view, error } = useAccountView(account)
+  const { view, error, isFetching, retry } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
   const slippage = useSelector(closeSlippageBps, (state) => state)
@@ -144,15 +144,13 @@ function AccountBody({
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {error && (
-          <div className="p-2">
-            <TradeNote error={error} />
+          <div className="p-2 text-sm">
+            <ReadNote what="the account" error={error} onRetry={retry} busy={isFetching} />
           </div>
         )}
-        {!view && !error && <p className="p-3 text-sm text-level3">Loading account…</p>}
-        {view?.kind === 'unknown' && <p className="p-3 text-sm text-level3">Enable trading to read this account.</p>}
-        {view?.kind === 'empty' && (
-          <p className="p-3 text-sm text-level3">No account on this venue yet. Deposit to start.</p>
-        )}
+        {!view && !error && <NoData>Loading account…</NoData>}
+        {view?.kind === 'unknown' && <NoData>Enable trading to read this account.</NoData>}
+        {view?.kind === 'empty' && <NoData>No account on this venue yet. Deposit to start.</NoData>}
         {closeError && (
           <div className="p-2">
             <TradeNote error={{ kind: 'invalid-order', detail: closeError }} />
@@ -218,7 +216,7 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
       }}
     >
       <label htmlFor={id}>Leverage</label>
-      <input
+      <InlineInput
         id={id}
         inputMode="numeric"
         autoComplete="off"
@@ -227,7 +225,7 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
         onChange={(event) => setValue(event.target.value.trim())}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="num h-6 w-10 rounded-sm border border-edge bg-inset px-1 text-level1 outline-none focus:border-accent aria-invalid:border-warn"
+        className="w-10"
       />
       {error && (
         <span id={`${id}-error`} className="border-l-2 border-warn pl-1.5 text-level1">

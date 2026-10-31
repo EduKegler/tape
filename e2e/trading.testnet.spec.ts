@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, Route } from '@playwright/test'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { ACCEPTED, UNKNOWN_OID, fakeHyperliquid, resting } from './hyperliquid'
 import type { Answer, ExchangeBody } from './hyperliquid'
@@ -724,4 +724,29 @@ test('a Hyperliquid spot order lists with no cancel, while a perp order keeps it
   await expect(row('@107')).toBeVisible()
   await expect(row('@107').getByRole('button')).toHaveCount(0)
   expect(wallet.askedFor('sign')).toEqual([])
+})
+
+const noAccountAnswer = (route: Route) =>
+  (route.request().postDataJSON() as { type: string }).type === 'clearinghouseState'
+    ? route.abort('timedout')
+    : route.fallback()
+
+test('a failed account read says what it could not read, never what it sent, and Retry reads again', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  await fakeHyperliquid(page, 'testnet')
+  await page.route('https://api.hyperliquid-testnet.xyz/info', noAccountAnswer)
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
+  const account = panel(page, 'Account')
+  await expect(account.getByRole('alert')).toHaveText('Could not read the account. The venue did not answer. Retry', {
+    timeout: 15_000,
+  })
+  await expect(account.getByText(/sent/)).toHaveCount(0)
+  await expectAccessible(page)
+  await page.unroute('https://api.hyperliquid-testnet.xyz/info', noAccountAnswer)
+  await account.getByRole('button', { name: 'Retry' }).click()
+  await expect(account.getByText('No account on this venue yet. Deposit to start.')).toBeVisible()
+  await expect(account.getByRole('alert')).toHaveCount(0)
 })
