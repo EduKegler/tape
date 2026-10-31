@@ -38,7 +38,7 @@ import { Panel, Segmented } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button, Input } from './primitives'
 import { marketQuery } from './queries'
-import { TradeNote } from './TradeNote'
+import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
@@ -572,7 +572,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 </dl>
                 {built && <TradeNote error={built} />}
                 {last.command?.kind === 'place' && (
-                  <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
+                  <OrderNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
                 )}
                 <SubmitArea
                   session={session}

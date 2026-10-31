@@ -511,10 +511,34 @@ test('three clicks in one tick send one order, and the next goes after the answe
 
   answer.resolve(resting(7))
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 7')
+  await expect(ticket.getByRole('status')).toHaveAttribute('aria-live', 'assertive')
   hyperliquid.exchange = () => resting(8)
   await buy.click()
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 8')
   expect(orders(hyperliquid.sent)).toHaveLength(2)
+})
+
+test('a rejected order says so beside the submit button, with the venue words', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, ticket } = await enable(page)
+  // Hyperliquid answers a refused order with status ok and an error per order, as its exchange endpoint docs show.
+  hyperliquid.exchange = () => ({
+    json: {
+      status: 'ok',
+      response: { type: 'order', data: { statuses: [{ error: 'Insufficient margin to place order. asset=3' }] } },
+    },
+  })
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+
+  const alert = ticket.getByRole('alert')
+  await expect(alert).toContainText('Rejected. Not enough margin for this order.')
+  await expect(alert).toContainText('Insufficient margin to place order. asset=3')
+  const [note, button] = await Promise.all([
+    alert.boundingBox(),
+    ticket.getByRole('button', { name: 'Buy BTC' }).boundingBox(),
+  ])
+  expect(button!.y - (note!.y + note!.height)).toBeLessThan(16)
 })
 
 test('a write that times out shows an unknown outcome and asks the venue by client id', async ({

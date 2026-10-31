@@ -16,7 +16,7 @@ import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { slippageBps } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
-import { TradeNote } from './TradeNote'
+import { OrderNote, TradeNote } from './TradeNote'
 
 type Tab = 'positions' | 'orders' | 'fills'
 
@@ -140,12 +140,12 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
       </div>
       {last.command && last.command.kind !== 'place' && (
         <div className="shrink-0 p-2">
-          <TradeNote error={last.error} outcome={last.outcome} />
+          <OrderNote error={last.error} outcome={last.outcome} />
         </div>
       )}
       {last.command?.kind === 'place' && last.command.intent.reduceOnly && (
         <div className="shrink-0 p-2">
-          <TradeNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
+          <OrderNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
         </div>
       )}
     </div>
