@@ -405,8 +405,17 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
     overscan: 12,
   })
   return (
-    <div className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-xs">
-      <div role="row" className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-level3`}>
+    <div
+      role="table"
+      aria-label="Fills and funding"
+      aria-rowcount={rows.length + 1}
+      className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-xs"
+    >
+      <div
+        role="row"
+        aria-rowindex={1}
+        className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-level3`}
+      >
         <span role="columnheader">Time (UTC)</span>
         <span role="columnheader">Venue</span>
         <span role="columnheader">Market</span>
@@ -432,9 +441,17 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
         ref={scroller}
         role="rowgroup"
         aria-label="History rows"
+        // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- axe's scrollable-region-focusable: the keyboard scrolls the rows from here
+        tabIndex={0}
         className="min-h-0 min-w-240 flex-1 overflow-y-auto"
       >
-        {rows.length === 0 && <p className="px-3 py-2 text-sm text-level3">{empty}</p>}
+        {rows.length === 0 && (
+          <div role="row">
+            <span role="cell" className="block px-3 py-2 text-sm text-level3">
+              {empty}
+            </span>
+          </div>
+        )}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
             const r = rows[item.index]
@@ -444,6 +461,7 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
               <div
                 key={item.key}
                 role="row"
+                aria-rowindex={item.index + 2}
                 className={`absolute inset-x-0 grid h-6 ${COLUMNS} items-center gap-2 border-t border-rule px-3 text-level2`}
                 style={{ transform: `translateY(${item.start}px)` }}
               >

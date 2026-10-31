@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
-import { expect, panel, test } from './fixtures'
+import { expect, expectAccessible, panel, test } from './fixtures'
 
 type Venue = 'hyperliquid' | 'dydx' | 'orderly'
 interface Recording {
@@ -45,6 +45,7 @@ test('a venue that does not answer reads as a failed read, and the totals say th
   await expect(totals(page).getByText('Could not read Hyperliquid. These totals leave it out.')).toBeVisible()
   await expect(totals(page).getByRole('row', { name: /^dYdX / })).toBeVisible()
   await expect(page.getByText('Nothing was sent')).toHaveCount(0)
+  await expectAccessible(page)
 })
 
 test('when no venue answers, neither the totals nor the rows read as an empty period', async ({ page }) => {
@@ -55,6 +56,7 @@ test('when no venue answers, neither the totals nor the rows read as an empty pe
   ).toBeVisible()
   await expect(rows(page).getByText('Nothing to show. Hyperliquid, dYdX, and Orderly could not be read.')).toBeVisible()
   await expect(page.getByText(/in this period/)).toHaveCount(0)
+  await expectAccessible(page)
 })
 
 test('a period with nothing in it says so, with no read failure beside it', async ({ page }) => {
