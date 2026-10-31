@@ -1,7 +1,6 @@
 import { bytesToHex } from 'viem'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { send } from '../send'
@@ -13,6 +12,7 @@ import type {
   HistoryRequest,
   OrderIntent,
   OrderLookup,
+  OrderRules,
   OrderRef,
   SetupStep,
   StepId,
@@ -37,7 +37,7 @@ const TIF = { gtc: 0, ioc: 1, 'post-only': 2 } as const
 const FLAGS = { short: 0, long: 64 } as const
 
 interface Market extends ClobMarket {
-  readonly spec: MarketSpec
+  readonly spec: OrderRules
 }
 
 function fail(error: TradeError): never {
@@ -91,7 +91,7 @@ function market(ctx: VenueContext, ticker: string): Promise<Market> {
             scale,
             tick: { kind: 'fixed', tick: parsePx(listed.tickSize, scale) },
             step: parseQty(listed.stepSize, scale),
-          } as unknown as MarketSpec,
+          },
         }
       },
     )

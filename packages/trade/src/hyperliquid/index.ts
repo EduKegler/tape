@@ -1,9 +1,8 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { z } from 'zod'
 import type { Address, Hex } from 'viem'
-import { parsePx, toDecimals, wireDecimal } from '@tape/core/fixed'
+import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
 import type { Px } from '@tape/core/fixed'
-import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
 import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
@@ -22,6 +21,7 @@ import type {
   IntentFields,
   OrderIntent,
   OrderLookup,
+  OrderRules,
   OrderRef,
   SetupStep,
   StepId,
@@ -52,7 +52,7 @@ const TRIGGERS = 2
 
 interface Asset {
   readonly index: number
-  readonly spec: MarketSpec
+  readonly spec: OrderRules
   readonly tiers: readonly MarginTier[]
   readonly isolatedOnly: boolean
 }
@@ -98,12 +98,12 @@ function meta(ctx: VenueContext): Promise<Meta> {
       return new Map(
         hlMeta.universe.map((perp, index) => {
           const qty = toDecimals(Number(perp.szDecimals))
-          const spec = {
+          const spec: OrderRules = {
             venueSymbol: perp.name,
             scale: { px: toDecimals(6 - qty), qty },
             tick: { kind: 'sigfig', figures: 5 },
-            step: 1,
-          } as unknown as MarketSpec
+            step: toQty(1),
+          }
           // A table id the list lacks is a single tier at the asset's max leverage.
           const tiers = (
             tables.get(perp.marginTableId)?.marginTiers ?? [{ lowerBound: '0', maxLeverage: perp.maxLeverage }]

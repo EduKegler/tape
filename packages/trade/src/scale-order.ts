@@ -37,7 +37,7 @@ export type ScaleLegs =
   | { readonly ok: false; readonly field: 'count' | 'size'; readonly message: string }
 
 /** Onto the tick on the passive side: a buy rounds down, a sell up. */
-export function toTick(spec: MarketSpec, side: Side, raw: number): Px {
+export function toTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, side: Side, raw: number): Px {
   const rough = side === 'buy' ? Math.floor(raw) : Math.ceil(raw)
   const tick = priceTick(spec, toPx(rough))
   return toPx(side === 'buy' ? Math.floor(rough / tick) * tick : Math.ceil(rough / tick) * tick)

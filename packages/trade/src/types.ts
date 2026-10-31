@@ -72,6 +72,9 @@ export function isClientOrderId(value: Hex): value is ClientOrderId {
  */
 export type OrderIntent = Brand<IntentFields & { readonly clientId: ClientOrderId }, 'OrderIntent'>
 
+/** What a venue module reads of a market to check and price an order on the network it sends to. */
+export type OrderRules = Pick<MarketSpec, 'venueSymbol' | 'scale' | 'tick' | 'step'>
+
 export type IntentFields = {
   readonly spec: MarketSpec
   readonly side: Side

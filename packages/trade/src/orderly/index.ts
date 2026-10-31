@@ -15,6 +15,7 @@ import type {
   HistoryRequest,
   OrderIntent,
   OrderLookup,
+  OrderRules,
   SetupStep,
   Side,
   StepId,
@@ -132,7 +133,7 @@ async function signed<T>(
 }
 
 interface NetworkRules {
-  readonly spec: MarketSpec
+  readonly spec: OrderRules
   readonly priceRange: string | null
 }
 
@@ -149,12 +150,12 @@ function networkRules(ctx: VenueContext, symbol: string): Promise<NetworkRules> 
       const quoteTick = plainDecimal(data.quote_tick)
       const baseTick = plainDecimal(data.base_tick)
       const scale: Scale = { px: decimalsOf(quoteTick), qty: decimalsOf(baseTick) }
-      const spec = {
+      const spec: OrderRules = {
         venueSymbol: symbol,
         scale,
         tick: { kind: 'fixed', tick: parsePx(quoteTick, scale) },
         step: parseQty(baseTick, scale),
-      } as unknown as MarketSpec
+      }
       return { spec, priceRange: data.price_range == null ? null : plainDecimal(data.price_range) }
     })
     cached.catch(() => rulesCache.delete(cacheKey))
@@ -176,7 +177,13 @@ function exactDecimal(decimal: string): { units: bigint; scale: bigint } {
 }
 
 /** Orderly's Order Price Limit page: a buy at most mark × (1 + price range), a sell at least mark × (1 − price range). */
-function insidePriceRange(spec: MarketSpec, side: Side, price: Px, mark: string, priceRange: string): Px {
+function insidePriceRange(
+  spec: Pick<MarketSpec, 'scale' | 'tick'>,
+  side: Side,
+  price: Px,
+  mark: string,
+  priceRange: string,
+): Px {
   const exactMark = exactDecimal(mark)
   const exactRange = exactDecimal(priceRange)
   const numerator =
@@ -189,7 +196,7 @@ function insidePriceRange(spec: MarketSpec, side: Side, price: Px, mark: string,
   return toPx(side === 'buy' ? Math.min(price, bound) : Math.max(price, bound))
 }
 
-async function farTouch(ctx: VenueContext, spec: MarketSpec, side: Side): Promise<Px> {
+async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>, side: Side): Promise<Px> {
   const { data } = await send<{ data: { asks: { price: string }[]; bids: { price: string }[] } }>(
     'orderly',
     ctx.fetch,
@@ -224,7 +231,7 @@ async function placeScale(
   ctx: VenueContext,
   intent: OrderIntent,
   order: Extract<OrderIntent['order'], { kind: 'scale' }>,
-  spec: MarketSpec,
+  spec: OrderRules,
 ): Promise<CommandOutcome> {
   const legs = order.legs.map((leg, index) => {
     const quantity = wireDecimal(leg.size, intent.spec.scale.qty)

@@ -21,7 +21,7 @@ import type {
 
 const intentOf = (fields: IntentFields, clientId = newClientId()) => ({ ...fields, clientId }) as OrderIntent
 
-export function checkPrice(spec: MarketSpec, value: string): string | undefined {
+export function checkPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, value: string): string | undefined {
   if (!value) return 'Enter a price'
   try {
     const px = parsePx(value, spec.scale)
@@ -36,7 +36,7 @@ export function checkPrice(spec: MarketSpec, value: string): string | undefined 
   return undefined
 }
 
-export function checkSize(spec: MarketSpec, value: string): string | undefined {
+export function checkSize(spec: Pick<MarketSpec, 'scale' | 'step'>, value: string): string | undefined {
   if (!value) return 'Enter a size'
   try {
     const qty = parseQty(value, spec.scale)
@@ -412,7 +412,7 @@ export function newClientId(): ClientOrderId {
  * The limit a taking order carries: the far touch moved by the slippage, then onto the tick on
  * the side that keeps it inside the slippage. All three venues send a market order as an IOC limit.
  */
-export function worstPrice(spec: MarketSpec, side: Side, far: Px, slippageBps: number): Px {
+export function worstPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, side: Side, far: Px, slippageBps: number): Px {
   const moved = side === 'buy' ? (far * (10_000 + slippageBps)) / 10_000 : (far * (10_000 - slippageBps)) / 10_000
   const snapped = toTick(spec, side, moved)
   return toPx(Math.max(snapped, priceTick(spec, snapped)))

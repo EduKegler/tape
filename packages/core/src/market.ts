@@ -32,7 +32,7 @@ export interface MarketGroup {
   readonly markets: readonly MarketSpec[]
 }
 
-export function effectiveTick(spec: MarketSpec, ref: Px): Px {
+export function effectiveTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, ref: Px): Px {
   if (spec.tick.kind === 'fixed') return spec.tick.tick
   if (ref <= 0) return toPx(1)
   const integerDigits = Math.floor(Math.log10(ref / 10 ** spec.scale.px)) + 1
@@ -41,7 +41,7 @@ export function effectiveTick(spec: MarketSpec, ref: Px): Px {
 }
 
 /** The step an order price must sit on. Hyperliquid also accepts any whole price, above 5 figures too. */
-export function priceTick(spec: MarketSpec, px: Px): Px {
+export function priceTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, px: Px): Px {
   return toPx(Math.min(effectiveTick(spec, px), 10 ** spec.scale.px))
 }
 
