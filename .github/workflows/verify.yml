@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - name: what kind of files the change touches
+        if: github.event_name == 'push'
+        id: changes
+        env:
+          RANGE: ${{ github.event.before }}..${{ github.sha }}
+        run: node scripts/change-kind.mjs "$RANGE"
       - run: pnpm install --frozen-lockfile
       - name: trees verified by earlier runs of the pull request
         if: github.event_name == 'pull_request'
@@ -36,22 +42,35 @@ jobs:
         with:
           path: .git/tape-verified-trees
           key: verified-trees-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: the markdown checks of pnpm verify
+        if: github.event_name == 'push' && steps.changes.outputs.kind == 'docs'
+        run: pnpm verify --docs
       - name: pnpm verify
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.changes.outputs.kind != 'docs'
         run: pnpm verify
 
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm e2e
+      - name: what kind of files the change touches
+        id: changes
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...HEAD', github.base_ref) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: node scripts/change-kind.mjs "$RANGE"
+      - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
+        run: pnpm install --frozen-lockfile
+      - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
+        run: pnpm exec playwright install --with-deps chromium
+      - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
+        run: pnpm e2e
       - name: traces and screenshots of the failed journeys
         if: failure()
         uses: actions/upload-artifact@v7
@@ -71,25 +90,36 @@ jobs:
     concurrency: deploy-${{ matrix.network }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: what kind of files the change touches
+        id: changes
+        env:
+          RANGE: ${{ github.event.before }}..${{ github.sha }}
+        run: node scripts/change-kind.mjs "$RANGE"
+      - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
+        run: pnpm install --frozen-lockfile
       - name: the build variables of the network's environment
+        if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
         env:
           VARS: ${{ toJSON(vars) }}
           NETWORK: ${{ matrix.network }}
         run: |
           jq -r 'to_entries[] | select(.key | startswith("VITE_")) | "\(.key)<<VITE_VALUE\n\(.value)\nVITE_VALUE"' <<< "$VARS" >> "$GITHUB_ENV"
           echo "VITE_NETWORK=$NETWORK" >> "$GITHUB_ENV"
-      - run: pnpm build
+      - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
+        run: pnpm build
         env:
           POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
           POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
           POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
       - name: main still points at this commit
+        if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
         id: head
         run: |
           if [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA" ]; then
