@@ -165,6 +165,24 @@ describe('dydx broadcast', () => {
     })
   })
 
+  it('calls a long-term cancel done when the chain already holds an uncommitted cancel for the order', async () => {
+    // ErrStatefulOrderCancellationAlreadyExists, code 32 in x/clob/types/errors.go of dydxprotocol/v4-chain,
+    // wrapped by x/clob/keeper/orders.go.
+    chain.reply = {
+      code: 32,
+      log:
+        'An uncommitted stateful order cancellation with this OrderId already exists and stateful order cancellation'
+        + ' replacement is not supported. Existing order cancellation GoodTilBlockTime (1730000100), New order'
+        + ' cancellation GoodTilBlockTime (1730000160). Existing order cancellation: ({...}). New order cancellation:'
+        + ' ({...}).: Existing stateful order cancellation has higher-or-equal priority than the new one',
+      hash: 'A1B2C3',
+    }
+    expect(await dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef })).toEqual({
+      kind: 'done',
+      detail: 'Cancel broadcast',
+    })
+  })
+
   it('calls a thrown broadcast timeout an unknown outcome and a refused transaction not placed', async () => {
     // Messages and codes registered in x/clob/types/errors.go of dydxprotocol/v4-chain.
     const margin = 'Stateful order collateralization check failed'
@@ -349,6 +367,7 @@ describe('dydx contract', () => {
       errors: { stopLoss: 'Not offered on this venue' },
     })
     expect(buildIntent(btc, { ...draft, tif: 'ioc' }, dydx.capabilities).ok).toBe(true)
+    expect(buildIntent(btc, { ...draft, tif: 'post-only' }, dydx.capabilities).ok).toBe(true)
   })
 
   it('refuses an intent carrying a take profit or stop loss and broadcasts nothing', async () => {

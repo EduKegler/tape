@@ -412,6 +412,18 @@ describe('Circle forward to HyperCore', () => {
     }
   })
 
+  it('waits for the attestation until Circle has signed the burn, then waits for the forward', async () => {
+    at(burn.sentAt + 60_000)
+    expect(await route.progress(io(answer(iris.unattested).fetch), sent)).toEqual({
+      stage: 'relaying',
+      detail: 'Waiting for Circle to attest the burn',
+    })
+    expect(await route.progress(io(answer(iris.PENDING).fetch), sent)).toEqual({
+      stage: 'relaying',
+      detail: 'Circle is forwarding it to Hyperliquid',
+    })
+  })
+
   it('credits what Hyperliquid booked once Circle reports the forward COMPLETE, and only that amount', async () => {
     at(burn.sentAt + 60_000)
     expect(await route.progress(io(answer(iris.COMPLETE).fetch), sent)).toEqual(credit)

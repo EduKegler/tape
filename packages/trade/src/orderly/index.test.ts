@@ -371,6 +371,7 @@ describe('orderly cancels', () => {
     expect(sent).toEqual([
       { method: 'POST', url: 'https://testnet-api.orderly.org/v1/client/leverage', body: '{"leverage":5}' },
     ])
+    expect(orderly.capabilities.leverage).toBe(true)
   })
 })
 
@@ -401,6 +402,39 @@ describe('orderly reads', () => {
       'https://testnet-api.orderly.org/v1/order',
       'https://testnet-api.orderly.org/v1/order',
     ])
+  })
+
+  it('marks a fill with no order a liquidation, and takes no PnL where Orderly has none', async () => {
+    // The example row of the public trades query in Orderly's docs, with order_id and realized_pnl null as its
+    // field table allows: no order on an orphaned or liquidation fill, no PnL on a fill older than 24 hours.
+    const fill = {
+      id: '987654321',
+      order_id: null,
+      symbol: 'PERP_ETH_USDC',
+      side: 'BUY',
+      executed_price: '2500.00',
+      executed_quantity: '0.5',
+      fee: '0.0005',
+      fee_asset: 'USDC',
+      is_maker: false,
+      realized_pnl: null,
+      executed_timestamp: 1714900000000,
+    }
+    const replies: Record<string, unknown> = {
+      accountState: { accounts: [{ account_id: '0xabc' }] },
+      trades: { rows: [fill], next_cursor: null },
+      fundingPayments: { rows: [], next_cursor: null },
+    }
+    const fetch = (async (_url: string, init?: RequestInit) => {
+      const { type } = JSON.parse(init?.body as string) as { type: string }
+      return new Response(JSON.stringify({ success: true, data: replies[type] }))
+    }) as typeof globalThis.fetch
+    const { fills } = await orderly.history({
+      network: 'mainnet',
+      address: '0xf7069a2afa4c6e74917dfc6b0e29af57342f70a6',
+      fetch,
+    })
+    expect(fills).toMatchObject([{ id: '987654321', liquidation: true, venuePnl: null, px: '2500', size: '0.5' }])
   })
 
   it('fails a history read Orderly cannot answer instead of calling it empty', async () => {

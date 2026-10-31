@@ -41,8 +41,38 @@ describe('market search', () => {
     expect(names(searchMarkets(hyperliquid, 'xyz'))).toEqual([['XYZ', ['xyz:BTC', 'xyz:CRCL', 'xyz:RCL']]])
   })
 
+  it('puts an exact name ahead of a pinned market that starts with it', () => {
+    expect(names(searchMarkets([group(null, ['SOL', 'S'])], 's'))).toEqual([[null, ['S', 'SOL']]])
+  })
+
+  it('orders names case aside, so kPEPE comes before LINK, and by code point only when they differ in case alone', () => {
+    expect(names(searchMarkets([group(null, ['LINK', 'kPEPE'])], ''))).toEqual([[null, ['kPEPE', 'LINK']]])
+    for (const bases of [
+      ['kPEPE', 'KPEPE'],
+      ['KPEPE', 'kPEPE'],
+    ])
+      expect(names(searchMarkets([group(null, bases)], ''))).toEqual([[null, ['KPEPE', 'kPEPE']]])
+  })
+
+  it('finds a HIP-3 market by the middle of its dex prefix', () => {
+    expect(names(searchMarkets([group('XYZ', ['xyz:TSLA'])], 'yz'))).toEqual([['XYZ', ['xyz:TSLA']]])
+  })
+
   it('says nothing matches with no group at all', () => {
     expect(searchMarkets([group(null, ['BTC', 'ETH'])], 'zzzz')).toEqual([])
+  })
+
+  it('gives the same list whatever order the venue sends its markets in', () => {
+    const letters = fc.constantFrom('A', 'a', 'K', 'k', '1')
+    const base = fc.array(letters, { minLength: 1, maxLength: 3 }).map((l) => l.join(''))
+    const query = fc.array(letters, { maxLength: 1 }).map((l) => l.join(''))
+    fc.assert(
+      fc.property(fc.uniqueArray(base, { maxLength: 8 }), query, (bases, q) => {
+        expect(names(searchMarkets([group(null, [...bases].reverse())], q))).toEqual(
+          names(searchMarkets([group(null, bases)], q)),
+        )
+      }),
+    )
   })
 
   it('returns each market that holds the query once, and only those', () => {
