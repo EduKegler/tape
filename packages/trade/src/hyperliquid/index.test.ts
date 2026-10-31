@@ -315,6 +315,23 @@ describe('hyperliquid cancels', () => {
   })
 })
 
+describe('hyperliquid leverage', () => {
+  // The updateLeverage action from the exchange endpoint docs.
+  it('sets cross leverage on the testnet asset id at the testnet host', async () => {
+    const { ctx, posts } = venue(() => json({ status: 'ok', response: { type: 'default' } }))
+    expect(await hyperliquid.execute(ctx, { kind: 'leverage', symbol: 'BTC', leverage: 5 })).toEqual({
+      kind: 'done',
+      detail: 'Leverage 5x cross',
+    })
+    expect(posts().map((p) => [p.url, p.body.action])).toEqual([
+      [
+        'https://api.hyperliquid-testnet.xyz/exchange',
+        { type: 'updateLeverage', asset: 3, isCross: true, leverage: 5 },
+      ],
+    ])
+  })
+})
+
 describe('hyperliquid exits', () => {
   const bracket = { kind: 'market', price: '', takeProfits: [{ price: '82000', share: '100' }], stopLoss: '78000' }
   const filled = { filled: { totalSz: '0.001', avgPx: '80010' } }
