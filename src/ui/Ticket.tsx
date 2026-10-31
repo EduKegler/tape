@@ -128,7 +128,8 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
   const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
   const { run, last } = useTradeCommands(ref)
-  const sending = last.pending || last.lookup?.pending === true
+  const [sent, setSent] = useState<string | null>(null)
+  const draftOf = (values: object) => JSON.stringify([side, kind, protect, values])
   const margin = useMarginReading(ref, spec.venueSymbol)
   const form = useForm({
     defaultValues: {
@@ -147,7 +148,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       activation: '',
     },
     onSubmit: ({ value }) => {
-      if (!ref || !canSend || sending) return
+      if (!ref || !canSend || HOLDS.has(phaseOf(last, sent, draftOf(value)))) return
       const exits = protect && takesExits(kind)
       const rows = value.takeProfits
       const takeProfits = !exits || (rows.length === 1 && !rows[0]?.price) ? [] : rows
@@ -181,6 +182,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         return
       }
       setBuilt(null)
+      setSent(draftOf(value))
       run({ kind: 'place', intent: result.intent })
     },
   })
@@ -212,7 +214,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         void form.handleSubmit()
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <fieldset disabled={last.pending} className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
         <div className="grid grid-cols-2 gap-1 rounded-sm border border-rule p-0.5">
           {(['buy', 'sell'] as const).map((s) => (
             <Button
@@ -546,7 +548,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             )
           }}
         </form.Subscribe>
-      </div>
+      </fieldset>
       <div className="flex shrink-0 flex-col gap-2 border-t border-rule p-3">
         <form.Subscribe selector={(s) => [s.values, s.canSubmit] as const}>
           {([values, canSubmit]) => {
@@ -577,7 +579,8 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   venue={VENUES[spec.venue].label}
                   side={side}
                   base={spec.base}
-                  canSubmit={canSubmit && canSend && !sending}
+                  phase={phaseOf(last, sent, draftOf(values))}
+                  canSubmit={canSubmit && canSend}
                 />
               </>
             )
@@ -669,25 +672,48 @@ function liquidationText(spec: MarketSpec, margin: MarginReading, entry: Entry |
   }
 }
 
+type Phase = 'idle' | 'sending' | 'checking' | 'found' | 'resend'
+const HOLDS: ReadonlySet<Phase> = new Set(['sending', 'checking', 'found'])
+const PHASE_LABEL: Partial<Record<Phase, string>> = {
+  sending: 'Sending…',
+  checking: 'Checking the venue…',
+  found: 'The venue has this order',
+}
+
+function phaseOf(last: ReturnType<typeof useTradeCommands>['last'], sent: string | null, draft: string): Phase {
+  if (last.pending) return 'sending'
+  if (last.command?.kind !== 'place' || last.error?.kind !== 'unknown-outcome') return 'idle'
+  if (last.lookup?.pending) return 'checking'
+  if (sent !== draft) return 'idle'
+  return last.lookup?.result?.kind === 'found' ? 'found' : 'resend'
+}
+
 function SubmitArea({
   session,
   venue,
   side,
   base,
+  phase,
   canSubmit,
 }: {
   session: TradeSession
   venue: string
   side: Side
   base: string
+  phase: Phase
   canSubmit: boolean
 }) {
   const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
-  const button = (
-    <Button look={side === 'buy' ? 'buy' : 'sell'} type="submit" disabled={!canSubmit}>
-      {label}
-    </Button>
-  )
+  const button =
+    phase === 'resend' ? (
+      <Button look="secondary" size="lg" type="submit" disabled={!canSubmit}>
+        Send again: {label}
+      </Button>
+    ) : (
+      <Button look={side === 'buy' ? 'buy' : 'sell'} type="submit" disabled={!canSubmit || HOLDS.has(phase)}>
+        {PHASE_LABEL[phase] ?? label}
+      </Button>
+    )
   switch (session.status) {
     case 'read-only':
       return session.cause === 'venue-not-traded' ? (

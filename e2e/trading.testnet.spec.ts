@@ -505,7 +505,8 @@ test('three clicks in one tick send one order, and the next goes after the answe
     button.click()
     button.click()
   })
-  await expect(buy).toBeDisabled()
+  await expect(ticket.getByRole('button', { name: 'Sending…' })).toBeDisabled()
+  await expect(ticket.getByRole('textbox', { name: 'Price (USDC)' })).toBeDisabled()
   expect(orders(hyperliquid.sent)).toHaveLength(1)
 
   answer.resolve(resting(7))
@@ -563,13 +564,36 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
 
   await expect(ticket.getByRole('alert')).toContainText('Asking the venue for this order…')
   await expect.poll(() => asked).toHaveLength(1)
-  await expect(buy).toBeDisabled()
+  await expect(ticket.getByRole('button', { name: 'Checking the venue…' })).toBeDisabled()
   await ticket.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit())
   expect(orders(hyperliquid.sent)).toHaveLength(1)
 
   status.resolve({ status: 'unknownOid' })
   await expect(ticket.getByRole('alert')).toContainText('The venue does not show this order.')
-  await expect(buy).toBeEnabled()
+  await expect(ticket.getByRole('button', { name: 'Send again: Buy BTC' })).toBeEnabled()
+  expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
+})
+
+test('when the venue has a timed out order, resend holds until the trader changes the order', async ({
+  page,
+  wallet: _wallet,
+  consoleErrors,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  hyperliquid.exchange = () => ({ abort: 'timedout' })
+  hyperliquid.orderStatus = () => ({ status: 'order', order: { status: 'open', order: { oid: 7 } } })
+  const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
+  await price.fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+
+  await expect(ticket.getByRole('alert')).toContainText('The venue has this order.')
+  await expect(ticket.getByRole('button', { name: 'The venue has this order' })).toBeDisabled()
+  await ticket.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit())
+  expect(orders(hyperliquid.sent)).toHaveLength(1)
+
+  await price.fill('70100')
+  await expect(ticket.getByRole('button', { name: 'Buy BTC', exact: true })).toBeEnabled()
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
 })
 
