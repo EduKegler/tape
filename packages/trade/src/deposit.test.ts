@@ -280,7 +280,7 @@ describe('Hyperliquid CCTP deposit', () => {
     expect(await base.terms({ fetch, chain: noChain }, owner, 100_000_000n)).toEqual(fee)
   })
 
-  it('calls Circle unreachable when it fails, errs or sends no Fast Transfer fee', async () => {
+  it('calls Circle unreachable when it fails, errs, sends what it cannot read or no Fast Transfer fee', async () => {
     const failure = (fetch: typeof globalThis.fetch) =>
       base.terms({ fetch, chain: noChain }, owner, 100_000_000n).then(
         () => null,
@@ -294,6 +294,8 @@ describe('Hyperliquid CCTP deposit', () => {
     const noFast = { kind: 'unreachable', detail: 'Circle sent no Fast Transfer fee' }
     expect(await failure(offline)).toEqual({ kind: 'unreachable', detail: 'offline' })
     expect(await failure(replying({ error: 'busy' }, 500))).toEqual({ kind: 'unreachable', detail: 'Circle 500' })
+    const cutOff = (async () => new Response('[{"finalityThreshold":1000,')) as unknown as typeof globalThis.fetch
+    expect(await failure(cutOff)).toEqual({ kind: 'unreachable', detail: 'Circle sent an unreadable reply' })
     expect(await failure(replying([{ finalityThreshold: 2000, minimumFee: 0, forwardFee: { high: 265327 } }]))).toEqual(
       noFast,
     )
