@@ -180,8 +180,8 @@ async function markPrice(ctx: VenueContext, symbol: string): Promise<string> {
 }
 
 function exactDecimal(decimal: string): { units: bigint; scale: bigint } {
-  const [whole, fraction = ''] = decimal.split('.') as [string, string?]
-  return { units: BigInt(`${whole}${fraction}`), scale: 10n ** BigInt(fraction.length) }
+  const [whole, fraction = ''] = decimal.split('.')
+  return { units: BigInt(`${whole!}${fraction}`), scale: 10n ** BigInt(fraction.length) }
 }
 
 /** Orderly's Order Price Limit page: a buy at most mark × (1 + price range), a sell at least mark × (1 − price range). */
@@ -326,9 +326,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       }
     }
     case 'cancel': {
-      const [symbol, id] = command.order.split(':') as [string, string]
+      const [symbol, id] = command.order.split(':')
       try {
-        await signed(ctx, 'DELETE', cancelPath(symbol, Number(id)), SOME_DATA, '', classifyOrder)
+        await signed(ctx, 'DELETE', cancelPath(symbol!, Number(id)), SOME_DATA, '', classifyOrder)
       } catch (error) {
         if (!(error instanceof TradeFailure && error.error === notFound)) throw error
       }

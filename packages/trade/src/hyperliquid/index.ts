@@ -1,6 +1,5 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { z } from 'zod'
-import type { Address } from 'viem'
 import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
 import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
@@ -647,7 +646,7 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
       )
     }
     if (step.id === 'approve-builder') {
-      const builder = ctx.config.hyperliquid.builder as { b: Address; f: number }
+      const builder = ctx.config.hyperliquid.builder!
       await user(
         'HyperliquidTransaction:ApproveBuilderFee',
         {

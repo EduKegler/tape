@@ -134,8 +134,8 @@ export function dydx(network: Network): VenueAdapter {
       if (!isRecord(frame)) throw new VenueParseError('dydx', null, raw)
       if (frame.type === 'connected' || frame.type === 'unsubscribed') return []
       if (frame.type === 'error' || !isText(frame.id) || !frame.id) throw new VenueParseError('dydx', null, raw)
-      const [ticker, resolution] = frame.id.split('/') as [string, string | undefined]
-      const market = symbols(ticker)
+      const [ticker, resolution] = frame.id.split('/')
+      const market = symbols(ticker!)
       if (!market) return []
       const interval = resolution ? (intervalOf(resolution) ?? null) : null
       const read = (contents: unknown, snapshot: boolean) => {

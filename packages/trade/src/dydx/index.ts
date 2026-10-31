@@ -274,7 +274,7 @@ type IndexerOrder = z.infer<typeof IndexerOrder>
 const refOf = (order: IndexerOrder) => orderRef(order.ticker, order.clientId, order.orderFlags, order.clobPairId)
 
 async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
-  const [, clientId, flags, clobPairId] = ref.split(':') as [string, string, string, string]
+  const [, clientId, flags, clobPairId] = ref.split(':')
   const wallet = await walletOf(mnemonicOf(ctx))
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)

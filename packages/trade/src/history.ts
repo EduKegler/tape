@@ -253,7 +253,7 @@ export async function walkByTime<T>(
     }
     if (got.length < walk.size) return { rows, stalled: false }
     if (fresh.length === 0) return { rows, stalled: true }
-    start = walk.timeOf(got[got.length - 1] as T)
+    start = walk.timeOf(got[got.length - 1]!)
   }
 }
 

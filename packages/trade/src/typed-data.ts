@@ -51,13 +51,13 @@ function structHash(name: string, fields: readonly Field[], value: Readonly<Reco
       if (!isHex(fieldValue)) throw new Error(`EIP-712 field ${field.name} is not hex`)
       return fieldValue
     }
-    return encodeAbiParameters([{ type: 'uint256' }], [BigInt(fieldValue as number | string)])
+    return encodeAbiParameters([{ type: 'uint256' }], [BigInt(fieldValue!)])
   })
   return keccak256(concat([keccak256(stringToBytes(signature)), ...encoded]))
 }
 
 export function typedDataDigest(data: TypedData): Hex {
-  const fields = data.types[data.primaryType] as readonly Field[]
+  const fields = data.types[data.primaryType]!
   return keccak256(
     concat([
       '0x1901',
