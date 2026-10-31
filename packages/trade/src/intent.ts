@@ -260,10 +260,9 @@ function takeProfitsOf(
   const total = shares.reduce((sum, share) => sum + share, 0)
   const size = errors.size ? null : parseQty(draft.size, spec.scale)
   if (total !== 100) {
+    const left = total < 100 && size !== null ? Math.round((size * (100 - total)) / (100 * spec.step)) * spec.step : 0
     const missing =
-      total < 100 && size !== null
-        ? `, so ${formatQty((Math.round((size * (100 - total)) / (100 * spec.step)) * spec.step) as Qty, spec.scale)} ${spec.base} has no take profit`
-        : ', not 100%'
+      left > 0 ? `, so ${formatQty(left as Qty, spec.scale)} ${spec.base} has no take profit` : ', not 100%'
     errors.takeProfits = `Sizes add up to ${total}%${missing}`
     return []
   }

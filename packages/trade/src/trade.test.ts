@@ -158,6 +158,9 @@ describe('order intent', () => {
       takeProfits: 'Sizes add up to 90%, so 0.00010 BTC has no take profit',
     })
     expect(errors([tp('82000', '60'), tp('84000', '60')])).toEqual({ takeProfits: 'Sizes add up to 120%, not 100%' })
+    expect(errors([tp('82000', '50'), tp('84000', '49')], '0.00015')).toEqual({
+      takeProfits: 'Sizes add up to 99%, not 100%',
+    })
     expect(errors([tp('82000', '0'), tp('84000', '100')])).toEqual({ takeProfit1: 'From 1 to 100%' })
     expect(errors([tp('82000', '50'), tp('84000', '50')], '0.00001')).toEqual({
       takeProfit1: 'Size rounds below 0.00001',
