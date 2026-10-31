@@ -50,6 +50,22 @@ function answer(circle: unknown, entries: unknown[]) {
   return { fetch, asked }
 }
 
+describe('Hyperliquid bridge terms', () => {
+  // The Arbitrum bridge docs charge no deposit fee.
+  it('quotes no fee on the Hyperliquid bridge', async () => {
+    const [bridge] = hyperliquidDeposit.routes('mainnet', config)
+    const unused = {
+      fetch: () => Promise.reject(new Error('the bridge asks nothing')),
+      chain: { readContract: () => Promise.reject(new Error('the bridge reads no chain')) },
+    } as unknown as Parameters<DepositRoute['terms']>[0]
+    expect(await bridge!.terms(unused, burn.owner, 10_000_000n)).toEqual({
+      fee: { expected: 0n, max: 0n },
+      message: null,
+      refusal: null,
+    })
+  })
+})
+
 describe('Hyperliquid CCTP credit', () => {
   const route = routeFrom(burn.chainId)
   const credited = { stage: 'credited', amount: 662_744_904n, at: booked.time, receipt: booked.hash }
