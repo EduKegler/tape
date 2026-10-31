@@ -5,7 +5,11 @@ import type { MarketGroup, MarketSpec } from './market'
 import { searchMarkets } from './search'
 
 const spec = (base: string) => ({ base: base as Base }) as MarketSpec
-const group = (name: string | null, bases: string[]): MarketGroup => ({ name, markets: bases.map(spec) })
+const group = (name: string | null, bases: string[]): MarketGroup => ({
+  dex: name ?? '',
+  name,
+  markets: bases.map(spec),
+})
 const names = (groups: readonly MarketGroup[]) => groups.map((g) => [g.name, g.markets.map((m) => m.base)])
 
 describe('market search', () => {

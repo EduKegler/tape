@@ -12,7 +12,7 @@ export function MarketSearch({ venue }: { venue: VenueId }) {
   const [opened, setOpened] = useState(false)
   const markets = useQuery({ ...marketsQuery(venue), enabled: opened }).data
   const groups = useMemo(
-    () => searchMarkets(markets ?? [], query).map((g) => ({ label: g.name, items: g.markets })),
+    () => searchMarkets(markets ?? [], query).map((g) => ({ key: g.dex, label: g.name, items: g.markets })),
     [markets, query],
   )
   const navigate = useNavigate()

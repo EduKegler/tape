@@ -25,6 +25,8 @@ export interface MarketSpec {
 
 /** Markets a venue lists under one heading, in the venue's order. `name` is null for the venue's own markets. */
 export interface MarketGroup {
+  /** The Hyperliquid dex the markets trade on, `''` for the main dex and for every other venue. */
+  readonly dex: string
   readonly name: string | null
   readonly markets: readonly MarketSpec[]
 }

@@ -40,6 +40,6 @@ export function searchMarkets(groups: readonly MarketGroup[], query: string): re
     })
     hits.sort((a, b) => a.match - b.match || a.pin - b.pin || byName(a.spec.base, b.spec.base))
     const markets: readonly MarketSpec[] = hits.map((h) => h.spec)
-    return markets.length ? [{ name: group.name, markets }] : []
+    return markets.length ? [{ ...group, markets }] : []
   })
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import type { Network } from '@tape/core/ids'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
@@ -91,4 +92,29 @@ test('the header search filters markets as you type and opens one by keyboard', 
   await search.press('Escape')
   await expect(page.getByRole('listbox')).toHaveCount(0)
   await expect(page).toHaveURL(/\/hyperliquid\/ETHFI\?interval=5m$/)
+})
+
+test('the search lists each dex once when two dexes share a full name', async ({ page }) => {
+  const dexes = JSON.parse(
+    readFileSync(new URL('../packages/venues/src/__fixtures__/hyperliquid.perpDexs.json', import.meta.url), 'utf8'),
+  ) as ({ fullName: string } | null)[]
+  await page.route('**/info', (route) =>
+    route.request().postData()?.includes('"perpDexs"')
+      ? route.fulfill({
+          json: dexes.map((d) => d && { ...d, fullName: 'Same' }),
+          headers: { 'access-control-allow-origin': '*' },
+        })
+      : route.fallback(),
+  )
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const search = page.getByRole('combobox', { name: 'Search markets' })
+  await search.pressSequentially('t')
+  await expect(page.getByRole('group', { name: 'Same' }).first()).toBeVisible()
+  await search.pressSequentially('r')
+  await expect(page.getByRole('option').first()).toContainText(/TR/i)
+  const options = await page.getByRole('option').allInnerTexts()
+  expect(options.every((o) => /TR/i.test(o))).toBe(true)
+  expect(new Set(options).size).toBe(options.length)
+  const dexesShown = new Set(options.map((o) => (o.includes(':') ? o.split(':')[0] : '')))
+  await expect(page.getByRole('group')).toHaveCount(dexesShown.size)
 })

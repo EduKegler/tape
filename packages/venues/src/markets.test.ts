@@ -27,6 +27,25 @@ describe('hyperliquid markets', () => {
     ])
   })
 
+  it('tells two dexes with the same full name apart by their dex', async () => {
+    const groups = await readHyperliquidMarkets(
+      answering({
+        allPerpMetas: [
+          { universe: [{ name: 'BTC', szDecimals: 5 }], collateralToken: 0 },
+          { universe: [{ name: 'trv:ABC', szDecimals: 0 }], collateralToken: 0 },
+          { universe: [{ name: 'trw:ABC', szDecimals: 0 }], collateralToken: 0 },
+        ],
+        perpDexs: [null, { name: 'trv', fullName: 'Trove' }, { name: 'trw', fullName: 'Trove' }],
+      }),
+      INFO,
+    )
+    expect(groups.map((g) => [g.dex, g.name])).toEqual([
+      ['', null],
+      ['trv', 'Trove'],
+      ['trw', 'Trove'],
+    ])
+  })
+
   it('leaves out a HIP-3 dex settled in a token other than USDC', async () => {
     const groups = await readHyperliquidMarkets(
       answering({

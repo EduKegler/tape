@@ -25,7 +25,7 @@ function specOf<T>(row: T, spec: (row: T) => MarketSpec | null): MarketSpec | nu
 const specs = <T>(rows: readonly T[], spec: (row: T) => MarketSpec | null): MarketSpec[] =>
   rows.flatMap((row) => specOf(row, spec) ?? [])
 
-const own = (markets: readonly MarketSpec[]): readonly MarketGroup[] => [{ name: null, markets }]
+const own = (markets: readonly MarketSpec[]): readonly MarketGroup[] => [{ dex: '', name: null, markets }]
 
 const baseOf = (name: string): Base | null => (isBase(name) ? name : null)
 
@@ -112,7 +112,7 @@ export async function readHyperliquidMarkets(
     const first = markets[0]
     if (!first) return []
     const { dex } = splitBase(first.base)
-    return [{ name: dex ? (fullNames.get(dex) ?? dex) : null, markets }]
+    return [{ dex, name: dex ? (fullNames.get(dex) ?? dex) : null, markets }]
   })
 }
 
