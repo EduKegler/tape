@@ -1,4 +1,3 @@
-import { numberToHex } from 'viem'
 import type { Address, Hex } from 'viem'
 import type { Eip712, WalletSigner } from './types'
 
@@ -26,17 +25,23 @@ export function walletJson(data: Eip712): string {
 }
 
 /** eth_signTypedData_v4 with raw JSON, because viem refuses Hyperliquid's `HyperliquidTransaction:` type names. */
-export function walletSigner(provider: Eip1193, address: Address): WalletSigner {
+export function walletSigner(
+  provider: Eip1193,
+  address: Address,
+  switchChain: (chainId: number) => Promise<void>,
+): WalletSigner {
   return {
     address,
     chainId: async () => Number(await provider.request({ method: 'eth_chainId' })),
-    switchChain: async (chainId) => {
-      await provider.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: numberToHex(chainId) }],
-      })
-    },
+    switchChain,
     signTypedData: async (data) =>
       (await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })) as Hex,
   }
+}
+
+/** What went wrong in a wallet call. Wallets such as MetaMask reject with a plain `{ code, message }`, not an Error. */
+export function rejectionMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  const message = (error as { message?: unknown } | null)?.message
+  return typeof message === 'string' ? message : String(error)
 }

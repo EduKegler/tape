@@ -33,6 +33,7 @@ interface Transaction {
 type Asked =
   | { readonly kind: 'connect'; readonly account: TestAccount }
   | { readonly kind: 'switch-chain'; readonly from: number; readonly to: number }
+  | { readonly kind: 'add-chain'; readonly from: number; readonly to: number }
   | {
       readonly kind: 'sign'
       readonly from: TestAccount
@@ -71,6 +72,8 @@ const EVENT = 'tape-test-wallet'
 const USER_REJECTED = 4001
 const UNAUTHORIZED = 4100
 const UNSUPPORTED = 4200
+/** MetaMask's code for a switch to a chain the wallet has not added. */
+const UNRECOGNIZED_CHAIN = 4902
 
 /** viem's hashTypedData without its name check, which refuses Hyperliquid's `HyperliquidTransaction:` types. */
 const typedDataHash = ({ domain, types, primaryType, message }: SignRequest) =>
@@ -81,11 +84,12 @@ const accountOf = (address: unknown) =>
     (name) => typeof address === 'string' && signers[name].address.toLowerCase() === address.toLowerCase(),
   )
 
-/** Starts on Ethereum, as a fresh MetaMask does. */
+/** Starts on Ethereum and knows only the chains a fresh MetaMask ships with, so Arbitrum Sepolia has to be added. */
 export async function installWallet(context: BrowserContext): Promise<Wallet> {
   const state = {
     selected: 'alice' as TestAccount,
     chainId: 1,
+    chains: new Set([1, 11_155_111]),
     connected: false,
     asked: [] as Asked[],
     unanswered: [] as string[],
@@ -122,7 +126,23 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
         return { result: null, emit: [['accountsChanged', []]] }
       case 'wallet_switchEthereumChain': {
         const to = Number((params[0] as { chainId: Hex }).chainId)
+        if (!state.chains.has(to))
+          return {
+            error: {
+              code: UNRECOGNIZED_CHAIN,
+              message: `Unrecognized chain ID "${numberToHex(to)}". Try adding the chain using wallet_addEthereumChain first.`,
+            },
+          }
         state.asked.push({ kind: 'switch-chain', from: state.chainId, to })
+        if (to === state.chainId) return { result: null, emit: [] }
+        state.chainId = to
+        return { result: null, emit: [['chainChanged', numberToHex(to)]] }
+      }
+      // MetaMask switches to a chain it adds in the same prompt.
+      case 'wallet_addEthereumChain': {
+        const to = Number((params[0] as { chainId: Hex }).chainId)
+        state.asked.push({ kind: 'add-chain', from: state.chainId, to })
+        state.chains.add(to)
         if (to === state.chainId) return { result: null, emit: [] }
         state.chainId = to
         return { result: null, emit: [['chainChanged', numberToHex(to)]] }
@@ -172,6 +192,7 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
       if (state.connected) await emit([['accountsChanged', accounts()]])
     },
     switchChain: async (chainId) => {
+      state.chains.add(chainId)
       if (chainId === state.chainId) return
       state.chainId = chainId
       await emit([['chainChanged', numberToHex(chainId)]])
@@ -191,7 +212,8 @@ function provider({ binding, event }: { binding: string; event: string }) {
   const ethereum = {
     async request(request: { method: string; params?: unknown[] }) {
       const reply = await (window as unknown as Record<string, (request: unknown) => Promise<Reply>>)[binding]!(request)
-      if ('error' in reply) throw Object.assign(new Error(reply.error.message), { code: reply.error.code })
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- MetaMask rejects with a plain { code, message }, not an Error
+      if ('error' in reply) throw { ...reply.error }
       dispatch(reply.emit)
       return reply.result
     },

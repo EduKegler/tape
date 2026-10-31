@@ -21,10 +21,11 @@ import type {
   TradeVenueId,
   VenueContext,
 } from '@tape/trade/types'
-import { walletSigner } from '@tape/trade/wallet'
+import { rejectionMessage, walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
+import { switchOrAddChain } from '#/wallet/config'
 import { keySlot, subscribeVault } from './vault'
 import { SITE_READ_ONLY, TRADE_CONFIG } from './config'
 
@@ -81,7 +82,7 @@ export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Prom
     if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code)
       throw new TradeFailure(venue, { kind: 'wallet-rejected' })
     report(e, 'trade', true)
-    throw new TradeFailure(venue, { kind: 'unexpected', detail: e instanceof Error ? e.message : String(e) })
+    throw new TradeFailure(venue, { kind: 'unexpected', detail: rejectionMessage(e) })
   }
 }
 
@@ -133,7 +134,9 @@ export function useTradeSession(venue: VenueId): TradeSession {
         track({ event: 'trading_enable_step', venue: r.venue, step })
       }
       const run = () =>
-        guard(r.venue, () => TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner), onStep))
+        guard(r.venue, () =>
+          TRADING[r.venue].enable(contextFor(r), walletSigner(provider, r.owner, switchOrAddChain), onStep),
+        )
       await (typeof navigator !== 'undefined' && 'locks' in navigator
         ? navigator.locks.request(`tape:enable:${accountKey(r)}`, run)
         : run())
