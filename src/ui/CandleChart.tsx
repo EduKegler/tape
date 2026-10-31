@@ -10,6 +10,7 @@ import { Panel, Segmented } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { candlesQuery, marketQuery } from './queries'
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- lightweight-charts brands UTCTimestamp and has no constructor for it
 const chartTime = (seconds: number) => seconds as UTCTimestamp
 
 const MARKS = {

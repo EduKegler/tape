@@ -119,6 +119,7 @@ export function createRegistry(
       return port.mode
     },
     stats,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- TypeScript cannot tie a Map value's type to its key's topic kind
     store: <T extends Topic>(topic: T) => entryFor(topic).store as unknown as ReadStore<FrameOf<T> | null>,
     retain(topic) {
       const retained = entryFor(topic)

@@ -19,6 +19,7 @@ import type {
   Tif,
 } from './types'
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an OrderIntent is made, from checked fields
 const intentOf = (fields: IntentFields, clientId = newClientId()) => ({ ...fields, clientId }) as OrderIntent
 
 export function checkPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, value: string): string | undefined {

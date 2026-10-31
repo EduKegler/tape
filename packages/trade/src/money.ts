@@ -9,6 +9,7 @@ export type Amount = Brand<bigint, 'Amount'>
 const PLACES = 18
 const ONE = 10n ** BigInt(PLACES)
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an Amount is made from a unit count
 const fromUnits = (count: bigint) => count as Amount
 
 export const ZERO = fromUnits(0n)

@@ -164,9 +164,14 @@ export default [
     },
   },
   {
+    files: ['src/**/*.{ts,tsx}', 'packages/**/*.ts'],
+    rules: { '@typescript-eslint/no-unsafe-type-assertion': 'error' },
+  },
+  {
     files: ['**/*.test.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-type-assertion': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
     },

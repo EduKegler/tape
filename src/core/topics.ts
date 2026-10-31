@@ -29,6 +29,7 @@ function topicText(topic: Topic): string {
 }
 
 export function topicKey(topic: Topic): TopicKey {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place a TopicKey is made
   return topicText(topic) as TopicKey
 }
 

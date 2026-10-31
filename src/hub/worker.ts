@@ -14,6 +14,7 @@ interface WorkerScope {
   postMessage: (message: unknown) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- TypeScript's DOM lib types self as Window, not the worker scope
 const scope = self as unknown as WorkerScope
 const shared = 'onconnect' in scope
 

@@ -32,6 +32,7 @@ export const PINNED_BASES: readonly Base[] = ['BTC', 'ETH', 'SOL'].map(toBase)
 export type MarketKey = Brand<`${VenueId}:${string}`, 'MarketKey'>
 
 export function marketKey(venue: VenueId, base: Base): MarketKey {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place a MarketKey is made, from a typed venue and base
   return `${venue}:${base}` as MarketKey
 }
 
@@ -90,6 +91,7 @@ export type StreamChannel = 'book' | 'trades' | 'candle'
 export type StreamKey = Brand<string, 'StreamKey'>
 
 export function streamKey(market: MarketKey, channel: StreamChannel, interval?: Interval): StreamKey {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place a StreamKey is made, from a typed market, channel and interval
   return (channel === 'candle' ? `${market}:candle:${interval ?? '1m'}` : `${market}:${channel}`) as StreamKey
 }
 

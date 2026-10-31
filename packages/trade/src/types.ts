@@ -20,6 +20,7 @@ export interface AccountRef {
   readonly owner: Address
 }
 export type AccountKey = Brand<string, 'AccountKey'>
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an AccountKey is made, from a typed ref
 export const accountKey = (ref: AccountRef) => `${ref.venue}:${ref.network}:${ref.owner}` as AccountKey
 
 export type Side = 'buy' | 'sell'
@@ -113,6 +114,7 @@ export interface ScaleLeg {
 export type OrderRef = Brand<string, 'OrderRef'>
 
 /** The parts joined by `:`, in the order the venue module reads them back. */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an OrderRef is made
 export const orderRef = (...parts: readonly (string | number)[]) => parts.join(':') as OrderRef
 
 export type Command =
