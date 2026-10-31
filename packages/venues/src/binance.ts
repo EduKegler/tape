@@ -1,4 +1,5 @@
-import type { Base, Interval, Network } from '@tape/core/ids'
+import { isInterval } from '@tape/core/ids'
+import type { Base, Network } from '@tape/core/ids'
 import { readBinanceMarket, readBinanceMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
@@ -105,12 +106,12 @@ export function binance(network: Network): VenueAdapter {
             },
           ]
         case 'kline':
-          if (!isKline(frame.k)) break
+          if (!isKline(frame.k) || !isInterval(frame.k.i)) break
           return [
             {
               kind: 'candle',
               market,
-              interval: frame.k.i as Interval,
+              interval: frame.k.i,
               candles: [{ open: frame.k.t, o: frame.k.o, h: frame.k.h, l: frame.k.l, c: frame.k.c, v: frame.k.v }],
             },
           ]

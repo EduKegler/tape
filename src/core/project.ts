@@ -1,13 +1,24 @@
 import { bestAsk, bestBid, visibleBook } from '@tape/core/book'
 import type { BookSide, BookSync } from '@tape/core/book'
-import { formatMid, formatPx, formatQty, rescalePx, spreadBps, toDisplayFloat } from '@tape/core/fixed'
+import {
+  formatMid,
+  formatPx,
+  formatQty,
+  rescalePx,
+  spreadBps,
+  toDecimals,
+  toDisplayFloat,
+  toPx,
+  toQty,
+} from '@tape/core/fixed'
 import type { Decimals, Px, Qty } from '@tape/core/fixed'
 import { VENUE_IDS } from '@tape/core/ids'
-import type { Interval, TopicKey, VenueId } from '@tape/core/ids'
+import type { Interval, VenueId } from '@tape/core/ids'
 import { effectiveTick, groupDecimals, groupOptions, snapGroup } from '@tape/core/market'
 import type { Candle, MarketSpec, TradeTape } from '@tape/core/market'
 import { BOOK_ROWS, EMPTY_ROW } from './topics'
 import type {
+  TopicKey,
   BookFrame,
   BookRow,
   CandleFrame,
@@ -29,13 +40,18 @@ export interface MarketView {
 
 const DEPTH_LEVELS = 400
 
-function grouped(side: BookSide, step: number, rows: number): { px: number; qty: number }[] {
-  const out: { px: number; qty: number }[] = []
+interface Level {
+  px: Px
+  qty: Qty
+}
+
+function grouped(side: BookSide, step: number, rows: number): Level[] {
+  const out: Level[] = []
   for (const px of side.prices) {
-    const bucket = side.side === 'bid' ? Math.floor(px / step) * step : Math.ceil(px / step) * step
-    const qty = side.qty.get(px) as number
+    const bucket = toPx(side.side === 'bid' ? Math.floor(px / step) * step : Math.ceil(px / step) * step)
+    const qty = side.qty.get(px)!
     const last = out.at(-1)
-    if (last?.px === bucket) last.qty += qty
+    if (last?.px === bucket) last.qty = toQty(last.qty + qty)
     else if (out.length === rows) break
     else out.push({ px: bucket, qty })
   }
@@ -47,29 +63,29 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
   const book = visibleBook(market.sync)
   const bid = book && bestBid(book)
   const ask = book && bestAsk(book)
-  const mid = (bid !== null && ask !== null ? Math.round((bid + ask) / 2) : (bid ?? ask ?? 0)) as Px
+  const mid = toPx(bid !== null && ask !== null ? Math.round((bid + ask) / 2) : (bid ?? ask ?? 0))
   const step = snapGroup(spec, mid, group)
   const decimals = groupDecimals(spec, step)
   const options = groupOptions(spec, mid).map((option) => formatPx(option, spec.scale, groupDecimals(spec, option)))
   const bids = book ? grouped(book.bids, step, BOOK_ROWS) : []
   const asks = book ? grouped(book.asks, step, BOOK_ROWS) : []
-  const cum = (levels: { qty: number }[]) => {
-    let total = 0
-    return levels.map((level) => (total += level.qty))
+  const cum = (levels: Level[]) => {
+    let total = toQty(0)
+    return levels.map((level) => (total = toQty(total + level.qty)))
   }
   const bidCum = cum(bids)
   const askCum = cum(asks)
   const max = Math.max(bidCum.at(-1) ?? 0, askCum.at(-1) ?? 0) || 1
-  const row = (level: { px: number; qty: number } | undefined, cumulative: number | undefined): BookRow =>
+  const row = (level: Level | undefined, cumulative: Qty | undefined): BookRow =>
     level && cumulative !== undefined
       ? {
-          px: formatPx(level.px as Px, spec.scale, decimals),
-          qty: formatQty(level.qty as Qty, spec.scale),
-          cum: formatQty(cumulative as Qty, spec.scale),
+          px: formatPx(level.px, spec.scale, decimals),
+          qty: formatQty(level.qty, spec.scale),
+          cum: formatQty(cumulative, spec.scale),
           fill: cumulative / max,
         }
       : EMPTY_ROW
-  const ladder = (levels: { px: number; qty: number }[], cumulative: number[]) =>
+  const ladder = (levels: Level[], cumulative: Qty[]) =>
     Array.from({ length: BOOK_ROWS }, (_, index) => row(levels[index], cumulative[index]))
   return {
     kind: 'book',
@@ -85,7 +101,7 @@ export function projectBook(key: TopicKey, market: MarketView, group: string, ve
       ask: ask !== null ? formatPx(ask, spec.scale, tradeDecimals(spec, ask)) : '',
     },
     mid: bid !== null && ask !== null ? formatMid(bid, ask, spec.scale) : '',
-    spread: bid !== null && ask !== null ? formatPx((ask - bid) as Px, spec.scale) : '',
+    spread: bid !== null && ask !== null ? formatPx(toPx(ask - bid), spec.scale) : '',
     spreadBps: bid !== null && ask !== null ? spreadBps(bid, ask) : '',
   }
 }
@@ -95,12 +111,12 @@ const NO_DEPTH: DepthSide = { px: new Float64Array(), cum: new Float64Array() }
 function depthSide(side: BookSide, pxDecimals: Decimals, qtyDecimals: Decimals): DepthSide {
   const count = Math.min(side.prices.length, DEPTH_LEVELS)
   const out = { px: new Float64Array(count), cum: new Float64Array(count) }
-  let cum = 0
+  let cum = toQty(0)
   for (let level = 0; level < count; level++) {
-    const px = side.prices[level] as Px
-    cum += side.qty.get(px) as number
+    const px = side.prices[level]!
+    cum = toQty(cum + side.qty.get(px)!)
     out.px[level] = toDisplayFloat(px, pxDecimals)
-    out.cum[level] = toDisplayFloat(cum as Qty, qtyDecimals)
+    out.cum[level] = toDisplayFloat(cum, qtyDecimals)
   }
   return out
 }
@@ -117,7 +133,7 @@ export function projectDepth(key: TopicKey, market: MarketView, version: number)
     status: market.status,
     bids: book ? depthSide(book.bids, scale.px, scale.qty) : NO_DEPTH,
     asks: book ? depthSide(book.asks, scale.px, scale.qty) : NO_DEPTH,
-    mid: bid !== null && ask !== null ? toDisplayFloat(((bid + ask) / 2) as Px, scale.px) : 0,
+    mid: bid !== null && ask !== null ? (toDisplayFloat(bid, scale.px) + toDisplayFloat(ask, scale.px)) / 2 : 0,
   }
 }
 
@@ -172,7 +188,7 @@ export function projectCompare(
   unlisted: ReadonlySet<VenueId>,
   version: number,
 ): CompareFrame {
-  const fine = Math.max(...Object.values(markets).map((market) => market.spec.scale.px), 0) as Decimals
+  const fine = toDecimals(Math.max(...Object.values(markets).map((market) => market.spec.scale.px), 0))
   const quotes = VENUE_IDS.map((venue) => {
     const market = markets[venue]
     const book = market && visibleBook(market.sync)

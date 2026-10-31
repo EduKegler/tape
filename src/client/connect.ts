@@ -1,4 +1,4 @@
-import type { TabId } from '@tape/core/ids'
+import { toTabId } from '@tape/core/ids'
 import { track } from '#/analytics/track'
 import type { HubToTab, TabToHub } from '#/core/protocol'
 import { NETWORK } from '#/site'
@@ -33,7 +33,7 @@ function dedicatedPort(): TabPort {
 }
 
 const browserLifecycle: Lifecycle = {
-  newTabId: () => crypto.randomUUID() as TabId,
+  newTabId: () => toTabId(crypto.randomUUID()),
   isVisible: () => document.visibilityState === 'visible',
   holdLiveness(tab, ready) {
     if (!('locks' in navigator)) {

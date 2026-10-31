@@ -3,8 +3,17 @@ import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
-import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty, toDisplayFloat } from '@tape/core/fixed'
-import type { Px, Qty } from '@tape/core/fixed'
+import {
+  formatNotional,
+  formatPx,
+  formatQty,
+  notional,
+  parsePx,
+  parseQty,
+  toDisplayFloat,
+  toPx,
+  toQty,
+} from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
@@ -666,7 +675,7 @@ function singleEntry(spec: MarketSpec, side: Side, px: string, size: string): Pr
 
 function averageEntry(spec: MarketSpec, side: Side, legs: readonly Slice[]): Preview {
   const total = legs.reduce((sum, leg) => sum + notional(leg.px, leg.size), 0n)
-  const size = toDisplayFloat(legs.reduce((sum, leg) => sum + leg.size, 0) as Qty, spec.scale.qty)
+  const size = toDisplayFloat(toQty(legs.reduce((sum, leg) => sum + leg.size, 0)), spec.scale.qty)
   return { side, size, px: Number(total) / 10 ** (spec.scale.px + spec.scale.qty) / size, notional: total }
 }
 
@@ -707,7 +716,7 @@ function liquidationText(spec: MarketSpec, margin: MarginReading, entry: Entry |
   const liq = estimateLiquidation(margin.state, entry)
   switch (liq.kind) {
     case 'price':
-      return `${formatPx(Math.round(liq.px * 10 ** spec.scale.px) as Px, spec.scale)} ${spec.quote}`
+      return `${formatPx(toPx(Math.round(liq.px * 10 ** spec.scale.px)), spec.scale)} ${spec.quote}`
     case 'none':
       return 'None'
     case 'insufficient-margin':

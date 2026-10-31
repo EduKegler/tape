@@ -1,5 +1,5 @@
 import { VENUE_IDS, marketKey, streamKey } from '@tape/core/ids'
-import type { Base, Interval, MarketKey, StreamKey, TopicKey, VenueId } from '@tape/core/ids'
+import type { Base, Brand, Interval, MarketKey, StreamKey, VenueId } from '@tape/core/ids'
 
 export const BOOK_ROWS = 14
 
@@ -12,18 +12,24 @@ export type Topic =
 
 type TopicKind = Topic['kind']
 
-export function topicKey(topic: Topic): TopicKey {
+export type TopicKey = Brand<string, 'TopicKey'>
+
+function topicText(topic: Topic): string {
   switch (topic.kind) {
     case 'book':
-      return `book|${topic.market}|${topic.group}` as TopicKey
+      return `book|${topic.market}|${topic.group}`
     case 'candle':
-      return `candle|${topic.market}|${topic.interval}` as TopicKey
+      return `candle|${topic.market}|${topic.interval}`
     case 'compare':
-      return `compare|${topic.base}` as TopicKey
+      return `compare|${topic.base}`
     case 'depth':
     case 'trades':
-      return `${topic.kind}|${topic.market}` as TopicKey
+      return `${topic.kind}|${topic.market}`
   }
+}
+
+export function topicKey(topic: Topic): TopicKey {
+  return topicText(topic) as TopicKey
 }
 
 function streamsFor(topic: Topic): readonly StreamKey[] {

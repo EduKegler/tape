@@ -1,8 +1,8 @@
 import { isBase, marketKey, splitBase } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
-import { DecimalError, decimalsOf, parsePx, parseQty, plainDecimal } from '@tape/core/fixed'
+import { DecimalError, decimalsOf, isDecimals, parsePx, parseQty, plainDecimal, toQty } from '@tape/core/fixed'
 import { parseExactJson } from '@tape/core/json'
-import type { Decimals, Scale } from '@tape/core/fixed'
+import type { Scale } from '@tape/core/fixed'
 import type { MarketGroup, MarketSpec } from '@tape/core/market'
 import { getExactJson, getJson } from './types'
 
@@ -55,9 +55,10 @@ interface HyperliquidAsset {
 
 function hyperliquidSpec(asset: HyperliquidAsset): MarketSpec | null {
   const base = baseOf(asset.name)
-  if (!base || asset.isDelisted) return null
-  const qty = asset.szDecimals as Decimals
-  const scale = { px: (HYPERLIQUID_PX_DECIMALS - qty) as Decimals, qty }
+  const qty = asset.szDecimals
+  const px = HYPERLIQUID_PX_DECIMALS - qty
+  if (!base || asset.isDelisted || !isDecimals(qty) || !isDecimals(px)) return null
+  const scale = { px, qty }
   return {
     key: marketKey('hyperliquid', base),
     venue: 'hyperliquid',
@@ -67,7 +68,7 @@ function hyperliquidSpec(asset: HyperliquidAsset): MarketSpec | null {
     venueSymbol: asset.name,
     scale,
     tick: { kind: 'sigfig', figures: 5 },
-    step: 1 as MarketSpec['step'],
+    step: toQty(1),
     minNotional: parsePx(HYPERLIQUID_MIN_ORDER_USDC, scale),
   }
 }

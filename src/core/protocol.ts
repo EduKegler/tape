@@ -1,4 +1,4 @@
-import { isBase, isInterval, parseMarketKey } from '@tape/core/ids'
+import { isBase, isInterval, isTabId, parseMarketKey } from '@tape/core/ids'
 import type { TabId } from '@tape/core/ids'
 import type { ExceptionEvent } from '#/analytics/exception'
 import type { Frame, Topic } from './topics'
@@ -52,8 +52,8 @@ export function parseTabMessage(data: unknown): TabToHub | null {
   const message = data as Record<string, unknown>
   switch (message.t) {
     case 'hello':
-      return typeof message.tab === 'string' && typeof message.visible === 'boolean'
-        ? { t: 'hello', tab: message.tab as TabId, visible: message.visible }
+      return typeof message.tab === 'string' && isTabId(message.tab) && typeof message.visible === 'boolean'
+        ? { t: 'hello', tab: message.tab, visible: message.visible }
         : null
     case 'want':
       return Array.isArray(message.topics)

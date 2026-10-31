@@ -1,8 +1,8 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { z } from 'zod'
 import type { Address, Hex } from 'viem'
-import { parsePx, wireDecimal } from '@tape/core/fixed'
-import type { Decimals, Px } from '@tape/core/fixed'
+import { parsePx, toDecimals, wireDecimal } from '@tape/core/fixed'
+import type { Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
@@ -98,10 +98,10 @@ function meta(ctx: VenueContext): Promise<Meta> {
       const tables = new Map(hlMeta.marginTables)
       return new Map(
         hlMeta.universe.map((perp, index) => {
-          const qty = Number(perp.szDecimals) as Decimals
+          const qty = toDecimals(Number(perp.szDecimals))
           const spec = {
             venueSymbol: perp.name,
-            scale: { px: (6 - qty) as Decimals, qty },
+            scale: { px: toDecimals(6 - qty), qty },
             tick: { kind: 'sigfig', figures: 5 },
             step: 1,
           } as unknown as MarketSpec

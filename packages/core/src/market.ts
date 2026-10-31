@@ -1,3 +1,4 @@
+import { toDecimals, toPx } from './fixed'
 import type { Base, Brand, MarketKey, VenueId } from './ids'
 import type { Decimals, Px, Qty, Scale } from './fixed'
 
@@ -33,26 +34,35 @@ export interface MarketGroup {
 
 export function effectiveTick(spec: MarketSpec, ref: Px): Px {
   if (spec.tick.kind === 'fixed') return spec.tick.tick
-  if (ref <= 0) return 1 as Px
+  if (ref <= 0) return toPx(1)
   const integerDigits = Math.floor(Math.log10(ref / 10 ** spec.scale.px)) + 1
   const exponent = integerDigits - spec.tick.figures
-  return Math.max(1, 10 ** (exponent + spec.scale.px)) as Px
+  return toPx(Math.max(1, 10 ** (exponent + spec.scale.px)))
 }
 
 /** The step an order price must sit on. Hyperliquid also accepts any whole price, above 5 figures too. */
 export function priceTick(spec: MarketSpec, px: Px): Px {
-  return Math.min(effectiveTick(spec, px), 10 ** spec.scale.px) as Px
+  return toPx(Math.min(effectiveTick(spec, px), 10 ** spec.scale.px))
 }
 
 /** A grouping increment in px units, a positive multiple of the effective tick. */
 export type GroupStep = Brand<Px, 'GroupStep'>
+
+function isGroupStep(units: Px): units is GroupStep {
+  return units > 0
+}
+
+function toGroupStep(units: Px): GroupStep {
+  if (!isGroupStep(units)) throw new RangeError(`group step ${units} is not positive`)
+  return units
+}
 
 const MULTIPLES = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000] as const
 const OPTION_COUNT = 6
 
 function stepsAt(spec: MarketSpec, mid: Px): GroupStep[] {
   const tick = effectiveTick(spec, mid)
-  return MULTIPLES.map((multiple) => (tick * multiple) as GroupStep)
+  return MULTIPLES.map((multiple) => toGroupStep(toPx(tick * multiple)))
 }
 
 /** The allowed step closest to `requested` (a decimal string from the URL), or the tick when it does not parse. */
@@ -74,7 +84,7 @@ export function groupDecimals(spec: MarketSpec, step: Px): Decimals {
     units /= 10
     decimals -= 1
   }
-  return decimals as Decimals
+  return toDecimals(decimals)
 }
 
 /** `side` is the aggressor, so a Binance m=true trade is a sell. */

@@ -1,6 +1,6 @@
 import { bytesToHex, hexToBytes } from 'viem'
 import type { Hex } from 'viem'
-import { decimalsOf, parsePx, parseQty, plainDecimal, wireDecimal } from '@tape/core/fixed'
+import { decimalsOf, parsePx, parseQty, plainDecimal, toPx, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
@@ -188,7 +188,7 @@ function insidePriceRange(spec: MarketSpec, side: Side, price: Px, mark: string,
   const denominator = exactMark.scale * exactRange.scale
   const units = side === 'buy' ? numerator / denominator : (numerator + denominator - 1n) / denominator
   const bound = toTick(spec, side, Number(units))
-  return (side === 'buy' ? Math.min(price, bound) : Math.max(price, bound)) as Px
+  return toPx(side === 'buy' ? Math.min(price, bound) : Math.max(price, bound))
 }
 
 async function farTouch(ctx: VenueContext, spec: MarketSpec, side: Side): Promise<Px> {

@@ -106,7 +106,7 @@ function seek(side: BookSide, px: Px): number {
   let hi = side.prices.length
   while (lo < hi) {
     const mid = (lo + hi) >>> 1
-    if (better(side.side, side.prices[mid] as number, px)) lo = mid + 1
+    if (better(side.side, side.prices[mid]!, px)) lo = mid + 1
     else hi = mid
   }
   return lo
@@ -128,7 +128,7 @@ function write(side: BookSide, px: Px, qty: Qty): void {
 
 function evictThrough(side: BookSide, px: Px): void {
   while (side.prices.length > 0) {
-    const best = side.prices[0] as Px
+    const best = side.prices[0]!
     if (side.side === 'ask' ? best > px : best < px) break
     side.prices.shift()
     side.qty.delete(best)

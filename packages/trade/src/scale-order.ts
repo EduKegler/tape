@@ -1,4 +1,4 @@
-import { formatQty } from '@tape/core/fixed'
+import { formatQty, toPx, toQty } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
@@ -39,8 +39,8 @@ export type ScaleLegs =
 /** Onto the tick on the passive side: a buy rounds down, a sell up. */
 export function toTick(spec: MarketSpec, side: Side, raw: number): Px {
   const rough = side === 'buy' ? Math.floor(raw) : Math.ceil(raw)
-  const tick = priceTick(spec, rough as Px)
-  return (side === 'buy' ? Math.floor(rough / tick) * tick : Math.ceil(rough / tick) * tick) as Px
+  const tick = priceTick(spec, toPx(rough))
+  return toPx(side === 'buy' ? Math.floor(rough / tick) * tick : Math.ceil(rough / tick) * tick)
 }
 
 /**
@@ -56,10 +56,10 @@ export function scaleLegs(spec: MarketSpec, side: Side, range: ScaleRange, total
   if (new Set(prices).size < count)
     return { ok: false, field: 'count', message: `The range is too narrow for ${count} orders` }
   const weights = prices.map((_, index) => 1 + ((skew - 1) * index) / (count - 1))
-  const sizes = apportion(total / spec.step, weights).map((units) => (units * spec.step) as Qty)
+  const sizes = apportion(total / spec.step, weights).map((units) => toQty(units * spec.step))
   if (sizes.some((size) => size < spec.step))
     return { ok: false, field: 'size', message: `Each order needs at least ${formatQty(spec.step, spec.scale)}` }
-  return { ok: true, legs: prices.map((px, index) => ({ px, size: sizes[index] as Qty })) }
+  return { ok: true, legs: prices.map((px, index) => ({ px, size: sizes[index]! })) }
 }
 
 /** Every client id the intent sent: one per leg for a scale order. */

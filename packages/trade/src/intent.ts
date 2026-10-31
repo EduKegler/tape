@@ -1,4 +1,4 @@
-import { DecimalError, formatPx, formatQty, notional, parsePx, parseQty } from '@tape/core/fixed'
+import { DecimalError, formatPx, formatQty, notional, parsePx, parseQty, toPx, toQty } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
@@ -157,10 +157,8 @@ export function checkShare(value: string): string | undefined {
 
 /** Each whole-percent share of the size, floored to the step, with what the floors leave on the last one. */
 export function splitSize(spec: MarketSpec, size: Qty, shares: readonly number[]): readonly Qty[] {
-  const floored = shares
-    .slice(0, -1)
-    .map((share) => (Math.floor((size * share) / (100 * spec.step)) * spec.step) as Qty)
-  return [...floored, (size - floored.reduce((sum, part) => sum + part, 0)) as Qty]
+  const floored = shares.slice(0, -1).map((share) => toQty(Math.floor((size * share) / (100 * spec.step)) * spec.step))
+  return [...floored, toQty(size - floored.reduce((sum, part) => sum + part, 0))]
 }
 
 /** A percent above 0 and below 100 with at most 2 decimals, or a price distance on the tick. */
@@ -266,7 +264,7 @@ function takeProfitsOf(
   if (total !== 100) {
     const left = total < 100 && size !== null ? Math.round((size * (100 - total)) / (100 * spec.step)) * spec.step : 0
     const missing =
-      left > 0 ? `, so ${formatQty(left as Qty, spec.scale)} ${spec.base} has no take profit` : ', not 100%'
+      left > 0 ? `, so ${formatQty(toQty(left), spec.scale)} ${spec.base} has no take profit` : ', not 100%'
     errors.takeProfits = `Sizes add up to ${total}%${missing}`
     return []
   }
@@ -275,7 +273,7 @@ function takeProfitsOf(
   sizes.forEach((part, index) => {
     if (part < spec.step) errors[takeProfitField(index)] = `Size rounds below ${formatQty(spec.step, spec.scale)}`
   })
-  return rows.map((row, index) => ({ px: parsePx(row.price, spec.scale), size: sizes[index] as Qty }))
+  return rows.map((row, index) => ({ px: parsePx(row.price, spec.scale), size: sizes[index]! }))
 }
 
 function touchPx(spec: MarketSpec, value: string): Px | null {
@@ -408,5 +406,5 @@ export function newClientId(): ClientOrderId {
 export function worstPrice(spec: MarketSpec, side: Side, far: Px, slippageBps: number): Px {
   const moved = side === 'buy' ? (far * (10_000 + slippageBps)) / 10_000 : (far * (10_000 - slippageBps)) / 10_000
   const snapped = toTick(spec, side, moved)
-  return Math.max(snapped, priceTick(spec, snapped)) as Px
+  return toPx(Math.max(snapped, priceTick(spec, snapped)))
 }
