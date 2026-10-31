@@ -79,7 +79,7 @@ const draft: IntentDraft = {
   size: '0.001',
   tif: 'gtc',
   reduceOnly: false,
-  takeProfit: '',
+  takeProfits: [],
   stopLoss: '',
   slippage: 100 as Bps,
   bid: '',

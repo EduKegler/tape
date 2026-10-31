@@ -7,8 +7,18 @@ import { formatNotional, formatPx, formatQty, notional, parsePx, parseQty, toDis
 import type { Px, Qty } from '@tape/core/fixed'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
-import { buildIntent, buildScale, checkCount, checkPrice, checkSize, checkSkew } from '@tape/trade/intent'
-import type { DraftField } from '@tape/trade/intent'
+import {
+  buildIntent,
+  buildScale,
+  checkCount,
+  checkPrice,
+  checkShare,
+  checkSize,
+  checkSkew,
+  splitSize,
+} from '@tape/trade/intent'
+import type { DraftField, TakeProfitDraft } from '@tape/trade/intent'
+import { apportion } from '@tape/trade/scale-order'
 import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
@@ -27,17 +37,27 @@ import { proposedPrice, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market' | 'scale'
-const FIELD_LABEL: Record<DraftField, string> = {
+const FIELD_LABEL = {
   price: 'Price',
   size: 'Size',
   tif: 'Time in force',
-  takeProfit: 'Take profit',
+  takeProfits: 'Take profits',
   stopLoss: 'Stop loss',
   start: 'Start price',
   end: 'End price',
   count: 'Orders',
   skew: 'Size skew',
-}
+} as const
+const fieldLabel = (field: DraftField, takeProfits: number) =>
+  field in FIELD_LABEL
+    ? FIELD_LABEL[field as keyof typeof FIELD_LABEL]
+    : takeProfitLabel(Number(field.slice(10)) - 1, takeProfits)
+const takeProfitLabel = (index: number, count: number) => (count > 1 ? `Take profit ${index + 1}` : 'Take profit')
+const evenShares = (count: number) =>
+  apportion(
+    100,
+    Array.from({ length: count }, () => 1),
+  ).map(String)
 const TIF_LABEL: Record<Tif, string> = {
   gtc: 'Good til canceled',
   ioc: 'Immediate or cancel',
@@ -96,7 +116,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       size: '',
       tif: 'gtc' as Tif,
       reduceOnly: false,
-      takeProfit: '',
+      takeProfits: [{ price: '', share: '100' }] as TakeProfitDraft[],
       stopLoss: '',
       start: '',
       end: '',
@@ -105,17 +125,28 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
     },
     onSubmit: ({ value }) => {
       if (!ref || !canSend || sending) return
-      const triggers = protect && kind !== 'scale' ? {} : { takeProfit: '', stopLoss: '' }
+      const exits = protect && kind !== 'scale'
+      const rows = value.takeProfits
+      const takeProfits = !exits || (rows.length === 1 && !rows[0]?.price) ? [] : rows
       const result = buildIntent(
         spec,
-        { ...value, ...triggers, side, kind, slippage: slippage as Bps, bid: touch.bid, ask: touch.ask },
-        caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: false, scaleOrders: 0 },
+        {
+          ...value,
+          takeProfits,
+          stopLoss: exits ? value.stopLoss : '',
+          side,
+          kind,
+          slippage: slippage as Bps,
+          bid: touch.bid,
+          ask: touch.ask,
+        },
+        caps ?? { tif: ['gtc', 'ioc', 'post-only'], triggers: null, leverage: false, scaleOrders: 0 },
       )
       if (!result.ok) {
         setBuilt({
           kind: 'invalid-order',
           detail: Object.entries(result.errors)
-            .map(([k, v]) => `${FIELD_LABEL[k as DraftField]}: ${v}`)
+            .map(([k, v]) => `${fieldLabel(k as DraftField, rows.length)}: ${v}`)
             .join('; '),
         })
         return
@@ -292,26 +323,102 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         </label>
       )}
       {caps?.triggers && kind !== 'scale' && protect && (
-        <div className="grid grid-cols-2 gap-2">
-          {(['takeProfit', 'stopLoss'] as const).map((name) => (
-            <form.Field
-              key={name}
-              name={name}
-              validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
-            >
-              {(field) => (
-                <Input
-                  label={name === 'takeProfit' ? 'Take profit' : 'Stop loss'}
-                  name={field.name}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={field.handleChange}
-                  error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
-                  hint={null}
-                />
-              )}
-            </form.Field>
-          ))}
+        <div className="flex flex-col gap-2">
+          <form.Field name="takeProfits" mode="array">
+            {(rows) => {
+              const count = rows.state.value.length
+              const reshare = (next: number) =>
+                evenShares(next).forEach((share, i) => form.setFieldValue(`takeProfits[${i}].share`, share))
+              return (
+                <>
+                  {rows.state.value.map((_, i) => (
+                    // eslint-disable-next-line @eslint-react/no-array-index-key -- TanStack Form names array fields by index, so a row is its index
+                    <div key={i} className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <form.Field
+                          name={`takeProfits[${i}].price`}
+                          validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
+                        >
+                          {(field) => (
+                            <Input
+                              label={takeProfitLabel(i, count)}
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={field.handleChange}
+                              error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                              hint={null}
+                            />
+                          )}
+                        </form.Field>
+                      </div>
+                      {count > 1 && (
+                        <div className="w-24">
+                          <form.Field
+                            name={`takeProfits[${i}].share`}
+                            validators={{ onChange: ({ value }) => checkShare(value) }}
+                          >
+                            {(field) => (
+                              <Input
+                                label={`Size ${i + 1} (%)`}
+                                name={field.name}
+                                value={field.state.value}
+                                onBlur={field.handleBlur}
+                                onChange={field.handleChange}
+                                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                                hint={null}
+                              />
+                            )}
+                          </form.Field>
+                        </div>
+                      )}
+                      {count > 1 && (
+                        <Button
+                          look="danger"
+                          className="pb-1.5"
+                          aria-label={`Remove take profit ${i + 1}`}
+                          onClick={() => {
+                            rows.removeValue(i)
+                            reshare(count - 1)
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {count < (caps.triggers?.takeProfits ?? 0) && (
+                    <Button
+                      look="quiet-sm"
+                      className="self-start"
+                      onClick={() => {
+                        rows.pushValue({ price: '', share: '' })
+                        reshare(count + 1)
+                      }}
+                    >
+                      Add take profit
+                    </Button>
+                  )}
+                </>
+              )
+            }}
+          </form.Field>
+          <form.Field
+            name="stopLoss"
+            validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
+          >
+            {(field) => (
+              <Input
+                label="Stop loss"
+                name={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                hint={null}
+              />
+            )}
+          </form.Field>
         </div>
       )}
       <form.Subscribe selector={(s) => [s.values, s.canSubmit] as const}>
@@ -335,6 +442,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
               </dl>
               {legs && <ScaleLegs spec={spec} legs={legs} />}
+              {protect && kind !== 'scale' && values.takeProfits.length > 1 && (
+                <TakeProfitSplit spec={spec} size={values.size} rows={values.takeProfits} />
+              )}
               <SubmitArea
                 session={session}
                 venue={VENUES[spec.venue].label}
@@ -381,6 +491,25 @@ function ScaleLegs({ spec, legs }: { spec: MarketSpec; legs: readonly Slice[] })
         <li key={l.px} className="flex justify-between">
           <span className="text-level3">{formatPx(l.px, spec.scale)}</span>
           <span className="text-level1">{formatQty(l.size, spec.scale)}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function TakeProfitSplit({ spec, size, rows }: { spec: MarketSpec; size: string; rows: readonly TakeProfitDraft[] }) {
+  if (checkSize(spec, size) || rows.some((r) => checkShare(r.share))) return null
+  const shares = rows.map((r) => Number(r.share))
+  const total = shares.reduce((sum, share) => sum + share, 0)
+  if (total !== 100) return <p className="text-sm text-ask">Sizes add up to {total}%, not 100%</p>
+  const sizes = splitSize(spec, parseQty(size, spec.scale), shares)
+  return (
+    <ol aria-label="Take profit sizes" className="num flex flex-col gap-0.5 text-sm">
+      {rows.map((r, i) => (
+        // eslint-disable-next-line @eslint-react/no-array-index-key -- TanStack Form names array fields by index, so a row is its index
+        <li key={i} className="flex justify-between">
+          <span className="text-level3">{r.price || `Take profit ${i + 1}`}</span>
+          <span className="text-level1">{formatQty(sizes[i]!, spec.scale)}</span>
         </li>
       ))}
     </ol>

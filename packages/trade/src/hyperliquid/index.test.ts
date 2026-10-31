@@ -5,6 +5,7 @@ import type { Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { buildIntent, closeIntent } from '../intent'
+import type { TakeProfitDraft } from '../intent'
 import { TradeFailure } from '../types'
 import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext } from '../types'
 import { hyperliquid } from '.'
@@ -38,7 +39,7 @@ const draft = {
   size: '0.001',
   tif: 'gtc',
   reduceOnly: false,
-  takeProfit: '',
+  takeProfits: [] as readonly TakeProfitDraft[],
   stopLoss: '',
   slippage: 100 as Bps,
   bid: '79990',
@@ -118,7 +119,13 @@ describe('hyperliquid sells', () => {
     )
     await hyperliquid.execute(
       market.ctx,
-      place({ side: 'sell', kind: 'market', price: '', takeProfit: '78000', stopLoss: '82000' }),
+      place({
+        side: 'sell',
+        kind: 'market',
+        price: '',
+        takeProfits: [{ price: '78000', share: '100' }],
+        stopLoss: '82000',
+      }),
     )
     expect(wiresOf(market.posts()[0])).toEqual({
       grouping: 'normalTpsl',
@@ -245,7 +252,7 @@ describe('hyperliquid cancels', () => {
 })
 
 describe('hyperliquid exits', () => {
-  const bracket = { kind: 'market', price: '', takeProfit: '82000', stopLoss: '78000' }
+  const bracket = { kind: 'market', price: '', takeProfits: [{ price: '82000', share: '100' }], stopLoss: '78000' }
   const filled = { filled: { totalSz: '0.001', avgPx: '80010' } }
 
   it('keeps the order when Hyperliquid refuses its stop loss, and names the leg', async () => {

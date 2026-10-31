@@ -47,7 +47,13 @@ export type IntentFields = {
     | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
     | { readonly kind: 'market'; readonly slippage: Bps }
     | { readonly kind: 'scale'; readonly tif: Exclude<Tif, 'ioc'>; readonly legs: readonly ScaleLeg[] }
-  readonly triggers: { readonly takeProfit: Px | null; readonly stopLoss: Px | null }
+  readonly triggers: { readonly takeProfits: readonly TakeProfit[]; readonly stopLoss: Px | null }
+}
+
+/** One reduce-only trigger that closes `size` of the order at `px`. The sizes of an intent's take profits sum to its size. */
+export interface TakeProfit {
+  readonly px: Px
+  readonly size: Qty
 }
 
 /** One limit order of a scale order. The first leg carries the intent's clientId. */
@@ -128,7 +134,8 @@ export interface SetupStep {
 
 export interface Capabilities {
   readonly tif: readonly Tif[]
-  readonly triggers: boolean
+  /** Null where the venue takes no take profit or stop loss with an order. */
+  readonly triggers: { readonly takeProfits: number } | null
   readonly leverage: boolean
   /** The most legs one scale order sends, all in one request. 0 where the venue takes no such request. */
   readonly scaleOrders: number

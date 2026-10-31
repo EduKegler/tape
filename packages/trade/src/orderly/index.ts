@@ -529,7 +529,7 @@ export const orderly = {
   id: 'orderly',
   label: 'Orderly',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: false, leverage: true, scaleOrders: BATCH_ORDERS },
+  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: null, leverage: true, scaleOrders: BATCH_ORDERS },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {
     if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'

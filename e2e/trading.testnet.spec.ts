@@ -248,6 +248,87 @@ test('take profit and stop loss ride with the order as reduce-only market trigge
   ])
 })
 
+test('several take profits ride with the order, each closing its share of the size', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  hyperliquid.exchange = () => ({
+    json: {
+      status: 'ok',
+      response: {
+        type: 'order',
+        data: { statuses: [{ resting: { oid: 1 } }, 'waitingForFill', 'waitingForFill', 'waitingForFill'] },
+      },
+    },
+  })
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
+  await ticket.getByRole('button', { name: 'Add take profit' }).click()
+  await ticket.getByRole('button', { name: 'Add take profit' }).click()
+  for (const [n, price, share] of [
+    [1, '75000', '40'],
+    [2, '76000', '30'],
+    [3, '77000', '30'],
+  ] as const) {
+    await ticket.getByRole('textbox', { name: `Take profit ${n}`, exact: true }).fill(price)
+    await ticket.getByRole('textbox', { name: `Size ${n} (%)` }).fill(share)
+  }
+  // 40, 30 and 30 percent of 0.002 BTC.
+  await expect(ticket.getByRole('list', { name: 'Take profit sizes' }).getByRole('listitem')).toHaveText([
+    /^75000\s*0\.00080$/,
+    /^76000\s*0\.00060$/,
+    /^77000\s*0\.00060$/,
+  ])
+  await expectAccessible(page)
+
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 1')
+  // Each trigger is bounded 10% past its price: 75000, 76000 and 77000 less 10%.
+  const takeProfit = (triggerPx: string, bound: string, size: string) => ({
+    a: BTC,
+    b: false,
+    p: bound,
+    s: size,
+    r: true,
+    t: { trigger: { isMarket: true, triggerPx, tpsl: 'tp' } },
+  })
+  expect(orders(hyperliquid.sent).map((body) => body.action)).toEqual([
+    {
+      type: 'order',
+      orders: [
+        { a: BTC, b: true, p: '70000', s: '0.002', r: false, t: { limit: { tif: 'Gtc' } }, c: expect.any(String) },
+        takeProfit('75000', '67500', '0.0008'),
+        takeProfit('76000', '68400', '0.0006'),
+        takeProfit('77000', '69300', '0.0006'),
+      ],
+      grouping: 'normalTpsl',
+    },
+  ])
+})
+
+test('take profit sizes that miss the order size stop in the ticket and send nothing', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
+  await ticket.getByRole('button', { name: 'Add take profit' }).click()
+  await ticket.getByRole('textbox', { name: 'Take profit 1', exact: true }).fill('75000')
+  await ticket.getByRole('textbox', { name: 'Take profit 2', exact: true }).fill('76000')
+  await ticket.getByRole('textbox', { name: 'Size 2 (%)' }).fill('20')
+
+  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  // 50 and 20 percent leave 30 percent of 0.002 BTC.
+  await expect(ticket.getByRole('alert')).toContainText(
+    'Take profits: Sizes add up to 70%, so 0.00060 BTC has no take profit',
+  )
+  expect(orders(hyperliquid.sent)).toEqual([])
+})
+
 test('a take profit under the ask stops in the ticket and sends nothing', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, ticket } = await enable(page)
   await page.getByRole('radio', { name: 'Market', exact: true }).click()

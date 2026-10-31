@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import fc from 'fast-check'
 import { bech32 } from '@scure/base'
 import { hashTypedData, recoverAddress, ripemd160, sha256 } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
@@ -11,7 +12,8 @@ import { classifyMessage as dydxMessage } from './dydx'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
-import { buildIntent, closeIntent } from './intent'
+import { buildIntent, closeIntent, splitSize } from './intent'
+import type { TakeProfitDraft } from './intent'
 import type { Bps, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
 import { domainTypes, walletJson } from './wallet'
@@ -36,7 +38,7 @@ const draft = {
   size: '0.001',
   tif: 'gtc',
   reduceOnly: false,
-  takeProfit: '',
+  takeProfits: [] as readonly TakeProfitDraft[],
   stopLoss: '',
   slippage: 100 as Bps,
   bid: '',
@@ -46,6 +48,8 @@ const draft = {
   count: '',
   skew: '1',
 } as const
+
+const tp = (price: string, share = '100'): TakeProfitDraft => ({ price, share })
 
 const config: TradeConfig = {
   mainnet: false,
@@ -73,23 +77,101 @@ describe('order intent', () => {
   it('builds a limit intent and refuses take profit on the wrong side', () => {
     const ok = buildIntent(btc, draft, caps)
     expect(ok.ok && ok.intent.order).toEqual({ kind: 'limit', px: 800_000, tif: 'gtc' })
-    const bad = buildIntent(btc, { ...draft, takeProfit: '79000' }, caps)
-    expect(!bad.ok && bad.errors.takeProfit).toBe('Must be above the price')
+    const bad = buildIntent(btc, { ...draft, takeProfits: [tp('79000')] }, caps)
+    expect(!bad.ok && bad.errors.takeProfit1).toBe('Must be above the price')
   })
 
   it('checks take profit and stop loss on a market order against the touch it will take', () => {
     const market = { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010' } as const
-    const ok = buildIntent(btc, { ...market, takeProfit: '82000', stopLoss: '78000' }, caps)
-    expect(ok.ok && ok.intent.triggers).toEqual({ takeProfit: 820_000, stopLoss: 780_000 })
-    const wrong = buildIntent(btc, { ...market, takeProfit: '80000', stopLoss: '79995' }, caps)
+    const ok = buildIntent(btc, { ...market, takeProfits: [tp('82000')], stopLoss: '78000' }, caps)
+    expect(ok.ok && ok.intent.triggers).toEqual({ takeProfits: [{ px: 820_000, size: 100 }], stopLoss: 780_000 })
+    const wrong = buildIntent(btc, { ...market, takeProfits: [tp('80000')], stopLoss: '79995' }, caps)
     expect(!wrong.ok && wrong.errors).toEqual({
-      takeProfit: 'Must be above the ask',
+      takeProfit1: 'Must be above the ask',
       stopLoss: 'Must be below the bid',
     })
-    const sell = buildIntent(btc, { ...market, side: 'sell', takeProfit: '80000', stopLoss: '80005' }, caps)
-    expect(!sell.ok && sell.errors).toEqual({ takeProfit: 'Must be below the bid', stopLoss: 'Must be above the ask' })
-    const blind = buildIntent(btc, { ...market, bid: '', ask: '', takeProfit: '82000' }, caps)
-    expect(!blind.ok && blind.errors.takeProfit).toBe('No price on the book yet')
+    const sell = buildIntent(btc, { ...market, side: 'sell', takeProfits: [tp('80000')], stopLoss: '80005' }, caps)
+    expect(!sell.ok && sell.errors).toEqual({ takeProfit1: 'Must be below the bid', stopLoss: 'Must be above the ask' })
+    const blind = buildIntent(btc, { ...market, bid: '', ask: '', takeProfits: [tp('82000')] }, caps)
+    expect(!blind.ok && blind.errors.takeProfit1).toBe('No price on the book yet')
+  })
+
+  it('splits the size across take profits by whole percent, floored to the step with the rest on the last', () => {
+    // 0.001 BTC is 100 steps of 0.00001, so 40, 30 and 30 percent are 40, 30 and 30 steps.
+    const three = [tp('82000', '40'), tp('84000', '30'), tp('86000', '30')]
+    const built = buildIntent(btc, { ...draft, takeProfits: three }, caps)
+    expect(built.ok && built.intent.triggers.takeProfits).toEqual([
+      { px: 820_000, size: 40 },
+      { px: 840_000, size: 30 },
+      { px: 860_000, size: 30 },
+    ])
+    // 0.00007 BTC is 7 steps: 40% is 2.8 and 30% is 2.1, floored to 2 and 2, so the last takes 3.
+    expect(splitSize(btc, 7 as Qty, [40, 30, 30])).toEqual([2, 2, 3])
+    expect(splitSize({ ...btc, step: 10 as Qty }, 70 as Qty, [50, 50])).toEqual([30, 40])
+  })
+
+  it('keeps every split on the step and sums it to the size', () => {
+    const split = fc
+      .record({ step: fc.integer({ min: 1, max: 1000 }), steps: fc.integer({ min: 1, max: 1_000_000 }) })
+      .chain(({ step, steps }) =>
+        fc
+          .array(fc.integer({ min: 1, max: 97 }), { minLength: 1, maxLength: 3 })
+          .filter((head) => head.reduce((a, b) => a + b, 0) < 100)
+          .map((head) => ({ step, steps, shares: [...head, 100 - head.reduce((a, b) => a + b, 0)] })),
+      )
+    fc.assert(
+      fc.property(split, ({ step, steps, shares }) => {
+        const size = step * steps
+        const parts = splitSize({ ...btc, step: step as Qty }, size as Qty, shares)
+        expect(parts.reduce((a, b) => a + b, 0)).toBe(size)
+        for (const part of parts) expect(part % step).toBe(0)
+        parts.slice(0, -1).forEach((part, i) => {
+          const exact = (size * shares[i]!) / 100
+          expect(part).toBeLessThanOrEqual(exact)
+          expect(part).toBeGreaterThan(exact - step)
+        })
+      }),
+    )
+  })
+
+  it('refuses take profit sizes that miss the order size and names the size left over', () => {
+    const errors = (takeProfits: readonly TakeProfitDraft[], size = '0.001') => {
+      const built = buildIntent(btc, { ...draft, size, takeProfits }, caps)
+      return built.ok ? {} : built.errors
+    }
+    expect(errors([tp('82000', '40'), tp('84000', '30'), tp('86000', '20')])).toEqual({
+      takeProfits: 'Sizes add up to 90%, so 0.00010 BTC has no take profit',
+    })
+    expect(errors([tp('82000', '60'), tp('84000', '60')])).toEqual({ takeProfits: 'Sizes add up to 120%, not 100%' })
+    expect(errors([tp('82000', '0'), tp('84000', '100')])).toEqual({ takeProfit1: 'From 1 to 100%' })
+    expect(errors([tp('82000', '50'), tp('84000', '50')], '0.00001')).toEqual({
+      takeProfit1: 'Size rounds below 0.00001',
+    })
+  })
+
+  it('names the take profit on the wrong side of the touch', () => {
+    const market = { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010' } as const
+    const takeProfits = [tp('82000', '50'), tp('80000', '25'), tp('83000', '25')]
+    const built = buildIntent(btc, { ...market, takeProfits }, caps)
+    expect(!built.ok && built.errors).toEqual({ takeProfit2: 'Must be above the ask' })
+  })
+
+  it('takes up to four take profits on Hyperliquid and none on Orderly or dYdX', () => {
+    const errors = (takeProfits: readonly TakeProfitDraft[], c = caps) => {
+      const built = buildIntent(btc, { ...draft, takeProfits }, c)
+      return built.ok ? {} : built.errors
+    }
+    const quarter = (price: string) => tp(price, '25')
+    expect(errors(['81000', '82000', '83000', '84000'].map(quarter))).toEqual({})
+    expect(errors(['81000', '82000', '83000', '84000', '85000'].map((p) => tp(p, '20')))).toEqual({
+      takeProfits: 'At most 4 on this venue',
+    })
+    for (const other of [TRADING.orderly, TRADING.dydx]) {
+      expect(errors([tp('82000')], other.capabilities)).toEqual({ takeProfits: 'Not offered on this venue' })
+      expect(errors([tp('82000', '50'), tp('84000', '50')], other.capabilities)).toEqual({
+        takeProfits: 'Not offered on this venue',
+      })
+    }
   })
 
   it('keeps the stop of a limit that crosses the book below the bid it will fill near', () => {
@@ -156,9 +238,9 @@ describe('order intent', () => {
       skew: 'Between 0.1 and 10',
     })
     expect(errors({ ...scale, end: '79999' })).toEqual({ count: 'The range is too narrow for 5 orders' })
-    expect(errors({ ...scale, tif: 'ioc', takeProfit: '90000' })).toEqual({
+    expect(errors({ ...scale, tif: 'ioc', takeProfits: [tp('90000')] })).toEqual({
       tif: 'Not with a scale order',
-      takeProfit: 'Not with a scale order',
+      takeProfits: 'Not with a scale order',
     })
     expect(errors({ ...scale, size: '0.0005' }, caps, { ...btc, minNotional: 100 as Px })).toEqual({
       size: 'Each order must be worth at least 10.0 USDC',
@@ -353,7 +435,15 @@ describe('hyperliquid module', () => {
           }
     const built = buildIntent(
       btc,
-      { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010', takeProfit: '82000', stopLoss: '78000' },
+      {
+        ...draft,
+        kind: 'market',
+        price: '',
+        bid: '79990',
+        ask: '80010',
+        takeProfits: [tp('82000')],
+        stopLoss: '78000',
+      },
       caps,
     )
     if (!built.ok) throw new Error('intent')
@@ -386,6 +476,74 @@ describe('hyperliquid module', () => {
       detail: 'Take profit: Must be above the ask on this network',
     })
     expect(moved.sent.some((s) => s.url.endsWith('/exchange'))).toBe(false)
+  })
+
+  it('sends each take profit as its own reduce-only tp child of the size it closes, and names the one refused', async () => {
+    const { fetch, sent } = venue((url, body) =>
+      url.endsWith('/info')
+        ? body.type === 'meta'
+          ? testnetMeta
+          : { levels: [[{ px: '79990' }], [{ px: '80010' }]] }
+        : {
+            status: 'ok',
+            response: {
+              type: 'order',
+              data: {
+                statuses: [
+                  { resting: { oid: 7 } },
+                  'waitingForFill',
+                  { error: 'Order must have minimum value of $10.' },
+                  'waitingForFill',
+                  'waitingForFill',
+                ],
+              },
+            },
+          },
+    )
+    const built = buildIntent(
+      btc,
+      {
+        ...draft,
+        bid: '79990',
+        ask: '80010',
+        takeProfits: [tp('82000', '40'), tp('84000', '30'), tp('86000', '30')],
+        stopLoss: '78000',
+      },
+      caps,
+    )
+    if (!built.ok) throw new Error(JSON.stringify(built.errors))
+    const ctx: VenueContext = {
+      ref: { venue: 'hyperliquid', network: 'testnet', owner },
+      config,
+      keys: memorySlot({ status: 'draft', public: { agent }, secret: agentKey }),
+      fetch,
+    }
+    expect(await TRADING.hyperliquid.execute(ctx, { kind: 'place', intent: built.intent })).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Resting as order 7. TP 2 not placed: Order must have minimum value of $10.',
+    })
+    const action = sent.find((x) => x.url.endsWith('/exchange'))!.body.action
+    // Each trigger is bounded 10% past its price, as Hyperliquid's own UI does: 82000 less 10% is 73800.
+    const exit = (tpsl: 'tp' | 'sl', triggerPx: string, p: string, size: string) => ({
+      a: 3,
+      b: false,
+      p,
+      s: size,
+      r: true,
+      t: { trigger: { isMarket: true, triggerPx, tpsl } },
+    })
+    expect(action).toEqual({
+      type: 'order',
+      orders: [
+        { a: 3, b: true, p: '80000', s: '0.001', r: false, t: { limit: { tif: 'Gtc' } }, c: built.intent.clientId },
+        exit('tp', '82000', '73800', '0.0004'),
+        exit('tp', '84000', '75600', '0.0003'),
+        exit('tp', '86000', '77400', '0.0003'),
+        exit('sl', '78000', '70200', '0.001'),
+      ],
+      grouping: 'normalTpsl',
+    })
   })
 
   it('sends every scale leg in one action and reports the legs Hyperliquid refused', async () => {

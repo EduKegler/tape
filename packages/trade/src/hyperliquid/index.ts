@@ -5,7 +5,7 @@ import { parsePx, wireDecimal } from '@tape/core/fixed'
 import type { Decimals, Px } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
-import { checkExits, checkPrice, checkSize, worstPrice } from '../intent'
+import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
 import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
@@ -46,6 +46,7 @@ const AGENT_NAME = 'tape'
 const TRIGGER_SLIPPAGE_BPS = 1000
 const TIF: Record<'gtc' | 'ioc' | 'post-only', Tif> = { gtc: 'Gtc', ioc: 'Ioc', 'post-only': 'Alo' }
 const SCALE_ORDERS = 20
+const TAKE_PROFITS = 4
 
 interface Asset {
   readonly index: number
@@ -146,9 +147,9 @@ async function placeWires(
   const sizeIssue = checkSize(a.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   const isBuy = intent.side === 'buy'
-  const { takeProfit, stopLoss } = intent.triggers
+  const { takeProfits, stopLoss } = intent.triggers
   if (intent.order.kind === 'scale') {
-    if (takeProfit !== null || stopLoss !== null)
+    if (takeProfits.length > 0 || stopLoss !== null)
       fail({ kind: 'invalid-order', detail: 'A scale order carries no take profit or stop loss' })
     const tif = TIF[intent.order.tif]
     const wires = intent.order.legs.map((leg, i) => {
@@ -160,21 +161,31 @@ async function placeWires(
     })
     return { wires, grouping: 'na' }
   }
+  const named = takeProfits.length > 1 ? (i: number) => `Take profit ${i + 1}` : () => 'Take profit'
   const exits = {
-    takeProfit: takeProfit === null ? null : parsePx(recheckPx(a, intent, takeProfit, 'Take profit'), a.spec.scale),
+    takeProfits: takeProfits.map((tp, i) => {
+      const tpSize = wireDecimal(tp.size, intent.spec.scale.qty)
+      const issue = checkSize(a.spec, tpSize)
+      if (issue) fail({ kind: 'invalid-order', detail: `${named(i)} size ${tpSize}: ${issue} on this network` })
+      return { px: parsePx(recheckPx(a, intent, tp.px, named(i)), a.spec.scale), size: tpSize }
+    }),
     stopLoss: stopLoss === null ? null : parsePx(recheckPx(a, intent, stopLoss, 'Stop loss'), a.spec.scale),
   }
   const order = intent.order
   const limit = order.kind === 'limit' ? { px: recheckPx(a, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
-  const book = limit === null || exits.takeProfit !== null || exits.stopLoss !== null ? await touch(ctx, a) : null
+  const book = limit === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, a) : null
   if (book) {
-    const issues = checkExits(intent.side, { px: limit && parsePx(limit.px, a.spec.scale), ...book }, exits)
-    const first = Object.entries(issues)[0]
-    if (first)
-      fail({
-        kind: 'invalid-order',
-        detail: `${first[0] === 'takeProfit' ? 'Take profit' : 'Stop loss'}: ${first[1]} on this network`,
-      })
+    const issues = checkExits(
+      intent.side,
+      { px: limit && parsePx(limit.px, a.spec.scale), ...book },
+      { takeProfits: exits.takeProfits.map((tp) => tp.px), stopLoss: exits.stopLoss },
+    )
+    const first =
+      exits.takeProfits
+        .map((_, i) => issues[takeProfitField(i)] && `${named(i)}: ${issues[takeProfitField(i)]}`)
+        .find(Boolean)
+      ?? (issues.stopLoss && `Stop loss: ${issues.stopLoss}`)
+    if (first) fail({ kind: 'invalid-order', detail: `${first} on this network` })
   }
   const far = (isBuy ? book?.ask : book?.bid) ?? null
   const sent =
@@ -189,15 +200,13 @@ async function placeWires(
     orderWire(a.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
   ]
   const closing = isBuy ? 'sell' : 'buy'
-  for (const [tpsl, px] of [
-    ['tp', exits.takeProfit],
-    ['sl', exits.stopLoss],
-  ] as const) {
-    if (px === null) continue
+  const trigger = (tpsl: 'tp' | 'sl', px: Px, sz: string) => {
     const triggerPx = wireDecimal(px, a.spec.scale.px)
     const bound = wireDecimal(worstPrice(a.spec, closing, px, TRIGGER_SLIPPAGE_BPS), a.spec.scale.px)
-    wires.push(orderWire(a.index, !isBuy, bound, size, true, { trigger: { isMarket: true, triggerPx, tpsl } }))
+    return orderWire(a.index, !isBuy, bound, sz, true, { trigger: { isMarket: true, triggerPx, tpsl } })
   }
+  for (const tp of exits.takeProfits) wires.push(trigger('tp', tp.px, tp.size))
+  if (exits.stopLoss !== null) wires.push(trigger('sl', exits.stopLoss, size))
   return { wires, grouping: wires.length > 1 ? 'normalTpsl' : 'na' }
 }
 
@@ -242,7 +251,12 @@ async function exchange(ctx: VenueContext, action: unknown): Promise<Statuses> {
 }
 
 const GONE = /never placed|already canceled|filled/i
-const legName = (w: OrderWire | undefined) => (w && 'trigger' in w.t ? w.t.trigger.tpsl.toUpperCase() : 'Leg')
+function legNames(wires: readonly OrderWire[]): string[] {
+  const tpsl = wires.map((w) => ('trigger' in w.t ? w.t.trigger.tpsl : null))
+  const tps = tpsl.filter((t) => t === 'tp').length
+  let n = 0
+  return tpsl.map((t) => (t === 'tp' ? (tps > 1 ? `TP ${++n}` : 'TP') : t === 'sl' ? 'SL' : 'Leg'))
+}
 
 type OrderStatus = z.infer<typeof Status>
 const errorOf = (s: OrderStatus | undefined) => (typeof s === 'object' ? s.error : undefined)
@@ -252,9 +266,10 @@ function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatu
   const error = errorOf(first)
   if (error) fail(classifyText(error))
   // The order stands even when a TP/SL leg is refused, so the refusal rides in the detail.
+  const names = legNames(wires)
   const refused = legs.flatMap((s, i) => {
     const legError = errorOf(s)
-    return legError ? [`${legName(wires[i + 1])} not placed: ${legError}`] : []
+    return legError ? [`${names[i + 1]} not placed: ${legError}`] : []
   })
   const note = refused.length > 0 ? `. ${refused.join('. ')}` : ''
   if (typeof first === 'object' && first.filled)
@@ -641,7 +656,12 @@ export const hyperliquid = {
   id: 'hyperliquid',
   label: 'Hyperliquid',
   secrets: 'device',
-  capabilities: { tif: ['gtc', 'ioc', 'post-only'], triggers: true, leverage: true, scaleOrders: SCALE_ORDERS },
+  capabilities: {
+    tif: ['gtc', 'ioc', 'post-only'],
+    triggers: { takeProfits: TAKE_PROFITS },
+    leverage: true,
+    scaleOrders: SCALE_ORDERS,
+  },
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
   steps,
