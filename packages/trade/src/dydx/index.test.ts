@@ -205,6 +205,20 @@ describe('dydx broadcast', () => {
     }
   })
 
+  it('stops waiting on a broadcast after 20 s as an unknown outcome, and lets the next long-term order sign', async () => {
+    vi.useFakeTimers()
+    try {
+      chain.placeOrder.mockImplementationOnce(() => new Promise(() => {}))
+      const hung = failure(dydx.execute(ctx, place))
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(await hung).toEqual({ kind: 'unknown-outcome', detail: 'No reply from the dYdX chain after 20 s' })
+      chain.reply = { height: 1, hash: 'A1B2C3', code: 0, rawLog: '' }
+      expect(await dydx.execute(ctx, place)).toEqual({ kind: 'placed', status: 'resting', detail: 'Broadcast A1B2C3' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('calls a cancel the client throws for an order already removed done, and a thrown timeout unknown', async () => {
     // ErrStatefulOrderCancellationFailedForAlreadyRemovedOrder, code 3010 in x/clob/types/errors.go of dydxprotocol/v4-chain.
     chain.reply = new Error('Stateful order cancellation failed because the order was already removed from state')

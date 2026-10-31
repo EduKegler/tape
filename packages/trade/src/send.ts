@@ -4,6 +4,8 @@ import type { TradeError, TradeVenueId } from './types'
 
 export type Classify = (status: number, body: unknown, text: string) => TradeError | null
 
+const REPLY_TIMEOUT_MS = 10_000
+
 export async function send<T>(
   venue: TradeVenueId,
   fetch: typeof globalThis.fetch,
@@ -13,7 +15,7 @@ export async function send<T>(
 ): Promise<T> {
   let response: Response
   try {
-    response = await fetch(url, init)
+    response = await fetch(url, { ...init, signal: AbortSignal.timeout(REPLY_TIMEOUT_MS) })
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     throw new TradeFailure(venue, init.mutates ? { kind: 'unknown-outcome', detail } : { kind: 'unreachable', detail })

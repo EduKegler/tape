@@ -24,6 +24,7 @@ import type {
 } from '../types'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { ONBOARDING_CHAIN, deriveKey, onboarding, sdk, validatorOf, walletOf } from './client'
+import type { Validator } from './client'
 import { LONG_TERM_SECONDS, clientIdOf, quantums, subticks } from './wire'
 import type { ClobMarket } from './wire'
 
@@ -112,11 +113,31 @@ function sequenced<T>(address: string, run: () => Promise<T>): Promise<T> {
     : run()
 }
 
+/** v4-client-js takes no AbortSignal and its cosmjs requests set no timeout, so Tape stops waiting well past the client's own 8 s commit wait. */
+const BROADCAST_TIMEOUT_MS = 20_000
+
+function withinTimeout<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new TradeFailure('dydx', {
+            kind: 'unknown-outcome',
+            detail: `No reply from the dYdX chain after ${BROADCAST_TIMEOUT_MS / 1000} s`,
+          }),
+        ),
+      BROADCAST_TIMEOUT_MS,
+    )
+  })
+  return Promise.race([work, late]).finally(() => clearTimeout(timer))
+}
+
 /** The client throws plain errors for chain refusals; a reply with a non-zero code is a refusal too. */
-async function broadcast(run: () => Promise<unknown>): Promise<string> {
+async function broadcast(network: Network, run: (client: Validator) => Promise<unknown>): Promise<string> {
   let reply: { code?: number; log?: string; hash?: Uint8Array | string } | undefined
   try {
-    reply = (await run()) as typeof reply
+    reply = (await withinTimeout(validatorOf(network).then(run))) as typeof reply
   } catch (e) {
     if (e instanceof TradeFailure) throw e
     fail(classifyMessage(e instanceof Error ? e.message : String(e)))
@@ -167,14 +188,13 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const wallet = await walletOf(mnemonicOf(ctx))
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
-  const client = await validatorOf(ctx.ref.network)
   const q = Long.fromString(quantums(parseQty(size, m.spec.scale), m.spec.scale, m).toString(), true)
   const s = Long.fromString(subticks(px, m.spec.scale, m).toString(), true)
   const builder = ctx.config.dydx.builder ?? undefined
   const clientId = clientIdOf(intent.clientId)
   const short = tif === TIF.ioc
   const hash = short
-    ? await broadcast(async () => {
+    ? await broadcast(ctx.ref.network, async (client) => {
         const height = await client.get.latestBlockHeight()
         return client.post.placeOrder(
           subaccount,
@@ -196,7 +216,7 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
         )
       })
     : await sequenced(wallet.address ?? '', () =>
-        broadcast(() =>
+        broadcast(ctx.ref.network, (client) =>
           client.post.placeOrder(
             subaccount,
             clientId,
@@ -242,9 +262,8 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
   const wallet = await walletOf(mnemonicOf(ctx))
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
-  const client = await validatorOf(ctx.ref.network)
   const isShort = Number(flags) === FLAGS.short
-  const run = async () => {
+  const run = async (client: Validator) => {
     const height = isShort ? (await client.get.latestBlockHeight()) + SHORT_BLOCK_FORWARD : undefined
     return client.post.cancelOrder(
       subaccount,
@@ -256,7 +275,8 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
     )
   }
   try {
-    await (isShort ? broadcast(run) : sequenced(wallet.address ?? '', () => broadcast(run)))
+    const network = ctx.ref.network
+    await (isShort ? broadcast(network, run) : sequenced(wallet.address ?? '', () => broadcast(network, run)))
   } catch (e) {
     if (!(
       e instanceof TradeFailure

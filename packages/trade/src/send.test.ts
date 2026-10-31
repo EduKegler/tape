@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { post, send } from './send'
 import type { Classify } from './send'
 import type { TradeError } from './types'
@@ -30,6 +30,26 @@ describe('send', () => {
     expect(
       await failure(replying(500, '{"success":false}'), true, () => ({ kind: 'rejected', detail: 'refused' })),
     ).toEqual({ kind: 'unknown-outcome', detail: '500 {"success":false}' })
+  })
+
+  it('stops waiting after 10 s, calling a write an unknown outcome and a read unreachable', async () => {
+    // fetch rejects with the signal's reason once it aborts, as the Fetch standard says.
+    const hung = ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason as Error))
+      })) as typeof globalThis.fetch
+    for (const [mutates, kind] of [
+      [true, 'unknown-outcome'],
+      [false, 'unreachable'],
+    ] as const) {
+      const clock = new AbortController()
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(clock.signal)
+      const result = failure(hung, mutates)
+      expect(timeout).toHaveBeenCalledWith(10_000)
+      clock.abort(new DOMException('signal timed out', 'TimeoutError'))
+      expect(await result).toEqual({ kind, detail: 'signal timed out' })
+      timeout.mockRestore()
+    }
   })
 
   it('reads a status the venue leaves unclassified as rate limited, unreachable or rejected', async () => {
