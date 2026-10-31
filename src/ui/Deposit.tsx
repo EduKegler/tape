@@ -325,7 +325,7 @@ function Issues({
         <li
           key={issue.kind}
           data-deposit-issue={issue.kind}
-          className={`rounded-sm border p-2 ${blocksDeposit(issue) ? 'border-ask/40 text-ask' : 'border-rule text-level2'}`}
+          className={`border-l-2 pl-2 ${blocksDeposit(issue) ? 'border-warn text-level1' : 'border-level3 text-level2'}`}
         >
           <span role={blocksDeposit(issue) ? 'alert' : 'status'}>{issueText(issue, route, messenger)}</span>
         </li>
@@ -337,8 +337,8 @@ function Issues({
 function SendError({ error }: { error: Error }) {
   const failure = sendFailure(error)
   return (
-    <div role="alert" data-deposit-error={failure.kind} className="rounded-sm border border-ask/40 p-2 text-level2">
-      <p className="text-ask">
+    <div role="alert" data-deposit-error={failure.kind} className="border-l-2 border-warn pl-2 text-level2">
+      <p className="text-level1">
         {failure.approved
           ? `${failure.kind === 'wallet-rejected' ? 'You declined the deposit in the wallet' : 'The deposit was not sent'}. The approval went through, so the next try asks for the deposit only.`
           : failure.kind === 'wallet-rejected'
@@ -398,13 +398,13 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
       <p
         role={failed || status.stage === 'unresolved' ? 'alert' : 'status'}
-        className={status.stage === 'credited' ? 'text-bid' : failed ? 'text-ask' : 'text-level1'}
+        className={failed ? 'border-l-2 border-warn pl-2 text-level1' : 'text-level1'}
       >
         {stageText(status, chain, venue.destination)}
       </p>
       {status.stage === 'unresolved' && <CheckManually check={status.check} hash={sentHash(record)} />}
       {late && route && !ended && (
-        <p role="alert" data-deposit-late className="rounded-sm border border-ask/40 p-2 text-level2">
+        <p role="alert" data-deposit-late className="border-l-2 border-warn pl-2 text-level2">
           Not credited after {minutes(route.eta.worst)} min, longer than this route takes.{' '}
           {status.stage === 'confirming'
             ? `${chain} has not confirmed the transaction yet. Check it in the explorer before sending again.`
@@ -425,7 +425,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
 
 function CheckManually({ check, hash }: { check: { label: string; url: string }; hash: string }) {
   return (
-    <div className="rounded-sm border border-ask/40 p-2 text-level2">
+    <div className="border-l-2 border-warn pl-2 text-level2">
       <p>
         Open the{' '}
         <a href={check.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
