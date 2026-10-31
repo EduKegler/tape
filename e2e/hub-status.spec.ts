@@ -17,8 +17,12 @@ const send = (page: Page, command: Command) =>
     { control: CONTROL, message: command },
   )
 
-async function openTab(context: BrowserContext, path: string) {
+const swallowPageHide = () =>
+  window.addEventListener('pagehide', (event) => event.stopImmediatePropagation(), { capture: true })
+
+async function openTab(context: BrowserContext, path: string, { pagehide = true } = {}) {
   const tab = await context.newPage()
+  if (!pagehide) await tab.addInitScript(swallowPageHide)
   await tab.clock.install({ time: RECORDED_AT })
   await openMarket(tab, path)
   return tab
@@ -64,13 +68,14 @@ test('closing a tab leaves the other one counted alone and still fed', async ({ 
   await expectBookRecovers(page)
 })
 
-test('a crashed tab leaves the other one counted alone and still fed', async ({ page, context }) => {
+test('a tab that dies without its pagehide leaves the other one counted alone and still fed', async ({
+  page,
+  context,
+}) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  const second = await openTab(context, '/hyperliquid/BTC')
+  const second = await openTab(context, '/hyperliquid/BTC', { pagehide: false })
   await expect(footer(page).getByText('Tabs 2', { exact: true })).toBeVisible()
-  const crashed = new Promise((resolve) => second.once('crash', resolve))
-  void (await context.newCDPSession(second)).send('Page.crash').catch(() => undefined)
-  await crashed
+  await second.close()
   await expect(footer(page).getByText('Tabs 1', { exact: true })).toBeVisible()
   await expectBookRecovers(page)
 })
