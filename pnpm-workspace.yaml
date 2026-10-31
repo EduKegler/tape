@@ -10,3 +10,6 @@ allowBuilds:
 overrides:
   # The WalletConnect QR modal. Tape draws its own QR, see src/wallet/no-appkit.ts.
   '@reown/appkit': '-'
+
+# npm lets an author unpublish a version during its first 72 hours.
+minimumReleaseAge: 4320
