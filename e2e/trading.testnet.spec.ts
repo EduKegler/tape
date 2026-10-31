@@ -275,7 +275,6 @@ test('several take profits ride with the order, each closing its share of the si
     await ticket.getByRole('textbox', { name: `Take profit ${n}`, exact: true }).fill(price)
     await ticket.getByRole('textbox', { name: `Size ${n} (%)` }).fill(share)
   }
-  // 40, 30 and 30 percent of 0.002 BTC.
   await expect(ticket.getByRole('list', { name: 'Take profit sizes' }).getByRole('listitem')).toHaveText([
     /^75000\s*0\.00080$/,
     /^76000\s*0\.00060$/,
@@ -285,7 +284,6 @@ test('several take profits ride with the order, each closing its share of the si
 
   await ticket.getByRole('button', { name: 'Buy BTC' }).click()
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 1')
-  // Each trigger is bounded 10% past its price: 75000, 76000 and 77000 less 10%.
   const takeProfit = (triggerPx: string, bound: string, size: string) => ({
     a: BTC,
     b: false,
@@ -322,7 +320,6 @@ test('take profit sizes that miss the order size stop in the ticket and send not
   await ticket.getByRole('textbox', { name: 'Size 2 (%)' }).fill('20')
 
   await ticket.getByRole('button', { name: 'Buy BTC' }).click()
-  // 50 and 20 percent leave 30 percent of 0.002 BTC.
   await expect(ticket.getByRole('alert')).toContainText(
     'Take profits: Sizes add up to 70%, so 0.00060 BTC has no take profit',
   )

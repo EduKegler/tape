@@ -112,7 +112,6 @@ describe('order intent', () => {
   })
 
   it('splits the size across take profits by whole percent, floored to the step with the rest on the last', () => {
-    // 0.001 BTC is 100 steps of 0.00001, so 40, 30 and 30 percent are 40, 30 and 30 steps.
     const three = [tp('82000', '40'), tp('84000', '30'), tp('86000', '30')]
     const built = buildIntent(btc, { ...draft, takeProfits: three }, caps)
     expect(built.ok && built.intent.triggers.takeProfits).toEqual([
@@ -120,7 +119,6 @@ describe('order intent', () => {
       { px: 840_000, size: 30 },
       { px: 860_000, size: 30 },
     ])
-    // 0.00007 BTC is 7 steps: 40% is 2.8 and 30% is 2.1, floored to 2 and 2, so the last takes 3.
     expect(splitSize(btc, 7 as Qty, [40, 30, 30])).toEqual([2, 2, 3])
     expect(splitSize({ ...btc, step: 10 as Qty }, 70 as Qty, [50, 50])).toEqual([30, 40])
   })
@@ -584,7 +582,6 @@ describe('hyperliquid module', () => {
       detail: 'Resting as order 7. TP 2 not placed: Order must have minimum value of $10.',
     })
     const action = sent.find((x) => x.url.endsWith('/exchange'))!.body.action
-    // Each trigger is bounded 10% past its price, as Hyperliquid's own UI does: 82000 less 10% is 73800.
     const exit = (tpsl: 'tp' | 'sl', triggerPx: string, p: string, size: string) => ({
       a: 3,
       b: false,
