@@ -60,6 +60,7 @@ export async function fakeHyperliquid(page: Page, network: Network) {
     exchange: (_body: ExchangeBody): Answer | Promise<Answer> => ACCEPTED,
     orderStatus: (_cloid: string): unknown => ({ status: 'unknownOid' }),
     book: { bid: '79990', ask: '80000' },
+    account: { ...EMPTY_ACCOUNT },
   }
   const answer = (route: Route, reply: Answer) =>
     'abort' in reply
@@ -81,7 +82,7 @@ export async function fakeHyperliquid(page: Page, network: Network) {
           levels: [[{ px: venue.book.bid, sz: '1.0', n: 1 }], [{ px: venue.book.ask, sz: '1.0', n: 1 }]],
         },
       })
-    return body.type in EMPTY_ACCOUNT ? answer(route, { json: EMPTY_ACCOUNT[body.type] }) : route.fallback()
+    return body.type in venue.account ? answer(route, { json: venue.account[body.type] }) : route.fallback()
   })
   return venue
 }

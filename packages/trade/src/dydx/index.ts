@@ -376,6 +376,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         size: d(o.size),
         reduceOnly: o.reduceOnly,
         placedAt: o.updatedAt ? Date.parse(o.updatedAt) : 0,
+        cancelable: true,
       })),
       fills: fills.fills.map((f) => ({
         id: f.id,

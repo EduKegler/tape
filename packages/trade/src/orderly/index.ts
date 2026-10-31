@@ -332,6 +332,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         size: d(o.quantity),
         reduceOnly: o.reduce_only,
         placedAt: Number(o.created_time),
+        cancelable: true,
       })),
       fills: trades.rows.map((t) => ({
         id: t.id,

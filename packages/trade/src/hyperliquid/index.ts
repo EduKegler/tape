@@ -481,6 +481,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         size: d(o.sz),
         reduceOnly: o.reduceOnly,
         placedAt: Number(o.timestamp),
+        cancelable: m.has(o.coin),
       })),
       fills: fills.slice(0, 20).map((f) => ({
         id: f.tid,

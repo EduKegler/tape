@@ -578,3 +578,30 @@ test('an account switch with the ticket open sends nothing for the old account',
     ['bob', 'bob'],
   ])
 })
+
+test('a Hyperliquid spot order lists with no cancel, while a perp order keeps its cancel', async ({ page, wallet }) => {
+  const hyperliquid = await fakeHyperliquid(page, 'testnet')
+  // Info endpoint docs: frontendOpenOrders lists spot orders too, with "@" and the spot pair index as the coin.
+  const order = (coin: string, oid: number) => ({
+    coin,
+    side: 'B',
+    limitPx: '20.0',
+    sz: '1.0',
+    oid,
+    timestamp: 1793248070251,
+    orderType: 'Limit',
+    reduceOnly: false,
+    isTrigger: false,
+    triggerPx: '0.0',
+  })
+  hyperliquid.account.frontendOpenOrders = [order('BTC', 11), order('@107', 12)]
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
+  const account = panel(page, 'Account')
+  await account.getByRole('radio', { name: 'Orders 2' }).click()
+  const row = (coin: string) => account.getByRole('row').filter({ hasText: coin })
+  await expect(row('BTC').getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
+  await expect(row('@107')).toBeVisible()
+  await expect(row('@107').getByRole('button')).toHaveCount(0)
+  expect(wallet.askedFor('sign')).toEqual([])
+})

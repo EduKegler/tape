@@ -605,6 +605,7 @@ describe('dydx account', () => {
             size: '0.001',
             reduceOnly: true,
             placedAt: Date.UTC(2026, 9, 30, 12),
+            cancelable: true,
           },
           {
             ref: 'ETH-USD:12:0:1',
@@ -615,6 +616,7 @@ describe('dydx account', () => {
             size: '0.01',
             reduceOnly: false,
             placedAt: 0,
+            cancelable: true,
           },
         ],
         fills: [
