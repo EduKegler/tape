@@ -13,8 +13,15 @@ export function groupThousands(decimal: string): string {
 
 export const formatCompact = (n: number) => compact.format(n)
 
+const signed = (digits: number) =>
+  new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    signDisplay: 'exceptZero',
+  })
+
 export function formatPct(n: number, digits = 2): string {
-  return `${n >= 0 ? '+' : ''}${n.toFixed(digits)}%`
+  return `${signed(digits).format(n)}%`
 }
 
 export function formatClock(ms: number): string {
