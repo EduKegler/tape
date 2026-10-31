@@ -12,6 +12,8 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
+import { Table } from './primitives'
+import type { Column } from './primitives'
 import { TradeNote } from './TradeNote'
 
 const WALLET = /^0x[0-9a-fA-F]{40}$/
@@ -340,41 +342,25 @@ const TOTALS_HEIGHT = 'h-36'
 
 function TotalsTable({ rows, first }: { rows: Totals[]; first: string }) {
   if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>Nothing in this period.</p>
+  const columns: Column<Totals>[] = [
+    {
+      header: first,
+      cell: (t) => (
+        <>
+          {t.group}
+          {t.asset !== 'USDC' && <span className="text-level3"> · {t.asset}</span>}
+        </>
+      ),
+    },
+    { header: 'Fills', cell: (t) => t.fills },
+    { header: 'Realized PnL', cell: (t) => <Signed value={t.realized} /> },
+    { header: 'Fees', cell: (t) => money(t.fees) },
+    { header: 'Funding', cell: (t) => <Signed value={t.funding} /> },
+    { header: 'Net', cell: (t) => <Signed value={t.net} /> },
+  ]
   return (
     <div className={`${TOTALS_HEIGHT} overflow-y-auto`}>
-      <table className="num w-full text-xs">
-        <thead>
-          <tr className="h-6 text-level3">
-            <th className="pl-3 text-left font-normal">{first}</th>
-            <th className="pr-3 text-right font-normal">Fills</th>
-            <th className="pr-3 text-right font-normal">Realized PnL</th>
-            <th className="pr-3 text-right font-normal">Fees</th>
-            <th className="pr-3 text-right font-normal">Funding</th>
-            <th className="pr-3 text-right font-normal">Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t) => (
-            <tr key={`${t.group}:${t.asset}`} className="h-7 border-t border-rule text-level2">
-              <td className="pl-3 font-sans text-level1">
-                {t.group}
-                {t.asset !== 'USDC' && <span className="text-level3"> · {t.asset}</span>}
-              </td>
-              <td className="pr-3 text-right">{t.fills}</td>
-              <td className="pr-3 text-right">
-                <Signed value={t.realized} />
-              </td>
-              <td className="pr-3 text-right">{money(t.fees)}</td>
-              <td className="pr-3 text-right">
-                <Signed value={t.funding} />
-              </td>
-              <td className="pr-3 text-right">
-                <Signed value={t.net} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Table rows={rows} rowKey={(t) => `${t.group}:${t.asset}`} columns={columns} />
     </div>
   )
 }
