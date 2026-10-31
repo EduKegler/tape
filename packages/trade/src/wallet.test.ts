@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { walletSigner } from './wallet'
+import { rejectionMessage, walletSigner } from './wallet'
 
 const owner = '0x2e5346477b01397553df3ec9a637f3e535325d6d'
 
@@ -47,5 +47,17 @@ describe('wallet signer', () => {
       primaryType: 'Agent',
       message: { source: 'b' },
     })
+  })
+})
+
+describe('rejection message', () => {
+  it('reads the message of the plain { code, message } an EIP-1193 wallet rejects with', () => {
+    expect(rejectionMessage({ code: -32603, message: 'Internal JSON-RPC error.' })).toBe('Internal JSON-RPC error.')
+  })
+
+  it('reads an Error, and writes anything else as it is', () => {
+    expect(rejectionMessage(new Error('Request expired'))).toBe('Request expired')
+    expect(rejectionMessage('Request expired')).toBe('Request expired')
+    expect(rejectionMessage(null)).toBe('null')
   })
 })

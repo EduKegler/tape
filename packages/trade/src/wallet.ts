@@ -40,3 +40,10 @@ export function walletSigner(provider: Eip1193, address: Address): WalletSigner 
       (await provider.request({ method: 'eth_signTypedData_v4', params: [address, walletJson(data)] })) as Hex,
   }
 }
+
+/** What went wrong in a wallet call. Wallets such as MetaMask reject with a plain `{ code, message }`, not an Error. */
+export function rejectionMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  const message = (error as { message?: unknown } | null)?.message
+  return typeof message === 'string' ? message : String(error)
+}

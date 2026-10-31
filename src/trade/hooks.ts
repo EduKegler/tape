@@ -21,7 +21,7 @@ import type {
   TradeVenueId,
   VenueContext,
 } from '@tape/trade/types'
-import { walletSigner } from '@tape/trade/wallet'
+import { rejectionMessage, walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
 import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
@@ -81,7 +81,7 @@ export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Prom
     if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code)
       throw new TradeFailure(venue, { kind: 'wallet-rejected' })
     report(e, 'trade', true)
-    throw new TradeFailure(venue, { kind: 'unexpected', detail: e instanceof Error ? e.message : String(e) })
+    throw new TradeFailure(venue, { kind: 'unexpected', detail: rejectionMessage(e) })
   }
 }
 

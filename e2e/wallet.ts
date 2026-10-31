@@ -191,7 +191,8 @@ function provider({ binding, event }: { binding: string; event: string }) {
   const ethereum = {
     async request(request: { method: string; params?: unknown[] }) {
       const reply = await (window as unknown as Record<string, (request: unknown) => Promise<Reply>>)[binding]!(request)
-      if ('error' in reply) throw Object.assign(new Error(reply.error.message), { code: reply.error.code })
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- MetaMask rejects with a plain { code, message }, not an Error
+      if ('error' in reply) throw { ...reply.error }
       dispatch(reply.emit)
       return reply.result
     },

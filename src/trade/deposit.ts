@@ -11,6 +11,7 @@ import { claim, release } from '@tape/trade/in-flight'
 import type { DepositCall, DepositIssue, DepositProgress, DepositRoute, DepositTerms } from '@tape/trade/deposit'
 import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
+import { rejectionMessage } from '@tape/trade/wallet'
 import { track } from '#/analytics/track'
 import { wagmiConfig } from '#/wallet/config'
 import { TRADE_CONFIG } from './config'
@@ -175,7 +176,7 @@ export function sendFailure(error: unknown): SendFailure {
   if ((e as { code?: number } | null)?.code === UserRejectedRequestError.code)
     return { kind: 'wallet-rejected', approved }
   if (e instanceof TradeFailure) return { kind: 'failed', detail: e.message, approved }
-  return { kind: 'failed', detail: e instanceof Error ? e.message.split('\n')[0]! : String(e), approved }
+  return { kind: 'failed', detail: rejectionMessage(e).split('\n')[0]!, approved }
 }
 
 interface DepositRequest {
