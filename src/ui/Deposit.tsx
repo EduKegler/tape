@@ -20,6 +20,7 @@ import type { DepositQuote, DepositStatus } from '#/trade/deposit'
 import type { DepositRecord } from '#/trade/vault'
 import { wagmiConfig } from '#/wallet/config'
 import { shortAddress } from './format'
+import { Button } from './primitives'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
 const chainOf = (id: number) => wagmiConfig.chains.find((c) => c.id === id)
@@ -35,13 +36,9 @@ export function DepositButton({ account }: { account: AccountRef }) {
   if (!venue || depositRoutes(account).length === 0) return null
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded-full bg-ink px-3 py-0.5 text-[12px] font-medium text-ink-contrast hover:opacity-90"
-      >
+      <Button look="primary" onClick={() => setOpen(true)}>
         Deposit
-      </button>
+      </Button>
       {open && <DepositDialog account={account} venue={venue} onClose={() => setOpen(false)} />}
     </>
   )
@@ -58,31 +55,27 @@ function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue
     return () => removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60">
       <div
         role="dialog"
         aria-modal
         aria-labelledby={titleId}
-        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-lg border border-rule bg-panel p-4 text-[12px]"
+        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-lg border border-rule bg-panel p-4 text-sm"
       >
         <div className="flex items-center justify-between">
-          <h2 id={titleId} className="font-display text-[15px] text-level1">
+          <h2 id={titleId} className="font-display text-lg text-level1">
             Deposit USDC to {venue.destination}
           </h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-level3 hover:text-level1">
+          <Button look="quiet" onClick={onClose} aria-label="Close">
             ×
-          </button>
+          </Button>
         </div>
         {record ? (
           <>
             <Receipt account={account} venue={venue} record={record} />
-            <button
-              type="button"
-              onClick={() => setShown(null)}
-              className="self-start text-level3 underline underline-offset-2 hover:text-level1"
-            >
+            <Button look="link" onClick={() => setShown(null)} className="self-start">
               New deposit
-            </button>
+            </Button>
           </>
         ) : (
           <DepositForm account={account} venue={venue} onSent={setShown} />
@@ -156,16 +149,15 @@ function DepositForm({
         <div className="flex justify-between text-level3">
           <label htmlFor={amountId}>Amount (USDC)</label>
           {balance !== null && (
-            <button
-              type="button"
+            <Button
+              look="inline"
               onClick={() => {
                 send.reset()
                 setText(usdc(balance))
               }}
-              className="hover:text-level1"
             >
               Max {usdc(balance)}
-            </button>
+            </Button>
           )}
         </div>
         <input
@@ -178,23 +170,19 @@ function DepositForm({
             setText(e.target.value.trim())
           }}
           aria-invalid={text !== '' && amount === null}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
+          className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-base text-level1 outline-none focus:border-ink aria-invalid:border-ask"
         />
         {text !== '' && amount === null && <span className="text-ask">A positive amount, at most 6 decimals.</span>}
       </div>
       <Summary account={account} venue={venue} route={route} amount={amount} quote={quote} />
       {amount !== null && <Issues issues={quote.issues} route={route} />}
-      <button
-        type="submit"
-        disabled={!quote.ready || send.isPending}
-        className="rounded-full bg-ink py-1.5 text-[13px] text-ink-contrast disabled:opacity-40"
-      >
+      <Button look="primary-block" type="submit" disabled={!quote.ready || send.isPending}>
         {send.isPending
           ? 'Confirm in your wallet…'
           : amount
             ? `Deposit ${usdc(amount)} USDC from ${chainName(route.chainId)}`
             : 'Deposit'}
-      </button>
+      </Button>
       {send.error && <SendError error={send.error} />}
     </form>
   )
@@ -309,7 +297,7 @@ function SendError({ error }: { error: Error }) {
             ? 'You declined in the wallet. Nothing was sent.'
             : 'The deposit was not sent.'}
       </p>
-      {failure.kind === 'failed' && <p className="num mt-1 text-[11px] break-all text-level3">{failure.detail}</p>}
+      {failure.kind === 'failed' && <p className="num mt-1 text-xs break-all text-level3">{failure.detail}</p>}
     </div>
   )
 }
@@ -433,17 +421,17 @@ function RecentRow({
             : 'In progress'
   return (
     <li>
-      <button
-        type="button"
+      <Button
+        look="record"
         aria-current={current}
         onClick={() => onShow(record.hash)}
-        className="num flex w-full justify-between py-0.5 text-left text-level2 hover:text-level1 aria-current:text-level1"
+        className="flex w-full justify-between"
       >
         <span>
           {usdc(record.amount)} USDC · {chainName(record.chainId)} · {clock(record.sentAt)}
         </span>
         <span>{label}</span>
-      </button>
+      </Button>
     </li>
   )
 }

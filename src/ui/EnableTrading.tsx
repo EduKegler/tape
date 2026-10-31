@@ -1,10 +1,11 @@
 import type { TradeSession } from '#/trade/hooks'
+import { Button } from './primitives'
 import { TradeNote } from './TradeNote'
 
 export function EnableTrading({ session }: { session: Extract<TradeSession, { status: 'setup' }> }) {
   const busy = session.progress !== null
   return (
-    <div className="flex flex-col gap-2 rounded-sm border border-rule p-2 text-[12px]">
+    <div className="flex flex-col gap-2 rounded-sm border border-rule p-2 text-sm">
       <ol className="flex flex-col gap-1">
         {(session.steps ?? []).map((s) => (
           <li key={s.id} className={`flex items-center gap-2 ${s.done ? 'text-level3 line-through' : 'text-level1'}`}>
@@ -17,14 +18,9 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
         ))}
         {!session.steps && <li className="text-level3">Checking the venue…</li>}
       </ol>
-      <button
-        type="button"
-        disabled={busy || !session.steps}
-        onClick={session.enable}
-        className="rounded-full border border-ink py-1.5 text-[13px] text-level1 disabled:opacity-40"
-      >
+      <Button look="outline-block" disabled={busy || !session.steps} onClick={session.enable}>
         {busy ? 'Confirm in your wallet…' : 'Enable trading'}
-      </button>
+      </Button>
       <TradeNote error={session.error} />
     </div>
   )

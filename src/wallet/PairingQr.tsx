@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { encode } from 'uqr'
 import type { Connector } from 'wagmi'
+import { Button } from '#/ui/primitives'
 
 export function PairingQr({ connector, onCancel }: { connector: Connector; onCancel: () => void }) {
   const [uri, setUri] = useState<string | null>(null)
@@ -13,26 +14,21 @@ export function PairingQr({ connector, onCancel }: { connector: Connector; onCan
   }, [connector])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60">
       <div
         role="dialog"
         aria-label="Connect with WalletConnect"
         className="flex w-72 flex-col items-center gap-3 rounded-lg border border-rule bg-panel p-4"
       >
-        <p className="text-[13px] text-level1">Scan with your phone wallet</p>
-        {uri ? <Qr text={uri} /> : <p className="py-24 text-[12px] text-level3">Opening a pairing link…</p>}
+        <p className="text-base text-level1">Scan with your phone wallet</p>
+        {uri ? <Qr text={uri} /> : <p className="py-24 text-sm text-level3">Opening a pairing link…</p>}
         <div className="flex w-full justify-between">
-          <button
-            type="button"
-            disabled={!uri}
-            onClick={() => uri && void navigator.clipboard.writeText(uri)}
-            className="text-[12px] text-level3 hover:text-level1 disabled:opacity-50"
-          >
+          <Button look="quiet-sm" disabled={!uri} onClick={() => uri && void navigator.clipboard.writeText(uri)}>
             Copy link
-          </button>
-          <button type="button" onClick={onCancel} className="text-[12px] text-level3 hover:text-level1">
+          </Button>
+          <Button look="quiet-sm" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { useFrame } from '#/client/hooks'
 import { BOOK_ROWS, EMPTY_ROW } from '#/core/topics'
 import type { BookFrame } from '#/core/topics'
 import { Panel } from './Panel'
+import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
@@ -31,7 +32,7 @@ export function OrderBook({
     <Panel
       title="Order book"
       aside={
-        <label className="flex items-center gap-1.5 text-[12px] text-level3">
+        <label className="flex items-center gap-1.5 text-sm text-level3">
           Group
           <select
             value={head.group}
@@ -47,8 +48,8 @@ export function OrderBook({
         </label>
       }
     >
-      <div className="num flex h-full flex-col text-[12px] contain-strict" data-status={head.status}>
-        <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-[11px] text-level3">
+      <div className="num flex h-full flex-col text-sm contain-strict" data-status={head.status}>
+        <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-xs text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
           <span className="text-right">Total</span>
@@ -73,12 +74,12 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
   const row = useFrame(topic, (f: BookFrame | null) => f?.[side][index] ?? EMPTY_ROW, shallow)
   const ask = side === 'asks'
   return (
-    <button
-      type="button"
+    <Button
+      look="row"
       tabIndex={row.px ? 0 : -1}
       aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
-      className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3 text-left hover:bg-level1/5"
+      className="relative grid min-h-5 w-full flex-1 grid-cols-3 items-center px-3"
     >
       <span
         aria-hidden
@@ -88,7 +89,7 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
       <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>{row.px}</span>
       <span className="relative text-right text-level1">{row.qty}</span>
       <span className="relative text-right text-level3">{row.cum}</span>
-    </button>
+    </Button>
   )
 })
 
@@ -100,8 +101,8 @@ function Spread({ topic }: { topic: BookTopic }) {
   )
   return (
     <div className="flex h-8 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="text-[14px] text-level1">{s.mid || '—'}</span>
-      <span className="text-[11px] whitespace-nowrap text-level3">
+      <span className="text-md text-level1">{s.mid || '—'}</span>
+      <span className="text-xs whitespace-nowrap text-level3">
         {s.status === 'live'
           ? `Spread ${s.spread} · ${s.bps === '0.00' ? '<0.01' : s.bps} bps`
           : s.status === 'stale'

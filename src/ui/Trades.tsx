@@ -5,6 +5,7 @@ import { useFrame } from '#/client/hooks'
 import type { TradeRow } from '#/core/topics'
 import { formatClock } from './format'
 import { Panel } from './Panel'
+import { Button } from './primitives'
 import { proposePrice } from './ticket-store'
 
 const ROW = 20
@@ -22,8 +23,8 @@ export function Trades({ market }: { market: MarketKey }) {
   })
   return (
     <Panel title="Trades">
-      <div className="num flex h-full flex-col text-[12px]">
-        <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-[11px] text-level3">
+      <div className="num flex h-full flex-col text-sm">
+        <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-xs text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
           <span className="w-16 text-right">Time</span>
@@ -35,17 +36,17 @@ export function Trades({ market }: { market: MarketKey }) {
               const t = rows[item.index]
               if (!t) return null
               return (
-                <button
-                  type="button"
+                <Button
                   key={item.key}
+                  look="row"
                   onClick={() => proposePrice(t.px)}
-                  className="absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-left hover:bg-level1/5"
+                  className="absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3"
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
                   <span className={t.side === 'buy' ? 'text-bid' : 'text-ask'}>{t.px}</span>
                   <span className="text-right text-level1">{t.qty}</span>
                   <span className="w-16 text-right text-level3">{formatClock(t.time)}</span>
-                </button>
+                </Button>
               )
             })}
           </div>

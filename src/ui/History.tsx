@@ -12,6 +12,8 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
+import { Button, Table } from './primitives'
+import type { Column } from './primitives'
 import { TradeNote } from './TradeNote'
 
 const WALLET = /^0x[0-9a-fA-F]{40}$/
@@ -94,7 +96,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   return (
     <main className="grid flex-1 gap-px p-px lg:min-h-0 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <Panel title="Accounts">
-        <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-[12px]">
+        <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-sm">
           <Addresses
             typed={{ wallet: search.address ?? '', dydx: search.dydx ?? '' }}
             fallback={{ wallet: connected?.toLowerCase() ?? null, dydx: derived }}
@@ -111,7 +113,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
               />
             ))}
           </ul>
-          <p className="text-[11px] leading-snug text-level3">
+          <p className="text-xs/snug text-level3">
             History is read from each venue&apos;s public API with no key. Realized PnL is before fees and funding, and
             net is realized minus fees plus funding. Days are UTC.
           </p>
@@ -137,14 +139,9 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
         <Panel
           title="Fills and funding"
           aside={
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={fills.length + payments.length === 0}
-              className="rounded-full border border-rule px-2.5 py-0.5 text-[12px] text-level2 hover:text-level1 disabled:opacity-40"
-            >
+            <Button look="outline" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
               Export CSV
-            </button>
+            </Button>
           }
         >
           <div className="flex h-full min-h-80 flex-col">
@@ -185,7 +182,7 @@ function Addresses({
           placeholder={fallback.wallet ?? '0x…'}
           spellCheck={false}
           aria-invalid={!walletOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-[11px] text-level1"
+          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
       <label className="flex flex-col gap-1 text-level3">
@@ -196,16 +193,12 @@ function Addresses({
           placeholder={fallback.dydx ?? 'dydx1…'}
           spellCheck={false}
           aria-invalid={!dydxOk}
-          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-[11px] text-level1"
+          className="num rounded-sm border border-rule bg-surface px-2 py-1 text-xs text-level1"
         />
       </label>
-      <button
-        type="submit"
-        disabled={!walletOk || !dydxOk}
-        className="self-start rounded-full border border-rule px-2.5 py-0.5 text-level2 hover:text-level1 disabled:opacity-40"
-      >
+      <Button look="outline" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
         Read history
-      </button>
+      </Button>
     </form>
   )
 }
@@ -228,14 +221,9 @@ function VenueStatus({
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-level1">{label}</span>
         {address && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={result.isFetching}
-            className="text-level3 hover:text-level1"
-          >
+          <Button look="quiet" onClick={onRefresh} disabled={result.isFetching}>
             {result.isFetching ? 'Reading…' : 'Refresh'}
-          </button>
+          </Button>
         )}
       </div>
       {!address && (
@@ -245,7 +233,7 @@ function VenueStatus({
             : 'Connect a wallet or paste an address.'}
         </p>
       )}
-      {address && <p className="num text-[11px] break-all text-level3">{address}</p>}
+      {address && <p className="num text-xs break-all text-level3">{address}</p>}
       {result.error && <TradeNote error={result.error.error} />}
       {h && (
         <p className="num text-level2">
@@ -253,7 +241,7 @@ function VenueStatus({
         </p>
       )}
       {h?.gaps.map((gap) => (
-        <p key={gap} className="text-[11px] leading-snug text-level3">
+        <p key={gap} className="text-xs/snug text-level3">
           {gap}
         </p>
       ))}
@@ -273,7 +261,7 @@ function Filters({
   set: (patch: Partial<HistorySearch>) => void
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-[12px]">
+    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-sm">
       <Segmented
         label="Venue"
         value={search.venue}
@@ -307,15 +295,14 @@ function Filters({
       </label>
       <div role="group" aria-label="Period" className="flex items-center gap-1 text-level3">
         {presets(now).map((p) => (
-          <button
+          <Button
             key={p.label}
-            type="button"
+            look="preset"
             aria-pressed={search.from === p.from && search.to === p.to}
             onClick={() => set({ from: p.from, to: p.to })}
-            className={`rounded-full px-2 py-0.5 ${search.from === p.from && search.to === p.to ? 'bg-level1/12 text-level1' : 'hover:text-level2'}`}
           >
             {p.label}
-          </button>
+          </Button>
         ))}
         <input
           type="date"
@@ -339,43 +326,26 @@ function Filters({
 const TOTALS_HEIGHT = 'h-36'
 
 function TotalsTable({ rows, first }: { rows: Totals[]; first: string }) {
-  if (rows.length === 0)
-    return <p className={`${TOTALS_HEIGHT} p-3 text-[12px] text-level3`}>Nothing in this period.</p>
+  if (rows.length === 0) return <p className={`${TOTALS_HEIGHT} p-3 text-sm text-level3`}>Nothing in this period.</p>
+  const columns: Column<Totals>[] = [
+    {
+      header: first,
+      cell: (t) => (
+        <>
+          {t.group}
+          {t.asset !== 'USDC' && <span className="text-level3"> · {t.asset}</span>}
+        </>
+      ),
+    },
+    { header: 'Fills', cell: (t) => t.fills },
+    { header: 'Realized PnL', cell: (t) => <Signed value={t.realized} /> },
+    { header: 'Fees', cell: (t) => money(t.fees) },
+    { header: 'Funding', cell: (t) => <Signed value={t.funding} /> },
+    { header: 'Net', cell: (t) => <Signed value={t.net} /> },
+  ]
   return (
     <div className={`${TOTALS_HEIGHT} overflow-y-auto`}>
-      <table className="num w-full text-[11px]">
-        <thead>
-          <tr className="h-6 text-level3">
-            <th className="pl-3 text-left font-normal">{first}</th>
-            <th className="pr-3 text-right font-normal">Fills</th>
-            <th className="pr-3 text-right font-normal">Realized PnL</th>
-            <th className="pr-3 text-right font-normal">Fees</th>
-            <th className="pr-3 text-right font-normal">Funding</th>
-            <th className="pr-3 text-right font-normal">Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t) => (
-            <tr key={`${t.group}:${t.asset}`} className="h-7 border-t border-rule text-level2">
-              <td className="pl-3 font-sans text-level1">
-                {t.group}
-                {t.asset !== 'USDC' && <span className="text-level3"> · {t.asset}</span>}
-              </td>
-              <td className="pr-3 text-right">{t.fills}</td>
-              <td className="pr-3 text-right">
-                <Signed value={t.realized} />
-              </td>
-              <td className="pr-3 text-right">{money(t.fees)}</td>
-              <td className="pr-3 text-right">
-                <Signed value={t.funding} />
-              </td>
-              <td className="pr-3 text-right">
-                <Signed value={t.net} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Table rows={rows} rowKey={(t) => `${t.group}:${t.asset}`} columns={columns} />
     </div>
   )
 }
@@ -401,7 +371,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
     overscan: 12,
   })
   return (
-    <div className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-[11px]">
+    <div className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-xs">
       <div role="row" className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-level3`}>
         <span role="columnheader">Time (UTC)</span>
         <span role="columnheader">Venue</span>
@@ -430,7 +400,7 @@ function Rows({ fills, payments }: { fills: RealizedFill[]; payments: FundingPay
         aria-label="History rows"
         className="min-h-0 min-w-240 flex-1 overflow-y-auto"
       >
-        {rows.length === 0 && <p className="px-3 py-2 font-sans text-[12px] text-level3">No fills or funding here.</p>}
+        {rows.length === 0 && <p className="px-3 py-2 font-sans text-sm text-level3">No fills or funding here.</p>}
         <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
           {virtual.getVirtualItems().map((item) => {
             const r = rows[item.index]

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Button } from './primitives'
 
 export function Panel({
   title,
@@ -14,7 +15,7 @@ export function Panel({
   return (
     <section className={`flex h-full min-h-0 flex-col border border-rule bg-panel ${className}`}>
       <header className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-rule px-3">
-        <h2 className="font-display text-[15px] text-level1">{title}</h2>
+        <h2 className="font-display text-lg text-level1">{title}</h2>
         {aside}
       </header>
       <div className="relative min-h-0 flex-1">{children}</div>
@@ -36,16 +37,15 @@ export function Segmented<T extends string>({
   return (
     <div role="radiogroup" aria-label={label} className="flex rounded-full border border-rule p-0.5">
       {options.map((o) => (
-        <button
+        <Button
           key={o.value}
-          type="button"
+          look="segment"
           role="radio"
           aria-checked={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`rounded-full px-2.5 py-0.5 text-[12px] transition-colors ${o.value === value ? 'bg-level1/12 text-level1' : 'text-level3 hover:text-level2'}`}
         >
           {o.label}
-        </button>
+        </Button>
       ))}
     </div>
   )

@@ -4,7 +4,7 @@ import { SITE_READ_ONLY } from '#/trade/config'
 export function StatusBar() {
   const stats = useHubStats()
   return (
-    <footer className="num flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-rule px-4 py-1.5 text-[11px] text-level3">
+    <footer className="num flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-rule px-4 py-1.5 text-xs text-level3">
       {stats ? (
         <>
           <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">

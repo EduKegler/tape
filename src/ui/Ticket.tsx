@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
@@ -20,6 +20,7 @@ import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
+import { Button, Input } from './primitives'
 import { specsQuery } from './queries'
 import { TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
@@ -48,7 +49,7 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   const spec = specs.data?.get(base)
   const session = useTradeSession(venue)
   const aside = (
-    <span className="text-[11px] text-level3">
+    <span className="text-xs text-level3">
       {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
     </span>
   )
@@ -137,15 +138,14 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
     >
       <div className="grid grid-cols-2 gap-1 rounded-full border border-rule p-0.5">
         {(['buy', 'sell'] as const).map((s) => (
-          <button
+          <Button
             key={s}
-            type="button"
+            look={s === 'buy' ? 'side-buy' : 'side-sell'}
             aria-pressed={side === s}
             onClick={() => setSide(s)}
-            className={`rounded-full py-1 text-[13px] capitalize ${side === s ? (s === 'buy' ? 'bg-bid-wash text-bid' : 'bg-ask-wash text-ask') : 'text-level3'}`}
           >
             {s}
-          </button>
+          </Button>
         ))}
       </div>
       <Segmented
@@ -173,13 +173,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
               hint={
                 near ? (
-                  <button
-                    type="button"
-                    className="text-level3 hover:text-level1"
-                    onClick={() => field.handleChange(near)}
-                  >
+                  <Button look="quiet" onClick={() => field.handleChange(near)}>
                     {side === 'buy' ? 'Bid' : 'Ask'} {near}
-                  </button>
+                  </Button>
                 ) : null
               }
             />
@@ -200,13 +196,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
                   hint={
                     near ? (
-                      <button
-                        type="button"
-                        className="text-level3 hover:text-level1"
-                        onClick={() => field.handleChange(near)}
-                      >
+                      <Button look="quiet" onClick={() => field.handleChange(near)}>
                         {side === 'buy' ? 'Bid' : 'Ask'}
-                      </button>
+                      </Button>
                     ) : null
                   }
                 />
@@ -257,13 +249,13 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       {kind !== 'market' ? (
         <form.Field name="tif">
           {(field) => (
-            <label className="flex items-center justify-between text-[12px] text-level3">
+            <label className="flex items-center justify-between text-sm text-level3">
               Time in force
               <select
                 name="tif"
                 value={field.state.value}
                 onChange={(e) => field.handleChange(e.target.value as Tif)}
-                className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-[12px] text-level1"
+                className="rounded-sm border border-rule bg-surface px-1.5 py-1 text-sm text-level1"
               >
                 {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
                   .filter((t) => kind !== 'scale' || t !== 'ioc')
@@ -281,7 +273,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       )}
       <form.Field name="reduceOnly">
         {(field) => (
-          <label className="flex items-center gap-2 text-[12px] text-level2">
+          <label className="flex items-center gap-2 text-sm text-level2">
             <input
               type="checkbox"
               name="reduceOnly"
@@ -293,7 +285,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         )}
       </form.Field>
       {caps?.triggers && kind !== 'scale' && (
-        <label className="flex items-center gap-2 text-[12px] text-level2">
+        <label className="flex items-center gap-2 text-sm text-level2">
           <input type="checkbox" name="protect" checked={protect} onChange={(e) => setProtect(e.target.checked)} />
           Take profit and stop loss
         </label>
@@ -330,7 +322,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
           return (
             <>
-              <dl className="num grid grid-cols-2 gap-y-1 text-[12px]">
+              <dl className="num grid grid-cols-2 gap-y-1 text-sm">
                 <dt className="text-level3">Notional</dt>
                 <dd className="text-right text-level1">{total}</dd>
                 {margin.status !== 'no-estimate' && (
@@ -383,7 +375,7 @@ function averageEntry(spec: MarketSpec, side: Side, legs: readonly Slice[]): Pre
 
 function ScaleLegs({ spec, legs }: { spec: MarketSpec; legs: readonly Slice[] }) {
   return (
-    <ol aria-label="Scale orders" className="num flex max-h-40 flex-col gap-0.5 overflow-y-auto text-[12px]">
+    <ol aria-label="Scale orders" className="num flex max-h-40 flex-col gap-0.5 overflow-y-auto text-sm">
       {legs.map((l) => (
         <li key={l.px} className="flex justify-between">
           <span className="text-level3">{formatPx(l.px, spec.scale)}</span>
@@ -424,25 +416,19 @@ function SubmitArea({
 }) {
   const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
   const button = (
-    <button
-      type="submit"
-      disabled={!canSubmit}
-      className={`rounded-full py-2 text-[13px] disabled:opacity-40 ${side === 'buy' ? 'bg-bid text-surface' : 'bg-ask text-surface'}`}
-    >
+    <Button look={side === 'buy' ? 'buy' : 'sell'} type="submit" disabled={!canSubmit}>
       {label}
-    </button>
+    </Button>
   )
   switch (session.status) {
     case 'read-only':
       return session.cause === 'venue-not-traded' ? (
-        <p className="text-[11px] leading-snug text-level3">
-          {venue} is read only in Tape. It never signs or sends an order here.
-        </p>
+        <p className="text-xs/snug text-level3">{venue} is read only in Tape. It never signs or sends an order here.</p>
       ) : (
         <SiteReadOnly />
       )
     case 'unavailable':
-      return <p className="text-[12px] text-level3">{session.reason}.</p>
+      return <p className="text-sm text-level3">{session.reason}.</p>
     case 'disconnected':
       return <WalletButton />
     case 'setup':
@@ -456,9 +442,9 @@ function SubmitArea({
       return (
         <>
           {button}
-          <button type="button" onClick={session.forget} className="self-end text-[11px] text-level3 hover:text-level1">
+          <Button look="quiet-xs" onClick={session.forget} className="self-end">
             Forget trading key on this device
-          </button>
+          </Button>
         </>
       )
   }
@@ -476,7 +462,7 @@ function MainnetWalletUsdc() {
 
 export function SiteReadOnly() {
   return (
-    <p className="text-[11px] leading-snug text-level3">
+    <p className="text-xs/snug text-level3">
       Mainnet is read only in Tape.{' '}
       {TESTNET_SITE && (
         <>
@@ -495,7 +481,7 @@ function SlippageField() {
   const value = useSelector(slippageBps, (s) => s)
   const options = [10, 50, 100, 300] as const
   return (
-    <div className="flex items-center justify-between text-[12px] text-level3">
+    <div className="flex items-center justify-between text-sm text-level3">
       Max slippage
       <Segmented
         label="Max slippage"
@@ -503,44 +489,6 @@ function SlippageField() {
         onChange={(v) => slippageBps.setState(() => Number(v))}
         options={options.map((o) => ({ value: String(o), label: `${o / 100}%` }))}
       />
-    </div>
-  )
-}
-
-function Input(props: {
-  label: string
-  name: string
-  value: string
-  error: string | undefined
-  hint: React.ReactNode
-  onChange: (v: string) => void
-  onBlur: () => void
-}) {
-  const id = useId()
-  // The hint can be a button, so it sits beside the label and not inside it.
-  return (
-    <div className="flex flex-col gap-1 text-[12px]">
-      <div className="flex justify-between text-level3">
-        <label htmlFor={id}>{props.label}</label>
-        {props.hint}
-      </div>
-      <input
-        id={id}
-        name={props.name}
-        inputMode="decimal"
-        autoComplete="off"
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value.trim())}
-        onBlur={props.onBlur}
-        aria-invalid={Boolean(props.error)}
-        aria-describedby={props.error ? `${id}-error` : undefined}
-        className="num rounded-sm border border-rule bg-surface px-2 py-1.5 text-[13px] text-level1 outline-none focus:border-ink aria-invalid:border-ask"
-      />
-      {props.error && (
-        <span id={`${id}-error`} className="text-ask">
-          {props.error}
-        </span>
-      )}
     </div>
   )
 }

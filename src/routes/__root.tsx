@@ -49,7 +49,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   usePageViews()
   useErrorReports()
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
       </head>

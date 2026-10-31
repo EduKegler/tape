@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
-import type { ColumnDef, RowData } from '@tanstack/react-table'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, VenueId } from '@tape/core/ids'
@@ -11,13 +9,14 @@ import type { TradeSession } from '#/trade/hooks'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
+import { Button, Table } from './primitives'
+import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { slippageBps } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
 import { TradeNote } from './TradeNote'
 
 type Tab = 'positions' | 'orders' | 'fills'
-const features = tableFeatures({})
 
 export function Account({ venue, base }: { venue: VenueId; base: Base }) {
   const session = useTradeSession(venue)
@@ -29,7 +28,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
         ref ? (
           <span className="flex items-center gap-2">
             <DepositButton account={ref} />
-            <span className="num text-[11px] text-level3">{ref.network}</span>
+            <span className="num text-xs text-level3">{ref.network}</span>
           </span>
         ) : null
       }
@@ -42,7 +41,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           leverage={session.status === 'ready' && session.capabilities.leverage}
         />
       ) : (
-        <div className="p-3 text-[12px] text-level3">{message(session)}</div>
+        <div className="p-3 text-sm text-level3">{message(session)}</div>
       )}
     </Panel>
   )
@@ -75,7 +74,7 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-[12px]">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-sm">
         <Segmented
           label="Account view"
           value={tab}
@@ -94,13 +93,9 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
-          <button
-            type="button"
-            onClick={() => run({ kind: 'cancel-all', symbol })}
-            className="text-level3 hover:text-ask"
-          >
+          <Button look="danger" onClick={() => run({ kind: 'cancel-all', symbol })}>
             Cancel all {base}
-          </button>
+          </Button>
         )}
         {leverage && symbol && <LeverageControl onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })} />}
       </div>
@@ -110,12 +105,10 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
             <TradeNote error={error} />
           </div>
         )}
-        {!view && !error && <p className="p-3 text-[12px] text-level3">Loading account…</p>}
-        {view?.kind === 'unknown' && (
-          <p className="p-3 text-[12px] text-level3">Enable trading to read this account.</p>
-        )}
+        {!view && !error && <p className="p-3 text-sm text-level3">Loading account…</p>}
+        {view?.kind === 'unknown' && <p className="p-3 text-sm text-level3">Enable trading to read this account.</p>}
         {view?.kind === 'empty' && (
-          <p className="p-3 text-[12px] text-level3">No account on this venue yet. Deposit to start.</p>
+          <p className="p-3 text-sm text-level3">No account on this venue yet. Deposit to start.</p>
         )}
         {closeError && (
           <div className="p-2">
@@ -165,49 +158,10 @@ function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
         onChange={(e) => setValue(e.target.value.trim())}
         className="num w-10 rounded-sm border border-rule bg-surface px-1 text-level1"
       />
-      <button type="submit" className="hover:text-level1">
+      <Button look="inline" type="submit">
         Set
-      </button>
+      </Button>
     </form>
-  )
-}
-
-function Table<T extends RowData>({
-  rows,
-  columns,
-  empty,
-}: {
-  rows: T[]
-  columns: ColumnDef<typeof features, T>[]
-  empty: string
-}) {
-  const table = useTable({ features, columns, data: rows })
-  if (rows.length === 0) return <p className="p-3 text-[12px] text-level3">{empty}</p>
-  return (
-    <table className="num w-full text-[11px]">
-      <thead>
-        {table.getHeaderGroups().map((g) => (
-          <tr key={g.id} className="h-6 text-level3">
-            {g.headers.map((h, i) => (
-              <th key={h.id} className={`font-normal ${i === 0 ? 'pl-3 text-left' : 'pr-3 text-right'}`}>
-                <table.FlexRender header={h} />
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((r) => (
-          <tr key={r.id} className="h-7 border-t border-rule text-level2">
-            {r.getAllCells().map((c, i) => (
-              <td key={c.id} className={i === 0 ? 'pl-3 font-sans text-level1' : 'pr-3 text-right'}>
-                <table.FlexRender cell={c} />
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }
 
@@ -224,30 +178,23 @@ function Positions({
   busy: boolean
   onClose: (p: Position) => void
 }) {
-  const h = createColumnHelper<typeof features, Position>()
-  const columns = h.columns([
-    h.accessor('symbol', { header: 'Market' }),
-    h.accessor('side', { header: 'Side', cell: (c) => side(c.getValue()) }),
-    h.accessor('size', { header: 'Size' }),
-    h.accessor('entry', { header: 'Entry' }),
-    h.accessor('unrealizedPnl', { header: 'PnL' }),
-    h.accessor('liquidation', { header: 'Liq.', cell: (c) => c.getValue() ?? '—' }),
-    h.display({
-      id: 'close',
+  const columns: Column<Position>[] = [
+    { header: 'Market', cell: (p) => p.symbol },
+    { header: 'Side', cell: (p) => side(p.side) },
+    { header: 'Size', cell: (p) => p.size },
+    { header: 'Entry', cell: (p) => p.entry },
+    { header: 'PnL', cell: (p) => p.unrealizedPnl },
+    { header: 'Liq.', cell: (p) => p.liquidation ?? '—' },
+    {
       header: '',
-      cell: (c) => (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onClose(c.row.original)}
-          className="text-level3 hover:text-ask disabled:opacity-40"
-        >
+      cell: (p) => (
+        <Button look="danger" disabled={busy} onClick={() => onClose(p)}>
           Close
-        </button>
+        </Button>
       ),
-    }),
-  ])
-  return <Table rows={[...rows]} columns={columns} empty="No open positions." />
+    },
+  ]
+  return <Table rows={rows} rowKey={(p) => p.symbol} columns={columns} empty="No open positions." />
 }
 
 function Orders({
@@ -259,41 +206,33 @@ function Orders({
   busy: (o: OpenOrder) => boolean
   onCancel: (o: OpenOrder) => void
 }) {
-  const h = createColumnHelper<typeof features, OpenOrder>()
-  const columns = h.columns([
-    h.accessor('symbol', { header: 'Market' }),
-    h.accessor('side', { header: 'Side', cell: (c) => side(c.getValue()) }),
-    h.accessor('kind', { header: 'Type' }),
-    h.accessor('px', { header: 'Price', cell: (c) => c.getValue() ?? 'market' }),
-    h.accessor('size', { header: 'Size' }),
-    h.accessor('reduceOnly', { header: 'Reduce', cell: (c) => (c.getValue() ? 'yes' : '') }),
-    h.display({
-      id: 'cancel',
+  const columns: Column<OpenOrder>[] = [
+    { header: 'Market', cell: (o) => o.symbol },
+    { header: 'Side', cell: (o) => side(o.side) },
+    { header: 'Type', cell: (o) => o.kind },
+    { header: 'Price', cell: (o) => o.px ?? 'market' },
+    { header: 'Size', cell: (o) => o.size },
+    { header: 'Reduce', cell: (o) => (o.reduceOnly ? 'yes' : '') },
+    {
       header: '',
-      cell: (c) => (
-        <button
-          type="button"
-          disabled={busy(c.row.original)}
-          onClick={() => onCancel(c.row.original)}
-          className="text-level3 hover:text-ask disabled:opacity-40"
-        >
+      cell: (o) => (
+        <Button look="danger" disabled={busy(o)} onClick={() => onCancel(o)}>
           Cancel
-        </button>
+        </Button>
       ),
-    }),
-  ])
-  return <Table rows={[...rows]} columns={columns} empty="No open orders." />
+    },
+  ]
+  return <Table rows={rows} rowKey={(o) => o.ref} columns={columns} empty="No open orders." />
 }
 
 function Fills({ rows }: { rows: readonly Fill[] }) {
-  const h = createColumnHelper<typeof features, Fill>()
-  const columns = h.columns([
-    h.accessor('symbol', { header: 'Market' }),
-    h.accessor('side', { header: 'Side', cell: (c) => side(c.getValue()) }),
-    h.accessor('px', { header: 'Price' }),
-    h.accessor('size', { header: 'Size' }),
-    h.accessor('fee', { header: 'Fee' }),
-    h.accessor('time', { header: 'Time', cell: (c) => new Date(c.getValue()).toLocaleTimeString('en-GB') }),
-  ])
-  return <Table rows={[...rows]} columns={columns} empty="No fills yet." />
+  const columns: Column<Fill>[] = [
+    { header: 'Market', cell: (f) => f.symbol },
+    { header: 'Side', cell: (f) => side(f.side) },
+    { header: 'Price', cell: (f) => f.px },
+    { header: 'Size', cell: (f) => f.size },
+    { header: 'Fee', cell: (f) => f.fee },
+    { header: 'Time', cell: (f) => new Date(f.time).toLocaleTimeString('en-GB') },
+  ]
+  return <Table rows={rows} rowKey={(f) => f.id} columns={columns} empty="No fills yet." />
 }
