@@ -195,6 +195,30 @@ describe('orderly orders', () => {
   })
 })
 
+describe('orderly refusals', () => {
+  it("classifies Orderly's documented refusals by code and message", async () => {
+    // Codes, statuses and descriptions on Orderly's error codes page.
+    const cases = [
+      [400, -1101, 'Insufficient margin after the operation.', 'insufficient-margin'],
+      [400, -1103, 'Order price does not match the tick size.', 'invalid-order'],
+      [400, -1104, 'Order quantity does not match the step size.', 'invalid-order'],
+      [429, -1003, 'Rate limit exceeded.', 'rate-limited'],
+    ] as const
+    for (const [status, code, message, kind] of cases) {
+      const { ctx } = orderlyAt(() => ({ status, body: JSON.stringify({ success: false, code, message }) }))
+      expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent: intentOf({}) }))).toEqual({
+        kind,
+        detail: message,
+      })
+    }
+    const { ctx } = orderlyAt(() => ({ status: 429, body: 'Too Many Requests' }))
+    expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent: intentOf({}) }))).toEqual({
+      kind: 'rate-limited',
+      detail: 'Too Many Requests',
+    })
+  })
+})
+
 describe('orderly lookup', () => {
   it('keeps a refused key needs-setup on lookup even when its message names an order', async () => {
     const { ctx } = orderlyAt(() => ({
