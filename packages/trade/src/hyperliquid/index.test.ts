@@ -306,6 +306,15 @@ describe('hyperliquid exits', () => {
       detail: 'Resting as order 7. TP not placed: Invalid TP/SL price.',
     })
   })
+
+  it('refuses a limit order whose stop loss the book on this network already crossed, before signing', async () => {
+    const { ctx, posts } = venue(() => statuses([]), [], [[{ px: '78990' }], [{ px: '79010' }]])
+    expect(await failureOf(hyperliquid.execute(ctx, place({ stopLoss: '79000' })))).toEqual({
+      kind: 'invalid-order',
+      detail: 'Stop loss: Must be below the bid on this network',
+    })
+    expect(posts()).toEqual([])
+  })
 })
 
 describe('hyperliquid market orders without exits', () => {
