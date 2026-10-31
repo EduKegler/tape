@@ -12,7 +12,7 @@ A user picks any market a venue lists on one of four venues (Binance, Hyperliqui
 - `nav-interval` switches the chart interval from the `Interval` radio group and writes `interval=<i>`.
 - `nav-title` sets the title to `<BASE> on <Venue> · Tape`.
 - `nav-404` shows `Not Found` for an unknown venue or a name no venue could list.
-- `nav-unlisted` shows `<BASE> is not listed on <Venue>` for a market the venue does not list, and the `Venues` table shows `Not listed` on each venue that does not list the market.
+- `nav-unlisted` shows `Tape does not show <BASE> on <Venue>` for a market the venue does not list or Tape leaves out, and the `Venues` table shows `Not shown` on each such venue.
 
 ## How to get to it (user POV)
 
@@ -37,7 +37,7 @@ Preconditions:
 - **Venues table.** Run `vt click --panel Venues --role row --name dYdX` and `vt wait --url "/dydx/ETH"`. The URL keeps `interval=5m`.
 - **Params survive.** After the steps above the URL still carries `interval` and any `group` set before. Check with `vt eval "location.search"`.
 - **Unknown route.** Run `vt open "/kraken/BTC"` and `vt text`. The body text is `Not Found` and the title is `Tape`.
-- **Unlisted market.** Run `vt open "/hyperliquid/NOTAMARKET"` and `vt text --role heading --name NOTAMARKET`. It reads `NOTAMARKET is not listed on Hyperliquid`.
+- **Unlisted market.** Run `vt open "/hyperliquid/NOTAMARKET"` and `vt text --role heading --name NOTAMARKET`. It reads `Tape does not show NOTAMARKET on Hyperliquid`.
 - **Proof.** Run `vt aria --css header --path nav/header.aria.txt` and `vt shot --path nav/page.png` on the final market.
 
 ## Gotchas
@@ -45,6 +45,6 @@ Preconditions:
 - Venue links are named `<Venue> <chain>`, such as `Binance Spot` and `Hyperliquid Hyperliquid L1`. Match without `--exact`.
 - `Market` is also the name of the ticket's order type radio. Scope with `--nav Market` or `--panel "Order ticket"`.
 - A `group` carried from one venue can be invalid on another. The book then falls back to its own options. Clear it with a fresh `open` when the recipe needs the default.
-- Base in the URL is case sensitive, since Hyperliquid lists `kPEPE`. `/hyperliquid/btc` says `btc is not listed on Hyperliquid`.
+- Base in the URL is case sensitive, since Hyperliquid lists `kPEPE`. `/hyperliquid/btc` says `Tape does not show btc on Hyperliquid`.
 - With the search list open, Base UI marks the rest of the page `aria-hidden`. Run axe and `vt aria` with the list closed.
 - The `Not Found` page still holds a hub connection, so it counts in `Tabs`.

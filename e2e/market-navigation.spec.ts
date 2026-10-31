@@ -48,18 +48,25 @@ for (const path of ['/kraken/BTC', '/hyperliquid/a b'])
     await expectAccessible(page)
   })
 
-test('a market the venue does not list says so', async ({ page }) => {
+test('a market the venue does not list says Tape does not show it', async ({ page }) => {
   await page.goto('/hyperliquid/NOTAMARKET')
-  await expect(page.getByRole('heading', { name: 'NOTAMARKET is not listed on Hyperliquid' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Tape does not show NOTAMARKET on Hyperliquid' })).toBeVisible()
+  await expect(page.getByText('Hyperliquid does not list it, or Tape leaves it out.')).toBeVisible()
   await expect(panel(page, 'Order book')).toHaveCount(0)
   await expectAccessible(page)
 })
 
-test('the venues table marks the venues that do not list the market', async ({ page }) => {
+test('a market the venue lists but Tape leaves out never reads as unlisted', async ({ page }) => {
+  await page.goto('/dydx/PEPE')
+  await expect(page.getByRole('heading', { name: 'Tape does not show PEPE on dYdX' })).toBeVisible()
+  await expect(page.getByText('dYdX does not list it, or Tape leaves it out.')).toBeVisible()
+})
+
+test('the venues table marks the venues where Tape does not show the market', async ({ page }) => {
   await page.goto('/hyperliquid/kPEPE')
   const venues = panel(page, 'Venues')
   for (const venue of ['Binance', 'dYdX', 'Orderly'])
-    await expect(venues.getByRole('row', { name: new RegExp(`^${venue}`) })).toContainText('Not listed')
+    await expect(venues.getByRole('row', { name: new RegExp(`^${venue}`) })).toContainText('Not shown')
   await venues.getByRole('row', { name: /^Binance/ }).click()
   await expect(page).toHaveURL(/\/hyperliquid\/kPEPE/)
 })

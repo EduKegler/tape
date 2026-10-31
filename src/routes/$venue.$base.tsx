@@ -93,9 +93,11 @@ function Unlisted({ venue, base }: { venue: VenueId; base: Base }) {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
       <h1 className="text-lg text-level1">
-        {base} is not listed on {VENUES[venue].label}
+        Tape does not show {base} on {VENUES[venue].label}
       </h1>
-      <p className="text-sm text-level3">Pick another market or venue in the header.</p>
+      <p className="text-sm text-level3">
+        {VENUES[venue].label} does not list it, or Tape leaves it out. Pick another market or venue in the header.
+      </p>
     </main>
   )
 }

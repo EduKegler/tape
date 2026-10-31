@@ -15,7 +15,7 @@ export interface VenueAdapter {
   readonly silenceMs: number
   /** Every market the venue lists today, in its own groups and order. */
   fetchMarkets: (fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<readonly MarketGroup[]>
-  /** One market's rules, read without the venue's whole list, or null when the venue does not list it. */
+  /** One market's rules, read without the venue's whole list, or null when the venue does not list it or Tape leaves it out. */
   fetchMarket: (base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<MarketSpec | null>
   subscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]
   unsubscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]

@@ -17,7 +17,7 @@ const columns: Column<CompareRow>[] = [
       listed(r) ? (
         <span className={r.bestBid ? 'text-bid' : ''}>{r.bid || '—'}</span>
       ) : (
-        <span className="font-sans text-level3">Not listed</span>
+        <span className="font-sans text-level3">Not shown</span>
       ),
   },
   { header: 'Ask', cell: (r) => listed(r) && <span className={r.bestAsk ? 'text-ask' : ''}>{r.ask || '—'}</span> },
