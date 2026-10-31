@@ -52,6 +52,7 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 
 - arbitrary values and properties, such as `text-[13px]`, `z-[60]` or `[transition:…]`;
 - `rounded-full`, shadows, and any class outside the closed scales;
+- a padding, margin or gap off the steps in `SPACING_STEPS` of `eslint.config.js`. Sizes such as `w-` and `h-` stay free;
 - a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
 - a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
 - a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn` or `accent`;

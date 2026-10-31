@@ -24,6 +24,8 @@ const KEY_IMPORT_EXPRESSIONS = {
   message: 'Keys are made and used only in packages/trade.',
 }
 
+const SPACING_STEPS = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '4', '5', '8']
+
 const TOKEN_CLASSES = [
   {
     pattern:
@@ -34,6 +36,10 @@ const TOKEN_CLASSES = [
     pattern:
       '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition|animation)',
     message: 'Use a token from src/styles.css, not an arbitrary property.',
+  },
+  {
+    pattern: `^(?:[^:]+:)*!?-?(?:(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy])-(?!(?:${SPACING_STEPS.join('|').replaceAll('.', '\\.')})$)\\d`,
+    message: `Use a spacing step: ${SPACING_STEPS.join(', ')}.`,
   },
   {
     pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
