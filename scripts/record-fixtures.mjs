@@ -26,6 +26,7 @@ const venues = {
   binance: {
     url: `wss://${host.binance.ws}/stream?streams=btcusdt@depth@100ms/btcusdt@trade/btcusdt@kline_1m`,
     subscribe: [],
+    trade: '"stream":"btcusdt@trade"',
     rest: {
       depth: `https://${host.binance.rest}/api/v3/depth?symbol=BTCUSDT&limit=1000`,
       exchangeInfo: `https://${host.binance.rest}/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
@@ -38,6 +39,7 @@ const venues = {
     subscribe: ['l2Book', 'trades']
       .map((type) => ({ method: 'subscribe', subscription: { type, coin: 'BTC' } }))
       .concat({ method: 'subscribe', subscription: { type: 'candle', coin: 'BTC', interval: '1m' } }),
+    trade: '"channel":"trades"',
     rest: {},
     post: {
       meta: { type: 'meta' },
@@ -55,6 +57,7 @@ const venues = {
       { type: 'subscribe', channel: 'v4_trades', id: 'BTC-USD' },
       { type: 'subscribe', channel: 'v4_candles', id: 'BTC-USD/1MIN' },
     ],
+    trade: '"channel":"v4_trades"',
     rest: {
       'markets-BTC': `https://${host.dydx}/v4/perpetualMarkets?ticker=BTC-USD`,
       'markets-ETH': `https://${host.dydx}/v4/perpetualMarkets?ticker=ETH-USD`,
@@ -69,6 +72,7 @@ const venues = {
       topic: `PERP_BTC_USDC@${s}`,
       event: 'subscribe',
     })),
+    trade: '"topic":"PERP_BTC_USDC@trade"',
     rest: {
       'info-BTC': `https://${host.orderly.rest}/v1/public/info/PERP_BTC_USDC`,
       'info-ETH': `https://${host.orderly.rest}/v1/public/info/PERP_ETH_USDC`,
@@ -83,19 +87,35 @@ const venues = {
 let firstDiff
 const firstDiffSeen = new Promise((resolve) => (firstDiff = resolve))
 
-function record(name, { url, subscribe }) {
+// Orderly's BTC perp can go minutes without a trade, and the testnets longer, so only a mainnet recording runs past its length until one arrives.
+const waitForTrade = network === 'mainnet'
+const secondsAtMost = seconds * 4
+
+function record(name, { url, subscribe, trade }) {
   return new Promise((resolve) => {
     const frames = []
+    let traded = !waitForTrade
+    let longEnough = false
     const ws = new WebSocket(url)
+    const cap = setTimeout(stop, secondsAtMost * 1000)
+    function stop() {
+      clearTimeout(cap)
+      ws.close()
+      resolve(frames)
+    }
     ws.onopen = () => subscribe.forEach((s) => ws.send(JSON.stringify(s)))
     ws.onmessage = (e) => {
-      frames.push(String(e.data))
-      if (name === 'binance' && String(e.data).includes('depthUpdate')) firstDiff()
+      const frame = String(e.data)
+      frames.push(frame)
+      if (name === 'binance' && frame.includes('depthUpdate')) firstDiff()
+      if (traded || !frame.includes(trade)) return
+      traded = true
+      if (longEnough) stop()
     }
     ws.onerror = (e) => console.error(name, e.message)
     setTimeout(() => {
-      ws.close()
-      resolve(frames)
+      longEnough = true
+      if (traded) stop()
     }, seconds * 1000)
   })
 }
