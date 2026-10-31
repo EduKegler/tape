@@ -24,6 +24,43 @@ const KEY_IMPORT_EXPRESSIONS = {
   message: 'Keys are made and used only in packages/trade.',
 }
 
+const TOKEN_CLASSES = [
+  {
+    pattern:
+      '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|(?:inset-|drop-)?shadow|z|duration|animate|ease)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
+    message: 'Use a token from src/styles.css, not an arbitrary or bare value.',
+  },
+  {
+    pattern:
+      '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition|animation)',
+    message: 'Use a token from src/styles.css, not an arbitrary property.',
+  },
+  {
+    pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
+    message: 'Use rounded-sm. The radius scale has one step.',
+  },
+  {
+    pattern: '^(?!(?:[^:]+:)*motion-safe:)(?:[^:]+:)*!?(?:animate|transition)(?:-|$)',
+    message: 'Put motion behind motion-safe: so prefers-reduced-motion turns it off.',
+  },
+]
+
+const SIDE_CLASSES = {
+  pattern:
+    '^(?:[^:]+:)*!?(?:text|bg|border(?:-[xytrblse])?|fill|stroke|outline|ring|decoration|accent|caret|from|via|to|divide|placeholder)-(?:bid|ask)(?:-wash)?(?:/[\\d.]+)?$',
+  message: 'bid and ask mean side. A file that shows a side goes on SIDE_FILES, and a warning or an error uses warn.',
+}
+
+const SIDE_FILES = [
+  'src/ui/Account.tsx',
+  'src/ui/Compare.tsx',
+  'src/ui/Header.tsx',
+  'src/ui/History.tsx',
+  'src/ui/OrderBook.tsx',
+  'src/ui/Trades.tsx',
+  'src/ui/primitives/Button.tsx',
+]
+
 export default [
   ...tanstackConfig,
   {
@@ -103,31 +140,14 @@ export default [
       'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
       // Plain classes from src/styles.css: num for tabular figures.
       'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['num'] }],
-      'better-tailwindcss/no-restricted-classes': [
-        'error',
-        {
-          restrict: [
-            {
-              pattern:
-                '^(?:[^:]+:)*!?-?(?:(?:text|font|leading|tracking|(?:scroll-)?[pm](?:[xytrblse]|b[se])?|gap(?:-[xy])?|space-[xy]|rounded(?:-[a-z]+)?|(?:inset-|drop-)?shadow|z|duration|animate|ease)-[\\[(]|text-(?:\\d*xs|sm|base|md|lg|\\d*xl)\\/[\\[(]|(?:z|duration)-\\d)',
-              message: 'Use a token from src/styles.css, not an arbitrary or bare value.',
-            },
-            {
-              pattern:
-                '^(?:[^:]+:)*!?\\[(?:font-|line-height|letter-spacing|(?:scroll-)?(?:padding|margin)|(?:row-|column-)?gap|border(?:-[a-z]+)*-radius|z-index|transition|animation)',
-              message: 'Use a token from src/styles.css, not an arbitrary property.',
-            },
-            {
-              pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
-              message: 'Use rounded-sm. The radius scale has one step.',
-            },
-            {
-              pattern: '^(?!(?:[^:]+:)*motion-safe:)(?:[^:]+:)*!?(?:animate|transition)(?:-|$)',
-              message: 'Put motion behind motion-safe: so prefers-reduced-motion turns it off.',
-            },
-          ],
-        },
-      ],
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: TOKEN_CLASSES }],
+    },
+  },
+  {
+    files: ['src/**/*.tsx'],
+    ignores: SIDE_FILES,
+    rules: {
+      'better-tailwindcss/no-restricted-classes': ['error', { restrict: [...TOKEN_CLASSES, SIDE_CLASSES] }],
     },
   },
   {
