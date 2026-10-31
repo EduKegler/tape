@@ -11,8 +11,7 @@ export function wsFrames(venue: VenueId): string[] {
 }
 
 const ROUTES: [RegExp, string][] = [
-  [/binance\.vision\/api\/v3\/exchangeInfo\?(?:permissions|symbol)=/, 'binance.markets.json'],
-  [/binance\.vision\/api\/v3\/exchangeInfo/, 'binance.exchangeInfo.json'],
+  [/binance\.vision\/api\/v3\/exchangeInfo/, 'binance.markets.json'],
   [/binance\.vision\/api\/v3\/depth/, 'binance.depth.json'],
   [/binance\.vision\/api\/v3\/klines/, 'binance.klines.json'],
   [/binance\.vision\/api\/v3\/ticker\/24hr/, 'binance.ticker.json'],

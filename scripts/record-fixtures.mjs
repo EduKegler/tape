@@ -29,7 +29,6 @@ const venues = {
     trade: '"stream":"btcusdt@trade"',
     rest: {
       depth: `https://${host.binance.rest}/api/v3/depth?symbol=BTCUSDT&limit=1000`,
-      exchangeInfo: `https://${host.binance.rest}/api/v3/exchangeInfo?symbols=${encodeURIComponent('["BTCUSDT","ETHUSDT","SOLUSDT"]')}`,
       markets: `https://${host.binance.rest}/api/v3/exchangeInfo?permissions=SPOT&symbolStatus=TRADING&showPermissionSets=false`,
       klines: `https://${host.binance.rest}/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=5`,
       ticker: `https://${host.binance.rest}/api/v3/ticker/24hr?symbol=BTCUSDT`,

@@ -1,6 +1,5 @@
 const REST_RECORDING: readonly [RegExp, string][] = [
-  [/\/api\/v3\/exchangeInfo\?(?:permissions|symbol)=/, 'binance.markets.json'],
-  [/\/api\/v3\/exchangeInfo/, 'binance.exchangeInfo.json'],
+  [/\/api\/v3\/exchangeInfo/, 'binance.markets.json'],
   [/\/api\/v3\/depth/, 'binance.depth.json'],
   [/\/api\/v3\/klines/, 'binance.klines.json'],
   [/\/api\/v3\/ticker\/24hr/, 'binance.ticker.json'],
