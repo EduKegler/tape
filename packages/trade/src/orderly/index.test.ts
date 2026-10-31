@@ -212,6 +212,26 @@ describe('orderly lookup', () => {
   })
 })
 
+describe('orderly key', () => {
+  it('asks for setup before signing when this device holds no Orderly key', async () => {
+    const { ctx, sent } = orderlyAt(() => ({ body: PLACED }))
+    const bare: VenueContext = { ...ctx, keys: { ...ctx.keys, read: () => null } }
+    const commands = [
+      { kind: 'place', intent: intentOf({}) },
+      { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef },
+      { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' },
+      { kind: 'leverage', symbol: 'PERP_BTC_USDC', leverage: 5 },
+    ] as const
+    for (const command of commands)
+      expect(await failureOf(orderly.execute(bare, command))).toEqual({
+        kind: 'needs-setup',
+        detail: 'Enable trading on this device first',
+      })
+    expect(await failureOf(orderly.lookup(bare, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
+    expect(sent).toEqual([])
+  })
+})
+
 describe('orderly cancels', () => {
   it('cancels one order and all orders with the requests Orderly documents', async () => {
     const one = orderlyAt(() => ({
