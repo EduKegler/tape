@@ -4,11 +4,13 @@ import { useSelector } from '@tanstack/react-store'
 import type { Base, VenueId } from '@tape/core/ids'
 import { closeIntent } from '@tape/trade/intent'
 import type { AccountRef, Bps, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
+import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
+import { ConfirmAction } from './ConfirmAction'
 import { Button, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
@@ -64,8 +66,10 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
   const snapshot = view?.kind === 'live' ? view.snapshot : null
   const busy = (c: Command) => inFlight.some((x) => JSON.stringify(x) === JSON.stringify(c))
   const [closeError, setCloseError] = useState<string | null>(null)
+  const venue = VENUES[account.venue].label
+  const specOf = (p: Position) => [...(specs.data?.values() ?? [])].find((s) => s.venueSymbol === p.symbol)
   const close = (p: Position) => {
-    const spec = [...(specs.data?.values() ?? [])].find((s) => s.venueSymbol === p.symbol)
+    const spec = specOf(p)
     const intent = spec ? closeIntent(spec, p, slippage) : null
     setCloseError(
       intent ? null : `${p.symbol} ${p.size} does not fit the size step Tape knows for it. Close it on the venue.`,
@@ -93,9 +97,11 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((o) => o.symbol === symbol) && (
-          <Button look="quiet" onClick={() => run({ kind: 'cancel-all', symbol })}>
-            Cancel all {base}
-          </Button>
+          <ConfirmAction
+            label={`Cancel all ${base}`}
+            question={cancelAllQuestion(snapshot.orders.filter((o) => o.symbol === symbol).length, base, venue)}
+            onConfirm={() => run({ kind: 'cancel-all', symbol })}
+          />
         )}
         {leverage && symbol && <LeverageControl onSet={(n) => run({ kind: 'leverage', symbol, leverage: n })} />}
       </div>
@@ -115,7 +121,14 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
             <TradeNote error={{ kind: 'invalid-order', detail: closeError }} />
           </div>
         )}
-        {snapshot && tab === 'positions' && <Positions rows={snapshot.positions} busy={last.pending} onClose={close} />}
+        {snapshot && tab === 'positions' && (
+          <Positions
+            rows={snapshot.positions}
+            busy={last.pending}
+            question={(p) => `Close ${p.size} ${specOf(p)?.base ?? p.symbol} ${p.side} on ${venue}?`}
+            onClose={close}
+          />
+        )}
         {snapshot && tab === 'orders' && (
           <Orders
             rows={snapshot.orders}
@@ -137,6 +150,10 @@ function AccountBody({ account, base, leverage }: { account: AccountRef; base: B
       )}
     </div>
   )
+}
+
+function cancelAllQuestion(count: number, base: Base, venue: string) {
+  return `Cancel ${count === 1 ? `1 ${base} order` : `all ${count} ${base} orders`} on ${venue}?`
 }
 
 function LeverageControl({ onSet }: { onSet: (n: number) => void }) {
@@ -172,10 +189,12 @@ const side = (s: 'long' | 'short' | 'buy' | 'sell') => (
 function Positions({
   rows,
   busy,
+  question,
   onClose,
 }: {
   rows: readonly Position[]
   busy: boolean
+  question: (p: Position) => string
   onClose: (p: Position) => void
 }) {
   const columns: Column<Position>[] = [
@@ -187,11 +206,7 @@ function Positions({
     { header: 'Liq.', cell: (p) => p.liquidation ?? '—' },
     {
       header: '',
-      cell: (p) => (
-        <Button look="quiet" disabled={busy} onClick={() => onClose(p)}>
-          Close
-        </Button>
-      ),
+      cell: (p) => <ConfirmAction label="Close" question={question(p)} disabled={busy} onConfirm={() => onClose(p)} />,
     },
   ]
   return <Table rows={rows} rowKey={(p) => p.symbol} columns={columns} empty="No open positions." />
