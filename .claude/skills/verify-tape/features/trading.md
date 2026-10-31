@@ -50,4 +50,4 @@ Preconditions:
 - The `Account` panel polls every 10 s. Right after setup it can say `Enable trading to read this account.` for one poll.
 - The book on screen is the testnet book, so it can sit far from mainnet prices. The dYdX testnet BTC price has been 20% under mainnet.
 - A Hyperliquid testnet address that deposited elsewhere has a real account. The fresh harness wallet never has one.
-- One funded run at a time. Two runs on the funded key each approve the agent named `tape`, and the second replaces the first.
+- One funded run at a time. Two runs on the funded key each approve the agent named `tape`, and the second replaces the first. The replaced run cannot cancel its own orders either: the cancel answers `User or API Wallet <agent> does not exist.` An enable 2 s after another one gets `User has pending agent removal` from Hyperliquid, and a retry 54 s later went through.

@@ -1,18 +1,19 @@
 # Order ticket
 
-The order ticket builds a buy or sell, limit, market or scale order. Price and size are checked against the market's tick and step as the user types. On Hyperliquid, dYdX and Orderly the ticket sends the order once trading is enabled, see [Trading](./trading.md). On Binance it is read only and has no submit button.
+The order ticket builds a buy or sell, limit, market, scale or trailing stop order. Price and size are checked against the market's tick and step as the user types. On Hyperliquid, dYdX and Orderly the ticket sends the order once trading is enabled, see [Trading](./trading.md). On Binance it is read only and has no submit button.
 
 ## Sub-features
 
 - `ticket-side` switches between buy and sell and relabels the submit button.
-- `ticket-kind` switches between limit, market and, where the venue offers it, scale. Market hides the price field, shows `Max slippage`, and prices the notional at the far touch.
+- `ticket-kind` switches between limit, market and, where the venue offers them, scale and trailing stop. Market hides the price field, shows `Max slippage`, and prices the notional at the far touch.
 - `ticket-scale` spreads the total size over `Orders` limit orders from `Start price` to `End price`, the last one `Size skew` times the first. The `Scale orders` list shows each price and size. Hyperliquid offers up to 20, Orderly up to 10, dYdX none.
+- `ticket-trailing` sends a stop that trails the best price by `Retracement`, in percent or in the quote as picked under `Retracement in`. It waits for `Activation price` before it trails, or trails at once when that field is empty. It hides the price, `Time in force` and `Take profit and stop loss`, ticks `Reduce only`, and prices the notional at the far touch. Only Hyperliquid offers it.
 - `ticket-validate-price` rejects empty, non-numeric, too precise, zero and off-tick prices.
 - `ticket-validate-size` rejects empty, too precise, below-minimum and off-step sizes.
 - `ticket-hint` fills the price from the `Bid` or `Ask` hint next to the price label.
 - `ticket-propose` fills the price from a click on a book row or a trade row.
 - `ticket-tif` offers `Good til canceled`, `Immediate or cancel` and `Post only` for limit orders.
-- `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on limit and market orders, on venues that offer them (Hyperliquid). A market order's take profit must clear the far touch and its stop the near touch, and a limit that crosses the book keeps its stop below the bid (above the ask for a sell).
+- `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on limit and market orders, on venues that offer them (Hyperliquid). `Add take profit` adds a row until there are 4. With more than one, each row is `Take profit <n>` with `Size <n> (%)` and `Remove`, the shares start even, and `Take profit sizes` lists the size each one closes. Shares that miss 100% show `Sizes add up to <n>%, not 100%`. A market order's take profit must clear the far touch and its stop the near touch, and a limit that crosses the book keeps its stop below the bid (above the ask for a sell).
 - `ticket-read-only` says `Binance is read only in Tape.` on Binance.
 - `ticket-network` says which network the build is. A mainnet build shows `Read only` and `Mainnet is read only in Tape.`, with a `testnet` link when the build sets `VITE_TESTNET_SITE`. A testnet build shows `Testnet` and hides `Wallet USDC`, which is a mainnet balance.
 
@@ -51,5 +52,5 @@ Preconditions:
 - Quote currency depends on venue: `USDT` on Binance, `USDC` on Hyperliquid and Orderly, `USD` on dYdX.
 - Mainnet trading needs `VITE_TRADE_MAINNET=1` at build time. The harness build has it off, so mainnet is never sendable here.
 - The ticket resets when the market or the wallet changes, because it remounts on each.
-- `Scale` only shows once the wallet is connected, because the venue's capabilities come with the session.
+- `Scale` and `Trailing stop` only show once the wallet is connected, because the venue's capabilities come with the session.
 - With TP/SL open the ticket is taller than the panel. The panel scrolls, and `vt click` scrolls to its target.
