@@ -206,6 +206,31 @@ describe('hyperliquid writes without a readable reply', () => {
   })
 })
 
+describe('hyperliquid reads that fail', () => {
+  it('calls a failed read unreachable, since nothing was sent, and reads the market rules again next time', async () => {
+    const metaReplies = [new Response('<html>502 Bad Gateway</html>', { status: 502 }), json(testnetMeta)]
+    const { ctx, sent, posts } = venue(() => statuses([{ resting: { oid: 9 } }]))
+    const fetch = ((url: string, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as { type?: string }
+      if (body.type !== 'meta') return ctx.fetch(url, init)
+      sent.push({ url, body })
+      return Promise.resolve(metaReplies.shift()!)
+    }) as typeof globalThis.fetch
+    const mainnet: VenueContext = { ...ctx, ref: { ...ctx.ref, network: 'mainnet' }, fetch }
+    expect(await failureOf(hyperliquid.execute(mainnet, place({})))).toMatchObject({ kind: 'unreachable' })
+    expect(posts()).toEqual([])
+    expect(await hyperliquid.execute(mainnet, place({}))).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Resting as order 9',
+    })
+    expect(sent.filter((s) => s.body.type === 'meta').map((s) => s.url)).toEqual([
+      'https://api.hyperliquid.xyz/info',
+      'https://api.hyperliquid.xyz/info',
+    ])
+  })
+})
+
 describe('hyperliquid refusals', () => {
   // Texts from the Hyperliquid error responses docs, and the deposit reply the enable test in trade.test.ts uses.
   it('refuses an order Hyperliquid refuses in its own status, by the venue words', async () => {
