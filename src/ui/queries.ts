@@ -1,11 +1,24 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { Base, Interval, VenueId } from '@tape/core/ids'
+import type { MarketGroup, MarketSpec } from '@tape/core/market'
 import { VENUES } from '#/site'
 
-export const specsQuery = (venue: VenueId) =>
+const marketsQuery = (venue: VenueId) =>
   queryOptions({
-    queryKey: ['specs', venue],
-    queryFn: ({ signal }) => VENUES[venue].fetchSpecs(fetch, signal),
+    queryKey: ['markets', venue],
+    queryFn: ({ signal }) => VENUES[venue].fetchMarkets(fetch, signal),
+    staleTime: Infinity,
+  })
+
+const byBase = (groups: readonly MarketGroup[]): ReadonlyMap<Base, MarketSpec> =>
+  new Map(groups.flatMap((g) => g.markets.map((m) => [m.base, m] as const)))
+
+export const specsQuery = (venue: VenueId) => queryOptions({ ...marketsQuery(venue), select: byBase })
+
+export const marketQuery = (venue: VenueId, base: Base) =>
+  queryOptions({
+    queryKey: ['market', venue, base],
+    queryFn: ({ signal }) => VENUES[venue].fetchMarket(base, fetch, signal),
     staleTime: Infinity,
   })
 

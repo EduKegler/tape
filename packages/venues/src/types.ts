@@ -1,6 +1,6 @@
 import type { BookProtocol, Seq } from '@tape/core/book'
 import type { Base, Interval, MarketKey, StreamChannel, VenueId } from '@tape/core/ids'
-import type { MarketSpec } from '@tape/core/market'
+import type { MarketGroup, MarketSpec } from '@tape/core/market'
 import { parseExactJson } from '@tape/core/json'
 
 export interface VenueAdapter {
@@ -13,7 +13,10 @@ export interface VenueAdapter {
   readonly keepalive: { readonly everyMs: number; readonly frame: string } | null
   /** No message for this long on an open socket means it is dead. */
   readonly silenceMs: number
-  fetchSpecs: (fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<ReadonlyMap<Base, MarketSpec>>
+  /** Every market the venue lists today, in its own groups and order. */
+  fetchMarkets: (fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<readonly MarketGroup[]>
+  /** One market's rules, read without the venue's whole list, or null when the venue does not list it. */
+  fetchMarket: (base: Base, fetch: typeof globalThis.fetch, signal?: AbortSignal) => Promise<MarketSpec | null>
   subscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]
   unsubscribeFrames: (targets: readonly StreamTarget[]) => readonly string[]
   /** One wire message to zero or more events. Acks map to []. Malformed known messages throw VenueParseError. */

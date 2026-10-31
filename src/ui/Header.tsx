@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { shallow } from '@tanstack/store'
-import { BASES, VENUE_IDS, marketKey } from '@tape/core/ids'
+import { PINNED_BASES, VENUE_IDS, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import { NETWORK, VENUES } from '#/site'
@@ -15,7 +15,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
     <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule px-4 py-2">
       <Brand />
       <nav aria-label="Market" className="flex items-center gap-1">
-        {BASES.map((b) => (
+        {PINNED_BASES.map((b) => (
           <Link
             key={b}
             to="/$venue/$base"

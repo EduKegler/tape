@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { bestAsk, bestBid, initialSync, stepBook, visibleBook } from '@tape/core/book'
 import type { BookInput, BookSync } from '@tape/core/book'
-import { NETWORKS, VENUE_IDS } from '@tape/core/ids'
-import type { MarketKey, VenueId } from '@tape/core/ids'
+import { NETWORKS, VENUE_IDS, isBase, marketKey } from '@tape/core/ids'
+import type { Base, MarketKey, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedFetch, wsFrames } from './fixtures'
 import { toCandle, toLevels, toTrades } from './normalize'
@@ -13,16 +14,53 @@ if (!RECORDED_ON) throw new Error(`NETWORK must be one of ${NETWORKS.join(', ')}
 const VENUES = venues(RECORDED_ON)
 
 async function specsOf(venue: VenueId) {
-  const specs = await VENUES[venue].fetchSpecs(recordedFetch)
-  const bySymbol = new Map([...specs.values()].map((s) => [s.venueSymbol, s]))
-  const byKey = new Map<MarketKey, MarketSpec>([...specs.values()].map((s) => [s.key, s]))
+  const specs = (await VENUES[venue].fetchMarkets(recordedFetch)).flatMap((g) => g.markets)
+  const bySymbol = new Map(specs.map((s) => [s.venueSymbol, s]))
+  const byKey = new Map<MarketKey, MarketSpec>(specs.map((s) => [s.key, s]))
   return { specs, lookup: (sym: string) => bySymbol.get(sym)?.key ?? null, byKey }
 }
+
+const recording = <T>(name: string): T =>
+  JSON.parse(readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), 'utf8')) as T
+
+const fits = (increment: string) => !/[1-9]/.test((increment.split('.')[1] ?? '').slice(8))
+
+const TRADABLE_IN_RECORDING: Record<VenueId, () => string[]> = {
+  hyperliquid: () =>
+    recording<{ universe: { name: string; isDelisted?: boolean }[] }>('hyperliquid.meta.json')
+      .universe.filter((u) => !u.isDelisted)
+      .map((u) => u.name),
+  dydx: () =>
+    Object.values(
+      recording<{ markets: Record<string, { ticker: string; status: string; tickSize: string; stepSize: string }> }>(
+        'dydx.markets.json',
+      ).markets,
+    )
+      .filter((m) => m.status === 'ACTIVE' && fits(m.tickSize) && fits(m.stepSize))
+      .map((m) => m.ticker.replace(/-USD$/, '')),
+  orderly: () =>
+    recording<{ data: { rows: { symbol: string; status: string; broker_id: string | null }[] } }>('orderly.info.json')
+      .data.rows.filter((r) => r.status === 'ACTIVE' && r.broker_id === null)
+      .map((r) => r.symbol.replace(/^PERP_(.+)_USDC$/, '$1')),
+  binance: () =>
+    recording<{ symbols: { baseAsset: string; quoteAsset: string; status: string }[] }>('binance.markets.json')
+      .symbols.filter((s) => s.status === 'TRADING' && s.quoteAsset === 'USDT')
+      .map((s) => s.baseAsset),
+}
+
+const SYMBOL: Record<VenueId, (base: Base) => string> = {
+  hyperliquid: (base) => base,
+  dydx: (base) => `${base}-USD`,
+  orderly: (base) => `PERP_${base}_USDC`,
+  binance: (base) => `${base}USDT`,
+}
+
+const BTC = 'BTC' as Base
 
 async function replay(venue: VenueId) {
   const adapter = VENUES[venue]
   const { lookup, byKey } = await specsOf(venue)
-  const spec = byKey.get(`${venue}:BTC` as MarketKey)!
+  const spec = byKey.get(marketKey(venue, BTC))!
   let step = initialSync(adapter.book.protocol)
   let sync: BookSync = step.sync
   const feed = (input: BookInput) => {
@@ -54,12 +92,45 @@ async function replay(venue: VenueId) {
   return { sync, trades, candles }
 }
 
+describe('a market the venue does not list', () => {
+  const answering =
+    (status: number, body: unknown): typeof fetch =>
+    async () =>
+      Response.json(body, { status })
+
+  it('reads as null where dYdX and Binance answer 400', async () => {
+    const dydx = answering(400, {
+      errors: [{ value: 'NOTAMARKET-USD', msg: 'ticker must be a valid ticker (BTC-USD, etc)', param: 'ticker' }],
+    })
+    const binance = answering(400, { code: -1121, msg: 'Invalid symbol.' })
+    expect(await VENUES.dydx.fetchMarket('NOTAMARKET' as Base, dydx)).toBeNull()
+    expect(await VENUES.binance.fetchMarket('NOTAMARKET' as Base, binance)).toBeNull()
+  })
+
+  it('still fails on any other error', async () => {
+    await expect(VENUES.dydx.fetchMarket(BTC, answering(503, {}))).rejects.toThrow('503')
+  })
+})
+
 describe.each(VENUE_IDS)('%s adapter', (venue) => {
   const adapter = VENUES[venue]
 
-  it('loads specs for every base', async () => {
+  it('lists every market the venue marks tradable, under the name the venue streams it by', async () => {
     const { specs } = await specsOf(venue)
-    expect([...specs.keys()].sort()).toEqual(['BTC', 'ETH', 'SOL'])
+    expect(specs.map((s) => s.base).sort()).toEqual(TRADABLE_IN_RECORDING[venue]().filter(isBase).sort())
+    expect(specs.map((s) => s.base)).toEqual(expect.arrayContaining(['BTC', 'ETH', 'SOL']))
+    for (const s of specs) {
+      expect(s.key).toBe(marketKey(venue, s.base))
+      expect(s.venue).toBe(venue)
+      expect(s.venueSymbol).toBe(SYMBOL[venue](s.base))
+    }
+  })
+
+  it('reads one market without the list, with the rules the list gives it', async () => {
+    const { byKey } = await specsOf(venue)
+    for (const base of ['BTC', 'ETH', 'SOL'] as Base[])
+      expect(await adapter.fetchMarket(base, recordedFetch)).toEqual(byKey.get(marketKey(venue, base)))
+    expect(await adapter.fetchMarket('NOTAMARKET' as Base, recordedFetch)).toBeNull()
   })
 
   it('replays the recording into an uncrossed live book', async () => {
@@ -80,14 +151,14 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
   })
 
   it('fetches candle history in time order', async () => {
-    const bars = await adapter.fetchCandles('BTC', '1m', recordedFetch)
+    const bars = await adapter.fetchCandles(BTC, '1m', recordedFetch)
     expect(bars.length).toBeGreaterThan(1)
     expect(bars.map((b) => b.time)).toEqual([...bars.map((b) => b.time)].sort((a, b) => a - b))
     expect(bars[0]!.close).toBeGreaterThan(1000)
   })
 
   it('reads 24h stats', async () => {
-    const stats = await adapter.fetchStats('BTC', recordedFetch)
+    const stats = await adapter.fetchStats(BTC, recordedFetch)
     expect(Math.abs(stats.changePct)).toBeLessThan(50)
     expect(stats.volumeQuote).toBeGreaterThan(0)
     expect(stats.fundingRate === null).toBe(venue === 'binance')
@@ -95,7 +166,7 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
 
   it('writes subscribe frames the venue understands', async () => {
     const { byKey } = await specsOf(venue)
-    const spec = byKey.get(`${venue}:ETH` as MarketKey)!
+    const spec = byKey.get(marketKey(venue, 'ETH' as Base))!
     const frames = adapter.subscribeFrames([
       { spec, channel: 'book', interval: null },
       { spec, channel: 'candle', interval: '5m' },

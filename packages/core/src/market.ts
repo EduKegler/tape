@@ -23,6 +23,12 @@ export interface MarketSpec {
   readonly minNotional?: Px
 }
 
+/** Markets a venue lists under one heading, in the venue's order. `name` is null for the venue's own markets. */
+export interface MarketGroup {
+  readonly name: string | null
+  readonly markets: readonly MarketSpec[]
+}
+
 export function effectiveTick(spec: MarketSpec, ref: Px): Px {
   if (spec.tick.kind === 'fixed') return spec.tick.tick
   if (ref <= 0) return 1 as Px

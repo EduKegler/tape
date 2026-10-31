@@ -86,10 +86,11 @@ interface VenueState {
   socket: SocketLike | null
   lastMessageAt: number
   opened: number
-  specs: ReadonlyMap<MarketKey, MarketSpec> | null
-  bySymbol: ReadonlyMap<string, MarketKey>
-  specFetch: 'idle' | 'loading' | 'error'
-  specRetryAt: number
+  /** null for a market the venue does not list. */
+  readonly specs: Map<MarketKey, MarketSpec | null>
+  readonly bySymbol: Map<string, MarketKey>
+  /** A spec read in flight, or the time a failed one may retry. */
+  readonly specReads: Map<MarketKey, 'loading' | number>
 }
 
 export function createHub(deps: HubDeps): Hub {
@@ -102,10 +103,9 @@ export function createHub(deps: HubDeps): Hub {
     socket: null,
     lastMessageAt: 0,
     opened: 0,
-    specs: null,
+    specs: new Map(),
     bySymbol: new Map(),
-    specFetch: 'idle',
-    specRetryAt: 0,
+    specReads: new Map(),
   })
   const venues = Object.fromEntries(VENUE_IDS.map((id) => [id, venueState(id)])) as Record<VenueId, VenueState>
   let lastWanted: ReadonlyMap<StreamKey, number> = new Map()
@@ -133,7 +133,7 @@ export function createHub(deps: HubDeps): Hub {
     return m
   }
 
-  const specOf = (key: MarketKey) => venues[splitMarketKey(key).venue].specs?.get(key) ?? null
+  const specOf = (key: MarketKey) => venues[splitMarketKey(key).venue].specs.get(key) ?? null
 
   function statusOf(m: MarketState): FrameStatus {
     const v = venues[m.venue]
@@ -315,7 +315,7 @@ export function createHub(deps: HubDeps): Hub {
   function targets(venue: VenueId, keys: readonly StreamKey[]): StreamTarget[] {
     return keys.flatMap((k) => {
       const { market: m, channel, interval } = parseStreamKey(k)
-      const spec = venues[venue].specs?.get(m)
+      const spec = venues[venue].specs.get(m)
       return spec ? [{ spec, channel, interval }] : []
     })
   }
@@ -362,7 +362,7 @@ export function createHub(deps: HubDeps): Hub {
 
   function desiredFor(venue: VenueId): ReadonlySet<StreamKey> {
     const v = venues[venue]
-    return new Set([...streams].filter((k) => v.specs?.has(parseStreamKey(k).market)))
+    return new Set([...streams].filter((k) => v.specs.get(parseStreamKey(k).market)))
   }
 
   function stepVenue(venue: VenueId, event: ConnEvent): void {
@@ -384,21 +384,22 @@ export function createHub(deps: HubDeps): Hub {
     if (before !== state.s) for (const m of markets.values()) if (m.venue === venue) touch(m)
   }
 
-  function ensureSpecs(venue: VenueId): void {
+  function ensureSpec(key: MarketKey): void {
+    const { venue, base } = splitMarketKey(key)
     const v = venues[venue]
-    if (v.specs || v.specFetch === 'loading' || deps.now() < v.specRetryAt) return
-    v.specFetch = 'loading'
+    const read = v.specReads.get(key)
+    if (v.specs.has(key) || read === 'loading' || deps.now() < (read ?? 0)) return
+    v.specReads.set(key, 'loading')
     v.adapter
-      .fetchSpecs(deps.fetch)
-      .then((specs) => {
-        v.specs = new Map([...specs.values()].map((s) => [s.key, s]))
-        v.bySymbol = new Map([...specs.values()].map((s) => [s.venueSymbol, s.key]))
-        v.specFetch = 'idle'
+      .fetchMarket(base, deps.fetch)
+      .then((spec) => {
+        v.specs.set(key, spec)
+        if (spec) v.bySymbol.set(spec.venueSymbol, key)
+        v.specReads.delete(key)
         reconcile()
       })
       .catch(() => {
-        v.specFetch = 'error'
-        v.specRetryAt = deps.now() + SPEC_RETRY_MS
+        v.specReads.set(key, deps.now() + SPEC_RETRY_MS)
         flush()
       })
   }
@@ -412,10 +413,8 @@ export function createHub(deps: HubDeps): Hub {
     streams = derived.streams
     lastWanted = derived.lastWanted
     for (const key of topics.keys()) if (![...tabs.values()].some((t) => t.wants.has(key))) topics.delete(key)
-    for (const venue of VENUE_IDS) {
-      if ([...streams].some((k) => k.startsWith(`${venue}:`))) ensureSpecs(venue)
-      stepVenue(venue, { e: 'tick' })
-    }
+    for (const k of streams) ensureSpec(parseStreamKey(k).market)
+    for (const venue of VENUE_IDS) stepVenue(venue, { e: 'tick' })
     flush()
   }
 
