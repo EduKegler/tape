@@ -26,6 +26,7 @@ export default defineConfig({
   outputDir: 'e2e/results',
   forbidOnly: true,
   retries: 0,
+  workers: process.env.CI ? '100%' : undefined,
   reporter: 'list',
   use: {
     ...BROWSERS[browser as keyof typeof BROWSERS],
