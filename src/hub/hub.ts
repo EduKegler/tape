@@ -69,7 +69,6 @@ interface MarketState {
   sync: BookSync
   readonly trades: TradeTape
   readonly candles: Map<Interval, readonly Candle[]>
-  uncrossed: number
   version: number
 }
 
@@ -126,7 +125,6 @@ export function createHub(deps: HubDeps): Hub {
         sync: initialSync(venues[venue].adapter.book.protocol).sync,
         trades: emptyTape(),
         candles: new Map(),
-        uncrossed: 0,
         version: 0,
       }
       markets.set(key, m)
@@ -156,7 +154,6 @@ export function createHub(deps: HubDeps): Hub {
               trades: m.trades,
               candles: m.candles,
               status: statusOf(m),
-              uncrossed: m.uncrossed,
             } satisfies MarketView,
           ]
         : []
@@ -239,7 +236,6 @@ export function createHub(deps: HubDeps): Hub {
     const before = m.sync.phase
     const step = stepBook(v.adapter.book.protocol, m.sync, input)
     m.sync = step.sync
-    m.uncrossed += step.uncrossed
     if (step.changed || step.sync.phase !== before) touch(m)
     if (step.effect.kind === 'fetch-snapshot') fetchSnapshot(m, step.effect.epoch)
     if (step.effect.kind === 'resubscribe')
