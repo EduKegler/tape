@@ -10,18 +10,31 @@ import type { Column } from './primitives'
 
 const listed = (r: CompareRow) => r.status !== 'unlisted'
 
+function Quote({ value, best, side }: { value: string; best: boolean; side: 'bid' | 'ask' }) {
+  if (!best) return value || '—'
+  return (
+    <span className={side === 'bid' ? 'text-bid' : 'text-ask'}>
+      <span aria-hidden className="mr-1 text-xs">
+        ●
+      </span>
+      <span className="sr-only">Best {side} </span>
+      {value}
+    </span>
+  )
+}
+
 const columns: Column<CompareRow>[] = [
   { header: 'Venue', cell: (r) => VENUES[r.venue].label },
   {
     header: 'Bid',
     cell: (r) =>
       listed(r) ? (
-        <span className={r.bestBid ? 'text-bid' : ''}>{r.bid || '—'}</span>
+        <Quote value={r.bid} best={r.bestBid} side="bid" />
       ) : (
         <span className="font-sans text-level3">Not shown</span>
       ),
   },
-  { header: 'Ask', cell: (r) => listed(r) && <span className={r.bestAsk ? 'text-ask' : ''}>{r.ask || '—'}</span> },
+  { header: 'Ask', cell: (r) => listed(r) && <Quote value={r.ask} best={r.bestAsk} side="ask" /> },
   { header: 'Basis', cell: (r) => listed(r) && (r.basisBps || '—') },
 ]
 const NO_ROWS: CompareRow[] = []
