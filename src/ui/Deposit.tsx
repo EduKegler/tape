@@ -361,7 +361,7 @@ function TxLink({ chainId, hash }: { chainId: number; hash: string }) {
   )
 }
 
-const stageText = (status: DepositStatus, chain: string, destination: string) => {
+const stageText = (status: DepositStatus, chain: string, destination: string): string => {
   switch (status.stage) {
     case 'confirming':
       return `Waiting for ${chain} to confirm`
@@ -370,6 +370,7 @@ const stageText = (status: DepositStatus, chain: string, destination: string) =>
     case 'replaced':
       return `The wallet replaced this transaction on ${chain}. Nothing was deposited`
     case 'relaying':
+    case 'unwatched':
       return status.detail
     case 'unresolved':
       return `Check manually. ${status.detail}`
@@ -461,6 +462,23 @@ function Recent({
   )
 }
 
+const recentLabel = (status: DepositStatus, late: boolean): string => {
+  switch (status.stage) {
+    case 'credited':
+      return 'Credited'
+    case 'reverted':
+      return 'Reverted'
+    case 'replaced':
+      return 'Replaced'
+    case 'unresolved':
+      return 'Check manually'
+    case 'confirming':
+    case 'relaying':
+    case 'unwatched':
+      return late ? 'Late' : 'In progress'
+  }
+}
+
 function RecentRow({
   account,
   record,
@@ -473,18 +491,6 @@ function RecentRow({
   onShow: (hash: Hex) => void
 }) {
   const { status, late } = useDepositStatus(account, record)
-  const label =
-    status.stage === 'credited'
-      ? 'Credited'
-      : status.stage === 'reverted'
-        ? 'Reverted'
-        : status.stage === 'replaced'
-          ? 'Replaced'
-          : status.stage === 'unresolved'
-            ? 'Check manually'
-            : late
-              ? 'Late'
-              : 'In progress'
   return (
     <li>
       <Button
@@ -496,7 +502,7 @@ function RecentRow({
         <span>
           {usdc(record.amount)} USDC · {chainName(record.chainId)} · {clock(record.sentAt)}
         </span>
-        <span>{label}</span>
+        <span>{recentLabel(status, late)}</span>
       </Button>
     </li>
   )

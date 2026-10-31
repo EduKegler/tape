@@ -101,3 +101,29 @@ test('a receipt kept before Tape stored the LayerZero fee still opens', async ({
   expect(wallet.askedFor('send')).toEqual([])
   expect(chains.unanswered()).toEqual([])
 })
+
+test('a receipt Tape cannot follow without an Orderly key never reads as late', async ({ page, wallet: _wallet }) => {
+  const sentAnHourAgo = {
+    chainId: ARBITRUM_SEPOLIA,
+    amount: '10000000',
+    fee: { expected: '0', max: '0' },
+    hash: `0x${'ab'.repeat(32)}`,
+    replacement: null,
+    sentAt: RECORDED_AT - 60 * 60_000,
+    gasPaid: '20000000000000',
+    outcome: null,
+  }
+  await page.addInitScript(
+    ([key, value]) => localStorage.setItem(key!, value!),
+    [`tape:trade:v1:orderly:testnet:${ACCOUNTS.alice.toLowerCase()}:deposits`, JSON.stringify([sentAnHourAgo])],
+  )
+  const { dialog } = await openDeposit(page, true)
+  const row = dialog.getByRole('button', { name: /^10 USDC · Arbitrum Sepolia · / })
+  await expect(row).toContainText('In progress')
+  await row.click()
+  const receipt = dialog.getByRole('region', { name: 'Deposit receipt' })
+  await expect(receipt.getByRole('status')).toHaveText('Enable trading on Orderly to follow the credit here')
+  await expect(row).toContainText('In progress')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(dialog.getByText(/^Not credited/)).toHaveCount(0)
+})
