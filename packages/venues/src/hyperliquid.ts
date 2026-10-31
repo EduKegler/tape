@@ -3,6 +3,7 @@ import type { Interval, Network } from '@tape/core/ids'
 import { readHyperliquidMarket, readHyperliquidMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
+import { isNumber, isText } from './wire'
 
 const HOST: Record<Network, string> = { mainnet: 'api.hyperliquid.xyz', testnet: 'api.hyperliquid-testnet.xyz' }
 const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000 }
@@ -17,14 +18,37 @@ interface WireBook {
   levels: [WireLevel[], WireLevel[]]
   fast?: true
 }
+interface WireTrade {
+  coin: string
+  side: 'B' | 'A'
+  px: string
+  sz: string
+  time: number
+  tid: number
+}
+interface WireCandle {
+  t: number
+  s: string
+  i: Interval
+  o: string
+  c: string
+  h: string
+  l: string
+  v: string
+}
 type Wire =
   | { channel: 'l2Book'; data: WireBook }
-  | { channel: 'trades'; data: { coin: string; side: 'B' | 'A'; px: string; sz: string; time: number; tid: number }[] }
-  | {
-      channel: 'candle'
-      data: { t: number; s: string; i: Interval; o: string; c: string; h: string; l: string; v: string }
-    }
+  | { channel: 'trades'; data: WireTrade[] }
+  | { channel: 'candle'; data: WireCandle }
   | { channel: 'subscriptionResponse' | 'pong' | 'error'; data: unknown }
+
+const isSide = (side: unknown): side is WireLevel[] =>
+  Array.isArray(side) && side.every((l: Partial<WireLevel> | null) => isText(l?.px) && isText(l.sz))
+const isBook = (book: Partial<WireBook>) =>
+  isNumber(book.time) && Array.isArray(book.levels) && isSide(book.levels[0]) && isSide(book.levels[1])
+const isTrade = (t: Partial<WireTrade>) =>
+  (t.side === 'B' || t.side === 'A') && isText(t.px) && isText(t.sz) && isNumber(t.time) && isNumber(t.tid)
+const isCandle = (c: Partial<WireCandle>) => isNumber(c.t) && [c.i, c.o, c.c, c.h, c.l, c.v].every(isText)
 
 const levels = (side: WireLevel[]): RawLevel[] => side.map((l) => [l.px, l.sz] as const)
 
@@ -108,6 +132,7 @@ export function hyperliquid(network: Network): VenueAdapter {
         case 'l2Book': {
           const market = symbols(m.data.coin)
           if (!market) return []
+          if (!isBook(m.data)) throw new VenueParseError('hyperliquid', market, raw)
           const shown = follow(m.data)
           if (!shown) return []
           return [
@@ -123,6 +148,7 @@ export function hyperliquid(network: Network): VenueAdapter {
         case 'trades': {
           const market = m.data[0] && symbols(m.data[0].coin)
           if (!market) return []
+          if (!m.data.every(isTrade)) throw new VenueParseError('hyperliquid', market, raw)
           const trades = m.data.map((t) => ({
             id: String(t.tid),
             px: t.px,
@@ -135,6 +161,7 @@ export function hyperliquid(network: Network): VenueAdapter {
         case 'candle': {
           const market = symbols(m.data.s)
           if (!market) return []
+          if (!isCandle(m.data)) throw new VenueParseError('hyperliquid', market, raw)
           const { t, o, h, l, c, v, i } = m.data
           return [{ kind: 'candle', market, interval: i, candles: [{ open: t, o, h, l, c, v }] }]
         }

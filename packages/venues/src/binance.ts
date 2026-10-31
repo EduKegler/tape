@@ -2,13 +2,26 @@ import type { Base, Interval, Network } from '@tape/core/ids'
 import { readBinanceMarket, readBinanceMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawLevel, StreamTarget, VenueAdapter } from './types'
+import { isNumber, isPairs, isText } from './wire'
 
 const symbolOf = (base: Base) => `${base}USDT`
 
+interface WireKline {
+  t: number
+  i: string
+  o: string
+  h: string
+  l: string
+  c: string
+  v: string
+}
 type Wire =
   | { e: 'depthUpdate'; E: number; s: string; U: number; u: number; b: RawLevel[]; a: RawLevel[] }
   | { e: 'trade'; s: string; t: number; p: string; q: string; T: number; m: boolean }
-  | { e: 'kline'; s: string; k: { t: number; i: string; o: string; h: string; l: string; c: string; v: string } }
+  | { e: 'kline'; s: string; k: WireKline }
+
+const isKline = (k: Partial<WireKline> | undefined): k is WireKline =>
+  isNumber(k?.t) && [k.i, k.o, k.h, k.l, k.c, k.v].every(isText)
 
 function streamName(target: StreamTarget): string {
   const s = target.spec.venueSymbol.toLowerCase()
@@ -61,8 +74,10 @@ export function binance(network: Network): VenueAdapter {
       if (!market) return []
       switch (m.e) {
         case 'depthUpdate':
+          if (!isPairs(m.b) || !isPairs(m.a) || !isNumber(m.U) || !isNumber(m.u) || !isNumber(m.E)) break
           return [{ kind: 'book-delta', market, bids: m.b, asks: m.a, seq: { from: m.U, to: m.u }, time: m.E }]
         case 'trade':
+          if (!isNumber(m.t) || !isText(m.p) || !isText(m.q) || typeof m.m !== 'boolean' || !isNumber(m.T)) break
           return [
             {
               kind: 'trades',
@@ -71,6 +86,7 @@ export function binance(network: Network): VenueAdapter {
             },
           ]
         case 'kline':
+          if (!isKline(m.k)) break
           return [
             {
               kind: 'candle',
@@ -79,9 +95,8 @@ export function binance(network: Network): VenueAdapter {
               candles: [{ open: m.k.t, o: m.k.o, h: m.k.h, l: m.k.l, c: m.k.c, v: m.k.v }],
             },
           ]
-        default:
-          throw new VenueParseError('binance', market, raw)
       }
+      throw new VenueParseError('binance', market, raw)
     },
 
     async fetchStats(base, fetch, signal) {

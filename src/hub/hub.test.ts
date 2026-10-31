@@ -90,6 +90,9 @@ const dydxBook = wsFrames('dydx').find((r) => r.includes('"subscribed"') && r.in
 const dydxCorrupt = wsFrames('dydx')
   .find((r) => r.includes('channel_data') && r.includes('v4_orderbook'))!
   .replace(/\["\d+"/, '["8x"')
+const binanceDiffWithoutBids = wsFrames('binance')
+  .find((r) => r.includes('depthUpdate'))!
+  .replace('"b":[', '"bids":[')
 const bookTopic = (market: ReturnType<typeof btc>) => ({ kind: 'book', market, group: '1' }) as const
 const liveSince = (posted: readonly Frame[], from: number) =>
   posted.slice(from).filter((f) => f.kind === 'book' && f.status === 'live')
@@ -252,6 +255,23 @@ describe('hub', () => {
     await vi.advanceTimersByTimeAsync(3000)
     expect(sockets).toHaveLength(2)
     expect(sockets[1]!.sent.join()).toContain('btcusdt@depth@100ms')
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(200)
+    expect((a.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('live')
+    hub.dispose()
+  })
+
+  it('resyncs a Binance book after a diff that comes without its bids', async () => {
+    const { hub, sockets } = setup()
+    const a = tab(hub, 'a')
+    a.want([bookTopic(btc('binance'))])
+    await vi.advanceTimersByTimeAsync(50)
+    replay(sockets)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(hub.inspect().phases[btc('binance')]).toBe('live')
+
+    sockets.find((s) => s.url.includes('binance'))!.onmessage!(binanceDiffWithoutBids)
+    expect(hub.inspect().phases[btc('binance')]).toBe('awaiting-snapshot')
     replay(sockets)
     await vi.advanceTimersByTimeAsync(200)
     expect((a.frames.get(`book|${btc('binance')}|1`) as BookFrame).status).toBe('live')

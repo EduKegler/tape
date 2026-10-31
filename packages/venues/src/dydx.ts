@@ -2,6 +2,7 @@ import type { Base, Interval, MarketKey, Network } from '@tape/core/ids'
 import { readDydxMarket, readDydxMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
 import type { RawCandle, RawLevel, RawTrade, StreamTarget, VenueAdapter, VenueEvent } from './types'
+import { isPairs, isText } from './wire'
 
 const RESOLUTION: Record<Interval, string> = { '1m': '1MIN', '5m': '5MINS', '15m': '15MINS', '1h': '1HOUR' }
 const INTERVAL_OF = Object.fromEntries(Object.entries(RESOLUTION).map(([k, v]) => [v, k])) as Record<string, Interval>
@@ -30,7 +31,13 @@ interface Wire {
 }
 
 type WireSnapshotLevel = { price: string; size: string }
-type WireDeltaLevel = [string, string, ...unknown[]]
+
+const isSnapshotSide = (side: unknown): side is WireSnapshotLevel[] =>
+  Array.isArray(side) && side.every((l: Partial<WireSnapshotLevel> | null) => isText(l?.price) && isText(l.size))
+const isTrade = (t: Partial<WireTrade> | null): t is WireTrade =>
+  (t?.side === 'BUY' || t?.side === 'SELL') && [t.id, t.size, t.price, t.createdAt].every(isText)
+const isCandle = (c: Partial<WireCandle> | null): c is WireCandle =>
+  [c?.startedAt, c?.open, c?.high, c?.low, c?.close, c?.baseTokenVolume].every(isText)
 
 function channelOf(target: StreamTarget): { channel: string; id: string } {
   const ticker = target.spec.venueSymbol
@@ -61,26 +68,30 @@ function events(
   interval: Interval | null,
   snapshot: boolean,
   contents: unknown,
-): VenueEvent[] {
+): VenueEvent[] | null {
+  if (typeof contents !== 'object' || contents === null) return null
   switch (channel) {
     case 'v4_orderbook': {
+      const { bids = [], asks = [] } = contents as { bids?: unknown; asks?: unknown }
       if (snapshot) {
-        const c = contents as { bids?: WireSnapshotLevel[]; asks?: WireSnapshotLevel[] }
-        const side = (l: WireSnapshotLevel[] = []): RawLevel[] => l.map((x) => [x.price, x.size] as const)
-        return [{ kind: 'book-snapshot', market, bids: side(c.bids), asks: side(c.asks), time: Date.now() }]
+        if (!isSnapshotSide(bids) || !isSnapshotSide(asks)) return null
+        const side = (l: WireSnapshotLevel[]): RawLevel[] => l.map((x) => [x.price, x.size] as const)
+        return [{ kind: 'book-snapshot', market, bids: side(bids), asks: side(asks), time: Date.now() }]
       }
-      const c = contents as { bids?: WireDeltaLevel[]; asks?: WireDeltaLevel[] }
-      const side = (l: WireDeltaLevel[] = []): RawLevel[] => l.map((x) => [x[0], x[1]] as const)
-      return [{ kind: 'book-delta', market, bids: side(c.bids), asks: side(c.asks), seq: null, time: Date.now() }]
+      if (!isPairs(bids) || !isPairs(asks)) return null
+      const side = (l: RawLevel[]): RawLevel[] => l.map((x) => [x[0], x[1]] as const)
+      return [{ kind: 'book-delta', market, bids: side(bids), asks: side(asks), seq: null, time: Date.now() }]
     }
     case 'v4_trades': {
-      const trades = ((contents as { trades?: WireTrade[] }).trades ?? []).map(trade)
-      return trades.length ? [{ kind: 'trades', market, trades }] : []
+      const { trades } = contents as { trades?: unknown }
+      if (!Array.isArray(trades) || !trades.every(isTrade)) return null
+      return trades.length ? [{ kind: 'trades', market, trades: trades.map(trade) }] : []
     }
     case 'v4_candles': {
       if (!interval) return []
-      const c = contents as { candles?: WireCandle[] } & Partial<WireCandle>
-      const list = c.candles ?? (c.startedAt ? [c as WireCandle] : [])
+      const c = contents as { candles?: unknown }
+      const list = 'candles' in c ? c.candles : [c]
+      if (!Array.isArray(list) || !list.every(isCandle)) return null
       const candles = list.map(candle).sort((a, b) => a.open - b.open)
       return candles.length ? [{ kind: 'candle', market, interval, candles }] : []
     }
@@ -118,10 +129,14 @@ export function dydx(network: Network): VenueAdapter {
       const market = symbols(ticker)
       if (!market) return []
       const interval = resolution ? (INTERVAL_OF[resolution] ?? null) : null
-      if (m.type === 'channel_batch_data') {
-        return (m.contents as unknown[]).flatMap((c) => events(m.channel, market, interval, false, c))
+      const read = (contents: unknown, snapshot: boolean) => {
+        const out = events(m.channel, market, interval, snapshot, contents)
+        if (!out) throw new VenueParseError('dydx', market, raw)
+        return out
       }
-      return events(m.channel, market, interval, m.type === 'subscribed', m.contents)
+      if (m.type !== 'channel_batch_data') return read(m.contents, m.type === 'subscribed')
+      if (!Array.isArray(m.contents)) throw new VenueParseError('dydx', market, raw)
+      return m.contents.flatMap((c) => read(c, false))
     },
 
     async fetchStats(base, fetch, signal) {
