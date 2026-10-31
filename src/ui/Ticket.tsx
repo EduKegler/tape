@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
@@ -550,8 +550,8 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         </form.Subscribe>
       </fieldset>
       <div className="flex shrink-0 flex-col gap-2 border-t border-rule p-3">
-        <form.Subscribe selector={(s) => [s.values, s.canSubmit] as const}>
-          {([values, canSubmit]) => {
+        <form.Subscribe selector={(s) => [s.values, s.canSubmit, invalidFields(s.fieldMeta)] as const}>
+          {([values, canSubmit, invalid]) => {
             const legs = scaleLegs(spec, kind, side, values, caps?.scaleOrders ?? 0)
             const px =
               kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
@@ -581,6 +581,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   base={spec.base}
                   phase={phaseOf(last, sent, draftOf(values))}
                   canSubmit={canSubmit && canSend}
+                  fix={invalid ? fixText(invalid, values.takeProfits.length) : null}
                 />
               </>
             )
@@ -672,6 +673,22 @@ function liquidationText(spec: MarketSpec, margin: MarginReading, entry: Entry |
   }
 }
 
+function invalidFields(meta: Record<string, { readonly errors?: readonly unknown[] } | undefined>): string | null {
+  const names = Object.entries(meta)
+    .filter(([, m]) => m?.errors?.some(Boolean))
+    .map(([name]) => name)
+  return names.length ? names.join(' ') : null
+}
+
+function fixText(invalid: string, takeProfits: number): string {
+  const labels = invalid.split(' ').map((name) => {
+    const row = /^takeProfits\[(\d+)\]\.(price|share)$/.exec(name)
+    if (row) return row[2] === 'price' ? takeProfitLabel(Number(row[1]), takeProfits) : `Size ${Number(row[1]) + 1} (%)`
+    return name in FIELD_LABEL ? FIELD_LABEL[name as keyof typeof FIELD_LABEL] : name
+  })
+  return `Fix ${labels.join(' and ').toLowerCase()} to send.`
+}
+
 type Phase = 'idle' | 'sending' | 'checking' | 'found' | 'resend'
 const HOLDS: ReadonlySet<Phase> = new Set(['sending', 'checking', 'found'])
 const PHASE_LABEL: Partial<Record<Phase, string>> = {
@@ -695,6 +712,7 @@ function SubmitArea({
   base,
   phase,
   canSubmit,
+  fix,
 }: {
   session: TradeSession
   venue: string
@@ -702,18 +720,34 @@ function SubmitArea({
   base: string
   phase: Phase
   canSubmit: boolean
+  fix: string | null
 }) {
+  const fixId = useId()
   const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
-  const button =
-    phase === 'resend' ? (
-      <Button look="secondary" size="lg" type="submit" disabled={!canSubmit}>
-        Send again: {label}
-      </Button>
-    ) : (
-      <Button look={side === 'buy' ? 'buy' : 'sell'} type="submit" disabled={!canSubmit || HOLDS.has(phase)}>
-        {PHASE_LABEL[phase] ?? label}
-      </Button>
-    )
+  const why = fix && !canSubmit ? fixId : undefined
+  const button = (
+    <>
+      {why && (
+        <p id={fixId} className="text-sm text-level2">
+          {fix}
+        </p>
+      )}
+      {phase === 'resend' ? (
+        <Button look="secondary" size="lg" type="submit" disabled={!canSubmit} aria-describedby={why}>
+          Send again: {label}
+        </Button>
+      ) : (
+        <Button
+          look={side === 'buy' ? 'buy' : 'sell'}
+          type="submit"
+          disabled={!canSubmit || HOLDS.has(phase)}
+          aria-describedby={why}
+        >
+          {PHASE_LABEL[phase] ?? label}
+        </Button>
+      )}
+    </>
+  )
   switch (session.status) {
     case 'read-only':
       return session.cause === 'venue-not-traded' ? (

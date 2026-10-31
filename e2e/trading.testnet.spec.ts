@@ -441,9 +441,11 @@ test('a retracement of 0 or 100% stops in the ticket and sends nothing', async (
     await retracement.fill(value)
     await expect(retracement).toHaveAccessibleDescription('Above 0 and below 100%')
     await expect(buy).toBeDisabled()
+    await expect(buy).toHaveAccessibleDescription('Fix retracement to send.')
   }
   await retracement.fill('1')
   await expect(buy).toBeEnabled()
+  await expect(buy).toHaveAccessibleDescription('')
   expect(trailingStops(hyperliquid.sent)).toEqual([])
 })
 
