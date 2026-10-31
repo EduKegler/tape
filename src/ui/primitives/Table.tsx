@@ -23,9 +23,9 @@ export function Table<T>({
 } & RowAction<T>) {
   if (empty !== undefined && rows.length === 0) return <p className="p-3 text-sm text-level3">{empty}</p>
   return (
-    <table className="num w-full text-xs">
+    <table className="num w-full text-sm">
       <thead>
-        <tr className="h-6 text-level3">
+        <tr className="h-6 text-xs text-level3">
           {columns.map((c, i) => (
             <th key={c.header} className={`font-normal ${i === 0 ? 'pl-3 text-left' : 'pr-3 text-right'}`}>
               {c.header}
@@ -34,23 +34,38 @@ export function Table<T>({
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr
-            key={rowKey(row)}
-            onClick={onRowClick && (() => onRowClick(row))}
-            className={
-              isCurrent
-                ? `h-7 cursor-pointer border-t border-rule hover:bg-level1/5 ${isCurrent(row) ? 'text-level1' : 'text-level2'}`
-                : 'h-7 border-t border-rule text-level2'
-            }
-          >
-            {columns.map((c, i) => (
-              <td key={c.header} className={i > 0 ? 'pr-3 text-right' : isCurrent ? 'pl-3' : 'pl-3 text-level1'}>
-                {c.cell(row)}
-              </td>
-            ))}
-          </tr>
-        ))}
+        {rows.map((row) => {
+          const current = isCurrent?.(row)
+          return (
+            <tr
+              key={rowKey(row)}
+              aria-current={current}
+              onClick={onRowClick && (() => onRowClick(row))}
+              className={
+                isCurrent
+                  ? 'h-7.5 cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:text-level1'
+                  : 'h-7.5 border-t border-rule text-level2'
+              }
+            >
+              {columns.map((c, i) => (
+                <td
+                  key={c.header}
+                  className={
+                    i > 0
+                      ? 'pr-3 text-right'
+                      : current
+                        ? 'pl-3 inset-shadow-current'
+                        : isCurrent
+                          ? 'pl-3'
+                          : 'pl-3 text-level1'
+                  }
+                >
+                  {c.cell(row)}
+                </td>
+              ))}
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
