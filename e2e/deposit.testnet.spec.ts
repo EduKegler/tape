@@ -110,3 +110,19 @@ test('three clicks in one tick ask the wallet for one deposit', async ({ page, w
   await expect(dialog.getByRole('alert')).toHaveText('You declined in the wallet. Nothing was sent.')
   expect(wallet.askedFor('send')).toHaveLength(1)
 })
+
+test('the deposit dialog starts on the amount, keeps Tab inside, and Escape gives the focus back', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { dialog, amount } = await openDeposit(page)
+  await expect(amount).toBeFocused()
+  const insideDialog = () => page.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)
+  for (const key of [...Array<string>(12).fill('Tab'), ...Array<string>(12).fill('Shift+Tab')]) {
+    await page.keyboard.press(key)
+    await expect.poll(insideDialog).toBe(true)
+  }
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(panel(page, 'Account').getByRole('button', { name: 'Deposit' })).toBeFocused()
+})

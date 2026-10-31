@@ -1,4 +1,5 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { useConnection } from 'wagmi'
 import { formatEther, formatUnits } from 'viem'
 import type { Hex } from 'viem'
@@ -20,7 +21,7 @@ import type { DepositQuote, DepositStatus } from '#/trade/deposit'
 import type { DepositRecord } from '#/trade/vault'
 import { wagmiConfig } from '#/wallet/config'
 import { shortAddress } from './format'
-import { Button } from './primitives'
+import { Button, Dialog } from './primitives'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
 const chainOf = (id: number) => wagmiConfig.chains.find((c) => c.id === id)
@@ -32,6 +33,7 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString('en-GB')
 
 export function DepositButton({ account }: { account: AccountRef }) {
   const [open, setOpen] = useState(false)
+  const amountRef = useRef<HTMLInputElement>(null)
   const venue = DEPOSITS[account.venue]
   if (!venue || depositRoutes(account).length === 0) return null
   return (
@@ -39,60 +41,56 @@ export function DepositButton({ account }: { account: AccountRef }) {
       <Button look="primary" size="sm" onClick={() => setOpen(true)}>
         Deposit
       </Button>
-      {open && <DepositDialog account={account} venue={venue} onClose={() => setOpen(false)} />}
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={`Deposit USDC to ${venue.destination}`}
+        initialFocus={amountRef}
+      >
+        <DepositBody account={account} venue={venue} amountRef={amountRef} />
+      </Dialog>
     </>
   )
 }
 
-function DepositDialog({ account, venue, onClose }: { account: AccountRef; venue: DepositVenue; onClose: () => void }) {
-  const titleId = useId()
+function DepositBody({
+  account,
+  venue,
+  amountRef,
+}: {
+  account: AccountRef
+  venue: DepositVenue
+  amountRef: RefObject<HTMLInputElement | null>
+}) {
   const deposits = useDeposits(account)
   const [shown, setShown] = useState<Hex | null>(null)
   const record = deposits.find((d) => d.hash === shown)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    addEventListener('keydown', onKey)
-    return () => removeEventListener('keydown', onKey)
-  }, [onClose])
   return (
-    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/60 motion-safe:animate-fade-in">
-      <div
-        role="dialog"
-        aria-modal
-        aria-labelledby={titleId}
-        className="flex max-h-[90vh] w-104 flex-col gap-3 overflow-auto rounded-sm border border-rule bg-raised p-4 text-sm"
-      >
-        <div className="flex items-center justify-between">
-          <h2 id={titleId} className="text-base text-level1">
-            Deposit USDC to {venue.destination}
-          </h2>
-          <Button look="quiet" onClick={onClose} aria-label="Close">
-            ×
+    <>
+      {record ? (
+        <>
+          <Receipt account={account} venue={venue} record={record} />
+          <Button look="quiet" onClick={() => setShown(null)} className="self-start">
+            New deposit
           </Button>
-        </div>
-        {record ? (
-          <>
-            <Receipt account={account} venue={venue} record={record} />
-            <Button look="quiet" onClick={() => setShown(null)} className="self-start">
-              New deposit
-            </Button>
-          </>
-        ) : (
-          <DepositForm account={account} venue={venue} onSent={setShown} />
-        )}
-        {deposits.length > 0 && <Recent account={account} deposits={deposits} shown={shown} onShow={setShown} />}
-      </div>
-    </div>
+        </>
+      ) : (
+        <DepositForm account={account} venue={venue} amountRef={amountRef} onSent={setShown} />
+      )}
+      {deposits.length > 0 && <Recent account={account} deposits={deposits} shown={shown} onShow={setShown} />}
+    </>
   )
 }
 
 function DepositForm({
   account,
   venue,
+  amountRef,
   onSent,
 }: {
   account: AccountRef
   venue: DepositVenue
+  amountRef: RefObject<HTMLInputElement | null>
   onSent: (hash: Hex) => void
 }) {
   const routes = depositRoutes(account)
@@ -161,6 +159,7 @@ function DepositForm({
           )}
         </div>
         <input
+          ref={amountRef}
           id={amountId}
           inputMode="decimal"
           autoComplete="off"
