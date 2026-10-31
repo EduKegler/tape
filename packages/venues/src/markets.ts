@@ -28,6 +28,8 @@ const own = (markets: readonly MarketSpec[]): readonly MarketGroup[] => [{ name:
 
 const baseOf = (name: string): Base | null => (isBase(name) ? name : null)
 
+const isHip3 = (base: Base) => splitBase(base).dex !== ''
+
 /** The reply, or null for a 400, which dYdX's indexer and Binance send for a market they do not list. */
 async function listedJson<T>(fetch: Fetch, url: string, signal?: AbortSignal): Promise<T | null> {
   const response = await fetch(url, { signal: signal ?? null })
@@ -162,6 +164,7 @@ export async function readDydxMarket(
   base: Base,
   signal?: AbortSignal,
 ): Promise<MarketSpec | null> {
+  if (isHip3(base)) return null
   const ticker = `${base}-USD`
   const json = await listedJson<{ markets: Record<string, DydxMarket> }>(
     fetch,
@@ -230,6 +233,7 @@ export async function readOrderlyMarket(
   base: Base,
   signal?: AbortSignal,
 ): Promise<MarketSpec | null> {
+  if (isHip3(base)) return null
   const json = await getExactJson<{ data?: OrderlyMarket }>(
     fetch,
     `${rest}/public/info/${encodeURIComponent(`PERP_${base}_USDC`)}`,
@@ -285,6 +289,7 @@ export async function readBinanceMarket(
   base: Base,
   signal?: AbortSignal,
 ): Promise<MarketSpec | null> {
+  if (isHip3(base)) return null
   const symbol = `${base}USDT`
   const info = await listedJson<{ symbols: BinanceSymbol[] }>(
     fetch,

@@ -115,6 +115,11 @@ describe('a market the venue does not list', () => {
   it('still fails on any other error', async () => {
     await expect(VENUES.dydx.fetchMarket(BTC, answering(503, {}))).rejects.toThrow('503')
   })
+
+  it.each(['dydx', 'orderly', 'binance'] as const)('reads a HIP-3 name as null on %s without asking', async (venue) => {
+    const refuse: typeof fetch = () => Promise.reject(new Error('asked'))
+    expect(await VENUES[venue].fetchMarket('xyz:TSLA' as Base, refuse)).toBeNull()
+  })
 })
 
 describe('hyperliquid adapter', () => {
