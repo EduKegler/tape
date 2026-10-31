@@ -21,7 +21,7 @@ import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { EnableTrading } from './EnableTrading'
 import { Panel, Segmented } from './Panel'
 import { Button, Input } from './primitives'
-import { specsQuery } from './queries'
+import { marketQuery } from './queries'
 import { TradeNote } from './TradeNote'
 import { proposedPrice, slippageBps } from './ticket-store'
 
@@ -45,8 +45,8 @@ const TIF_LABEL: Record<Tif, string> = {
 }
 
 export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; group: string }) {
-  const specs = useQuery(specsQuery(venue))
-  const spec = specs.data?.get(base)
+  const specs = useQuery(marketQuery(venue, base))
+  const spec = specs.data ?? undefined
   const session = useTradeSession(venue)
   const aside = (
     <span className="text-xs text-level3">
