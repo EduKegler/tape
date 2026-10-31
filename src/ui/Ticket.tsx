@@ -434,7 +434,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   {rows.state.value.map((_, i) => (
                     // eslint-disable-next-line @eslint-react/no-array-index-key -- TanStack Form names array fields by index, so a row is its index
                     <div key={i} className="flex items-end gap-2">
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <form.Field
                           name={`takeProfits[${i}].price`}
                           validators={{ onChange: ({ value }) => (value ? checkPrice(spec, value) : undefined) }}
@@ -457,7 +457,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                         </form.Field>
                       </div>
                       {count > 1 && (
-                        <div className="w-24">
+                        <div className="w-20 shrink-0">
                           <form.Field
                             name={`takeProfits[${i}].share`}
                             validators={{ onChange: ({ value }) => checkShare(value) }}
@@ -479,7 +479,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                       {count > 1 && (
                         <Button
                           look="quiet"
-                          className="pb-1.5"
+                          className="h-9 shrink-0"
                           aria-label={`Remove take profit ${i + 1}`}
                           onClick={() => {
                             rows.removeValue(i)

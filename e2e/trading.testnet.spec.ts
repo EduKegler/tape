@@ -300,6 +300,25 @@ test('two take profits ride with the order, each closing its share of the size',
   ])
 })
 
+for (const width of [1440, 375])
+  test(`two take profit rows stay inside the ticket ${width} px wide`, async ({ page, wallet: _wallet }) => {
+    await page.setViewportSize({ width, height: 900 })
+    const { ticket } = await enable(page)
+    await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
+    await ticket.getByRole('button', { name: 'Add take profit' }).click()
+    await expect(ticket.getByRole('button', { name: 'Remove take profit 2' })).toBeVisible()
+    const past = await ticket.evaluate((section) => {
+      const edge = section.getBoundingClientRect()
+      return [...section.querySelectorAll('*')]
+        .filter((e) => {
+          const box = e.getBoundingClientRect()
+          return box.width > 0 && (box.right > edge.right + 0.5 || box.left < edge.left - 0.5)
+        })
+        .map((e) => e.getAttribute('aria-label') ?? e.tagName)
+    })
+    expect(past).toEqual([])
+  })
+
 test('a stop loss takes one of the two trigger slots, and two take profits with it send nothing', async ({
   page,
   wallet: _wallet,
