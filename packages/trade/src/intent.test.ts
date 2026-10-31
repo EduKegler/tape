@@ -6,8 +6,10 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec, TickRule } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
-import { checkPrice, checkSize, closeIntent, worstPrice } from './intent'
-import type { Bps, Decimal, Position } from './types'
+import { buildIntent, checkCount, checkPrice, checkSize, checkSkew, closeIntent, worstPrice } from './intent'
+import type { IntentDraft } from './intent'
+import type { Bps, Capabilities, Decimal, Position } from './types'
+import { TRADING } from './index'
 
 const hl: MarketSpec = {
   key: marketKey('hyperliquid', 'BTC' as Base),
@@ -21,6 +23,36 @@ const hl: MarketSpec = {
   step: 1 as Qty,
 }
 const dydx: MarketSpec = { ...hl, venue: 'dydx', scale: { px: 0, qty: 4 }, tick: { kind: 'fixed', tick: 1 as Px } }
+
+const draft: IntentDraft = {
+  side: 'buy',
+  kind: 'limit',
+  price: '80000',
+  size: '0.001',
+  tif: 'gtc',
+  reduceOnly: false,
+  takeProfits: [],
+  stopLoss: '',
+  slippage: 100 as Bps,
+  bid: '',
+  ask: '',
+  start: '',
+  end: '',
+  count: '',
+  skew: '1',
+  retracement: '',
+  retracementUnit: 'pct',
+  activation: '',
+}
+
+const errorsOf = (
+  overrides: Partial<IntentDraft>,
+  spec = hl,
+  caps: Capabilities = TRADING.hyperliquid.capabilities,
+) => {
+  const built = buildIntent(spec, { ...draft, ...overrides }, caps)
+  return built.ok ? {} : built.errors
+}
 
 describe('order intent', () => {
   it('rejects prices off the tick and sizes off the step', () => {
@@ -39,6 +71,63 @@ describe('order intent', () => {
   it('floors a market sell at the slippage and rounds it up onto the tick', () => {
     expect(worstPrice(dydx, 'sell', 80_000 as Px, 50)).toBe(79_600)
     expect(worstPrice(dydx, 'sell', 80_001 as Px, 50)).toBe(79_601)
+  })
+
+  it('refuses a stop loss on a venue that cannot send triggers', () => {
+    for (const venue of [TRADING.dydx, TRADING.orderly]) {
+      expect(errorsOf({ stopLoss: '70000' }, hl, venue.capabilities)).toEqual({ stopLoss: 'Not offered on this venue' })
+      expect(
+        errorsOf({ kind: 'market', bid: '79990', ask: '80010', stopLoss: '70000' }, hl, venue.capabilities),
+      ).toEqual({ stopLoss: 'Not offered on this venue' })
+    }
+  })
+
+  it("checks a limit's stop against its own price when the book has no side", () => {
+    expect(errorsOf({ stopLoss: '81000' })).toEqual({ stopLoss: 'Must be below the price' })
+    expect(errorsOf({ stopLoss: '79000' })).toEqual({})
+    expect(errorsOf({ kind: 'market', price: '', stopLoss: '78000' })).toEqual({ stopLoss: 'No price on the book yet' })
+  })
+
+  it('accepts exits on the right side of a sell', () => {
+    const sell = { side: 'sell', bid: '79990', ask: '80010' } as const
+    expect(errorsOf({ ...sell, takeProfits: [{ price: '79000', share: '100' }], stopLoss: '81000' })).toEqual({})
+    expect(errorsOf({ ...sell, takeProfits: [{ price: '79000', share: '100' }] })).toEqual({})
+    expect(errorsOf({ ...sell, stopLoss: '81000' })).toEqual({})
+  })
+
+  it('refuses an exit at the order price', () => {
+    const at = [{ price: '80000', share: '100' }]
+    expect(errorsOf({ takeProfits: at })).toEqual({ takeProfit1: 'Must be above the price' })
+    expect(errorsOf({ side: 'sell', takeProfits: at })).toEqual({ takeProfit1: 'Must be below the price' })
+    expect(errorsOf({ stopLoss: '80000' })).toEqual({ stopLoss: 'Must be below the price' })
+    expect(errorsOf({ side: 'sell', stopLoss: '80000' })).toEqual({ stopLoss: 'Must be above the price' })
+  })
+
+  it('accepts an order worth exactly the venue minimum', () => {
+    expect(errorsOf({ price: '100000', size: '0.0001' }, { ...hl, minNotional: 100 as Px })).toEqual({})
+  })
+
+  it('refuses an empty, unreadable or off-tick field instead of throwing', () => {
+    const ten = { ...hl, minNotional: 100 as Px }
+    expect(errorsOf({ price: '' })).toEqual({ price: 'Enter a price' })
+    expect(errorsOf({ size: '' })).toEqual({ size: 'Enter a size' })
+    expect(errorsOf({ price: 'abc' })).toEqual({ price: 'Not a number' })
+    expect(errorsOf({ size: 'abc' })).toEqual({ size: 'Not a number' })
+    expect(errorsOf({ price: '80000.55' })).toEqual({ price: 'At most 1 decimals' })
+    expect(errorsOf({ size: '0.000015' })).toEqual({ size: 'At most 5 decimals' })
+    expect(errorsOf({ size: '0.000015' }, ten)).toEqual({ size: 'At most 5 decimals' })
+    expect(errorsOf({ price: '101234.5' })).toEqual({ price: 'Price must be a multiple of 1.0' })
+    expect(errorsOf({ stopLoss: '71234.5' })).toEqual({ stopLoss: 'Price must be a multiple of 1.0' })
+    expect(errorsOf({ size: '0' })).toEqual({ size: 'Minimum is 0.00001' })
+  })
+
+  it("takes from 2 to the venue's max orders and a skew from 0.1 to 10, both ends included", () => {
+    expect(checkCount('2', 20)).toBeUndefined()
+    expect(checkCount('20', 20)).toBeUndefined()
+    expect(checkSkew('0.1')).toBeUndefined()
+    expect(checkSkew('10')).toBeUndefined()
+    expect(checkSkew('10.1')).toBe('Between 0.1 and 10')
+    expect(checkSkew('0.09')).toBe('Between 0.1 and 10')
   })
 })
 

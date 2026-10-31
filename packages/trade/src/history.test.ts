@@ -141,6 +141,19 @@ describe('history totals', () => {
     ])
   })
 
+  it('sorts totals by group then asset whatever order they come in', () => {
+    const late = realize([
+      fill('buy', '1', '1', { venue: 'hyperliquid', asset: 'USDH', time: 1 }),
+      fill('buy', '1', '1', { venue: 'hyperliquid', time: 2 }),
+      fill('buy', '1', '1', { time: 3 }),
+    ])
+    expect(summarize(late, [], (e) => e.venue).map((t) => [t.group, t.asset])).toEqual([
+      ['dydx', 'USDC'],
+      ['hyperliquid', 'USDC'],
+      ['hyperliquid', 'USDH'],
+    ])
+  })
+
   it('never adds amounts settled in different assets', () => {
     const other = realize([fill('buy', '1', '1', { fee: '2' as Decimal, asset: 'USDH', time: 1 })])
     expect(summarize([...fills, ...other], [], () => 'all').map((t) => [t.asset, t.fees])).toEqual([
@@ -197,6 +210,32 @@ describe('history csv', () => {
       asset: 'USDC',
     })
     expect(record(lines[3]!)).toMatchObject({ realized_pnl: '5', liquidation: 'true' })
+  })
+
+  it('leaves the fill columns empty on a funding row, and the rate and size when the venue gave none', () => {
+    const time = Date.UTC(2026, 0, 3)
+    const [, line] = toCsv([], [funding('-0.3', time, { rate: null, position: null })], 'mainnet').split('\r\n')
+    expect(Object.fromEntries(CSV_COLUMNS.map((c, i) => [c, line!.split(',')[i]]))).toEqual({
+      time_utc: '2026-01-03T00:00:00.000Z',
+      timestamp_ms: String(time),
+      venue: 'dydx',
+      network: 'mainnet',
+      account: 'a',
+      type: 'funding',
+      market: 'BTC-USD',
+      side: '',
+      size: '',
+      price: '',
+      notional: '',
+      fee: '',
+      asset: 'USDC',
+      realized_pnl: '',
+      realized_pnl_source: '',
+      funding: '-0.3',
+      funding_rate: '',
+      liquidation: '',
+      venue_id: '',
+    })
   })
 
   it('quotes a field that holds a comma or a quote', () => {
@@ -257,6 +296,34 @@ describe('history selection', () => {
   it('realizes against an entry made before the period', () => {
     const december = selectHistory([history], { ...all, from: '2025-12-01', to: '2025-12-31' })
     expect(december.fills[0]?.pnl).toBe('10')
+  })
+
+  it('drops funding outside the period, venue or market', () => {
+    const payments = {
+      fills: [],
+      funding: [
+        funding('1', Date.parse('2025-11-15T00:00:00Z'), { symbol: 'X' }),
+        funding('1', Date.parse('2025-12-05T00:00:00Z'), { symbol: 'Y', venue: 'hyperliquid' }),
+        funding('1', Date.parse('2025-12-06T00:00:00Z'), { symbol: 'Z' }),
+        funding('1', Date.parse('2025-12-07T00:00:00Z'), { symbol: 'ETH-USD' }),
+      ],
+      gaps: [],
+    }
+    const december = { ...all, venue: 'dydx', market: 'Z', from: '2025-12-01', to: '2025-12-31' } as const
+    expect(selectHistory([payments], december).funding.map((p) => p.symbol)).toEqual(['Z'])
+  })
+
+  it("lists only the chosen venue's markets, sorted", () => {
+    const mixed = {
+      fills: [
+        fill('buy', '1', '1', { symbol: 'SOL-USD', venue: 'hyperliquid' }),
+        fill('buy', '1', '1', { symbol: 'ETH-USD' }),
+        fill('buy', '1', '1', { symbol: 'BTC-USD' }),
+      ],
+      funding: [funding('1', 1, { symbol: 'AVAX-USD' })],
+      gaps: [],
+    }
+    expect(selectHistory([mixed], { ...all, venue: 'dydx' }).markets).toEqual(['AVAX-USD', 'BTC-USD', 'ETH-USD'])
   })
 
   it('filters by venue and market, and lists the markets of the venue', () => {

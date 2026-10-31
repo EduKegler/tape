@@ -3,9 +3,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPublicClient, custom } from 'viem'
 import type { Address, Hex } from 'viem'
 import { burnToHyperCore } from './cctp'
-import { depositIssues, parseUsdc } from './deposit'
-import type { DepositFee, DepositReadings, DepositRoute, DepositTerms, ProgressIo, SentDeposit } from './deposit'
-import type { TradeConfig } from './types'
+import { blocksDeposit, depositIssues, parseUsdc } from './deposit'
+import type {
+  DepositFee,
+  DepositIssue,
+  DepositReadings,
+  DepositRoute,
+  DepositTerms,
+  ProgressIo,
+  SentDeposit,
+} from './deposit'
+import type { TradeConfig, TradeError } from './types'
+import { TradeFailure } from './types'
 import { DEPOSITS } from './index'
 
 const owner: Address = '0x2e5346477b01397553df3ec9a637f3e535325d6d'
@@ -120,6 +129,41 @@ describe('deposit issues', () => {
     ])
   })
 
+  it('warns from exactly 1% fee', () => {
+    const route = { ...bridge, minimum: null }
+    expect(
+      depositIssues(route, 25_000_000n, { ...known, terms: feeOnly({ expected: 250_000n, max: 300_000n }) }),
+    ).toEqual([{ kind: 'high-fee', bps: 100 }])
+  })
+
+  it('judges gas only once it knows the native balance, and passes a balance that covers it exactly', () => {
+    expect(depositIssues(bridge, 10_000_000n, { ...known, native: null })).toEqual([])
+    expect(depositIssues(bridge, 10_000_000n, { ...known, native: known.gasCost })).toEqual([])
+  })
+
+  it('lists a chain revert next to an issue other than the balance', () => {
+    const rejected = 'Blacklistable: account is blacklisted'
+    expect(depositIssues(bridge, 10_000_000n, { ...known, code: '0x6080604052', rejected })).toEqual([
+      { kind: 'contract-wallet' },
+      { kind: 'chain-rejects', reason: rejected },
+    ])
+  })
+
+  it('lets a high fee through as a warning and blocks every other deposit issue', () => {
+    const blocking: DepositIssue[] = [
+      { kind: 'below-minimum', minimum: 5_000_000n, lost: true },
+      { kind: 'fee-exceeds-amount', fee: 200_000n },
+      { kind: 'insufficient-usdc', balance: 0n },
+      { kind: 'insufficient-gas', need: 2n, have: 1n },
+      { kind: 'contract-wallet' },
+      { kind: 'chain-rejects', reason: 'paused' },
+      { kind: 'no-account' },
+      { kind: 'over-limit', room: 0n },
+    ]
+    expect(blocking.map(blocksDeposit)).toEqual(blocking.map(() => true))
+    expect(blocksDeposit({ kind: 'high-fee', bps: 150 })).toBe(false)
+  })
+
   it('waits for readings it does not have yet', () => {
     const unknown = { usdc: null, native: null, code: null, terms: null, gasCost: null, rejected: null }
     expect(depositIssues(bridge, 10_000_000n, unknown)).toEqual([])
@@ -223,6 +267,37 @@ describe('Hyperliquid CCTP deposit', () => {
     }) as typeof globalThis.fetch
     expect(await base.terms({ fetch, chain: noChain }, owner, 100_000_000n)).toEqual(fee)
     expect(asked).toEqual(['https://iris-api.circle.com/v2/burn/USDC/fees/6/19?forward=true&hyperCoreDeposit=true'])
+  })
+
+  it('quotes the Fast Transfer tier wherever Circle lists it', async () => {
+    const fetch = (async () =>
+      new Response(
+        JSON.stringify([
+          { finalityThreshold: 2000, minimumFee: 0, forwardFee: { low: 236453, med: 250890, high: 265327 } },
+          { finalityThreshold: 1000, minimumFee: 1.3, forwardFee: { low: 236453, med: 250890, high: 265327 } },
+        ]),
+      )) as typeof globalThis.fetch
+    expect(await base.terms({ fetch, chain: noChain }, owner, 100_000_000n)).toEqual(fee)
+  })
+
+  it('calls Circle unreachable when it fails, errs or sends no Fast Transfer fee', async () => {
+    const failure = (fetch: typeof globalThis.fetch) =>
+      base.terms({ fetch, chain: noChain }, owner, 100_000_000n).then(
+        () => null,
+        (e: unknown): TradeError | null => (e instanceof TradeFailure ? e.error : null),
+      )
+    const replying = (body: unknown, status = 200) =>
+      (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof globalThis.fetch
+    const offline = (async () => {
+      throw new Error('offline')
+    }) as unknown as typeof globalThis.fetch
+    const noFast = { kind: 'unreachable', detail: 'Circle sent no Fast Transfer fee' }
+    expect(await failure(offline)).toEqual({ kind: 'unreachable', detail: 'offline' })
+    expect(await failure(replying({ error: 'busy' }, 500))).toEqual({ kind: 'unreachable', detail: 'Circle 500' })
+    expect(await failure(replying([{ finalityThreshold: 2000, minimumFee: 0, forwardFee: { high: 265327 } }]))).toEqual(
+      noFast,
+    )
+    expect(await failure(replying({ code: 0 }))).toEqual(noFast)
   })
 
   it('takes the first matching CCTP credit after the send that no other deposit claimed', async () => {

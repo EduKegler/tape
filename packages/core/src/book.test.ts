@@ -144,6 +144,13 @@ describe('snapshot-then-deltas (dYdX)', () => {
     expect(bestAsk(book)).toBe(104)
   })
 
+  it('drops the locked level on both sides of a snapshot whose bid meets its ask', () => {
+    const steps = run('snapshot-then-deltas', [snapshot([lv(100, 1), lv(99, 1)], [lv(100, 2), lv(101, 1)])])
+    const book = visibleBook(steps[0]!.sync)!
+    expect(topLevels(book.bids, 5)).toEqual([lv(99, 1)])
+    expect(topLevels(book.asks, 5)).toEqual([lv(101, 1)])
+  })
+
   it('asks the hub to resubscribe when the book is corrupt', () => {
     const steps = run('snapshot-then-deltas', [
       snapshot([lv(100, 1)], [lv(101, 1)]),
