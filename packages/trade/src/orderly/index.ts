@@ -61,12 +61,14 @@ export function classifyMessage(message: string): TradeError {
 
 /**
  * Kinds Orderly's error codes page fixes by code: -1001 an API key in the wrong format, -1002 one that is invalid,
- * expired or revoked, and -1012 a refusal by an internal module, which a reduce only order with no position gets.
+ * expired or revoked, -1012 a refusal by an internal module, which a reduce only order with no position gets, and
+ * -1102 an order value under the minimum.
  */
-const KIND_OF_CODE: Readonly<Record<string, 'needs-setup' | 'rejected'>> = {
+const KIND_OF_CODE: Readonly<Record<string, 'needs-setup' | 'rejected' | 'invalid-order'>> = {
   '-1001': 'needs-setup',
   '-1002': 'needs-setup',
   '-1012': 'rejected',
+  '-1102': 'invalid-order',
 }
 
 const classify: Classify = (status, body, text) => {

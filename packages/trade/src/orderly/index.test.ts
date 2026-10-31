@@ -290,6 +290,7 @@ describe('orderly refusals', () => {
       ['offStep', 'invalid-order'],
       ['unregistered', 'needs-setup'],
       ['reduceOnly', 'rejected'],
+      ['minimumValue', 'invalid-order'],
     ] as const) {
       const { status, response } = recordedWrite('orderly', name).exchanges[0]!
       const { ctx } = orderlyAt(() => ({ status, body: JSON.stringify(response) }))
