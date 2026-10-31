@@ -1,3 +1,4 @@
+import { splitBase } from '@tape/core/ids'
 import type { Interval, Network } from '@tape/core/ids'
 import { readHyperliquidMarket, readHyperliquidMarkets } from './markets'
 import { VenueParseError, chartBar, getJson } from './types'
@@ -102,7 +103,7 @@ export function hyperliquid(network: Network): VenueAdapter {
       const [meta, ctxs] = await getJson<[{ universe: { name: string }[] }, Ctx[]]>(
         fetch,
         INFO,
-        post({ type: 'metaAndAssetCtxs' }, signal),
+        post({ type: 'metaAndAssetCtxs', dex: splitBase(base).dex }, signal),
       )
       const ctx = ctxs[meta.universe.findIndex((u) => u.name === base)]
       if (!ctx) throw new Error(`no ${base} on hyperliquid`)

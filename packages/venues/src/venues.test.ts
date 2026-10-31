@@ -130,6 +130,24 @@ describe('hyperliquid adapter', () => {
     expect(live[0]).toBeNull()
     expect(live.length).toBeGreaterThan(1)
   })
+
+  it('reads the 24h stats of a HIP-3 market from its own dex', async () => {
+    const ctx = (markPx: string) => ({ funding: '0', prevDayPx: markPx, dayNtlVlm: '0', oraclePx: markPx, markPx })
+    const tsla = {
+      funding: '-0.0000259184',
+      prevDayPx: '393.8',
+      dayNtlVlm: '40248019.5430800095',
+      oraclePx: '399.83',
+      markPx: '399.59',
+    }
+    const dexes: typeof fetch = async (_, init) =>
+      (JSON.parse(init?.body as string) as { dex: string }).dex === 'xyz'
+        ? Response.json([{ universe: [{ name: 'xyz:NVDA' }, { name: 'xyz:TSLA' }] }, [ctx('180.1'), tsla]])
+        : Response.json([{ universe: [{ name: 'BTC' }] }, [ctx('110000')]])
+    const stats = await VENUES.hyperliquid.fetchStats('xyz:TSLA' as Base, dexes)
+    expect(stats.changePct).toBeCloseTo(1.47029, 5)
+    expect(stats).toMatchObject({ volumeQuote: 40248019.54308001, fundingRate: -0.0000259184, indexPrice: 399.83 })
+  })
 })
 
 describe.each(VENUE_IDS)('%s adapter', (venue) => {
