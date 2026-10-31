@@ -1,3 +1,4 @@
+import { INTERVALS } from '@tape/core/ids'
 import type { Base, Interval, Network } from '@tape/core/ids'
 import { isRecord, parseExactJson } from '@tape/core/json'
 import { readOrderlyMarket, readOrderlyMarkets } from './markets'
@@ -9,10 +10,7 @@ const symbolOf = (base: Base) => `PERP_${base}_USDC`
 const RESOLUTION: Record<Interval, string> = { '1m': '1', '5m': '5', '15m': '15', '1h': '60' }
 const INTERVAL_MS: Record<Interval, number> = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000 }
 const KLINE: Record<Interval, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h' }
-const INTERVAL_OF = Object.fromEntries(Object.entries(KLINE).map(([interval, kline]) => [kline, interval])) as Record<
-  string,
-  Interval
->
+const intervalOf = (kline: string) => INTERVALS.find((interval) => KLINE[interval] === kline)
 
 interface WireBook {
   bids: RawLevel[]
@@ -132,7 +130,7 @@ export function orderly(network: Network): VenueAdapter {
         ]
       }
       if (stream.startsWith('kline_') && isKline(data)) {
-        const interval = INTERVAL_OF[stream.slice('kline_'.length)]
+        const interval = intervalOf(stream.slice('kline_'.length))
         if (!interval) return []
         return [
           {

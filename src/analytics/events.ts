@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { VENUE_IDS } from '@tape/core/ids'
+import { keysOf } from '@tape/core/record'
 import type { Command, StepId, Tif, TradeError } from '@tape/trade/types'
 import { MAX_EVENTS } from './beacon'
 import { CHUNK_ID } from './exception'
@@ -34,11 +35,9 @@ const COMMANDS = { place: true, cancel: true, 'cancel-all': true, leverage: true
 
 const TIFS = { gtc: true, ioc: true, 'post-only': true } satisfies Record<Tif, true>
 
-const keys = <TKey extends string>(record: Record<TKey, true>) => Object.keys(record) as [TKey, ...TKey[]]
-
 const venue = z.enum(VENUE_IDS)
-const error = z.enum(keys(ERRORS))
-const command = z.enum(keys(COMMANDS))
+const error = z.enum(keysOf(ERRORS))
+const command = z.enum(keysOf(COMMANDS))
 const connector = z.enum(['injected', 'walletConnect', 'other'])
 const chain = z.number().int().positive()
 
@@ -68,7 +67,7 @@ export const AppEvent = z.discriminatedUnion('event', [
   }),
   z.strictObject({ event: z.literal('trading_enable_started'), venue }),
   /** Sent when the wallet is asked for the step. The next step or `trading_enabled` is what shows it passed. */
-  z.strictObject({ event: z.literal('trading_enable_step'), venue, step: z.enum(keys(STEPS)) }),
+  z.strictObject({ event: z.literal('trading_enable_step'), venue, step: z.enum(keysOf(STEPS)) }),
   z.strictObject({ event: z.literal('trading_enabled'), venue }),
   z.strictObject({ event: z.literal('trading_enable_failed'), venue, error }),
   z.strictObject({
@@ -77,7 +76,7 @@ export const AppEvent = z.discriminatedUnion('event', [
     command,
     side: z.enum(['buy', 'sell']).optional(),
     order: z.enum(['limit', 'market', 'scale', 'trailing']).optional(),
-    tif: z.enum(keys(TIFS)).optional(),
+    tif: z.enum(keysOf(TIFS)).optional(),
     reduce_only: z.boolean().optional(),
   }),
   z.strictObject({

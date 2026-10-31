@@ -6,6 +6,7 @@ import { VENUE_IDS, parseStreamKey, splitMarketKey, streamKey } from '@tape/core
 import type { Interval, MarketKey, StreamKey, TabId, VenueId } from '@tape/core/ids'
 import { emptyTape, pushTrades, upsertCandle } from '@tape/core/market'
 import type { Candle, MarketSpec, TradeTape } from '@tape/core/market'
+import { fromKeys } from '@tape/core/record'
 import { toCandle, toLevels, toTrades } from '@tape/venues/normalize'
 import { VenueParseError } from '@tape/venues/types'
 import type { StreamTarget, VenueAdapter, VenueEvent } from '@tape/venues/types'
@@ -107,7 +108,7 @@ export function createHub(deps: HubDeps): Hub {
     bySymbol: new Map(),
     specReads: new Map(),
   })
-  const venues = Object.fromEntries(VENUE_IDS.map((id) => [id, initialVenue(id)])) as Record<VenueId, VenueState>
+  const venues = fromKeys(VENUE_IDS, initialVenue)
   let lastWanted: ReadonlyMap<StreamKey, number> = new Map()
   let streams: ReadonlySet<StreamKey> = new Set()
   let messages = 0
@@ -518,11 +519,8 @@ export function createHub(deps: HubDeps): Hub {
       return {
         tabs: tabs.size,
         streams: [...streams],
-        connections: Object.fromEntries(VENUE_IDS.map((id) => [id, venues[id].conn.s])) as Record<
-          VenueId,
-          ConnState['s']
-        >,
-        socketsOpened: Object.fromEntries(VENUE_IDS.map((id) => [id, venues[id].opened])) as Record<VenueId, number>,
+        connections: fromKeys(VENUE_IDS, (id) => venues[id].conn.s),
+        socketsOpened: fromKeys(VENUE_IDS, (id) => venues[id].opened),
         phases: Object.fromEntries([...markets.values()].map((state) => [state.key, state.sync.phase])),
       }
     },

@@ -1,3 +1,4 @@
+import { INTERVALS } from '@tape/core/ids'
 import type { Base, Interval, MarketKey, Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { isDydxMarkets, readDydxMarket, readDydxMarkets } from './markets'
@@ -6,9 +7,7 @@ import type { RawCandle, RawLevel, RawTrade, StreamTarget, VenueAdapter, VenueEv
 import { isPairs, isText } from './wire'
 
 const RESOLUTION: Record<Interval, string> = { '1m': '1MIN', '5m': '5MINS', '15m': '15MINS', '1h': '1HOUR' }
-const INTERVAL_OF = Object.fromEntries(
-  Object.entries(RESOLUTION).map(([interval, resolution]) => [resolution, interval]),
-) as Record<string, Interval>
+const intervalOf = (resolution: string) => INTERVALS.find((interval) => RESOLUTION[interval] === resolution)
 const tickerOf = (base: Base) => `${base}-USD`
 
 interface WireCandle {
@@ -138,7 +137,7 @@ export function dydx(network: Network): VenueAdapter {
       const [ticker, resolution] = frame.id.split('/') as [string, string | undefined]
       const market = symbols(ticker)
       if (!market) return []
-      const interval = resolution ? (INTERVAL_OF[resolution] ?? null) : null
+      const interval = resolution ? (intervalOf(resolution) ?? null) : null
       const read = (contents: unknown, snapshot: boolean) => {
         const out = events(frame.channel, market, interval, snapshot, contents)
         if (!out) throw new VenueParseError('dydx', market, raw)

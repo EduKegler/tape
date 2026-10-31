@@ -4,6 +4,7 @@ import { switchChain } from 'wagmi/actions'
 import { arbitrum, base, mainnet, optimism } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
 import { z } from 'zod'
+import { fromKeys } from '@tape/core/record'
 import { NETWORK } from '#/site'
 import { CHAINS } from './chains'
 
@@ -43,10 +44,10 @@ export const wagmiConfig = createConfig({
   ],
   multiInjectedProviderDiscovery: false,
   ssr: true,
-  transports: Object.fromEntries(chains.map((chain) => [chain.id, http()])) as Record<
-    (typeof chains)[number]['id'],
-    Transport
-  >,
+  transports: fromKeys(
+    chains.map((chain) => chain.id),
+    (): Transport => http(),
+  ),
 })
 
 export async function switchOrAddChain(chainId: number): Promise<void> {
