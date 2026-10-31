@@ -3,6 +3,7 @@ import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
+import { recordedWrite } from '../fixtures'
 import { buildIntent } from '../intent'
 import type { IntentDraft } from '../intent'
 import { TradeFailure } from '../types'
@@ -254,6 +255,8 @@ describe('dydx key and lookup', () => {
     expect(await dydx.lookup(at(200, [{ clientId: '1', status: 'OPEN' }]), place.intent)).toMatchObject({
       kind: 'absent',
     })
+    const never = recordedWrite('dydx', 'lookupUnknown').exchanges[0]!
+    expect(await dydx.lookup(at(never.status, never.response), place.intent)).toMatchObject({ kind: 'absent' })
     expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), place.intent))).toMatchObject({ kind: 'unreachable' })
   })
 
@@ -663,11 +666,8 @@ describe('dydx account', () => {
   })
 
   it('calls an address the indexer has no subaccount for empty, a failed read unreachable, and no key unknown', async () => {
-    // Recorded from indexer.v4testnet.dydx.exchange on 2026-10-31.
-    const missing = {
-      errors: [{ msg: 'No subaccount found with address dydx1test and subaccountNumber 0' }],
-    }
-    const { ctx: none } = indexer(() => new Response(JSON.stringify(missing), { status: 404 }))
+    const missing = recordedWrite('dydx', 'unknownAddress').exchanges[0]!
+    const { ctx: none } = indexer(() => new Response(JSON.stringify(missing.response), { status: missing.status }))
     expect(await dydx.account(none)).toEqual({ kind: 'empty' })
     const { ctx: down } = indexer(() => new Response('Bad Gateway', { status: 502 }))
     expect(await failure(dydx.account(down))).toMatchObject({ kind: 'unreachable' })
