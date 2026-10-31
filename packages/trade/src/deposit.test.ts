@@ -128,6 +128,26 @@ describe('deposit issues', () => {
     ])
   })
 
+  it('warns from exactly 1% fee', () => {
+    const route = { ...bridge, minimum: null }
+    expect(
+      depositIssues(route, 25_000_000n, { ...known, terms: feeOnly({ expected: 250_000n, max: 300_000n }) }),
+    ).toEqual([{ kind: 'high-fee', bps: 100 }])
+  })
+
+  it('judges gas only once it knows the native balance, and passes a balance that covers it exactly', () => {
+    expect(depositIssues(bridge, 10_000_000n, { ...known, native: null })).toEqual([])
+    expect(depositIssues(bridge, 10_000_000n, { ...known, native: known.gasCost })).toEqual([])
+  })
+
+  it('lists a chain revert next to an issue other than the balance', () => {
+    const rejected = 'Blacklistable: account is blacklisted'
+    expect(depositIssues(bridge, 10_000_000n, { ...known, code: '0x6080604052', rejected })).toEqual([
+      { kind: 'contract-wallet' },
+      { kind: 'chain-rejects', reason: rejected },
+    ])
+  })
+
   it('lets a high fee through as a warning and blocks every other deposit issue', () => {
     const blocking: DepositIssue[] = [
       { kind: 'below-minimum', minimum: 5_000_000n, lost: true },
