@@ -1,5 +1,7 @@
 import { plainDecimal, wireDecimal } from '@tape/core/fixed'
 import type { Brand } from '@tape/core/ids'
+import { toDecimal } from './types'
+import type { Decimal } from './types'
 
 /** A signed exact decimal counted in 10^-18 units. Venue amounts carry fewer places, so sums of them stay exact. */
 export type Amount = Brand<bigint, 'Amount'>
@@ -7,7 +9,9 @@ export type Amount = Brand<bigint, 'Amount'>
 const PLACES = 18
 const ONE = 10n ** BigInt(PLACES)
 
-export const ZERO = 0n as Amount
+const fromUnits = (count: bigint) => count as Amount
+
+export const ZERO = fromUnits(0n)
 
 /** Throws on text that is not a plain or exponent decimal, and on more than 18 places. */
 export function amount(text: string): Amount {
@@ -15,8 +19,8 @@ export function amount(text: string): Amount {
   const negative = plain.startsWith('-')
   const [whole = '0', fraction = ''] = plain.replace(/^-/, '').split('.')
   if (fraction.length > PLACES) throw new RangeError(`${text} has more than ${PLACES} decimal places`)
-  const units = BigInt(whole) * ONE + BigInt(fraction.padEnd(PLACES, '0'))
-  return (negative ? -units : units) as Amount
+  const count = BigInt(whole) * ONE + BigInt(fraction.padEnd(PLACES, '0'))
+  return fromUnits(negative ? -count : count)
 }
 
 function roundedQuotient(numerator: bigint, denominator: bigint): bigint {
@@ -27,12 +31,12 @@ function roundedQuotient(numerator: bigint, denominator: bigint): bigint {
   return negative ? -quotient : quotient
 }
 
-export const add = (left: Amount, right: Amount) => (left + right) as Amount
-export const subtract = (left: Amount, right: Amount) => (left - right) as Amount
-export const negate = (value: Amount) => (0n - value) as Amount
-export const abs = (value: Amount) => (value < 0n ? 0n - value : value) as Amount
-export const multiply = (left: Amount, right: Amount) => roundedQuotient(left * right, ONE) as Amount
-export const divide = (left: Amount, right: Amount) => roundedQuotient(left * ONE, right) as Amount
+export const add = (left: Amount, right: Amount) => fromUnits(left + right)
+export const subtract = (left: Amount, right: Amount) => fromUnits(left - right)
+export const negate = (value: Amount) => fromUnits(0n - value)
+export const abs = (value: Amount) => fromUnits(value < 0n ? 0n - value : value)
+export const multiply = (left: Amount, right: Amount) => fromUnits(roundedQuotient(left * right, ONE))
+export const divide = (left: Amount, right: Amount) => fromUnits(roundedQuotient(left * ONE, right))
 export const sum = (values: Iterable<Amount>) => {
   let total = ZERO
   for (const value of values) total = add(total, value)
@@ -50,4 +54,4 @@ export function format(value: Amount, places: number): string {
 }
 
 /** The shortest exact decimal: no trailing zeros. */
-export const plain = (value: Amount) => wireDecimal(value, PLACES)
+export const plain = (value: Amount): Decimal => toDecimal(wireDecimal(value, PLACES))

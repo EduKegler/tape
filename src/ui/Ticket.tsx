@@ -26,6 +26,7 @@ import {
   checkShare,
   checkSize,
   checkSkew,
+  isDraftField,
   splitSize,
   takeProfitField,
 } from '@tape/trade/intent'
@@ -34,7 +35,8 @@ import { apportion } from '@tape/trade/scale-order'
 import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
-import type { Bps, Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
+import { isTif, toBps } from '@tape/trade/types'
+import type { Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import { useFrame, useFrameEffect } from '#/client/hooks'
@@ -83,7 +85,7 @@ type FieldShape = {
 const draftField = (name: string): DraftField | null => {
   const row = /^takeProfits\[(\d+)\]\.price$/.exec(name)
   if (row) return takeProfitField(Number(row[1]))
-  return name in FIELD_LABEL && name !== 'takeProfits' ? (name as DraftField) : null
+  return hasLabel(name) && name !== 'takeProfits' ? name : null
 }
 const FIELD_LABEL = {
   price: 'Price',
@@ -98,10 +100,9 @@ const FIELD_LABEL = {
   retracement: 'Retracement',
   activation: 'Activation price',
 } as const
+const hasLabel = (name: string): name is keyof typeof FIELD_LABEL => Object.hasOwn(FIELD_LABEL, name)
 const fieldLabel = (field: DraftField, takeProfits: number) =>
-  field in FIELD_LABEL
-    ? FIELD_LABEL[field as keyof typeof FIELD_LABEL]
-    : takeProfitLabel(Number(field.slice(10)) - 1, takeProfits)
+  hasLabel(field) ? FIELD_LABEL[field] : takeProfitLabel(Number(field.slice(10)) - 1, takeProfits)
 const takeProfitLabel = (index: number, count: number) => (count > 1 ? `Take profit ${index + 1}` : 'Take profit')
 const evenShares = (count: number) =>
   apportion(
@@ -185,7 +186,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         stopLoss: exits ? value.stopLoss : '',
         side,
         kind,
-        slippage: slippage as Bps,
+        slippage,
         bid: touch.bid,
         ask: touch.ask,
       },
@@ -201,7 +202,10 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         setBuilt({
           kind: 'invalid-order',
           detail: Object.entries(result.errors)
-            .map(([field, message]) => `${fieldLabel(field as DraftField, value.takeProfits.length)}: ${message}`)
+            .map(
+              ([field, message]) =>
+                `${isDraftField(field) ? fieldLabel(field, value.takeProfits.length) : field}: ${message}`,
+            )
             .join('; '),
         })
         return
@@ -437,7 +441,10 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 <select
                   name="tif"
                   value={field.state.value}
-                  onChange={(event) => field.handleChange(event.target.value as Tif)}
+                  onChange={(event) => {
+                    const tif = event.target.value
+                    if (isTif(tif)) field.handleChange(tif)
+                  }}
                   className="rounded-sm border border-edge bg-inset px-1.5 py-1 text-sm text-level1"
                 >
                   {(caps?.tif ?? (['gtc', 'ioc', 'post-only'] as const))
@@ -737,7 +744,7 @@ function fixText(invalid: string, takeProfits: number): string {
   const labels = invalid.split(' ').map((name) => {
     const row = /^takeProfits\[(\d+)\]\.(price|share)$/.exec(name)
     if (row) return row[2] === 'price' ? takeProfitLabel(Number(row[1]), takeProfits) : `Size ${Number(row[1]) + 1} (%)`
-    return name in FIELD_LABEL ? FIELD_LABEL[name as keyof typeof FIELD_LABEL] : name
+    return hasLabel(name) ? FIELD_LABEL[name] : name
   })
   return `Fix ${labels.join(' and ').toLowerCase()} to send.`
 }
@@ -859,7 +866,7 @@ function SlippageField() {
       <Segmented
         label="Max slippage"
         value={String(value)}
-        onChange={(next) => slippageBps.setState(() => Number(next))}
+        onChange={(next) => slippageBps.setState(() => toBps(Number(next)))}
         options={SLIPPAGE_STEPS.map((step) => ({ value: String(step), label: `${step / 100}%` }))}
       />
     </div>

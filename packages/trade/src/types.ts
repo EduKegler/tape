@@ -22,14 +22,49 @@ export type AccountKey = Brand<string, 'AccountKey'>
 export const accountKey = (ref: AccountRef) => `${ref.venue}:${ref.network}:${ref.owner}` as AccountKey
 
 export type Side = 'buy' | 'sell'
-export type Tif = 'gtc' | 'ioc' | 'post-only'
+
+const TIFS = ['gtc', 'ioc', 'post-only'] as const
+export type Tif = (typeof TIFS)[number]
+
+export function isTif(value: string): value is Tif {
+  return (TIFS as readonly string[]).includes(value)
+}
+
 export type Bps = Brand<number, 'Bps'>
+
+export function isBps(value: number): value is Bps {
+  return Number.isSafeInteger(value)
+}
+
+/** Throws RangeError on a count that is not a whole number of basis points. */
+export function toBps(value: number): Bps {
+  if (!isBps(value)) throw new RangeError(`${value} is not a whole number of basis points`)
+  return value
+}
 
 /** An exact decimal string as the venue sent it, for display values that never go back into an order. */
 export type Decimal = Brand<string, 'Decimal'>
 
+const PLAIN_DECIMAL = /^-?\d+(?:\.\d+)?$/
+
+/** A plain decimal such as `-12.5`, with no exponent and no grouping. */
+export function isDecimal(text: string): text is Decimal {
+  return PLAIN_DECIMAL.test(text)
+}
+
+/** Throws TypeError on text that is not a plain decimal. */
+export function toDecimal(text: string): Decimal {
+  if (!isDecimal(text)) throw new TypeError(`${text} is not a plain decimal`)
+  return text
+}
+
 /** 128 random bits. Hyperliquid takes it as cloid, Orderly as client_order_id, dYdX folds it to uint32. */
 export type ClientOrderId = Brand<Hex, 'ClientOrderId'>
+
+/** 32 lowercase hex digits after `0x`. */
+export function isClientOrderId(value: Hex): value is ClientOrderId {
+  return /^0x[0-9a-f]{32}$/.test(value)
+}
 
 /**
  * What the user asked for, in the units of the market on screen. The venue module re-reads the
@@ -72,6 +107,9 @@ export interface ScaleLeg {
 
 /** Opaque outside the module that made it. Carries what that venue needs to cancel. */
 export type OrderRef = Brand<string, 'OrderRef'>
+
+/** The parts joined by `:`, in the order the venue module reads them back. */
+export const orderRef = (...parts: readonly (string | number)[]) => parts.join(':') as OrderRef
 
 export type Command =
   | { readonly kind: 'place'; readonly intent: OrderIntent }

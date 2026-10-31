@@ -7,16 +7,14 @@ import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { post, send } from '../send'
 import type { Classify } from '../send'
-import { TradeFailure } from '../types'
+import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
   AccountView,
   Command,
   CommandOutcome,
-  Decimal,
   HistoryRequest,
   OrderIntent,
   OrderLookup,
-  OrderRef,
   SetupStep,
   Side,
   StepId,
@@ -320,7 +318,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   }
 }
 
-const toDecimal = (text: string) => plainDecimal(text) as Decimal
+const venueDecimal = (text: string) => toDecimal(plainDecimal(text))
 
 async function account(ctx: VenueContext): Promise<AccountView> {
   if (!keyOf(ctx) || ctx.keys.read()?.status !== 'linked') return { kind: 'unknown' }
@@ -374,24 +372,24 @@ async function account(ctx: VenueContext): Promise<AccountView> {
   return {
     kind: 'live',
     snapshot: {
-      equity: toDecimal(positions.total_collateral_value),
-      available: toDecimal(positions.free_collateral),
+      equity: venueDecimal(positions.total_collateral_value),
+      available: venueDecimal(positions.free_collateral),
       positions: live.map((position) => ({
         symbol: position.symbol,
         side: position.position_qty.startsWith('-') ? 'short' : 'long',
-        size: toDecimal(position.position_qty.replace(/^-/, '')),
-        entry: toDecimal(position.average_open_price),
-        unrealizedPnl: toDecimal(position.unsettled_pnl),
-        liquidation: Number(position.est_liq_price) > 0 ? toDecimal(position.est_liq_price) : null,
+        size: venueDecimal(position.position_qty.replace(/^-/, '')),
+        entry: venueDecimal(position.average_open_price),
+        unrealizedPnl: venueDecimal(position.unsettled_pnl),
+        liquidation: Number(position.est_liq_price) > 0 ? venueDecimal(position.est_liq_price) : null,
         leverage: null,
       })),
       orders: orders.rows.map((order) => ({
-        ref: `${order.symbol}:${order.order_id}` as OrderRef,
+        ref: orderRef(order.symbol, order.order_id),
         symbol: order.symbol,
         side: order.side === 'BUY' ? 'buy' : 'sell',
         kind: order.type,
-        px: order.price === null ? null : toDecimal(order.price),
-        size: toDecimal(order.quantity),
+        px: order.price === null ? null : venueDecimal(order.price),
+        size: venueDecimal(order.quantity),
         reduceOnly: order.reduce_only,
         placedAt: Number(order.created_time),
         cancelable: true,
@@ -400,9 +398,9 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         id: trade.id,
         symbol: trade.symbol,
         side: trade.side === 'BUY' ? 'buy' : 'sell',
-        px: toDecimal(trade.executed_price),
-        size: toDecimal(trade.executed_quantity),
-        fee: toDecimal(trade.fee),
+        px: venueDecimal(trade.executed_price),
+        size: venueDecimal(trade.executed_quantity),
+        fee: venueDecimal(trade.fee),
         time: Number(trade.executed_timestamp),
       })),
     },
@@ -565,13 +563,13 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
         id: trade.id,
         symbol: trade.symbol,
         side: trade.side === 'BUY' ? 'buy' : 'sell',
-        px: toDecimal(trade.executed_price),
-        size: toDecimal(trade.executed_quantity),
-        fee: toDecimal(trade.fee),
+        px: venueDecimal(trade.executed_price),
+        size: venueDecimal(trade.executed_quantity),
+        fee: venueDecimal(trade.fee),
         asset: trade.fee_asset,
         time: Number(trade.executed_timestamp),
         liquidation: trade.order_id === null,
-        venuePnl: trade.realized_pnl === null ? null : toDecimal(trade.realized_pnl),
+        venuePnl: trade.realized_pnl === null ? null : venueDecimal(trade.realized_pnl),
       })),
     ),
     // Accrued payments are not settled yet and can still change.
@@ -583,10 +581,10 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
           account: id,
           symbol: payment.symbol,
           time: Number(payment.funding_rate_timestamp),
-          amount: plain(negate(amount(payment.funding_fee))) as Decimal,
+          amount: plain(negate(amount(payment.funding_fee))),
           asset: 'USDC',
-          rate: toDecimal(payment.funding_rate),
-          position: toDecimal(payment.position_qty),
+          rate: venueDecimal(payment.funding_rate),
+          position: venueDecimal(payment.position_qty),
         })),
     ),
     gaps: [],

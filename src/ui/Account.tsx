@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, MarketKey, VenueId } from '@tape/core/ids'
 import { closeIntent } from '@tape/trade/intent'
-import type { AccountRef, Bps, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
+import { toBps } from '@tape/trade/types'
+import type { AccountRef, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
 import { useFrame } from '#/client/hooks'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
@@ -73,7 +74,7 @@ function AccountBody({
   const { view, error } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
-  const slippage = useSelector(closeSlippageBps, (state) => state) as Bps
+  const slippage = useSelector(closeSlippageBps, (state) => state)
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
   const held =
@@ -298,7 +299,7 @@ function CloseTerms({ position, market }: { position: Position; market: MarketKe
         <Segmented
           label="Close slippage"
           value={String(slippage)}
-          onChange={(value) => closeSlippageBps.setState(() => Number(value))}
+          onChange={(value) => closeSlippageBps.setState(() => toBps(Number(value)))}
           options={SLIPPAGE_STEPS.map((step) => ({ value: String(step), label: `${step / 100}%` }))}
         />
       </span>

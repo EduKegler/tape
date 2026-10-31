@@ -1,5 +1,5 @@
 import type { Network } from '@tape/core/ids'
-import { ZERO, abs, add, amount, divide, format, multiply, negate, plain as plainAmount, subtract, sum } from './money'
+import { ZERO, abs, add, amount, divide, format, multiply, negate, plain, subtract, sum } from './money'
 import type { Amount } from './money'
 import type { Decimal, Fill, TradeVenueId } from './types'
 
@@ -45,7 +45,6 @@ interface Book {
   entryCost: Amount
 }
 
-const plain = (value: Amount) => plainAmount(value) as Decimal
 /** USDC, which every venue here settles PnL in, has 6 decimals. */
 const SETTLED_PLACES = 6
 const settled = (value: Amount) => plain(amount(format(value, SETTLED_PLACES)))

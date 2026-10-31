@@ -12,13 +12,12 @@ import type { MarginState, MarginTier } from '../liquidation'
 import { post, send } from '../send'
 import type { Classify } from '../send'
 import { localSigner } from '../typed-data'
-import { TradeFailure } from '../types'
+import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
   AccountView,
   Bps,
   Command,
   CommandOutcome,
-  Decimal,
   HistoryRequest,
   IntentFields,
   OrderIntent,
@@ -393,7 +392,7 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
   )
 }
 
-const refOf = (index: number, oid: string) => `${index}:${oid}` as OrderRef
+const refOf = (index: number, oid: string) => orderRef(index, oid)
 function refParts(ref: OrderRef) {
   const [index, oid] = ref.split(':')
   return { asset: Number(index), oid: Number(oid) }
@@ -453,7 +452,6 @@ async function account(ctx: VenueContext): Promise<AccountView> {
     info<HlFill[]>(ctx, { type: 'userFills', user }),
     meta(ctx),
   ])
-  const toDecimal = (text: string) => text as Decimal
   // A unified or portfolio margin account keeps one USDC balance in spot for spot and perps alike.
   // Its perp state holds only the margin in use, so it is not the balance.
   const usdc = UNIFIED.has(mode) ? spot.balances.find((balance) => balance.coin === 'USDC') : undefined
@@ -670,7 +668,6 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
   const firsts = new Map<string, HlHistoryFill>()
   for (const fill of perps) if (!firsts.has(fill.coin)) firsts.set(fill.coin, fill)
   const startsOpen = [...firsts.values()].some((fill) => Number(fill.startPosition) !== 0)
-  const toDecimal = (text: string) => text as Decimal
   const gaps: string[] = []
   if (fills.rows.length >= RECENT_FILLS)
     gaps.push(`Hyperliquid serves only its ${RECENT_FILLS} most recent fills, so earlier fills are missing.`)

@@ -5,6 +5,7 @@ import { priceTick } from '@tape/core/market'
 import { bytesToHex } from 'viem'
 import { SKEW, scaleLegs, toTick } from './scale-order'
 import type { Slice } from './scale-order'
+import { isClientOrderId, toBps } from './types'
 import type {
   Bps,
   Capabilities,
@@ -89,19 +90,25 @@ export interface IntentDraft {
 /** The nth take profit of a draft, counted from 1. */
 export type TakeProfitField = `takeProfit${number}`
 export type ExitField = TakeProfitField | 'stopLoss'
+const NAMED_FIELDS = [
+  'price',
+  'size',
+  'tif',
+  'takeProfits',
+  'stopLoss',
+  'start',
+  'end',
+  'count',
+  'skew',
+  'retracement',
+  'activation',
+] as const
 /** `takeProfits` holds what is wrong with the take profits together, such as sizes that miss the order size. */
-export type DraftField =
-  | 'price'
-  | 'size'
-  | 'tif'
-  | 'takeProfits'
-  | ExitField
-  | 'start'
-  | 'end'
-  | 'count'
-  | 'skew'
-  | 'retracement'
-  | 'activation'
+export type DraftField = (typeof NAMED_FIELDS)[number] | TakeProfitField
+
+export function isDraftField(name: string): name is DraftField {
+  return (NAMED_FIELDS as readonly string[]).includes(name) || /^takeProfit[1-9]\d*$/.test(name)
+}
 type Errors = Partial<Record<DraftField, string>>
 export type Built =
   { readonly ok: true; readonly intent: OrderIntent } | { readonly ok: false; readonly errors: Errors }
@@ -173,7 +180,7 @@ export function checkRetracement(spec: MarketSpec, unit: 'pct' | 'px', value: st
 
 function retracementOf(spec: MarketSpec, draft: IntentDraft): Retracement {
   return draft.retracementUnit === 'pct'
-    ? { pct: Math.round(Number(draft.retracement) * 100) as Bps }
+    ? { pct: toBps(Math.round(Number(draft.retracement) * 100)) }
     : { px: parsePx(draft.retracement, spec.scale) }
 }
 
@@ -207,7 +214,7 @@ export function buildScale(spec: MarketSpec, draft: ScaleDraft, maxOrders: numbe
     count: checkCount(draft.count, maxOrders),
     skew: checkSkew(draft.skew),
   }
-  for (const [field, issue] of Object.entries(checks)) if (issue) errors[field as DraftField] = issue
+  for (const [field, issue] of Object.entries(checks)) if (issue && isDraftField(field)) errors[field] = issue
   if (Object.keys(errors).length > 0) return { ok: false, errors }
   const built = scaleLegs(
     spec,
@@ -396,7 +403,9 @@ export function closeIntent(spec: MarketSpec, position: Position, slippage: Bps)
 }
 
 export function newClientId(): ClientOrderId {
-  return bytesToHex(crypto.getRandomValues(new Uint8Array(16))) as ClientOrderId
+  const id = bytesToHex(crypto.getRandomValues(new Uint8Array(16)))
+  if (!isClientOrderId(id)) throw new TypeError(`bad client id ${id}`)
+  return id
 }
 
 /**

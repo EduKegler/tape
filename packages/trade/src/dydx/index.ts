@@ -5,12 +5,11 @@ import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize, worstPrice } from '../intent'
 import { send } from '../send'
-import { TradeFailure } from '../types'
+import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
   AccountView,
   Command,
   CommandOutcome,
-  Decimal,
   HistoryRequest,
   OrderIntent,
   OrderLookup,
@@ -258,8 +257,7 @@ interface IndexerOrder {
   updatedAt?: string
 }
 
-const refOf = (order: IndexerOrder) =>
-  `${order.ticker}:${order.clientId}:${order.orderFlags}:${order.clobPairId}` as OrderRef
+const refOf = (order: IndexerOrder) => orderRef(order.ticker, order.clientId, order.orderFlags, order.clobPairId)
 
 async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
   const [, clientId, flags, clobPairId] = ref.split(':') as [string, string, string, string]
@@ -376,7 +374,6 @@ async function account(ctx: VenueContext): Promise<AccountView> {
     openOrders(ctx, address),
     indexer<Fills>(ctx, `/fills?address=${address}&subaccountNumber=0&limit=20`),
   ])
-  const toDecimal = (text: string) => text as Decimal
   return {
     kind: 'live',
     snapshot: {
@@ -486,7 +483,6 @@ async function history({ network, address, fetch }: HistoryRequest): Promise<Ven
     if (error instanceof TradeFailure && error.error.kind === 'rejected') return { fills: [], funding: [], gaps: [] }
     throw error
   }
-  const toDecimal = (text: string) => text as Decimal
   const perps = fills.rows.filter((fill) => fill.marketType === 'PERPETUAL')
   const gaps = [
     'dYdX reports no realized PnL per fill, so Tape computes it by average cost over the whole history.',
