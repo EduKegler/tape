@@ -8,14 +8,16 @@ import { NETWORK, VENUES } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
 import { formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
+import { MarketSearch } from './MarketSearch'
 import { statsQuery } from './queries'
 
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
+  const bases = PINNED_BASES.includes(base) ? PINNED_BASES : [...PINNED_BASES, base]
   return (
     <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule px-4 py-2">
       <Brand />
       <nav aria-label="Market" className="flex items-center gap-1">
-        {PINNED_BASES.map((b) => (
+        {bases.map((b) => (
           <Link
             key={b}
             to="/$venue/$base"
@@ -28,6 +30,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
           </Link>
         ))}
       </nav>
+      <MarketSearch venue={venue} />
       <nav aria-label="Venue" className="flex items-center gap-1">
         {VENUE_IDS.map((v) => (
           <Link

@@ -1,6 +1,6 @@
 # Tape
 
-Live order books for BTC, ETH and SOL on Binance, Hyperliquid, dYdX and Orderly, with order entry on Hyperliquid, dYdX and Orderly. Built with TanStack Start on TanStack Redact.
+Live order books for every market Binance, Hyperliquid, dYdX and Orderly list, with order entry on Hyperliquid, dYdX and Orderly. Built with TanStack Start on TanStack Redact.
 
 Demo: [tape.kegler.dev](https://tape.kegler.dev) reads mainnet. [tape.testnet.kegler.dev](https://tape.testnet.kegler.dev) trades on testnet.
 

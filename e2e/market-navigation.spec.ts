@@ -63,3 +63,25 @@ test('the venues table marks the venues that do not list the market', async ({ p
   await venues.getByRole('row', { name: /^Binance/ }).click()
   await expect(page).toHaveURL(/\/hyperliquid\/kPEPE/)
 })
+
+test('the header search filters markets as you type and opens one by keyboard', async ({ page, network }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=5m')
+  const search = page.getByRole('combobox', { name: 'Search markets' })
+  await search.pressSequentially('eth')
+  const options = page.getByRole('listbox').getByRole('option')
+  await expect(options.nth(0)).toHaveText('ETH')
+  await expect(options.nth(1)).toHaveText('ETHFI')
+
+  await search.press('ArrowDown')
+  await search.press('Enter')
+  await expect(page).toHaveURL(/\/hyperliquid\/ETHFI\?interval=5m$/)
+  await expect(page).toHaveTitle(`ETHFI on Hyperliquid · Tape${TITLE_SUFFIX[network]}`)
+  await expect(search).toHaveValue('')
+  await expectAccessible(page)
+
+  await search.pressSequentially('zzzz')
+  await expect(page.getByText('No market matches')).toBeVisible()
+  await search.press('Escape')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(page).toHaveURL(/\/hyperliquid\/ETHFI\?interval=5m$/)
+})

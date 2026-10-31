@@ -3,7 +3,7 @@ import type { Base, Interval, VenueId } from '@tape/core/ids'
 import type { MarketGroup, MarketSpec } from '@tape/core/market'
 import { VENUES } from '#/site'
 
-const marketsQuery = (venue: VenueId) =>
+export const marketsQuery = (venue: VenueId) =>
   queryOptions({
     queryKey: ['markets', venue],
     queryFn: ({ signal }) => VENUES[venue].fetchMarkets(fetch, signal),
