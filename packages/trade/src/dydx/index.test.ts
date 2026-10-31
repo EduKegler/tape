@@ -713,3 +713,30 @@ describe('dydx history', () => {
       })
   })
 })
+
+describe('dydx account sequence', () => {
+  it('signs two long-term cancels one after the other', async () => {
+    const events: string[] = []
+    let release = () => {}
+    chain.cancelOrder.mockImplementationOnce(async () => {
+      events.push('first signs')
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      events.push('first done')
+      return { code: 0, hash: 'A1' }
+    })
+    chain.cancelOrder.mockImplementationOnce(async () => {
+      events.push('second signs')
+      return { code: 0, hash: 'A2' }
+    })
+    const first = dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef })
+    const second = dydx.execute(ctx, { kind: 'cancel', order: 'BTC-USD:8:64:0' as OrderRef })
+    await vi.waitFor(() => expect(events).toEqual(['first signs']))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(events).toEqual(['first signs'])
+    release()
+    await Promise.all([first, second])
+    expect(events).toEqual(['first signs', 'first done', 'second signs'])
+  })
+})
