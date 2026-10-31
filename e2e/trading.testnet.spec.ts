@@ -342,12 +342,20 @@ test('take profit sizes that miss the order size stop in the ticket and send not
   expect(orders(hyperliquid.sent)).toEqual([])
 })
 
-test('a take profit under the ask stops in the ticket and sends nothing', async ({ page, wallet: _wallet }) => {
+test('a take profit or stop loss on the wrong side of the touch shows on its field and sends nothing', async ({
+  page,
+  wallet: _wallet,
+}) => {
   const { hyperliquid, ticket } = await enable(page)
   await page.getByRole('radio', { name: 'Market', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
   await ticket.getByRole('checkbox', { name: 'Take profit and stop loss' }).check()
-  await ticket.getByRole('textbox', { name: 'Take profit' }).fill('70000')
+  const takeProfit = ticket.getByRole('textbox', { name: 'Take profit' })
+  await takeProfit.fill('70000')
+  await expect(takeProfit).toHaveAccessibleDescription('Must be above the ask')
+  const stopLoss = ticket.getByRole('textbox', { name: 'Stop loss' })
+  await stopLoss.fill('90000')
+  await expect(stopLoss).toHaveAccessibleDescription('Must be below the bid')
 
   await ticket.getByRole('button', { name: 'Buy BTC' }).click()
   await expect(ticket.getByRole('alert')).toContainText('Take profit: Must be above the ask')

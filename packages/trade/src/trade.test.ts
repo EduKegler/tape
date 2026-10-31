@@ -14,7 +14,7 @@ import { classifyMessage as dydxMessage } from './dydx'
 import { actionHash, l1TypedData } from './hyperliquid/sign'
 import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
-import { buildIntent, closeIntent, splitSize } from './intent'
+import { buildIntent, checkExitPrices, closeIntent, splitSize } from './intent'
 import type { IntentDraft, TakeProfitDraft } from './intent'
 import type { Bps, Capabilities, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
 import { TradeFailure } from './types'
@@ -172,6 +172,24 @@ describe('order intent', () => {
     const takeProfits = [tp('82000', '50'), tp('80000', '25'), tp('83000', '25')]
     const built = buildIntent(btc, { ...market, takeProfits }, fourTriggers)
     expect(!built.ok && built.errors).toEqual({ takeProfit2: 'Must be above the ask' })
+  })
+
+  it('checks each exit price that parses against the order price or the touch', () => {
+    const market = { ...draft, kind: 'market', price: '', bid: '79990', ask: '80010' } as const
+    const takeProfits = [tp('82000'), tp('80000'), tp('abc'), tp('')]
+    expect(checkExitPrices(btc, { ...market, takeProfits, stopLoss: '80005' })).toEqual({
+      takeProfit2: 'Must be above the ask',
+      stopLoss: 'Must be below the bid',
+    })
+    expect(checkExitPrices(btc, { ...market, side: 'sell', takeProfits: [tp('80000')], stopLoss: '80005' })).toEqual({
+      takeProfit1: 'Must be below the bid',
+      stopLoss: 'Must be above the ask',
+    })
+    expect(checkExitPrices(btc, { ...draft, takeProfits: [tp('79000')], stopLoss: '81000' })).toEqual({
+      takeProfit1: 'Must be above the price',
+      stopLoss: 'Must be below the price',
+    })
+    expect(checkExitPrices(btc, { ...draft, price: '', takeProfits: [tp('79000')], stopLoss: '81000' })).toEqual({})
   })
 
   it('takes 2 take profits and stop losses together on Hyperliquid and none on Orderly or dYdX', () => {
