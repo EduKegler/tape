@@ -26,7 +26,7 @@ export interface ExchangeBody {
   readonly signature: unknown
 }
 
-export type Answer = { readonly json: unknown } | { readonly abort: 'timedout' }
+export type Answer = { readonly json: unknown } | { readonly abort: 'timedout' | 'internetdisconnected' }
 
 /** Hyperliquid's replies from its API docs, for an account that holds nothing. */
 const EMPTY_ACCOUNT: Record<string, unknown> = {

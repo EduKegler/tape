@@ -186,6 +186,7 @@ export function useSendDeposit(ref: AccountRef) {
     Error,
     { route: DepositRoute; amount: bigint; terms: DepositTerms; calls: readonly DepositCall[] }
   >({
+    networkMode: 'always',
     mutationFn: async ({ route, amount, terms, calls }) => {
       if (!connector) throw new Error('No wallet connected')
       const provider = (await connector.getProvider()) as Eip1193

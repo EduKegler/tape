@@ -79,3 +79,19 @@ test('a wallet that refuses the deposit gets the bridge transfer and nothing is 
   ])
   expect(chains.unanswered()).toEqual([])
 })
+
+test('a deposit clicked offline goes to the wallet at once, not when the network returns', async ({
+  page,
+  context,
+  wallet,
+}) => {
+  const { dialog, amount } = await openDeposit(page)
+  await amount.fill('10')
+  const deposit = dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' })
+  await expect(deposit).toBeEnabled()
+  await context.setOffline(true)
+  await deposit.click()
+
+  await expect(dialog.getByRole('alert')).toHaveText('You declined in the wallet. Nothing was sent.')
+  expect(wallet.askedFor('send')).toHaveLength(1)
+})

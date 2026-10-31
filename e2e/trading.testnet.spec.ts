@@ -553,6 +553,33 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
 })
 
+test('an order clicked offline fails at once and is not sent again when the network returns', async ({
+  page,
+  context,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, ticket } = await enable(page)
+  // Playwright's routes still answer a context set offline, so the fake fails the write as Chromium does offline.
+  hyperliquid.exchange = () => ({ abort: 'internetdisconnected' })
+  const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
+  await price.fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  await context.setOffline(true)
+  await buy.click()
+  const alert = ticket.getByRole('alert')
+  await expect(alert).toContainText('Sent, but no answer came back.')
+  await expect(alert).toContainText('Asking the venue for this order…')
+
+  await context.setOffline(false)
+  await expect(alert).toContainText('The venue does not show this order.')
+  hyperliquid.exchange = () => resting(8)
+  await price.fill('70100')
+  await buy.click()
+  await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 8')
+  expect(orders(hyperliquid.sent).map((body) => body.action.orders?.[0]?.p)).toEqual(['70000', '70100'])
+})
+
 test('an account switch with the ticket open sends nothing for the old account', async ({ page, wallet }) => {
   const { hyperliquid, ticket } = await enable(page)
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')

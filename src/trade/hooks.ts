@@ -124,6 +124,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
     }),
   )
   const enable = useMutation<undefined, TradeFailure>({
+    networkMode: 'always',
     mutationFn: async () => {
       const r = ref!
       const provider = (await connector!.getProvider()) as Parameters<typeof walletSigner>[0]
@@ -213,6 +214,7 @@ export function useTradeCommands(ref: AccountRef | null) {
   const command = ref ? tradeKeys(ref).command : ['trade', 'none', 'command']
   const mutation = useMutation<CommandOutcome, TradeFailure, Command>({
     mutationKey: command,
+    networkMode: 'always',
     mutationFn: (c) =>
       ref
         ? guard(ref.venue, () => TRADING[ref.venue].execute(contextFor(ref), c))
