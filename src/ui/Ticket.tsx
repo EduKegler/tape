@@ -12,12 +12,14 @@ import {
   buildIntent,
   buildScale,
   checkCount,
+  checkExitPrices,
   checkPrice,
   checkRetracement,
   checkShare,
   checkSize,
   checkSkew,
   splitSize,
+  takeProfitField,
 } from '@tape/trade/intent'
 import type { DraftField, TakeProfitDraft } from '@tape/trade/intent'
 import { apportion } from '@tape/trade/scale-order'
@@ -181,6 +183,21 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       run({ kind: 'place', intent: result.intent })
     },
   })
+
+  const exitSides = useSelector(
+    form.store,
+    (s) =>
+      checkExitPrices(spec, {
+        side,
+        kind,
+        price: s.values.price,
+        takeProfits: s.values.takeProfits,
+        stopLoss: s.values.stopLoss,
+        bid: touch.bid,
+        ask: touch.ask,
+      }),
+    { compare: shallow },
+  )
 
   useEffect(() => {
     if (proposed) form.setFieldValue('price', proposed.price)
@@ -428,7 +445,11 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                               value={field.state.value}
                               onBlur={field.handleBlur}
                               onChange={field.handleChange}
-                              error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                              error={
+                                field.state.meta.isTouched
+                                  ? (field.state.meta.errors[0] ?? exitSides[takeProfitField(i)])
+                                  : undefined
+                              }
                               hint={null}
                             />
                           )}
@@ -469,18 +490,22 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                       )}
                     </div>
                   ))}
-                  {count < (caps.triggers?.takeProfits ?? 0) && (
-                    <Button
-                      look="quiet"
-                      className="self-start"
-                      onClick={() => {
-                        rows.pushValue({ price: '', share: '' })
-                        reshare(count + 1)
-                      }}
-                    >
-                      Add take profit
-                    </Button>
-                  )}
+                  <form.Subscribe selector={(s) => s.values.stopLoss !== ''}>
+                    {(withStop) =>
+                      count + (withStop ? 1 : 0) < (caps.triggers?.orders ?? 0) && (
+                        <Button
+                          look="quiet"
+                          className="self-start"
+                          onClick={() => {
+                            rows.pushValue({ price: '', share: '' })
+                            reshare(count + 1)
+                          }}
+                        >
+                          Add take profit
+                        </Button>
+                      )
+                    }
+                  </form.Subscribe>
                 </>
               )
             }}
@@ -496,7 +521,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={field.handleChange}
-                error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+                error={field.state.meta.isTouched ? (field.state.meta.errors[0] ?? exitSides.stopLoss) : undefined}
                 hint={null}
               />
             )}

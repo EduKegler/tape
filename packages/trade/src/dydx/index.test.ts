@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Qty } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
@@ -349,6 +349,21 @@ describe('dydx contract', () => {
       errors: { stopLoss: 'Not offered on this venue' },
     })
     expect(buildIntent(btc, { ...draft, tif: 'ioc' }, dydx.capabilities).ok).toBe(true)
+  })
+
+  it('refuses an intent carrying a take profit or stop loss and broadcasts nothing', async () => {
+    const { urls, ctx: watched } = indexer(() => markets)
+    const exits = [
+      { takeProfits: [{ px: 820_000 as Px, size: 100 as Qty }], stopLoss: null },
+      { takeProfits: [], stopLoss: 790_000 as Px },
+    ]
+    for (const triggers of exits)
+      expect(await failure(dydx.execute(watched, { kind: 'place', intent: { ...intentOf(btc), triggers } }))).toEqual({
+        kind: 'unsupported',
+        detail: 'dYdX takes no take profit or stop loss from Tape',
+      })
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+    expect(urls).toEqual([])
   })
 
   it('keeps the dYdX mnemonic in the tab, out of storage', () => {

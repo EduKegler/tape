@@ -48,7 +48,8 @@ const AGENT_NAME = 'tape'
 const TRIGGER_SLIPPAGE_BPS = 1000
 const TIF: Record<'gtc' | 'ioc' | 'post-only', Tif> = { gtc: 'Gtc', ioc: 'Ioc', 'post-only': 'Alo' }
 const SCALE_ORDERS = 20
-const TAKE_PROFITS = 4
+/** Hyperliquid refuses a normalTpsl group with more trigger orders than this: "Unexpected number of trigger orders." */
+const TRIGGERS = 2
 
 interface Asset {
   readonly index: number
@@ -150,10 +151,12 @@ async function placeWires(
   ctx: VenueContext,
   intent: OrderIntent,
 ): Promise<{ wires: OrderWire[]; grouping: 'na' | 'normalTpsl' }> {
+  const { takeProfits, stopLoss } = intent.triggers
+  if (takeProfits.length + (stopLoss === null ? 0 : 1) > TRIGGERS)
+    fail({ kind: 'invalid-order', detail: `At most ${TRIGGERS} take profits and stop losses on one order` })
   const a = await asset(ctx, intent.spec.venueSymbol)
   const size = recheckSize(a, intent)
   const isBuy = intent.side === 'buy'
-  const { takeProfits, stopLoss } = intent.triggers
   if (intent.order.kind === 'scale') {
     if (takeProfits.length > 0 || stopLoss !== null)
       fail({ kind: 'invalid-order', detail: 'A scale order carries no take profit or stop loss' })
@@ -697,7 +700,7 @@ export const hyperliquid = {
   secrets: 'device',
   capabilities: {
     tif: ['gtc', 'ioc', 'post-only'],
-    triggers: { takeProfits: TAKE_PROFITS },
+    triggers: { orders: TRIGGERS },
     leverage: true,
     scaleOrders: SCALE_ORDERS,
     trailingStop: true,

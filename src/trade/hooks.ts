@@ -240,7 +240,7 @@ export function useTradeCommands(ref: AccountRef | null) {
     filters: { mutationKey: command, status: 'pending' },
     select: (m) => m.state.variables as Command,
   })
-  // Hyperliquid, the one venue with a trailing stop, takes no client id on it, so nothing can find one by it.
+  // Hyperliquid's trailingStop action takes no client id, so no lookup can find a trailing stop by one.
   const unknown =
     mutation.error?.error.kind === 'unknown-outcome'
     && mutation.variables?.kind === 'place'

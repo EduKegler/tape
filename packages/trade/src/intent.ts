@@ -247,9 +247,10 @@ function takeProfitsOf(
   errors: Errors,
 ): readonly TakeProfit[] {
   const rows = draft.takeProfits
-  const most = caps.triggers?.takeProfits ?? 0
+  const withStop = draft.stopLoss !== ''
+  const most = (caps.triggers?.orders ?? 0) - (withStop ? 1 : 0)
   if (rows.length > most) {
-    errors.takeProfits = `At most ${most} on this venue`
+    errors.takeProfits = withStop ? `At most ${most} with a stop loss on this venue` : `At most ${most} on this venue`
     return []
   }
   rows.forEach((row, i) => {
@@ -273,6 +274,34 @@ function takeProfitsOf(
     if (part < spec.step) errors[takeProfitField(i)] = `Size rounds below ${formatQty(spec.step, spec.scale)}`
   })
   return rows.map((row, i) => ({ px: parsePx(row.price, spec.scale), size: sizes[i] as Qty }))
+}
+
+function touchPx(spec: MarketSpec, value: string): Px | null {
+  try {
+    return value ? parsePx(value, spec.scale) : null
+  } catch {
+    return null
+  }
+}
+
+type ExitDraft = Pick<IntentDraft, 'side' | 'kind' | 'price' | 'takeProfits' | 'stopLoss' | 'bid' | 'ask'>
+
+/** Each take profit and the stop loss whose price parses, checked on its own against the order price or the touch. Empty while a limit has no valid price. */
+export function checkExitPrices(spec: MarketSpec, draft: ExitDraft): Partial<Record<ExitField, string>> {
+  const priced = (value: string) => (value && !checkPrice(spec, value) ? parsePx(value, spec.scale) : null)
+  const entry = draft.kind === 'limit' ? priced(draft.price) : null
+  if (draft.kind === 'limit' && entry === null) return {}
+  const reference = { px: entry, bid: touchPx(spec, draft.bid), ask: touchPx(spec, draft.ask) }
+  const issues: Partial<Record<ExitField, string>> = {}
+  draft.takeProfits.forEach((row, i) => {
+    const px = priced(row.price)
+    const issue = px === null ? undefined : checkExits(draft.side, reference, { takeProfits: [px], stopLoss: null })
+    if (issue?.takeProfit1) issues[takeProfitField(i)] = issue.takeProfit1
+  })
+  const stopLoss = priced(draft.stopLoss)
+  const issue = stopLoss === null ? undefined : checkExits(draft.side, reference, { takeProfits: [], stopLoss })
+  if (issue?.stopLoss) issues.stopLoss = issue.stopLoss
+  return issues
 }
 
 export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabilities): Built {
@@ -302,25 +331,18 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   const stopLoss = draft.stopLoss && offered('stopLoss') ? priced(draft.stopLoss) : null
   const takeProfits =
     draft.takeProfits.length > 0 && offered('takeProfits') ? takeProfitsOf(spec, draft, caps, errors) : []
-  const touchPx = (value: string) => {
-    try {
-      return value ? parsePx(value, spec.scale) : null
-    } catch {
-      return null
-    }
-  }
   const entry = draft.kind === 'limit' ? (errors.price ? undefined : parsePx(draft.price, spec.scale)) : null
   if (entry !== undefined && (takeProfits.length > 0 || stopLoss !== null))
     Object.assign(
       errors,
       checkExits(
         draft.side,
-        { px: entry, bid: touchPx(draft.bid), ask: touchPx(draft.ask) },
+        { px: entry, bid: touchPx(spec, draft.bid), ask: touchPx(spec, draft.ask) },
         { takeProfits: takeProfits.map((t) => t.px), stopLoss },
       ),
     )
   const slices = draft.kind === 'scale' ? scaleSlices(spec, draft, caps, errors) : []
-  const reference = draft.kind === 'limit' ? entry : touchPx(draft.side === 'buy' ? draft.ask : draft.bid)
+  const reference = draft.kind === 'limit' ? entry : touchPx(spec, draft.side === 'buy' ? draft.ask : draft.bid)
   if (draft.kind !== 'scale' && !errors.size && !draft.reduceOnly && reference) {
     const small = belowMinimum(spec, reference, parseQty(draft.size, spec.scale))
     if (small) errors.size = `Must be worth at least ${small}`

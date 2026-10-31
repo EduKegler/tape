@@ -141,8 +141,8 @@ export interface SetupStep {
 
 export interface Capabilities {
   readonly tif: readonly Tif[]
-  /** Null where the venue takes no take profit or stop loss with an order. */
-  readonly triggers: { readonly takeProfits: number } | null
+  /** The most take profits and stop losses one order carries, counted together. Null where the venue takes none with an order. */
+  readonly triggers: { readonly orders: number } | null
   readonly leverage: boolean
   /** The most legs one scale order sends, all in one request. 0 where the venue takes no such request. */
   readonly scaleOrders: number
