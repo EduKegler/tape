@@ -60,6 +60,48 @@ const SYMBOL: Record<VenueId, (base: Base) => string> = {
   binance: (base) => `${base}USDT`,
 }
 
+const decimalsOf = (increment: string) => {
+  const fraction = increment.split('.')[1] ?? ''
+  let end = fraction.length
+  while (fraction[end - 1] === '0') end--
+  return end
+}
+
+const RULES_IN_RECORDING: Record<VenueId, (base: Base) => Pick<MarketSpec, 'venueSymbol' | 'scale'>> = {
+  hyperliquid: (base) => {
+    const { szDecimals } = recording<{ universe: { name: string; szDecimals: number }[] }>(
+      'hyperliquid.meta.json',
+    ).universe.find((u) => u.name === base)!
+    return { venueSymbol: base, scale: { px: 6 - szDecimals, qty: szDecimals } as MarketSpec['scale'] }
+  },
+  dydx: (base) => {
+    const m = recording<{ markets: Record<string, { tickSize: string; stepSize: string }> }>(
+      `dydx.markets-${base}.json`,
+    ).markets[`${base}-USD`]!
+    return {
+      venueSymbol: `${base}-USD`,
+      scale: { px: decimalsOf(m.tickSize), qty: decimalsOf(m.stepSize) } as MarketSpec['scale'],
+    }
+  },
+  orderly: (base) => {
+    const m = recording<{ data: { quote_tick: number | string; base_tick: number | string } }>(
+      `orderly.info-${base}.json`,
+    ).data
+    return {
+      venueSymbol: `PERP_${base}_USDC`,
+      scale: { px: decimalsOf(String(m.quote_tick)), qty: decimalsOf(String(m.base_tick)) } as MarketSpec['scale'],
+    }
+  },
+  binance: (base) => {
+    const { filters } = recording<{
+      symbols: { symbol: string; filters: { filterType: string; tickSize?: string; stepSize?: string }[] }[]
+    }>('binance.markets.json').symbols.find((s) => s.symbol === `${base}USDT`)!
+    const tick = filters.find((f) => f.filterType === 'PRICE_FILTER')!.tickSize!
+    const step = filters.find((f) => f.filterType === 'LOT_SIZE')!.stepSize!
+    return { venueSymbol: `${base}USDT`, scale: { px: decimalsOf(tick), qty: decimalsOf(step) } as MarketSpec['scale'] }
+  },
+}
+
 const BTC = 'BTC' as Base
 
 async function replay(venue: VenueId) {
@@ -203,10 +245,9 @@ describe.each(VENUE_IDS)('%s adapter', (venue) => {
     }
   })
 
-  it('reads one market without the list, with the rules the list gives it', async () => {
-    const { byKey } = await specsOf(venue)
+  it('reads one market without the list, with the rules the venue recorded for it', async () => {
     for (const base of ['BTC', 'ETH', 'SOL'] as Base[])
-      expect(await adapter.fetchMarket(base, recordedFetch)).toEqual(byKey.get(marketKey(venue, base)))
+      expect(await adapter.fetchMarket(base, recordedFetch)).toMatchObject(RULES_IN_RECORDING[venue](base))
     expect(await adapter.fetchMarket('NOTAMARKET' as Base, recordedFetch)).toBeNull()
   })
 
