@@ -58,6 +58,8 @@ Before a venue ships, its tests prove these:
 - The recorded replay yields a live, uncrossed book, a reconnect resyncs it, and a stale snapshot is ignored.
 - A 5xx, a timeout or an unreadable reply on a write is an unknown outcome, and the order is then found by client id.
 - A missing order is told apart from a missing key, and cancelling a filled order is not an error.
+- A cancel the venue says it already holds, such as dYdX's `already exists` codes 9 and 32, is a done cancel, not a refused one.
+- A 5xx, a timeout or an unreadable reply on a read means the venue is unreachable, never a missing order or account.
 - Trading stays off on mainnet unless the build turns it on.
 
 ## Rules and what enforces them
@@ -85,6 +87,7 @@ Before a venue ships, its tests prove these:
 | A PR carries a whole ticket or plan block | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |
+| StrykerJS runs only in its own worktree, with `.claude/worktrees/**` in `ignorePatterns`, and the mode of `.claude/skills/verify-tape/scripts/verify-tape.mjs` is restored after each `inPlace` run | review only |
 
 When the operator corrects a mistake, fix it and add its row. A rule enforced by review only that breaks again gets a check in the same change, unless no check can tell the mistake apart. Drop a row once its mistake can no longer be written.
 
