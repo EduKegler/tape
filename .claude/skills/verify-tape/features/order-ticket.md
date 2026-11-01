@@ -31,7 +31,7 @@ Preconditions:
 - The ticket shows its form, not `Loading market rules…`. Run `vt wait --panel "Order ticket" --text "read only in Tape"`.
 - The book is live. Run `vt wait --js "document.querySelector('section div[data-status]')?.dataset.status === 'live'"`.
 
-- **Starting state.** Run `vt aria --panel "Order ticket" --path ticket/01-start.aria.txt`. `button "buy" [pressed]`, `radio "Limit" [checked]`, Notional `—`, Wallet USDC `Not connected`, and the read only paragraph. No `Buy BTC` button.
+- **Starting state.** Run `vt aria --panel "Order ticket" --path ticket/01-start.aria.txt`. `button "buy" [pressed]`, `radio "Limit" [checked]`, Notional `—`, Wallet USDC `Not connected`, and the read only paragraph. No `Buy / Long BTC` button.
 - **Too many decimals.** Run `vt fill --panel "Order ticket" --role textbox --name "Price (USDT)" --value 1.234 --blur`. The panel shows `At most 2 decimals` and the input has `aria-invalid="true"`. Check with `vt attr --panel "Order ticket" --role textbox --name "Price (USDT)" --attr aria-invalid`.
 - **Not a number.** Fill the price with `abc`. The panel shows `Not a number`.
 - **Size below step.** Run `vt fill --panel "Order ticket" --role textbox --name Size --value 0.000001 --blur`. The panel shows `At most 5 decimals`. Fill `0` and the panel shows `Minimum is 0.00001`.

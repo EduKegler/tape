@@ -22,7 +22,7 @@ async function enable(page: Page) {
   await expectAccessible(page)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   return { orderly, ticket }
 }
 
@@ -96,7 +96,7 @@ test('an Orderly limit order goes out with the side, price and size the ticket s
   const price = await ticket.getByRole('textbox', { name: 'Price (USDC)' }).inputValue()
   const size = await ticket.getByRole('textbox', { name: 'Size (BTC)' }).inputValue()
 
-  await ticket.getByRole('button', { name: 'Sell BTC' }).click()
+  await ticket.getByRole('button', { name: 'Sell / Short BTC' }).click()
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Order 5')
   await expectAccessible(page)
   // Orderly's create-order fields. A good-til-canceled limit is LIMIT.

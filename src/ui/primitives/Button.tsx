@@ -5,8 +5,8 @@ const classes = {
   primary:
     'rounded-md bg-ink font-medium text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   secondary: 'rounded-md bg-raised font-medium text-level1 hover:bg-level1/12 disabled:opacity-40',
-  buy: 'h-11 rounded-md bg-bid text-base font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
-  sell: 'h-11 rounded-md bg-ask text-base font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
+  buy: 'min-h-11 rounded-md bg-bid py-1.5 text-lg font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
+  sell: 'min-h-11 rounded-md bg-ask py-1.5 text-lg font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   quiet: 'text-level3 hover:text-level1 disabled:opacity-40',
   link: 'text-level1 underline underline-offset-2 disabled:opacity-40',
   toggle:

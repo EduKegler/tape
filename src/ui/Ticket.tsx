@@ -619,6 +619,12 @@ function TicketForm({
               kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
             const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
             const total = entry ? formatNotional(entry.notional, spec.scale) : null
+            const summary =
+              (kind === 'limit' || kind === 'market') && values.size && !checkSize(spec, values.size)
+                ? kind === 'market'
+                  ? `${values.size} ${spec.base} at market on ${VENUES[spec.venue].label}`
+                  : px && `${values.size} ${spec.base} at ${groupThousands(px)} on ${VENUES[spec.venue].label}`
+                : ''
             return (
               <>
                 <dl className="grid grid-cols-2 items-baseline gap-y-1.5 text-sm">
@@ -645,6 +651,7 @@ function TicketForm({
                   <OrderNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
                 )}
                 <SubmitArea
+                  summary={summary}
                   session={session}
                   venue={VENUES[spec.venue].label}
                   side={side}
@@ -802,7 +809,9 @@ function SubmitArea({
   phase,
   canSubmit,
   fix,
+  summary,
 }: {
+  summary: string
   session: TradeSession
   venue: string
   side: Side
@@ -812,8 +821,11 @@ function SubmitArea({
   fix: string | null
 }) {
   const fixId = useId()
-  const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
+  const summaryId = useId()
+  const label = `${side === 'buy' ? 'Buy / Long' : 'Sell / Short'} ${base}`
   const why = fix && !canSubmit ? fixId : undefined
+  const told = phase === 'idle' && summary ? summaryId : undefined
+  const described = [why, told].filter(Boolean).join(' ') || undefined
   const button = (
     <>
       {why && (
@@ -830,9 +842,15 @@ function SubmitArea({
           look={side === 'buy' ? 'buy' : 'sell'}
           type="submit"
           disabled={!canSubmit || HOLDS.has(phase)}
-          aria-describedby={why}
+          aria-describedby={described}
+          className="flex flex-col items-center justify-center gap-1"
         >
-          {PHASE_LABEL[phase] ?? label}
+          <span>{PHASE_LABEL[phase] ?? label}</span>
+          {told && (
+            <span id={told} aria-hidden className="text-sm font-medium">
+              {summary}
+            </span>
+          )}
         </Button>
       )}
     </>

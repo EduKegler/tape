@@ -60,7 +60,7 @@ async function holding(page: Page) {
   const ticket = panel(page, 'Order ticket')
   await ticket.getByRole('button', { name: 'Connect wallet' }).click()
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   const account = panel(page, 'Account')
   await expect(account.getByRole('button', { name: 'Close', exact: true })).toBeVisible()
   return { hyperliquid, account }
@@ -152,7 +152,7 @@ test('forgetting the trading key sits in the account bar and asks first', async 
   await account.getByRole('button', { name: 'Forget trading key' }).click()
   const step = account.getByRole('group', { name: 'Forget the trading key for Hyperliquid on this device?' })
   await expect(step.getByRole('button', { name: 'Forget key' })).toBeFocused()
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
 
   await step.getByRole('button', { name: 'Forget key' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()

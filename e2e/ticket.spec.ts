@@ -30,7 +30,7 @@ test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
   ])
   await expect(notionalOf(page)).toHaveText('—')
   await expect(ticket.getByText('Binance is read only in Tape. It never signs or sends an order here.')).toBeVisible()
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toHaveCount(0)
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toHaveCount(0)
   await expectAccessible(page)
 })
 
