@@ -341,6 +341,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             {(field) => (
               <Input
                 label={`Price (${spec.quote})`}
+                unit={spec.quote}
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
@@ -426,6 +427,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           {(field) => (
             <Input
               label={`${kind === 'scale' ? 'Total size' : 'Size'} (${spec.base})`}
+              unit={spec.base}
               name={field.name}
               value={field.state.value}
               onBlur={field.handleBlur}

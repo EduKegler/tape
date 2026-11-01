@@ -14,6 +14,7 @@ export function Input({
   warning?: string | null
   messageLine?: boolean
   hint: ReactNode
+  unit?: string
   onChange: (v: string) => void
   onBlur?: () => void
   disabled?: boolean
@@ -25,24 +26,34 @@ export function Input({
   // The hint can be a button, so it sits beside the label and not inside it.
   return (
     <div className="flex flex-col gap-1 text-sm">
-      <div className="flex justify-between text-level3">
+      <div className="flex justify-between text-xs text-level3">
         <label htmlFor={id}>{props.label}</label>
         {props.hint}
       </div>
-      <BaseInput
-        ref={inputRef}
-        id={id}
-        name={props.name}
-        inputMode="decimal"
-        autoComplete="off"
-        value={props.value}
-        onValueChange={(value) => props.onChange(value.trim())}
-        onBlur={props.onBlur}
-        disabled={props.disabled}
-        aria-invalid={Boolean(props.error)}
-        aria-describedby={message}
-        className="num h-9 rounded-md border border-edge bg-inset px-3 text-base text-level1 aria-invalid:border-err"
-      />
+      <div className="relative">
+        <BaseInput
+          ref={inputRef}
+          id={id}
+          name={props.name}
+          inputMode="decimal"
+          autoComplete="off"
+          value={props.value}
+          onValueChange={(value) => props.onChange(value.trim())}
+          onBlur={props.onBlur}
+          disabled={props.disabled}
+          aria-invalid={Boolean(props.error)}
+          aria-describedby={message}
+          className={`num h-11 w-full rounded-md border border-edge bg-inset pl-3 text-base font-medium text-level1 aria-invalid:border-err ${props.unit ? 'pr-8' : 'pr-3'}`}
+        />
+        {props.unit && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-level3"
+          >
+            {props.unit}
+          </span>
+        )}
+      </div>
       <div
         aria-live={props.warning === undefined ? undefined : 'polite'}
         className={props.messageLine ? 'h-4.5 leading-4.5' : 'contents'}
