@@ -1,14 +1,17 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CandlestickSeries, HistogramSeries, TickMarkType, createChart } from 'lightweight-charts'
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts'
 import { INTERVALS, marketKey } from '@tape/core/ids'
 import type { Base, Interval, VenueId } from '@tape/core/ids'
 import { useFrameEffect } from '#/client/hooks'
+import { VENUES } from '#/site'
 import { formatChartTick, formatChartTime } from './format'
 import { Panel, Segmented } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { candlesQuery, marketQuery } from './queries'
+
+type Bar = { readonly open: number; readonly high: number; readonly low: number; readonly close: number }
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- lightweight-charts brands UTCTimestamp and has no constructor for it
 const chartTime = (seconds: number) => seconds as UTCTimestamp
@@ -44,7 +47,9 @@ export function CandleChart({
   const host = useRef<HTMLDivElement>(null)
   const series = useRef<Series | null>(null)
   const history = useQuery(candlesQuery(venue, base, interval))
-  const decimals = useQuery(marketQuery(venue, base)).data?.scale.px
+  const spec = useQuery(marketQuery(venue, base)).data
+  const decimals = spec?.scale.px
+  const [latest, setLatest] = useState<Bar | null>(null)
 
   useEffect(() => {
     const el = host.current
@@ -58,7 +63,7 @@ export function CandleChart({
         fontSize: 11,
         attributionLogo: false,
       },
-      grid: { vertLines: { color: css('--rule') }, horzLines: { color: css('--rule') } },
+      grid: { vertLines: { visible: false }, horzLines: { color: css('--rule') } },
       rightPriceScale: { borderColor: css('--rule') },
       timeScale: {
         borderColor: css('--rule'),
@@ -109,12 +114,13 @@ export function CandleChart({
       })),
     )
     plot.lastTime = history.data.at(-1)?.time ?? 0
+    setLatest(history.data.at(-1) ?? null)
     plot.chart.timeScale().scrollToRealTime()
   }, [history.data])
 
   useEffect(() => {
     if (decimals === undefined) return
-    const format = new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    const format = new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals })
     series.current?.chart.applyOptions({
       localization: {
         priceFormatter: (price: number) => format.format(price),
@@ -144,6 +150,7 @@ export function CandleChart({
         color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
       })
       plot.lastTime = bar.time
+      setLatest(bar)
     }
   })
 
@@ -157,16 +164,45 @@ export function CandleChart({
           onRetry={() => void history.refetch()}
         />
       }
-      aside={
-        <Segmented
-          label="Interval"
-          value={interval}
-          onChange={onInterval}
-          options={INTERVALS.map((option) => ({ value: option, label: option }))}
-        />
+      lead={
+        <div className="flex items-center gap-5">
+          <Segmented
+            label="Interval"
+            value={interval}
+            onChange={onInterval}
+            options={INTERVALS.map((option) => ({ value: option, label: option }))}
+          />
+          {latest && decimals !== undefined && <Ohlc bar={latest} decimals={decimals} />}
+        </div>
       }
+      aside={spec && <span className="text-sm text-level3">{`${base}-${spec.quote} · ${VENUES[venue].label}`}</span>}
     >
       <div ref={host} className="absolute inset-0" />
     </Panel>
+  )
+}
+
+function Ohlc({ bar, decimals }: { bar: Bar; decimals: number }) {
+  const format = (price: number) => price.toLocaleString('en-US', { maximumFractionDigits: decimals })
+  return (
+    <dl aria-label="Latest candle" className="flex gap-3 text-sm">
+      {(
+        [
+          ['O', 'Open', bar.open],
+          ['H', 'High', bar.high],
+          ['L', 'Low', bar.low],
+          ['C', 'Close', bar.close],
+        ] as const
+      ).map(([mark, name, price]) => (
+        <div key={mark} className="flex gap-1">
+          <dt className="text-level3">
+            <abbr title={name} className="no-underline">
+              {mark}
+            </abbr>
+          </dt>
+          <dd className="num text-level1">{format(price)}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }

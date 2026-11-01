@@ -50,6 +50,7 @@ export function useRowKeys() {
 
 export function Panel({
   title,
+  lead,
   status,
   aside,
   children,
@@ -57,6 +58,7 @@ export function Panel({
   tone = 'surface',
 }: {
   title: string
+  lead?: ReactNode
   status?: ReactNode
   aside?: ReactNode
   children: ReactNode
@@ -69,7 +71,8 @@ export function Panel({
     >
       <header className="flex h-10.5 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h2 className="text-base/none font-semibold whitespace-nowrap text-level1">{title}</h2>
+          <h2 className={lead ? 'sr-only' : 'text-base/none font-semibold whitespace-nowrap text-level1'}>{title}</h2>
+          {lead}
           {status}
         </div>
         {aside !== undefined && <div className="shrink-0 whitespace-nowrap">{aside}</div>}
