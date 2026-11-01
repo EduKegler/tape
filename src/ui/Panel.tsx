@@ -67,7 +67,7 @@ export function Panel({
     <section
       className={`flex h-full min-h-0 flex-col overflow-hidden rounded-lg ${tone === 'ticket' ? 'bg-ticket' : 'bg-surface'} ${className}`}
     >
-      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
+      <header className="flex h-10.5 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <h2 className="text-base/none font-semibold whitespace-nowrap text-level1">{title}</h2>
           {status}
