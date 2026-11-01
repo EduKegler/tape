@@ -50,6 +50,8 @@ export function useRowKeys() {
 
 export function Panel({
   title,
+  bare = false,
+  lead,
   status,
   aside,
   children,
@@ -57,6 +59,8 @@ export function Panel({
   tone = 'surface',
 }: {
   title: string
+  bare?: boolean
+  lead?: ReactNode
   status?: ReactNode
   aside?: ReactNode
   children: ReactNode
@@ -65,37 +69,49 @@ export function Panel({
 }) {
   return (
     <section
-      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-lg ${tone === 'ticket' ? 'bg-ticket' : 'bg-surface'} ${className}`}
+      className={`relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg ${tone === 'ticket' ? 'bg-ticket' : 'bg-surface'} ${className}`}
     >
-      <header className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h2 className="text-base/none font-semibold whitespace-nowrap text-level1">{title}</h2>
-          {status}
-        </div>
-        {aside !== undefined && <div className="shrink-0 whitespace-nowrap">{aside}</div>}
-      </header>
+      {bare && <h2 className="sr-only top-0 left-1">{title}</h2>}
+      {!bare && (
+        <header className="flex h-10.5 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
+          <div className={`flex min-w-0 gap-x-2 ${lead ? 'items-center self-stretch' : 'flex-wrap items-baseline'}`}>
+            <h2 className={lead ? 'sr-only' : 'text-base/none font-semibold whitespace-nowrap text-level1'}>{title}</h2>
+            {lead}
+            {status}
+          </div>
+          {aside !== undefined && <div className="shrink-0 whitespace-nowrap">{aside}</div>}
+        </header>
+      )}
       <div className="relative min-h-0 flex-1">{children}</div>
     </section>
   )
 }
+
+const TAB_GAP = { roomy: 'gap-5', snug: 'gap-3' } as const
 
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
   label,
+  tabs,
 }: {
   value: T
   options: readonly { value: T; label: string }[]
   onChange: (v: T) => void
   label: string
+  tabs?: keyof typeof TAB_GAP
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex items-center gap-3">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={tabs ? `flex items-stretch self-stretch ${TAB_GAP[tabs]}` : 'flex items-center gap-3'}
+    >
       {options.map((option) => (
         <Button
           key={option.value}
-          look="toggle"
+          look={tabs ? 'tab' : 'toggle'}
           role="radio"
           aria-checked={option.value === value}
           onClick={() => onChange(option.value)}

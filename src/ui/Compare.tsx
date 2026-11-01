@@ -49,7 +49,7 @@ export function Compare({ base, current }: { base: Base; current: VenueId }) {
       status={<TopicStatus topic={{ kind: 'compare', base }} />}
       aside={<span className="text-xs text-level3">{base} · basis in bps</span>}
     >
-      <div role="group" aria-label="Venue list" {...keys}>
+      <div role="group" aria-label="Venue list" {...keys} className="pb-1.5">
         <Table
           rows={rows}
           rowKey={(row) => row.venue}

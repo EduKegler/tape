@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, MarketKey, VenueId } from '@tape/core/ids'
@@ -12,7 +12,7 @@ import type { TradeSession } from '#/trade/hooks'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { ConfirmAction } from './ConfirmAction'
+import { ConfirmAction, ConfirmStep } from './ConfirmAction'
 import { Button, InlineInput, NoData, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
@@ -20,25 +20,18 @@ import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
 import { OrderNote, ReadNote, TradeNote } from './TradeNote'
 import { ErrorMark } from './ErrorMark'
+import { groupThousands } from './format'
 import { useChangedKeys } from './wash'
 
 type Tab = 'positions' | 'orders' | 'fills'
+
+const grouped = (value: string) => (/^\d+(?:\.\d+)?$/.test(value) ? groupThousands(value) : value)
 
 export function Account({ venue, base }: { venue: VenueId; base: Base }) {
   const session = useTradeSession(venue)
   const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
   return (
-    <Panel
-      title="Account"
-      aside={
-        ref ? (
-          <span className="flex items-center gap-2">
-            <DepositButton account={ref} />
-            <span className="text-xs text-level3">{ref.network}</span>
-          </span>
-        ) : null
-      }
-    >
+    <Panel title="Account" bare={Boolean(ref)}>
       {ref ? (
         <AccountBody
           key={`${ref.venue}:${ref.network}:${ref.owner}`}
@@ -98,8 +91,9 @@ function AccountBody({
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-sm">
+      <div className="flex min-h-10.5 shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 text-sm">
         <Segmented
+          tabs="roomy"
           label="Account view"
           value={tab}
           onChange={setTab}
@@ -112,8 +106,8 @@ function AccountBody({
         {tab === 'fills' && <HistoryLink className="text-level3 hover:text-level1">Full history</HistoryLink>}
         {snapshot && (
           <span className="text-level3">
-            Equity <span className="num text-lg text-level1">{snapshot.equity}</span> · Available{' '}
-            <span className="num text-level1">{snapshot.available}</span>
+            Equity <span className="num font-medium text-level1">{grouped(snapshot.equity)}</span> · Available{' '}
+            <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
@@ -132,8 +126,8 @@ function AccountBody({
             onSet={(multiplier) => run({ kind: 'leverage', symbol, leverage: multiplier })}
           />
         )}
-        {forget && (
-          <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
+          {forget && (
             <ConfirmAction
               label="Forget trading key"
               question={`Forget the trading key for ${venue} on this device?`}
@@ -141,8 +135,10 @@ function AccountBody({
               keep="Keep key"
               onConfirm={forget}
             />
-          </span>
-        )}
+          )}
+          <DepositButton account={account} />
+          <span className="text-xs text-level3">{account.network}</span>
+        </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {error && (
@@ -167,6 +163,7 @@ function AccountBody({
               `Close ${position.size} ${specOf(position)?.base ?? position.symbol} ${position.side} on ${venue}?`
             }
             market={(position) => specOf(position)?.key ?? null}
+            unit={(position) => specOf(position)?.base ?? ''}
             onClose={close}
           />
         )}
@@ -236,7 +233,7 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
           {error}
         </span>
       )}
-      <Button look="quiet" type="submit" disabled={!value || Boolean(error)}>
+      <Button look="secondary" size="sm" type="submit" disabled={!value || Boolean(error)}>
         Set
       </Button>
     </form>
@@ -254,35 +251,40 @@ function Positions({
   busy,
   question,
   market,
+  unit,
   onClose,
 }: {
   rows: readonly Position[]
   busy: boolean
   question: (p: Position) => string
   market: (p: Position) => MarketKey | null
+  unit: (p: Position) => string
   onClose: (p: Position) => void
 }) {
   const washing = useChangedKeys(rows, positionKey, positionSize)
+  const [closing, setClosing] = useState<string | null>(null)
+  const closeTrigger = useRef<HTMLButtonElement>(null)
   const columns: Column<Position>[] = [
     { header: 'Market', cell: (position) => position.symbol },
     { header: 'Side', cell: (position) => side(position.side), words: true },
-    { header: 'Size', cell: (position) => position.size },
-    { header: 'Entry', cell: (position) => position.entry },
+    { header: 'Size', cell: (position) => `${position.size} ${unit(position)}`.trim() },
+    { header: 'Entry', cell: (position) => grouped(position.entry) },
     { header: 'PnL', cell: (position) => position.unrealizedPnl },
-    { header: 'Liq.', cell: (position) => position.liquidation ?? '—' },
+    { header: 'Liq.', cell: (position) => (position.liquidation ? grouped(position.liquidation) : '—') },
     {
       header: '',
+      words: true,
       cell: (position) => (
-        <ConfirmAction
-          label="Close"
-          question={question(position)}
-          confirm="Confirm close"
-          keep="Keep position"
+        <Button
+          ref={closing === positionKey(position) ? closeTrigger : undefined}
+          look="secondary"
+          size="sm"
           disabled={busy}
-          onConfirm={() => onClose(position)}
+          aria-expanded={closing === positionKey(position)}
+          onClick={() => setClosing(positionKey(position))}
         >
-          <CloseTerms position={position} market={market(position)} />
-        </ConfirmAction>
+          Close
+        </Button>
       ),
     },
   ]
@@ -293,6 +295,26 @@ function Positions({
       columns={columns}
       empty="No open positions."
       rowClass={(position) => (washing.has(positionKey(position)) ? 'wash' : '')}
+      detail={(position) =>
+        closing === positionKey(position) ? (
+          <ConfirmStep
+            question={question(position)}
+            confirm="Confirm close"
+            keep="Keep position"
+            trigger={closeTrigger}
+            onConfirm={() => {
+              setClosing(null)
+              onClose(position)
+            }}
+            onCancel={(refocus) => {
+              setClosing(null)
+              if (refocus) closeTrigger.current?.focus()
+            }}
+          >
+            <CloseTerms position={position} market={market(position)} />
+          </ConfirmStep>
+        ) : null
+      }
     />
   )
 }
@@ -347,6 +369,7 @@ function Orders({
     { header: 'Reduce', cell: (order) => (order.reduceOnly ? 'yes' : ''), words: true },
     {
       header: '',
+      words: true,
       cell: (order) =>
         order.cancelable && (
           <Button look="quiet" disabled={busy(order)} onClick={() => onCancel(order)}>

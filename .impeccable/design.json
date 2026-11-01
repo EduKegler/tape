@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-01T00:00:00Z",
+  "generatedAt": "2026-11-01T23:30:00Z",
   "title": "Design System: Tape",
   "extensions": {
     "colorMeta": {
@@ -22,8 +22,14 @@
         "canonical": "oklch(67.1% 0.198 17)",
         "tonalRamp": ["#190405", "#4c000e", "#761224", "#a32a3b", "#d74455", "#ff6574", "#ff989f", "#ffdddd"]
       },
-      "bid-wash": { "role": "secondary", "displayName": "Bid Depth Wash" },
-      "ask-wash": { "role": "secondary", "displayName": "Ask Depth Wash" },
+      "bid-wash": {
+        "role": "secondary",
+        "displayName": "Bid Depth Wash"
+      },
+      "ask-wash": {
+        "role": "secondary",
+        "displayName": "Ask Depth Wash"
+      },
       "warn": {
         "role": "tertiary",
         "displayName": "Stale Amber",
@@ -81,41 +87,75 @@
         "displayName": "Level 3",
         "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
       },
-      "ink": { "role": "neutral", "displayName": "Ink" },
-      "ink-contrast": { "role": "neutral", "displayName": "Ink Contrast" }
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink"
+      },
+      "ink-contrast": {
+        "role": "neutral",
+        "displayName": "Ink Contrast"
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "The last price in the header, with its side mark." },
-      "figure": { "displayName": "Figure", "purpose": "Equity in Account and notional in the ticket." },
-      "number": { "displayName": "Number", "purpose": "Strip prices and field values." },
+      "display": {
+        "displayName": "Display",
+        "purpose": "The last price in the header and at the head of the book, 22px semibold with its side mark, colored by the side of the last trade."
+      },
+      "number": {
+        "displayName": "Number",
+        "purpose": "Strip mids and field values, 13px 500."
+      },
       "number-sm": {
         "displayName": "Number, small",
-        "purpose": "Book, trades, tables and stats. 11px in the dense Venues table."
+        "purpose": "Book, trades, tables, equity and notional at 12px. 11px in the dense Venues table."
       },
-      "title": { "displayName": "Title", "purpose": "Panel titles and venue names in the strip." },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel titles and venue names in the strip."
+      },
       "body": {
         "displayName": "Body",
         "purpose": "Text, notes, labels next to values, and sentences that carry numbers with tabular figures."
       },
-      "body-strong": { "displayName": "Body, strong", "purpose": "The order outcome and primary buttons." },
-      "action": { "displayName": "Action", "purpose": "Buy, Sell and the side switch." },
+      "body-strong": {
+        "displayName": "Body, strong",
+        "purpose": "The order outcome, primary and secondary buttons, the submit's summary line."
+      },
+      "action": {
+        "displayName": "Action",
+        "purpose": "The side switch, 13px 600."
+      },
+      "submit": {
+        "displayName": "Submit",
+        "purpose": "The submit names the side and the market at 18px 600; a 12px 500 line under it states size, price and venue."
+      },
       "label": {
         "displayName": "Label",
-        "purpose": "Table headers, chain names, stat labels, panel state lines, the status bar."
+        "purpose": "Table headers, chain names, stat and field labels, panel state lines, the status bar in capitals."
       }
     },
     "shadows": [
       {
         "name": "inset-shadow-selected",
         "value": "inset 0 -2px var(--accent)",
-        "purpose": "The 2px off-white underline on the current venue tab, the current market and the checked segmented option. The only shadow."
+        "purpose": "Selected underline: the current venue tab, the current market and the checked segmented option or tab."
+      },
+      {
+        "name": "inset-shadow-current",
+        "value": "inset 2px 0 var(--accent)",
+        "purpose": "Current bar: the left edge of the current Venues row."
+      },
+      {
+        "name": "inset-shadow-newest",
+        "value": "inset 2px 0 var(--level3)",
+        "purpose": "Newest bar: the left edge of the newest trade, on a raised fill. Level3, because the tape is market data."
       }
     ],
     "motion": [
       {
         "name": "wash",
         "value": "wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; accent 20% at 0%, 15% at 35%, transparent at 100%",
-        "purpose": "The trader's fill (order outcome, changed position row) and a venue tab that newly takes the best bid or ask, at most once per venue every 2s."
+        "purpose": "The trader's fill (order outcome, changed position row) and a venue tab that newly takes the best bid or ask, at most once per venue every 2s. While a tab washes its chain and Mid label turn level1."
       },
       {
         "name": "wash-still",
@@ -123,9 +163,14 @@
         "purpose": "The wash under prefers-reduced-motion. The one motion not behind motion-safe:."
       },
       {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "The only easing token in the theme, used by fade-in."
+      },
+      {
         "name": "fade-in",
-        "value": "fade-in 120ms cubic-bezier(0.23, 1, 0.32, 1)",
-        "purpose": "Dialogs, backdrops and panel state changes, behind motion-safe:."
+        "value": "fade-in 120ms cubic-bezier(0.23, 1, 0.32, 1); opacity from 0",
+        "purpose": "Dialogs, the dialog backdrop and panel state changes, behind motion-safe:."
       },
       {
         "name": "focus-ring",
@@ -134,9 +179,18 @@
       }
     ],
     "breakpoints": [
-      { "name": "sm", "value": "640px" },
-      { "name": "lg", "value": "1024px" },
-      { "name": "xl", "value": "1280px" }
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
     ]
   },
   "components": [
@@ -144,23 +198,23 @@
       "name": "Venue strip",
       "kind": "nav",
       "refersTo": "venue-tab",
-      "description": "Four equal tabs under the header, each quoting the price it leads with. The current tab is raised with the off-white underline; a tab that takes the best price plays the wash.",
-      "html": "<nav class=\"ds-strip\" aria-label=\"Venue\"><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-name\">Binance</span><span class=\"ds-strip-chain\">Spot</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-word\">mid</span><span class=\"ds-num ds-strip-price\">77,833.875</span></span></a><a class=\"ds-strip-tab\" href=\"#\" aria-current=\"page\"><span class=\"ds-wash\" aria-hidden=\"true\"></span><span class=\"ds-strip-name\">Hyperliquid</span><span class=\"ds-strip-chain\">Hyperliquid L1</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-best\"><svg class=\"ds-dot ds-ask\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>best ask</span><span class=\"ds-num ds-strip-price\">77,342</span></span></a><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-name\">dYdX</span><span class=\"ds-strip-chain\">dYdX Chain</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-best\"><svg class=\"ds-dot ds-bid\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>best bid</span><span class=\"ds-num ds-strip-price\">80,193</span></span></a><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-name\">Orderly</span><span class=\"ds-strip-chain\">Orderly Network</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-stale\">Reconnecting</span><span class=\"ds-num ds-strip-price ds-dim\">77,726.65</span></span></a></nav>",
-      "css": ".ds-strip { display: grid; grid-template-columns: repeat(4, 1fr); height: 35.75px; overflow: hidden; border-radius: 6.5px; background: var(--surface); font-family: 'Inter Variable', system-ui, sans-serif; } .ds-strip-tab { position: relative; display: flex; align-items: center; gap: 8.125px; min-width: 0; padding: 0 13px; color: var(--level3); text-decoration: none; } .ds-strip-tab:not(:last-child) { border-right: 1px solid var(--ground); } .ds-strip-tab:hover, .ds-strip-tab[aria-current=page] { background: var(--raised); } .ds-strip-tab[aria-current=page] { box-shadow: inset 0 -2px var(--accent); } .ds-strip-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-strip-name { position: relative; font-size: 13px; font-weight: 600; color: var(--level1); } .ds-strip-chain { position: relative; font-size: 11px; color: var(--level3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-strip-lead { position: relative; margin-left: auto; display: flex; align-items: baseline; gap: 6.5px; } .ds-strip-best, .ds-strip-word { font-size: 11px; color: var(--level2); } .ds-strip-word { color: var(--level3); } .ds-strip-stale { font-size: 11px; color: var(--warn); } .ds-dot { width: 6px; height: 6px; margin-right: 4px; } .ds-bid { color: var(--bid); } .ds-ask { color: var(--ask); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-strip-price { font-size: 13px; color: var(--level1); } .ds-dim { color: var(--level3); } .ds-wash { position: absolute; inset: 0; pointer-events: none; animation: ds-wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; } @keyframes ds-wash { 0% { background-color: color-mix(in srgb, var(--accent) 20%, transparent); } 35% { background-color: color-mix(in srgb, var(--accent) 15%, transparent); } 100% { background-color: transparent; } } @media (prefers-reduced-motion: reduce) { .ds-wash { animation: ds-wash-still 900ms step-end both; } } @keyframes ds-wash-still { from { background-color: color-mix(in srgb, var(--accent) 12%, transparent); } to { background-color: transparent; } }"
+      "description": "Four equal tabs on one graphite card under the header. Name over chain on the left, Mid over the mid price on the right. The current tab is raised with the off-white underline; a tab that newly takes the best price plays the wash.",
+      "html": "<nav class=\"ds-strip\" aria-label=\"Venue\"><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-row\"><span class=\"ds-strip-id\"><span class=\"ds-strip-name\">Binance</span><span class=\"ds-strip-chain\">Spot</span></span><span class=\"ds-strip-mid\"><span class=\"ds-strip-word\">Mid</span><span class=\"ds-num ds-strip-price\">77,833.875</span></span></span></a><a class=\"ds-strip-tab\" href=\"#\" aria-current=\"page\" data-lifting=\"true\"><span class=\"ds-wash\" aria-hidden=\"true\"></span><span class=\"ds-strip-row\"><span class=\"ds-strip-id\"><span class=\"ds-strip-name\">Hyperliquid</span><span class=\"ds-strip-chain\">Hyperliquid L1 · <span class=\"ds-ask\"><svg class=\"ds-dot\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg></span>best ask</span></span><span class=\"ds-strip-mid\"><span class=\"ds-strip-word\">Mid</span><span class=\"ds-num ds-strip-price\">77,342</span></span></span></a><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-row\"><span class=\"ds-strip-id\"><span class=\"ds-strip-name\">dYdX</span><span class=\"ds-strip-chain\">dYdX Chain · <span class=\"ds-bid\"><svg class=\"ds-dot\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg></span>best bid</span></span><span class=\"ds-strip-mid\"><span class=\"ds-strip-word\">Mid</span><span class=\"ds-num ds-strip-price\">80,193</span></span></span></a><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-row\"><span class=\"ds-strip-id\"><span class=\"ds-strip-name\">Orderly</span><span class=\"ds-strip-chain\">Orderly Network</span></span><span class=\"ds-strip-mid\"><span class=\"ds-strip-stale\">Reconnecting</span><span class=\"ds-num ds-strip-price ds-dim\">77,726.65</span></span></span></a></nav>",
+      "css": ".ds-strip { display: grid; grid-template-columns: repeat(4, 1fr); height: 47.94px; overflow: hidden; border-radius: 6.5px; background: var(--surface); font-family: 'Inter Variable', system-ui, sans-serif; } .ds-strip-tab { position: relative; display: flex; align-items: center; gap: 8.125px; min-width: 0; padding: 0 13px; color: var(--level3); text-decoration: none; } .ds-strip-tab:not(:last-child) { border-right: 1px solid var(--ground); } .ds-strip-tab:hover, .ds-strip-tab[aria-current=page] { background: var(--raised); } .ds-strip-tab[aria-current=page] { box-shadow: inset 0 -2px var(--accent); } .ds-strip-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-strip-row { position: relative; display: flex; flex: 1; min-width: 0; align-items: center; gap: 9.75px; } .ds-strip-id { display: flex; flex-direction: column; gap: 4.875px; min-width: 0; line-height: 1; } .ds-strip-name { font-size: 13px; font-weight: 600; color: var(--level1); } .ds-strip-chain { font-size: 11px; color: var(--level3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-strip-mid { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4.875px; flex-shrink: 0; line-height: 1; } .ds-strip-word { font-size: 11px; color: var(--level3); } .ds-strip-stale { font-size: 11px; font-weight: 500; color: var(--warn); } .ds-strip-tab[data-lifting] .ds-strip-chain, .ds-strip-tab[data-lifting] .ds-strip-word { color: var(--level1); } .ds-dot { display: inline-block; width: 7px; height: 7px; margin-right: 3.25px; vertical-align: 0; } .ds-bid { color: var(--bid); } .ds-ask { color: var(--ask); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-strip-price { font-size: 13px; font-weight: 500; color: var(--level1); } .ds-dim { color: var(--level3); } .ds-wash { position: absolute; inset: 0; pointer-events: none; animation: ds-wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; } @keyframes ds-wash { 0% { background-color: color-mix(in srgb, var(--accent) 20%, transparent); } 35% { background-color: color-mix(in srgb, var(--accent) 15%, transparent); } 100% { background-color: transparent; } } @media (prefers-reduced-motion: reduce) { .ds-wash { animation: ds-wash-still 900ms step-end both; } } @keyframes ds-wash-still { from { background-color: color-mix(in srgb, var(--accent) 12%, transparent); } to { background-color: transparent; } }"
     },
     {
       "name": "Panel card",
       "kind": "card",
       "refersTo": "panel",
-      "description": "Every work panel: graphite card, title row with a rule under it, state line beside the title.",
-      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">Order book</h2><span class=\"ds-panel-state\">Reconnecting · 4 s old</span></header><div class=\"ds-panel-body\">Book rows</div></section>",
-      "css": ".ds-panel { display: flex; flex-direction: column; overflow: hidden; border-radius: 6.5px; background: var(--surface); color: var(--level2); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; } .ds-panel-head { display: flex; align-items: center; gap: 6.5px; height: 29.25px; padding: 0 9.75px; border-bottom: 1px solid var(--rule); } .ds-panel-title { margin: 0; font-size: 13px; font-weight: 600; line-height: 1; color: var(--level1); } .ds-panel-state { font-size: 11px; color: var(--warn); } .ds-panel-body { padding: 9.75px; min-height: 80px; }"
+      "description": "Every work panel: graphite card, a 2.625rem title row with a rule under it, the panel state line beside the title, controls on the right.",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><div class=\"ds-panel-lead\"><h2 class=\"ds-panel-title\">Order book</h2><span class=\"ds-panel-state\">Reconnecting · 4 s old</span></div><span class=\"ds-panel-aside\">BTC · basis in bps</span></header><div class=\"ds-panel-body\">Book rows</div></section>",
+      "css": ".ds-panel { display: flex; flex-direction: column; overflow: hidden; border-radius: 6.5px; background: var(--surface); color: var(--level2); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; } .ds-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 6.5px; height: 34.125px; padding: 0 9.75px; border-bottom: 1px solid var(--rule); } .ds-panel-lead { display: flex; align-items: baseline; gap: 6.5px; min-width: 0; } .ds-panel-title { margin: 0; font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; color: var(--level1); } .ds-panel-state { font-size: 11px; line-height: 1.25; white-space: nowrap; color: var(--warn); animation: ds-fade-in 120ms cubic-bezier(0.23, 1, 0.32, 1); } @media (prefers-reduced-motion: reduce) { .ds-panel-state { animation: none; } } @keyframes ds-fade-in { from { opacity: 0; } } .ds-panel-aside { font-size: 11px; white-space: nowrap; color: var(--level3); } .ds-panel-body { min-height: 80px; padding: 9.75px; }"
     },
     {
       "name": "Primary button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Off-white ink fill for the main non-order action, such as Connect wallet.",
+      "description": "Off-white ink fill for the main non-order action, such as Connect wallet. Sizes sm 1.5rem, md 2rem, lg 2.5rem; md shown.",
       "html": "<button class=\"ds-btn-primary\">Connect wallet</button> <button class=\"ds-btn-primary\" disabled>Connect wallet</button>",
       "css": ".ds-btn-primary { height: 26px; padding: 0 9.75px; border: 0; border-radius: 4.875px; background: var(--ink); color: var(--ink-contrast); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary:disabled { background: var(--raised); color: var(--level2); box-shadow: inset 0 0 0 1px var(--rule); cursor: default; }"
     },
@@ -168,48 +222,56 @@
       "name": "Secondary button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Raised graphite for actions beside data, such as Close on a position.",
-      "html": "<button class=\"ds-btn-secondary\">Close</button>",
-      "css": ".ds-btn-secondary { height: 26px; padding: 0 9.75px; border: 0; border-radius: 4.875px; background: var(--raised); color: var(--level1); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; } .ds-btn-secondary:hover { background: color-mix(in srgb, var(--level1) 12%, var(--raised)); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-secondary:disabled { opacity: 0.4; }"
+      "description": "Raised graphite for actions beside data, such as Close on a position. Hover swaps the fill for level1 at 12%.",
+      "html": "<button class=\"ds-btn-secondary\">Close</button> <button class=\"ds-btn-secondary\" disabled>Close</button>",
+      "css": ".ds-btn-secondary { height: 26px; padding: 0 9.75px; border: 0; border-radius: 4.875px; background: var(--raised); color: var(--level1); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; } .ds-btn-secondary:hover { background: color-mix(in srgb, var(--level1) 12%, transparent); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-secondary:disabled { opacity: 0.4; cursor: default; }"
     },
     {
       "name": "Side switch and submit",
       "kind": "custom",
       "refersTo": "side-switch",
-      "description": "The ticket's side choice on a well track, and the side-filled submit at the ticket's foot.",
-      "html": "<div class=\"ds-side\"><button class=\"ds-side-opt ds-side-buy\" aria-pressed=\"true\">Buy / Long</button><button class=\"ds-side-opt ds-side-sell\" aria-pressed=\"false\">Sell / Short</button></div><button class=\"ds-submit ds-submit-buy\">Buy BTC</button>",
-      "css": ".ds-side { display: grid; grid-template-columns: 1fr 1fr; gap: 3.25px; padding: 3.25px; border-radius: 6.5px; background: var(--inset); font-family: 'Inter Variable', system-ui, sans-serif; } .ds-side-opt { height: 26px; border: 0; border-radius: 4.875px; background: transparent; color: var(--level2); font-size: 13px; font-weight: 600; cursor: pointer; } .ds-side-opt:hover { color: var(--level1); } .ds-side-buy[aria-pressed=true] { background: var(--bid); color: var(--ink-contrast); } .ds-side-sell[aria-pressed=true] { background: var(--ask); color: var(--ink-contrast); } .ds-side-opt:focus-visible, .ds-submit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-submit { display: block; width: 100%; margin-top: 9.75px; height: 35.75px; border: 0; border-radius: 4.875px; color: var(--ink-contrast); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; } .ds-submit-buy { background: var(--bid); } .ds-submit:disabled { background: var(--raised); color: var(--level2); box-shadow: inset 0 0 0 1px var(--rule); }"
+      "description": "The ticket's side choice on a well track, and the side-filled submit at the ticket's foot that names the side and market at 18px with a 12px summary line.",
+      "html": "<div class=\"ds-side\"><button class=\"ds-side-opt ds-side-buy\" aria-pressed=\"true\">Buy / Long</button><button class=\"ds-side-opt ds-side-sell\" aria-pressed=\"false\">Sell / Short</button></div><button class=\"ds-submit ds-submit-buy\"><span>Buy / Long BTC</span><span class=\"ds-submit-summary\">0.01 BTC at 77,614 on Hyperliquid</span></button>",
+      "css": ".ds-side { display: grid; grid-template-columns: 1fr 1fr; gap: 3.25px; padding: 3.25px; border-radius: 6.5px; background: var(--inset); font-family: 'Inter Variable', system-ui, sans-serif; } .ds-side-opt { height: 26px; border: 0; border-radius: 4.875px; background: transparent; color: var(--level2); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; } .ds-side-opt[aria-pressed=false]:hover { color: var(--level1); } .ds-side-buy[aria-pressed=true] { background: var(--bid); color: var(--ink-contrast); } .ds-side-sell[aria-pressed=true] { background: var(--ask); color: var(--ink-contrast); } .ds-side-opt:focus-visible, .ds-submit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-submit { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3.25px; width: 100%; margin-top: 6.5px; min-height: 35.75px; padding: 4.875px 0; border: 0; border-radius: 4.875px; color: var(--ink-contrast); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 18px; font-weight: 600; cursor: pointer; } .ds-submit-buy { background: var(--bid); } .ds-submit-summary { font-size: 12px; font-weight: 500; } .ds-submit:disabled { background: var(--raised); color: var(--level2); box-shadow: inset 0 0 0 1px var(--rule); cursor: default; }"
     },
     {
       "name": "Field",
       "kind": "input",
       "refersTo": "input",
-      "description": "Ticket field: label and hint above, number value in the well, and the drawn coral mark with a level1 message on error.",
-      "html": "<div class=\"ds-field\"><div class=\"ds-field-top\"><label for=\"ds-size\">Size (BTC)</label><span>Step <span class=\"ds-num\">0.00001</span></span></div><input id=\"ds-size\" class=\"ds-input\" value=\"0.0000001\" aria-invalid=\"true\"><span class=\"ds-field-error\"><svg class=\"ds-error-mark\" viewBox=\"0 0 14 14\" aria-hidden=\"true\"><circle cx=\"7\" cy=\"7\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M7 3.8v4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><circle cx=\"7\" cy=\"10.2\" r=\"0.9\" fill=\"currentColor\"/></svg>At most 5 decimals</span></div>",
-      "css": ".ds-field { display: flex; flex-direction: column; gap: 3.25px; font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; } .ds-field-top { display: flex; justify-content: space-between; color: var(--level3); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-input { height: 29.25px; padding: 0 9.75px; border: 1px solid var(--edge); border-radius: 4.875px; background: var(--inset); color: var(--level1); font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; font-size: 13px; } .ds-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-input[aria-invalid=true] { border-color: var(--err); } .ds-field-error { display: flex; gap: 4.875px; color: var(--level1); } .ds-error-mark { width: 11.375px; height: 11.375px; margin-top: 1.625px; flex-shrink: 0; color: var(--err); }"
+      "description": "Ticket field: 11px label and hint above, the value in Martian Mono 13px 500 in the well with its unit at the right edge, and the drawn coral mark with a level1 message on error.",
+      "html": "<div class=\"ds-field\"><div class=\"ds-field-top\"><label for=\"ds-size\">Size</label><span>Step <span class=\"ds-num\">0.00001</span></span></div><div class=\"ds-field-box\"><input id=\"ds-size\" class=\"ds-input\" value=\"0.0000001\" aria-invalid=\"true\"><span class=\"ds-unit\" aria-hidden=\"true\">BTC</span></div><span class=\"ds-field-error\"><svg class=\"ds-error-mark\" viewBox=\"0 0 14 14\" aria-hidden=\"true\"><circle cx=\"7\" cy=\"7\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M7 3.8v4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><circle cx=\"7\" cy=\"10.2\" r=\"0.9\" fill=\"currentColor\"/></svg><span>At most 5 decimals</span></span></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 3.25px; font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; } .ds-field-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--level3); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-field-box { position: relative; } .ds-input { width: 100%; height: 35.75px; padding: 0 26px 0 9.75px; border: 1px solid var(--edge); border-radius: 4.875px; background: var(--inset); color: var(--level1); font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; font-size: 13px; font-weight: 500; } .ds-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-input[aria-invalid=true] { border-color: var(--err); } .ds-unit { position: absolute; top: 0; bottom: 0; right: 9.75px; display: flex; align-items: center; pointer-events: none; font-size: 12px; color: var(--level3); } .ds-field-error { display: flex; gap: 4.875px; color: var(--level1); } .ds-error-mark { width: 11.375px; height: 11.375px; margin-top: 1.625px; flex-shrink: 0; color: var(--err); }"
     },
     {
-      "name": "Segmented toggle",
+      "name": "Segmented tabs",
       "kind": "chip",
-      "description": "Text options for intervals, order type and tabs. The checked one is level1 with the off-white underline.",
-      "html": "<div class=\"ds-seg\" role=\"radiogroup\" aria-label=\"Interval\"><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"true\">1m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">5m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">15m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">1h</button></div>",
-      "css": ".ds-seg { display: flex; align-items: center; gap: 9.75px; } .ds-seg-opt { height: 19.5px; padding: 0 3.25px; border: 0; background: transparent; color: var(--level3); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; cursor: pointer; } .ds-seg-opt:hover, .ds-seg-opt[aria-checked=true] { color: var(--level1); } .ds-seg-opt[aria-checked=true] { box-shadow: inset 0 -2px var(--accent); } .ds-seg-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+      "description": "Text-only options at 13px 500 in level3; the checked one turns level1 with the off-white underline. As the head of a card (intervals, order types, account tabs) they fill the title row with no padding, so the underline sits on the rule; intervals and account tabs sit 1.25rem apart.",
+      "html": "<div class=\"ds-seg-row\"><div class=\"ds-seg\" role=\"radiogroup\" aria-label=\"Interval\"><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"true\">1m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">5m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">15m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">1h</button></div></div>",
+      "css": ".ds-seg-row { display: flex; align-items: stretch; height: 34.125px; padding: 0 9.75px; border-bottom: 1px solid var(--rule); background: var(--surface); } .ds-seg { display: flex; align-items: stretch; gap: 16.25px; } .ds-seg-opt { padding: 0; border: 0; background: transparent; color: var(--level3); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; } .ds-seg-opt:hover, .ds-seg-opt[aria-checked=true] { color: var(--level1); } .ds-seg-opt[aria-checked=true] { box-shadow: inset 0 -2px var(--accent); } .ds-seg-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
     },
     {
       "name": "Venues table",
       "kind": "custom",
       "refersTo": "table-row-current",
-      "description": "Dense comparison table. Best bid and ask carry the side color and dot; the current venue's row is raised with its name semibold in the accent.",
+      "description": "Dense comparison table at 11px with 1.5rem rows. Venue names level1 500; best bid and ask carry the side color and dot; the current venue's row is raised with the current bar and its name semibold in the accent.",
       "html": "<table class=\"ds-table\"><thead><tr><th>Venue</th><th>Bid</th><th>Ask</th><th>Basis</th></tr></thead><tbody><tr><td>Binance</td><td class=\"ds-num\">77,833.87</td><td class=\"ds-num\">77,833.88</td><td class=\"ds-num\">+6.89</td></tr><tr aria-current=\"true\"><td>Hyperliquid</td><td class=\"ds-num\">77,338</td><td class=\"ds-num ds-ask\"><svg class=\"ds-dot\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>77,342</td><td class=\"ds-num\">-56.60</td></tr><tr><td>dYdX</td><td class=\"ds-num ds-bid\"><svg class=\"ds-dot\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>80,193</td><td class=\"ds-num\">85,155</td><td class=\"ds-num\">+620.17</td></tr></tbody></table>",
-      "css": ".ds-table { width: 100%; border-collapse: collapse; background: var(--surface); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 11px; color: var(--level2); } .ds-table th { height: 19.5px; font-weight: 400; color: var(--level3); text-align: right; padding-right: 9.75px; } .ds-table th:first-child, .ds-table td:first-child { text-align: left; padding-left: 9.75px; } .ds-table td { height: 19.5px; text-align: right; padding-right: 9.75px; border-top: 1px solid var(--rule); } .ds-table tbody tr { cursor: pointer; } .ds-table tbody tr:hover { background: color-mix(in srgb, var(--level1) 5%, transparent); } .ds-table tr[aria-current=true] { background: var(--raised); color: var(--level1); } .ds-table tr[aria-current=true] td:first-child { font-weight: 600; color: var(--accent); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-bid { color: var(--bid); } .ds-ask { color: var(--ask); } .ds-dot { width: 5px; height: 5px; margin-right: 3.25px; }"
+      "css": ".ds-table { width: 100%; border-collapse: collapse; padding-bottom: 4.875px; background: var(--surface); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 11px; color: var(--level2); } .ds-table th { height: 19.5px; padding: 0 9.75px 0 0; font-weight: 400; color: var(--level3); text-align: right; } .ds-table td { height: 19.5px; padding: 0 9.75px 0 0; text-align: right; white-space: nowrap; border-top: 1px solid var(--rule); } .ds-table th:first-child, .ds-table td:first-child { padding: 0 0 0 9.75px; text-align: left; } .ds-table td:first-child { font-weight: 500; color: var(--level1); } .ds-table tbody tr { cursor: pointer; } .ds-table tbody tr:hover { background: color-mix(in srgb, var(--level1) 5%, transparent); } .ds-table tr[aria-current=true] { background: var(--raised); color: var(--level1); box-shadow: inset 2px 0 var(--accent); } .ds-table tr[aria-current=true] td:first-child { font-weight: 600; color: var(--accent); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-bid { color: var(--bid); } .ds-ask { color: var(--ask); } .ds-dot { display: inline-block; width: 6px; height: 6px; margin-right: 3.25px; vertical-align: 0; }"
     },
     {
       "name": "Order outcome",
       "kind": "custom",
       "refersTo": "order-outcome",
-      "description": "Raised block under the ticket summary that reads the venue's answer. On a fill it plays the wash.",
+      "description": "Raised block right above the submit that reads the venue's answer in Inter 500 with tabular figures. On a fill it plays the wash.",
       "html": "<p class=\"ds-outcome\" role=\"status\"><span class=\"ds-wash\" aria-hidden=\"true\"></span><span class=\"ds-outcome-text\">Order filled. Filled 0.00015 at 77327.4</span></p>",
       "css": ".ds-outcome { position: relative; overflow: hidden; margin: 0; padding: 6.5px 8.125px; border-radius: 4.875px; background: var(--raised); color: var(--level1); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; } .ds-outcome-text { position: relative; } .ds-wash { position: absolute; inset: 0; pointer-events: none; animation: ds-wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; } @keyframes ds-wash { 0% { background-color: color-mix(in srgb, var(--accent) 20%, transparent); } 35% { background-color: color-mix(in srgb, var(--accent) 15%, transparent); } 100% { background-color: transparent; } } @media (prefers-reduced-motion: reduce) { .ds-wash { animation: ds-wash-still 900ms step-end both; } } @keyframes ds-wash-still { from { background-color: color-mix(in srgb, var(--accent) 12%, transparent); } to { background-color: transparent; } }"
+    },
+    {
+      "name": "Dialog",
+      "kind": "custom",
+      "refersTo": "dialog",
+      "description": "Raised graphite with a rule border, small radius and 1rem padding over a 60% black backdrop; title in 13px level1, a lock reason as a level1 note with an amber left rule.",
+      "html": "<div class=\"ds-dialog-wrap\"><div class=\"ds-backdrop\"></div><div class=\"ds-dialog\" role=\"dialog\" aria-label=\"Enable trading\"><div class=\"ds-dialog-head\"><h2 class=\"ds-dialog-title\">Enable trading</h2><button class=\"ds-dialog-close\" aria-label=\"Close\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path d=\"M4 4l8 8M12 4l-8 8\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg></button></div><p class=\"ds-dialog-lock\" role=\"status\">Switch to Arbitrum to sign.</p></div></div>",
+      "css": ".ds-dialog-wrap { position: relative; padding: 26px; } .ds-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / 0.6); } .ds-dialog { position: relative; display: flex; flex-direction: column; gap: 9.75px; max-width: 320px; margin: 0 auto; padding: 13px; border: 1px solid var(--rule); border-radius: 3.25px; background: var(--raised); color: var(--level2); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; animation: ds-fade-in 120ms cubic-bezier(0.23, 1, 0.32, 1); } @media (prefers-reduced-motion: reduce) { .ds-dialog { animation: none; } } @keyframes ds-fade-in { from { opacity: 0; } } .ds-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 9.75px; } .ds-dialog-title { margin: 0; font-size: 13px; font-weight: 400; color: var(--level1); } .ds-dialog-close { display: flex; padding: 0; border: 0; background: transparent; color: var(--level3); cursor: pointer; } .ds-dialog-close:hover { color: var(--level1); } .ds-dialog-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-dialog-lock { margin: 0; padding-left: 6.5px; border-left: 2px solid var(--warn); color: var(--level1); }"
     }
   ],
   "narrative": {

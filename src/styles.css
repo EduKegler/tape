@@ -20,6 +20,8 @@
   --ask: #f75466;
   --bid-wash: rgb(46 189 133 / 0.1);
   --ask-wash: rgb(247 84 102 / 0.1);
+  --bid-volume: rgb(46 189 133 / 0.28);
+  --ask-volume: rgb(247 84 102 / 0.28);
   --warn: #e2a93b;
   --err: #ff8466;
   --selection: rgb(239 235 226 / 0.2);
@@ -58,6 +60,8 @@
   --blur-*: initial;
   --inset-shadow-*: initial;
   --inset-shadow-selected: inset 0 -2px var(--accent);
+  --inset-shadow-newest: inset 2px 0 var(--level3);
+  --inset-shadow-current: inset 2px 0 var(--accent);
 
   --z-index-dialog: 50;
 

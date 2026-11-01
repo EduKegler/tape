@@ -58,7 +58,7 @@ function Deposit({ account, venue }: { account: AccountRef; venue: DepositVenue 
   const amountRef = useRef<HTMLInputElement>(null)
   return (
     <>
-      <Button look="primary" size="sm" onClick={() => setOpen(true)}>
+      <Button look="secondary" size="sm" onClick={() => setOpen(true)}>
         Deposit
       </Button>
       <Dialog
@@ -239,9 +239,14 @@ function Summary({
   quote: DepositQuote
 }) {
   const fee = quote.terms?.fee ?? null
-  const rows: [string, string][] = [
+  const rows: [string, React.ReactNode][] = [
     ['Route', [chainName(route.chainId), ...route.hops, venue.destination].join(' → ')],
-    ['Credited to', `${shortAddress(account.owner)}, the same address`],
+    [
+      'Credited to',
+      <span key="credited">
+        <span className="num">{shortAddress(account.owner)}</span>, the same address
+      </span>,
+    ],
     [
       'Fee',
       quote.terms
@@ -279,7 +284,7 @@ function Summary({
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-level3">{label}</dt>
-          <dd className="num text-right text-level1">{value}</dd>
+          <dd className="text-right text-level1 tabular-nums">{value}</dd>
         </div>
       ))}
     </dl>
@@ -400,7 +405,16 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
     ['Gas paid', record.gasPaid !== null ? gasText(record.gasPaid, record.chainId) : '…'],
     ['Fee', chargesText(kept === null ? record.fee : { expected: kept, max: kept }, record.message, record.chainId)],
     ['Credited', credited ? `${usdc(credited.amount)} USDC` : '…'],
-    ...(credited ? [['Venue record', shortAddress(credited.receipt)] as [string, string]] : []),
+    ...(credited
+      ? [
+          [
+            'Venue record',
+            <span key="record" className="num">
+              {shortAddress(credited.receipt)}
+            </span>,
+          ] as [string, React.ReactNode],
+        ]
+      : []),
   ]
   return (
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
@@ -424,7 +438,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-level3">{label}</dt>
-            <dd className="num text-right text-level1">{value}</dd>
+            <dd className="text-right text-level1 tabular-nums">{value}</dd>
           </div>
         ))}
       </dl>

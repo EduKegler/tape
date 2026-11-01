@@ -28,7 +28,7 @@ async function enable(page: Page) {
   const connected = await connect(page)
   await connected.ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(connected.ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
-  await expect(connected.ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(connected.ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   return connected
 }
 
@@ -55,7 +55,7 @@ test('enabling Hyperliquid has the wallet approve an agent and sends that approv
   await expectAccessible(page)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   await expectAccessible(page)
 
   const [approval, ...more] = wallet.askedFor('sign')
@@ -104,7 +104,7 @@ test('a network switch with the ticket open signs the approval for the new netwo
   await wallet.switchChain(ARBITRUM_SEPOLIA)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
 
   const [approval] = wallet.askedFor('sign')
   expect(approval?.chainId).toBe(ARBITRUM_SEPOLIA)
@@ -112,14 +112,17 @@ test('a network switch with the ticket open signs the approval for the new netwo
   expect(hyperliquid.sent.map((body) => body.action.signatureChainId)).toEqual(['0x66eee'])
 })
 
-for (const side of ['Buy', 'Sell'] as const)
+for (const [side, toggle] of [
+  ['Buy', 'Buy / Long'],
+  ['Sell', 'Sell / Short'],
+] as const)
   test(`a ${side.toLowerCase()} limit order goes out with the side, price and size the ticket shows`, async ({
     page,
     wallet,
   }) => {
     const { hyperliquid, ticket } = await enable(page)
     hyperliquid.exchange = () => resting(7)
-    await ticket.getByRole('button', { name: side === 'Buy' ? 'Buy / Long' : 'Sell / Short', exact: true }).click()
+    await ticket.getByRole('button', { name: toggle, exact: true }).click()
     await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill(side === 'Buy' ? '70000' : '90000')
     await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
     await expect(ticket.getByText('Notional')).toBeVisible()
@@ -131,7 +134,7 @@ for (const side of ['Buy', 'Sell'] as const)
       tif: 'Gtc',
     })
 
-    await ticket.getByRole('button', { name: `${side} BTC` }).click()
+    await ticket.getByRole('button', { name: `${toggle} BTC` }).click()
     await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 7')
     await expectAccessible(page)
     expect(orders(hyperliquid.sent).map((body) => body.action)).toEqual([
@@ -173,7 +176,7 @@ test('a scale order sends one leg per row of the list the ticket shows', async (
     row.split(/\s+/).map((cell) => Number(cell.replaceAll(',', ''))),
   )
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('status')).toContainText('3 resting')
   const [action] = orders(hyperliquid.sent).map((body) => body.action)
   expect(action?.orders?.map((leg) => [Number(leg.p), Number(leg.s)])).toEqual(rows)
@@ -195,7 +198,7 @@ test('a market buy goes out as an IOC limit at the ask plus the slippage the tic
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
   await expect(ticket.getByRole('radio', { name: '1%', exact: true })).toBeChecked()
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('status')).toHaveText('Order filled. Filled 0.002 at 80000.0')
   await expectAccessible(page)
   // Hyperliquid has no market order type: its own UI sends an IOC limit. The ask 80000 plus 1% is 80800.
@@ -224,7 +227,7 @@ test('take profit and stop loss ride with the order as reduce-only market trigge
   await ticket.getByRole('textbox', { name: 'Take profit' }).fill('75000')
   await ticket.getByRole('textbox', { name: 'Stop loss' }).fill('65000')
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 1')
   await expectAccessible(page)
   // A trigger fills at market, bounded 10% past the trigger as Hyperliquid's UI does: 75000 and 65000 less 10%.
@@ -278,7 +281,7 @@ test('two take profits ride with the order, each closing its share of the size',
   ])
   await expectAccessible(page)
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 1')
   const takeProfit = (triggerPx: string, bound: string, size: string) => ({
     a: BTC,
@@ -337,7 +340,7 @@ test('a stop loss takes one of the two trigger slots, and two take profits with 
   await ticket.getByRole('textbox', { name: 'Take profit 2', exact: true }).fill('76000')
   await stopLoss.fill('65000')
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('alert')).toContainText('Take profits: At most 1 with a stop loss on this venue')
   expect(orders(hyperliquid.sent)).toEqual([])
 })
@@ -355,7 +358,7 @@ test('take profit sizes that miss the order size stop in the ticket and send not
   await ticket.getByRole('textbox', { name: 'Take profit 2', exact: true }).fill('76000')
   await ticket.getByRole('textbox', { name: 'Size 2 (%)' }).fill('20')
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('alert')).toContainText(
     'Take profits: Sizes add up to 70%, so 0.00060 BTC has no take profit',
   )
@@ -377,7 +380,7 @@ test('a take profit or stop loss on the wrong side of the touch shows on its fie
   await stopLoss.fill('90000')
   await expect(stopLoss).toHaveAccessibleDescription('Must be below the bid')
 
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
   await expect(ticket.getByRole('alert')).toContainText('Take profit: Must be above the ask')
   await expectAccessible(page)
   expect(orders(hyperliquid.sent)).toEqual([])
@@ -414,7 +417,7 @@ test('a trailing stop goes out as a native trailingStop action with the retracem
   await expect(ticket.getByRole('checkbox', { name: 'Take profit and stop loss' })).toHaveCount(0)
   await ticket.getByRole('textbox', { name: 'Retracement (%)' }).fill('1.5')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const sell = ticket.getByRole('button', { name: 'Sell BTC' })
+  const sell = ticket.getByRole('button', { name: 'Sell / Short BTC' })
   await sell.click()
   await expect(ticket.getByRole('status')).toHaveText('Order resting. Resting as order 77738308')
   await expectAccessible(page)
@@ -451,7 +454,7 @@ test('a retracement of 0 or 100% stops in the ticket and sends nothing', async (
   await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
   const retracement = ticket.getByRole('textbox', { name: 'Retracement (%)' })
-  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
   for (const value of ['0', '100']) {
     await retracement.fill(value)
     await expect(retracement).toHaveAccessibleDescription('Above 0 and below 100%')
@@ -468,7 +471,7 @@ test('switching the retracement unit checks the value against the unit picked', 
   const { ticket } = await enable(page)
   await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
   const percent = ticket.getByRole('textbox', { name: 'Retracement (%)' })
   await percent.fill('800')
   await expect(percent).toHaveAccessibleDescription('Above 0 and below 100%')
@@ -493,7 +496,7 @@ test('a trailing stop write that times out shows an unknown outcome and lets the
   await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Retracement (%)' }).fill('1')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
   await buy.click()
 
   const alert = ticket.getByRole('alert')
@@ -516,7 +519,7 @@ test('three clicks in one tick send one order, and the next goes after the answe
   hyperliquid.exchange = () => answer.promise
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
   await buy.evaluate((button: HTMLButtonElement) => {
     button.click()
     button.click()
@@ -546,14 +549,14 @@ test('a rejected order says so beside the submit button, with the venue words', 
   })
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
 
   const alert = ticket.getByRole('alert')
   await expect(alert).toContainText('Rejected. Not enough margin for this order.')
   await expect(alert).toContainText('Insufficient margin to place order. asset=3')
   const [note, button] = await Promise.all([
     alert.boundingBox(),
-    ticket.getByRole('button', { name: 'Buy BTC' }).boundingBox(),
+    ticket.getByRole('button', { name: 'Buy / Long BTC' }).boundingBox(),
   ])
   expect(button!.y - (note!.y + note!.height)).toBeLessThan(16)
 })
@@ -572,7 +575,7 @@ test('a write that times out shows an unknown outcome and asks the venue by clie
   }
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
 
   const alert = ticket.getByRole('alert')
   await expect(alert).toContainText(
@@ -600,7 +603,7 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
   }
   await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
   await buy.click()
 
   await expect(ticket.getByRole('alert')).toContainText('Asking the venue for this order…')
@@ -611,7 +614,7 @@ test('while the venue is asked about a timed out order, the ticket sends nothing
 
   status.resolve(UNKNOWN_OID)
   await expect(ticket.getByRole('alert')).toContainText('The venue does not show this order.')
-  await expect(ticket.getByRole('button', { name: 'Send again: Buy BTC' })).toBeEnabled()
+  await expect(ticket.getByRole('button', { name: 'Send again: Buy / Long BTC' })).toBeEnabled()
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
 })
 
@@ -626,7 +629,7 @@ test('when the venue has a timed out order, resend holds until the trader change
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
   await price.fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  await ticket.getByRole('button', { name: 'Buy BTC' }).click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
 
   await expect(ticket.getByRole('alert')).toContainText('The venue has this order.')
   await expect(ticket.getByRole('button', { name: 'The venue has this order' })).toBeDisabled()
@@ -634,7 +637,7 @@ test('when the venue has a timed out order, resend holds until the trader change
   expect(orders(hyperliquid.sent)).toHaveLength(1)
 
   await price.fill('70100')
-  await expect(ticket.getByRole('button', { name: 'Buy BTC', exact: true })).toBeEnabled()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC', exact: true })).toBeEnabled()
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
 })
 
@@ -650,7 +653,7 @@ test('an order clicked offline fails at once and is not sent again when the netw
   const price = ticket.getByRole('textbox', { name: 'Price (USDC)' })
   await price.fill('70000')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const buy = ticket.getByRole('button', { name: 'Buy BTC' })
+  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
   await context.setOffline(true)
   await buy.click()
   const alert = ticket.getByRole('alert')
@@ -683,7 +686,7 @@ test('an account switch with the ticket open sends nothing for the old account',
     page.getByRole('button', { name: `${ACCOUNTS.bob.slice(0, 6)}…${ACCOUNTS.bob.slice(-4)}`.toLowerCase() }),
   ).toBeVisible()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toHaveCount(0)
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toHaveCount(0)
   await expect(ticket.getByRole('textbox', { name: 'Price (USDC)' })).toHaveValue('')
   await ticket.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit())
   await expectAccessible(page)
@@ -692,7 +695,7 @@ test('an account switch with the ticket open sends nothing for the old account',
   hyperliquid.exchange = () => ACCEPTED
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
-  await expect(ticket.getByRole('button', { name: 'Buy BTC' })).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   expect(wallet.askedFor('sign').map((sign) => [sign.from, sign.selected])).toEqual([
     ['alice', 'alice'],
     ['bob', 'bob'],

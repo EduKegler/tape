@@ -9,23 +9,23 @@ related_targets: []
 
 Scope: the trading route on desktop, 1440x900 first and 1280x800. Mode: Operate. History shares the world and follows it.
 
-Audience and job: an active perps trader on more than one venue reads four books on one screen and acts on the venue with the better price. Task: pick the venue, build an order the venue accepts, send it, read the outcome. Proof: live books, exact decimals, the venue's own words. Constraint: the redesign PR changes the look only; every control, label, state and number format stays what the app renders today. Venue features from the research land later in the slots the target frame shows.
+Audience and job: an active perps trader on more than one venue reads four books on one screen and acts on the venue with the better price. Task: pick the venue, build an order the venue accepts, send it, read the outcome. Proof: live books, exact decimals, the venue's own words. Constraint: the redesign PRs change the look only; every control, state and behavior stays what the app does today. The one label that changed is the submit, which names the side as Buy / Long or Sell / Short, as the frame shows. Venue features from the research land later in the slots the target frame shows.
 
 Chosen direction: quoted venue tabs with the Venues panel kept. Memorable moment: the trader's fill, and the venue that just took the best price, light for about a second.
 
-Reference sketches: .impeccable/mocks/decision/abas-cotadas-pr-1440.html, abas-cotadas-pr-1280.html and abas-cotadas-ticket-estados.html.
+Reference sketches: .impeccable/mocks/decision/venues-a-faixa-enxuta.html at 1440, which merges the PR frame with the lean strip, abas-cotadas-pr-1280.html at 1280, and abas-cotadas-ticket-estados.html for the ticket states.
 
-Unresolved: the lockup; whether the submit button later carries the order summary; book rows at 1280x800, where 14 levels a side leave about 16px each; History and the target frame are not yet redrawn in this world.
+Unresolved: book rows at 1280x800, where 14 levels a side leave about 14px each; the outcome chip, the Filled chip on position rows and a / search shortcut, which wait for behavior work; History is not yet redrawn in this world.
 
 ## Direction contract
 
-THESIS: choosing the venue is reading the comparison. Each venue tab carries the price it leads with, the best bid or best ask beside its mark, or its mid when it holds neither, so the trader picks where to trade while reading all four. It refuses the category default where a venue frontend shows only itself and the venue switch sits away from the price.
+THESIS: choosing the venue is reading the comparison. Each venue tab carries its mid, and under its chain the mark of the best bid or best ask it holds, so the trader picks where to trade while reading all four. It refuses the category default where a venue frontend shows only itself and the venue switch sits away from the price.
 
 OWN-WORLD: graphite throughout: work panels, header and venue strip all #1A1B1E on #121315, the current venue tab raised to #232428. Warm off-white #EFEBE2 marks what is the trader's: current venue, keyboard focus as a separate 2px ring, their fill. Green and red say side only, amber says stale, errors take coral #FF8466 with a drawn icon. Field and checkbox edges reach 3:1. Words in Inter, every number in Martian Mono at 75 percent width with a slashed zero.
 
 STORY: the trader reads the strip, sees who holds the best bid or ask, clicks that venue, and chart, book, trades and ticket follow. They build an order checked against the venue's tick and step, send it, and read the outcome in the venue's words. Their fill lights; the market only gets a direction mark.
 
-FIRST VIEWPORT: graphite header 48px: lockup and Testnet chip, BTC ETH SOL, search, last price with its side mark, 24h, Volume, Funding 1h, Index, then History, network select and wallet. Graphite strip 36px across the full width: four equal tabs, name and chain left, best mark and the price it holds right, or the mid; the current tab raised with an off-white underline; a stale venue shows amber Reconnecting and its dimmed mid. Grid 644/256/214/286 under it: Chart over Depth, Order book with 14 levels a side around the mid row, Trades, Order ticket with the side-colored submit at its foot. Bottom row: Account across three columns, Venues table under the ticket. Status bar 26px.
+FIRST VIEWPORT: graphite header 48px: lockup and Testnet chip, BTC ETH SOL, search, last price with its side mark, 24h, Volume, Funding 1h, Index, then History, network select and wallet. Graphite strip 48px across the full width: four equal tabs, name left with the chain under it and the best bid or ask mark after the chain, Mid over the mid price right; the current tab raised with an off-white underline; a stale venue shows amber Reconnecting in place of Mid, over its mid in level3. Grid under it: the chart takes the rest beside the book (19rem), trades (16.25rem) and the ticket (22rem), about 656/247/211/286 at 1440: Chart with its intervals and OHLC as the title row over Depth (13rem), Order book opening on the last price with 14 levels a side, Trades, Order ticket with the order types as its first row and a submit that names the order at its foot. Bottom row: Account with tabs, figures and actions in one row across three columns, Venues table under the ticket. Status bar 26px with capital labels.
 
 FORM: quoted venue tabs, position 2 of 3 on my grounded list in the safer round, mixed with the kept Venues panel by Eduardo's pick. seed:ee2f39cecf7b11cb
 

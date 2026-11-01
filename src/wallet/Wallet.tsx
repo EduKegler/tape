@@ -24,7 +24,7 @@ const kindOf = (connector: Connector | CreateConnectorFn) =>
     ? connector.type
     : 'other'
 
-export function WalletButton() {
+export function WalletButton({ wide = false }: { wide?: boolean }) {
   const { address, chainId, isConnected } = useConnection()
   const connectors = useConnectors()
   // Callbacks on the hook, not on connect(): the ticket's button unmounts as soon as the wallet connects.
@@ -55,13 +55,14 @@ export function WalletButton() {
   if (!isConnected || !address) {
     const pairing = isPending && chosen?.type === 'walletConnect' ? chosen : null
     return (
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex gap-2">
+      <div className={`flex flex-col gap-1 ${wide ? 'items-stretch' : 'items-end'}`}>
+        <div className={wide ? 'grid auto-cols-fr grid-flow-col gap-2' : 'flex gap-2'}>
           {connectors.map((connector) => (
             <Button
               key={connector.uid}
               look="primary"
-              size="md"
+              size={wide ? 'lg' : 'md'}
+              className={wide ? 'min-h-11' : undefined}
               disabled={isPending}
               onClick={() => {
                 setChosen(connector)

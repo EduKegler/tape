@@ -122,40 +122,50 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   const specs = useQuery(marketQuery(venue, base))
   const spec = specs.data ?? undefined
   const session = useTradeSession(venue)
-  const aside = (
-    <span className="text-xs text-level3">
-      {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
+  const note = (
+    <span className="ml-auto flex min-w-0 items-baseline gap-2">
+      <TopicStatus
+        topic={{ kind: 'book', market: marketKey(venue, base), group }}
+        ageLimit
+        error={specs.isError ? 'Could not load market rules.' : null}
+        onRetry={() => void specs.refetch()}
+      />
+      <span className="shrink-0 text-xs text-level3">
+        {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
+      </span>
     </span>
   )
   return (
-    <Panel
-      title="Order ticket"
-      tone="ticket"
-      status={
-        <TopicStatus
-          topic={{ kind: 'book', market: marketKey(venue, base), group }}
-          ageLimit
-          error={specs.isError ? 'Could not load market rules.' : null}
-          onRetry={() => void specs.refetch()}
-        />
-      }
-      aside={aside}
-    >
+    <Panel title="Order ticket" tone="ticket" bare>
       {spec ? (
         <TicketForm
           key={`${spec.key}:${'ref' in session ? session.ref.owner : ''}`}
           spec={spec}
           group={group}
           session={session}
+          note={note}
         />
       ) : (
-        <p className="p-3 text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>
+        <div className="flex flex-col gap-2 p-3">
+          {note}
+          <p className="text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>
+        </div>
       )}
     </Panel>
   )
 }
 
-function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string; session: TradeSession }) {
+function TicketForm({
+  spec,
+  group,
+  session,
+  note,
+}: {
+  spec: MarketSpec
+  group: string
+  session: TradeSession
+  note: ReactNode
+}) {
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
   const [built, setBuilt] = useState<TradeError | null>(null)
@@ -266,22 +276,26 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             </Button>
           ))}
         </div>
-        <Segmented
-          label="Order type"
-          value={kind}
-          onChange={(nextKind) => {
-            if (nextKind === 'trailing' || kind === 'trailing')
-              form.setFieldValue('reduceOnly', nextKind === 'trailing')
-            setKind(nextKind)
-            if (nextKind === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
-          }}
-          options={[
-            { value: 'limit', label: 'Limit' },
-            { value: 'market', label: 'Market' },
-            ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
-            ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
-          ]}
-        />
+        <div className="-mx-3 flex min-h-9 flex-wrap items-center justify-between gap-x-1 border-b border-rule px-3">
+          <Segmented
+            tabs="snug"
+            label="Order type"
+            value={kind}
+            onChange={(nextKind) => {
+              if (nextKind === 'trailing' || kind === 'trailing')
+                form.setFieldValue('reduceOnly', nextKind === 'trailing')
+              setKind(nextKind)
+              if (nextKind === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
+            }}
+            options={[
+              { value: 'limit', label: 'Limit' },
+              { value: 'market', label: 'Market' },
+              ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
+              ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
+            ]}
+          />
+          {note}
+        </div>
         {kind === 'trailing' && (
           <div className="flex flex-col gap-2">
             <form.Field name="retracementUnit">
@@ -341,6 +355,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             {(field) => (
               <Input
                 label={`Price (${spec.quote})`}
+                unit={spec.quote}
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
@@ -426,6 +441,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           {(field) => (
             <Input
               label={`${kind === 'scale' ? 'Total size' : 'Size'} (${spec.base})`}
+              unit={spec.base}
               name={field.name}
               value={field.state.value}
               onBlur={field.handleBlur}
@@ -442,10 +458,10 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         {kind === 'trailing' ? null : kind !== 'market' ? (
           <form.Field name="tif">
             {(field) => (
-              <label className="flex items-center justify-between text-sm text-level3">
+              <label className="flex flex-col gap-1 text-xs text-level3">
                 Time in force
                 <Select
-                  size="md"
+                  size="field"
                   name="tif"
                   value={field.state.value}
                   onChange={(value) => {
@@ -596,7 +612,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           }}
         </form.Subscribe>
       </fieldset>
-      <div className="flex shrink-0 flex-col gap-2 border-t border-rule p-3">
+      <div className="flex shrink-0 flex-col gap-2 p-3">
         <form.Subscribe selector={(state) => [state.values, state.canSubmit, invalidFields(state.fieldMeta)] as const}>
           {([values, canSubmit, invalid]) => {
             const legs = scaleLegs(spec, kind, side, values, caps?.scaleOrders ?? 0)
@@ -604,11 +620,17 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
             const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
             const total = entry ? formatNotional(entry.notional, spec.scale) : null
+            const summary =
+              (kind === 'limit' || kind === 'market') && values.size && !checkSize(spec, values.size)
+                ? kind === 'market'
+                  ? `${values.size} ${spec.base} at market on ${VENUES[spec.venue].label}`
+                  : px && `${values.size} ${spec.base} at ${groupThousands(px)} on ${VENUES[spec.venue].label}`
+                : ''
             return (
               <>
-                <dl className="grid grid-cols-2 items-baseline gap-y-1 text-sm">
+                <dl className="grid grid-cols-2 items-baseline gap-y-1.5 text-sm">
                   <dt className="text-level3">Notional</dt>
-                  <dd className="text-right text-lg text-level1">
+                  <dd className="text-right font-medium text-level1">
                     {total ? (
                       <>
                         <span className="num">{total}</span> {spec.quote}
@@ -630,6 +652,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                   <OrderNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
                 )}
                 <SubmitArea
+                  summary={summary}
                   session={session}
                   venue={VENUES[spec.venue].label}
                   side={side}
@@ -787,7 +810,9 @@ function SubmitArea({
   phase,
   canSubmit,
   fix,
+  summary,
 }: {
+  summary: string
   session: TradeSession
   venue: string
   side: Side
@@ -797,8 +822,11 @@ function SubmitArea({
   fix: string | null
 }) {
   const fixId = useId()
-  const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${base}`
+  const summaryId = useId()
+  const label = `${side === 'buy' ? 'Buy / Long' : 'Sell / Short'} ${base}`
   const why = fix && !canSubmit ? fixId : undefined
+  const told = phase === 'idle' && summary ? summaryId : undefined
+  const described = [why, told].filter(Boolean).join(' ') || undefined
   const button = (
     <>
       {why && (
@@ -815,9 +843,15 @@ function SubmitArea({
           look={side === 'buy' ? 'buy' : 'sell'}
           type="submit"
           disabled={!canSubmit || HOLDS.has(phase)}
-          aria-describedby={why}
+          aria-describedby={described}
+          className="flex flex-col items-center justify-center gap-1"
         >
-          {PHASE_LABEL[phase] ?? label}
+          <span>{PHASE_LABEL[phase] ?? label}</span>
+          {told && (
+            <span id={told} aria-hidden className="text-sm font-medium">
+              {summary}
+            </span>
+          )}
         </Button>
       )}
     </>
@@ -832,7 +866,7 @@ function SubmitArea({
     case 'unavailable':
       return <p className="text-sm text-level3">{session.reason}.</p>
     case 'disconnected':
-      return <WalletButton />
+      return <WalletButton wide />
     case 'setup':
       return (
         <>

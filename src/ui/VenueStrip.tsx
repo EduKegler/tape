@@ -15,7 +15,7 @@ export function VenueStrip({ base, current }: { base: Base; current: VenueId }) 
   return (
     <nav
       aria-label="Venue"
-      className="mx-2.5 mt-2.5 grid shrink-0 overflow-hidden rounded-lg bg-surface sm:h-11 sm:grid-cols-4"
+      className="mx-2.5 mt-2.5 grid shrink-0 overflow-hidden rounded-lg bg-surface sm:h-14.75 sm:grid-cols-4"
     >
       {VENUE_IDS.map((venueId) => (
         <Tab
@@ -55,59 +55,49 @@ function Tab({
       className="group relative flex min-w-0 items-center gap-2.5 border-ground px-4 py-2 text-level3 not-last:border-b hover:bg-raised aria-[current=page]:bg-raised aria-[current=page]:inset-shadow-selected sm:py-0 sm:not-last:border-r sm:not-last:border-b-0"
     >
       {lifts > 0 && <span key={lifts} aria-hidden className="pointer-events-none absolute inset-0 wash" />}
-      <span className="relative flex min-w-0 flex-1 items-center gap-2.5">
-        <span className="text-base font-semibold text-level1">{VENUES[venue].label}</span>
-        <span className="truncate text-xs text-level3 group-data-lifting:text-level1">{VENUES[venue].chain}</span>
-        <Lead row={row} />
+      <span className="relative flex min-w-0 flex-1 items-center gap-3">
+        <span className="flex min-w-0 flex-col gap-1.5 leading-none">
+          <span className="text-base font-semibold text-level1">{VENUES[venue].label}</span>
+          <span className="truncate text-xs text-level3 group-data-lifting:text-level1">
+            {VENUES[venue].chain}
+            {row?.status === 'live' && row.bestBid && <Best side="bid" />}
+            {row?.status === 'live' && row.bestAsk && <Best side="ask" />}
+          </span>
+        </span>
+        <Mid row={row} />
       </span>
     </Link>
   )
 }
 
-function Lead({ row }: { row: CompareRow | undefined }) {
+function Mid({ row }: { row: CompareRow | undefined }) {
   if (!row) return null
   if (row.status === 'unlisted') return <span className="ml-auto shrink-0 text-xs text-level3">Not shown</span>
   if (row.status === 'syncing' && !row.mid) return null
-  if (row.status !== 'live')
-    return (
-      <span className="ml-auto flex shrink-0 items-baseline gap-2">
-        <span className="text-xs text-warn">Reconnecting</span>
-        <Price value={row.mid} label="mid" dim />
-      </span>
-    )
+  const live = row.status === 'live'
   return (
-    <span className="ml-auto flex shrink-0 items-baseline gap-2">
-      {row.bestBid && <Best side="bid" value={row.bid} />}
-      {row.bestAsk && <Best side="ask" value={row.ask} />}
-      {!row.bestBid && !row.bestAsk && (
-        <>
-          <span className="text-xs text-level3 group-data-lifting:text-level1">mid</span>
-          <Price value={row.mid} />
-        </>
+    <span className="ml-auto flex shrink-0 flex-col items-end gap-1.5 leading-none">
+      {live ? (
+        <span className="text-xs text-level3 group-data-lifting:text-level1">Mid</span>
+      ) : (
+        <span className="text-xs font-medium text-warn">Reconnecting</span>
       )}
-    </span>
-  )
-}
-
-function Best({ side, value }: { side: 'bid' | 'ask'; value: string }) {
-  return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="text-xs text-level2 group-data-lifting:text-level1">
-        <span aria-hidden className={side === 'bid' ? 'text-bid' : 'text-ask'}>
-          ●{' '}
-        </span>
-        best {side}
+      <span className={`num text-base font-medium ${live ? 'text-level1' : 'text-level3'}`}>
+        <span className="sr-only">mid </span>
+        {row.mid || '—'}
       </span>
-      <Price value={value} />
     </span>
   )
 }
 
-function Price({ value, label, dim = false }: { value: string; label?: string; dim?: boolean }) {
+function Best({ side }: { side: 'bid' | 'ask' }) {
   return (
-    <span className={`num text-base ${dim ? 'text-level3' : 'text-level1'}`}>
-      {label && <span className="sr-only">{label} </span>}
-      {value || '—'}
-    </span>
+    <>
+      {' · '}
+      <span aria-hidden className={side === 'bid' ? 'text-bid' : 'text-ask'}>
+        ●
+      </span>{' '}
+      best {side}
+    </>
   )
 }
