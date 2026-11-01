@@ -85,6 +85,8 @@ export function CandleChart({
       priceScaleId: '',
       priceFormat: { type: 'volume' },
       color: css('--rule'),
+      lastValueVisible: false,
+      priceLineVisible: false,
     })
     volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
     series.current = { chart, candles, volume, lastTime: 0 }
