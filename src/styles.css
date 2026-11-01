@@ -21,6 +21,7 @@
   --bid-wash: rgb(46 189 133 / 0.1);
   --ask-wash: rgb(247 84 102 / 0.1);
   --warn: #e2a93b;
+  --err: #ff8466;
   --selection: rgb(239 235 226 / 0.2);
 }
 
@@ -93,6 +94,7 @@
   --color-bid-wash: var(--bid-wash);
   --color-ask-wash: var(--ask-wash);
   --color-warn: var(--warn);
+  --color-err: var(--err);
 }
 
 * {

@@ -20,6 +20,7 @@ import {
 import type { DepositQuote, DepositStatus } from '#/trade/deposit'
 import type { DepositRecord } from '#/trade/vault'
 import { wagmiConfig } from '#/wallet/config'
+import { ErrorMark } from './ErrorMark'
 import { shortAddress } from './format'
 import { Button, Dialog, Input, Select, TextLink } from './primitives'
 
@@ -327,8 +328,9 @@ function Issues({
         <li
           key={issue.kind}
           data-deposit-issue={issue.kind}
-          className={`border-l-2 pl-2 ${blocksDeposit(issue) ? 'border-warn text-level1' : 'border-level3 text-level2'}`}
+          className={blocksDeposit(issue) ? 'flex gap-1.5 text-level1' : 'border-l-2 border-level3 pl-2 text-level2'}
         >
+          {blocksDeposit(issue) && <ErrorMark />}
           <span role={blocksDeposit(issue) ? 'alert' : 'status'}>{issueText(issue, route, messenger)}</span>
         </li>
       ))}
@@ -339,15 +341,18 @@ function Issues({
 function SendError({ error }: { error: Error }) {
   const failure = sendFailure(error)
   return (
-    <div role="alert" data-deposit-error={failure.kind} className="border-l-2 border-warn pl-2 text-level2">
-      <p className="text-level1">
-        {failure.approved
-          ? `${failure.kind === 'wallet-rejected' ? 'You declined the deposit in the wallet' : 'The deposit was not sent'}. The approval went through, so the next try asks for the deposit only.`
-          : failure.kind === 'wallet-rejected'
-            ? 'You declined in the wallet. Nothing was sent.'
-            : 'The deposit was not sent.'}
-      </p>
-      {failure.kind === 'failed' && <p className="mt-1 text-xs break-all text-level3">{failure.detail}</p>}
+    <div role="alert" data-deposit-error={failure.kind} className="flex gap-1.5 text-level2">
+      <ErrorMark />
+      <div className="min-w-0">
+        <p className="text-level1">
+          {failure.approved
+            ? `${failure.kind === 'wallet-rejected' ? 'You declined the deposit in the wallet' : 'The deposit was not sent'}. The approval went through, so the next try asks for the deposit only.`
+            : failure.kind === 'wallet-rejected'
+              ? 'You declined in the wallet. Nothing was sent.'
+              : 'The deposit was not sent.'}
+        </p>
+        {failure.kind === 'failed' && <p className="mt-1 text-xs break-all text-level3">{failure.detail}</p>}
+      </div>
     </div>
   )
 }
@@ -401,8 +406,9 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
       <p
         role={failed || status.stage === 'unresolved' ? 'alert' : 'status'}
-        className={failed ? 'border-l-2 border-warn pl-2 text-level1' : 'text-level1'}
+        className={failed ? 'flex gap-1.5 text-level1' : 'text-level1'}
       >
+        {failed && <ErrorMark />}
         {stageText(status, chain, venue.destination)}
       </p>
       {status.stage === 'unresolved' && <CheckManually check={status.check} hash={sentHash(record)} />}

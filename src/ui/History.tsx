@@ -10,6 +10,7 @@ import { amount, format } from '@tape/trade/money'
 import type { TradeVenueId } from '@tape/trade/types'
 import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
+import { ErrorMark } from './ErrorMark'
 import { lastHistorySearch } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
 import { Button, InlineInput, NoData, Select, Table } from './primitives'
@@ -137,7 +138,8 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
           }
         >
           {unread && (
-            <p className="mx-3 my-1.5 border-l-2 border-warn pl-2 text-sm text-level1">
+            <p className="mx-3 my-1.5 flex gap-1.5 text-sm text-level1">
+              <ErrorMark />
               Could not read {unread}. These totals leave {failed.length > 1 ? 'them' : 'it'} out.
             </p>
           )}

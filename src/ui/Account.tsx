@@ -19,6 +19,7 @@ import { specsQuery } from './queries'
 import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
 import { OrderNote, ReadNote, TradeNote } from './TradeNote'
+import { ErrorMark } from './ErrorMark'
 import { useChangedKeys } from './wash'
 
 type Tab = 'positions' | 'orders' | 'fills'
@@ -230,7 +231,8 @@ function LeverageControl({ current, onSet }: { current: string; onSet: (n: numbe
         className="w-10"
       />
       {error && (
-        <span id={`${id}-error`} className="border-l-2 border-warn pl-1.5 text-level1">
+        <span id={`${id}-error`} className="flex items-center gap-1 text-level1">
+          <ErrorMark className="size-3.5 shrink-0" />
           {error}
         </span>
       )}

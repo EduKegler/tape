@@ -43,6 +43,7 @@ import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hoo
 import { useFrame, useFrameEffect } from '#/client/hooks'
 import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
+import { ErrorMark } from './ErrorMark'
 import { EnableTrading } from './EnableTrading'
 import { groupThousands } from './format'
 import { Panel, Segmented } from './Panel'
@@ -705,7 +706,12 @@ function TakeProfitSplit({ spec, size, rows }: { spec: MarketSpec; size: string;
   const shares = rows.map((row) => Number(row.share))
   const total = shares.reduce((sum, share) => sum + share, 0)
   if (total !== 100)
-    return <p className="border-l-2 border-warn pl-2 text-sm text-level1">Sizes add up to {total}%, not 100%</p>
+    return (
+      <p className="flex gap-1.5 text-sm text-level1">
+        <ErrorMark />
+        Sizes add up to {total}%, not 100%
+      </p>
+    )
   const sizes = splitSize(spec, parseQty(size, spec.scale), shares)
   return (
     <ol aria-label="Take profit sizes" className="flex flex-col gap-0.5 text-sm">
