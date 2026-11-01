@@ -9,7 +9,12 @@ const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--
   .filter(Boolean)
 
 const prose = /\.(?:md|mdx|markdown|txt|rst|adoc|org|pdf|docx?)$/i
-const proseAllowed = [/^(?:README|CLAUDE|AGENTS)\.md$/, /^packages\/[^/]+\/README\.md$/, /^\.claude\/skills\//]
+const proseAllowed = [
+  /^(?:README|CLAUDE|AGENTS|PRODUCT|DESIGN)\.md$/,
+  /^packages\/[^/]+\/README\.md$/,
+  /^\.claude\/skills\//,
+  /^\.impeccable\/.+\.md$/,
+]
 const docsAllowed = /\.(?:png|jpe?g|webp|gif|svg)$/i
 
 const problems = files.filter(
