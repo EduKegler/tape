@@ -18,16 +18,18 @@ export function Table<T>({
   isCurrent,
   onRowClick,
   rowClass,
+  dense = false,
 }: {
   rows: readonly T[]
   rowKey: (row: T) => Key
   columns: readonly Column<T>[]
   empty?: string
   rowClass?: (row: T) => string
+  dense?: boolean
 } & RowAction<T>) {
   if (empty !== undefined && rows.length === 0) return <NoData>{empty}</NoData>
   return (
-    <table className="w-full text-sm">
+    <table className={`w-full ${dense ? 'text-xs' : 'text-sm'}`}>
       <thead>
         <tr className="h-6 text-xs text-level3">
           {columns.map((column, index) => (
@@ -50,8 +52,8 @@ export function Table<T>({
               onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
               className={`${
                 isCurrent
-                  ? 'h-7.5 cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1'
-                  : 'h-7.5 border-t border-rule text-level2'
+                  ? `${dense ? 'h-6' : 'h-7.5'} cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1`
+                  : `${dense ? 'h-6' : 'h-7.5'} border-t border-rule text-level2`
               } ${rowClass?.(row) ?? ''}`}
             >
               {columns.map((column, index) => (

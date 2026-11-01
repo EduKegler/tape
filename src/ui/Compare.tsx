@@ -54,6 +54,7 @@ export function Compare({ base, current }: { base: Base; current: VenueId }) {
           rows={rows}
           rowKey={(row) => row.venue}
           columns={columns}
+          dense
           isCurrent={(row) => row.venue === current}
           onRowClick={(row) =>
             listed(row)
