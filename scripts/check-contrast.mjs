@@ -61,6 +61,7 @@ const PAIRS = [
   ['Table current row, best bid', 'bid', 'raised', 'text'],
   ['Table current row, best ask', 'ask', 'raised', 'text'],
   ['Order outcome', 'level1', 'raised', 'text'],
+  ['Trades newest row mark', 'level3', 'raised', 'graphic'],
   ['Panel title', 'level1', 'surface', 'text'],
   ['Panel state, empty', 'level3', 'surface', 'text'],
   ['Panel state, empty in the ticket', 'level3', 'ticket', 'text'],

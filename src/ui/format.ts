@@ -1,7 +1,5 @@
 const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 })
 
-export const SIDE_MARK = { buy: '▲', sell: '▼' } as const
-
 const thousands = new Intl.NumberFormat('en-US', { useGrouping: true })
 
 /** Groups the whole part of a decimal string and keeps its digits exact, so `80595.5` reads `80,595.5`. */

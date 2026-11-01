@@ -80,7 +80,7 @@ function Market() {
             />
           </div>
           <div className="h-80 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:h-auto lg:min-h-0">
-            <Trades market={market} />
+            <Trades market={market} source={`${base} · ${VENUES[venue].label}`} />
           </div>
           <div className="h-52 lg:col-start-1 lg:row-start-2 lg:h-auto lg:min-h-0">
             <DepthChart market={market} base={base} />

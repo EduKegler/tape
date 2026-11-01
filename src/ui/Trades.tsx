@@ -4,16 +4,17 @@ import { shallow } from '@tanstack/store'
 import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import type { TradeRow } from '#/core/topics'
-import { SIDE_MARK, formatClock } from './format'
+import { formatClock } from './format'
 import { Panel, useRowKeys } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button } from './primitives'
+import { SideMark } from './SideMark'
 import { proposePrice } from './ticket-store'
 
-const ROW = 20
+const ROW = 26
 const NO_ROWS: readonly TradeRow[] = []
 
-export function Trades({ market }: { market: MarketKey }) {
+export function Trades({ market, source }: { market: MarketKey; source: string }) {
   const topic = { kind: 'trades', market } as const
   const { rows, live } = useFrame(
     topic,
@@ -30,7 +31,11 @@ export function Trades({ market }: { market: MarketKey }) {
   })
   const keys = useRowKeys()
   return (
-    <Panel title="Trades" status={<TopicStatus topic={topic} />}>
+    <Panel
+      title="Trades"
+      status={<TopicStatus topic={topic} />}
+      aside={<span className="text-sm text-level3">{source}</span>}
+    >
       <div className="flex h-full flex-col text-sm">
         <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-xs text-level3">
           <span>Price</span>
@@ -50,13 +55,11 @@ export function Trades({ market }: { market: MarketKey }) {
                   data-row
                   tabIndex={-1}
                   onClick={() => proposePrice(trade.px)}
-                  className="num absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3"
+                  className={`num absolute inset-x-0 grid h-8 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 ${item.index === 0 ? 'bg-raised inset-shadow-newest' : ''}`}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <span className={trade.side === 'buy' ? 'text-bid' : 'text-ask'}>
-                    <span aria-hidden className="mr-1 text-xs">
-                      {SIDE_MARK[trade.side]}
-                    </span>
+                  <span className={`flex items-center gap-1 ${trade.side === 'buy' ? 'text-bid' : 'text-ask'}`}>
+                    <SideMark side={trade.side} className="size-2.5" />
                     <span className="sr-only">{trade.side === 'buy' ? 'Buy' : 'Sell'} </span>
                     {trade.px}
                   </span>
