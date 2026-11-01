@@ -53,7 +53,7 @@ function Market() {
       {unlisted ? (
         <Unlisted venue={venue} base={base} />
       ) : (
-        <main className="grid flex-1 gap-2.5 p-2.5 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_20rem_17rem_22rem] lg:grid-rows-[minmax(0,1fr)_9rem_fit-content(13rem)]">
+        <main className="grid flex-1 gap-2.5 p-2.5 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_19rem_16.25rem_22rem] lg:grid-rows-[minmax(0,1fr)_13rem_fit-content(13rem)]">
           <div className="rounded-lg lg:col-start-4 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
             <Ticket venue={venue} base={base} group={group} />
           </div>
