@@ -122,40 +122,50 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   const specs = useQuery(marketQuery(venue, base))
   const spec = specs.data ?? undefined
   const session = useTradeSession(venue)
-  const aside = (
-    <span className="text-xs text-level3">
-      {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
+  const note = (
+    <span className="ml-auto flex min-w-0 items-baseline gap-2">
+      <TopicStatus
+        topic={{ kind: 'book', market: marketKey(venue, base), group }}
+        ageLimit
+        error={specs.isError ? 'Could not load market rules.' : null}
+        onRetry={() => void specs.refetch()}
+      />
+      <span className="shrink-0 text-xs text-level3">
+        {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
+      </span>
     </span>
   )
   return (
-    <Panel
-      title="Order ticket"
-      tone="ticket"
-      status={
-        <TopicStatus
-          topic={{ kind: 'book', market: marketKey(venue, base), group }}
-          ageLimit
-          error={specs.isError ? 'Could not load market rules.' : null}
-          onRetry={() => void specs.refetch()}
-        />
-      }
-      aside={aside}
-    >
+    <Panel title="Order ticket" tone="ticket" bare>
       {spec ? (
         <TicketForm
           key={`${spec.key}:${'ref' in session ? session.ref.owner : ''}`}
           spec={spec}
           group={group}
           session={session}
+          note={note}
         />
       ) : (
-        <p className="p-3 text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>
+        <div className="flex flex-col gap-2 p-3">
+          {note}
+          <p className="text-level3">{specs.isError ? 'Market rules unavailable.' : 'Loading market rules…'}</p>
+        </div>
       )}
     </Panel>
   )
 }
 
-function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string; session: TradeSession }) {
+function TicketForm({
+  spec,
+  group,
+  session,
+  note,
+}: {
+  spec: MarketSpec
+  group: string
+  session: TradeSession
+  note: ReactNode
+}) {
   const [side, setSide] = useState<Side>('buy')
   const [kind, setKind] = useState<Kind>('limit')
   const [built, setBuilt] = useState<TradeError | null>(null)
@@ -266,22 +276,25 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             </Button>
           ))}
         </div>
-        <Segmented
-          label="Order type"
-          value={kind}
-          onChange={(nextKind) => {
-            if (nextKind === 'trailing' || kind === 'trailing')
-              form.setFieldValue('reduceOnly', nextKind === 'trailing')
-            setKind(nextKind)
-            if (nextKind === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
-          }}
-          options={[
-            { value: 'limit', label: 'Limit' },
-            { value: 'market', label: 'Market' },
-            ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
-            ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
-          ]}
-        />
+        <div className="-mx-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-rule px-3 pb-2">
+          <Segmented
+            label="Order type"
+            value={kind}
+            onChange={(nextKind) => {
+              if (nextKind === 'trailing' || kind === 'trailing')
+                form.setFieldValue('reduceOnly', nextKind === 'trailing')
+              setKind(nextKind)
+              if (nextKind === 'scale' && form.getFieldValue('tif') === 'ioc') form.setFieldValue('tif', 'gtc')
+            }}
+            options={[
+              { value: 'limit', label: 'Limit' },
+              { value: 'market', label: 'Market' },
+              ...(caps?.scaleOrders ? [{ value: 'scale' as const, label: 'Scale' }] : []),
+              ...(caps?.trailingStop ? [{ value: 'trailing' as const, label: 'Trailing stop' }] : []),
+            ]}
+          />
+          {note}
+        </div>
         {kind === 'trailing' && (
           <div className="flex flex-col gap-2">
             <form.Field name="retracementUnit">
@@ -444,10 +457,10 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
         {kind === 'trailing' ? null : kind !== 'market' ? (
           <form.Field name="tif">
             {(field) => (
-              <label className="flex items-center justify-between text-sm text-level3">
+              <label className="flex flex-col gap-1 text-xs text-level3">
                 Time in force
                 <Select
-                  size="md"
+                  size="field"
                   name="tif"
                   value={field.state.value}
                   onChange={(value) => {
@@ -598,7 +611,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
           }}
         </form.Subscribe>
       </fieldset>
-      <div className="flex shrink-0 flex-col gap-2 border-t border-rule p-3">
+      <div className="flex shrink-0 flex-col gap-2 p-3">
         <form.Subscribe selector={(state) => [state.values, state.canSubmit, invalidFields(state.fieldMeta)] as const}>
           {([values, canSubmit, invalid]) => {
             const legs = scaleLegs(spec, kind, side, values, caps?.scaleOrders ?? 0)
@@ -608,9 +621,9 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             const total = entry ? formatNotional(entry.notional, spec.scale) : null
             return (
               <>
-                <dl className="grid grid-cols-2 items-baseline gap-y-1 text-sm">
+                <dl className="grid grid-cols-2 items-baseline gap-y-1.5 text-sm">
                   <dt className="text-level3">Notional</dt>
-                  <dd className="text-right text-lg text-level1">
+                  <dd className="text-right font-medium text-level1">
                     {total ? (
                       <>
                         <span className="num">{total}</span> {spec.quote}
