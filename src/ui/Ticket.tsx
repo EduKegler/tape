@@ -866,7 +866,7 @@ function SubmitArea({
     case 'unavailable':
       return <p className="text-sm text-level3">{session.reason}.</p>
     case 'disconnected':
-      return <WalletButton />
+      return <WalletButton wide />
     case 'setup':
       return (
         <>
