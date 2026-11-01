@@ -302,7 +302,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Shape:** medium radius (0.375rem).
 - **Primary:** off-white ink fill with graphite text, weight 500. Disabled turns raised graphite with a rule ring and level2 text.
 - **Secondary:** raised graphite with level1 text; hover lifts it with level1 at 12%.
-- **Buy / Sell:** the submit at the ticket's foot, at least 2.75rem tall, filled bid or ask, graphite text. It reads Buy / Long BTC or Sell / Short BTC at 18px 600. For a limit or market order with a valid size, a 12px 500 second line states size, price and venue, such as 0.01 BTC at 77,614 on Hyperliquid.
+- **Buy / Sell:** the submit at the ticket's foot, at least 2.75rem tall, filled bid or ask, graphite text. It reads Buy / Long BTC or Sell / Short BTC at 18px 600. For a limit or market order with a valid size, a 12px 500 second line states size, price and venue, such as 0.01 BTC at 77,614 on Hyperliquid. With no wallet, Connect wallet takes the same slot: primary, full width, at least 2.75rem tall.
 - **Quiet and link:** level3 text that turns level1 on hover; a link is level1 and underlined.
 - **Focus:** the global 2px off-white ring at a 2px offset.
 
@@ -313,6 +313,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 ### Segmented and tabs
 - Text-only options in level3. The checked one turns level1 and carries the selected underline. Used for intervals, order type, account tabs and History filters.
 - Where the options head a card, as the intervals, the order types and the account tabs do, they fill the height of their row, so the underline sits on the rule under it, like the markets in the header.
+- Tabs carry no padding, so the underline spans the text. The intervals and the account tabs sit 1.25rem apart, the order types 0.75rem, so Limit, Market, Scale, Trailing stop and the network note fit one row in the ticket.
 
 ### Cards / Containers
 - **Corner Style:** large radius (0.5rem).

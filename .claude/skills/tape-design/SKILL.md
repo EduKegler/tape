@@ -47,7 +47,7 @@ The title bar is one line, 34 px high, in every state, so panels side by side ke
 - A price warning is its own level, apart from an error, and never blocks.
 - While sending, the button says `Sending…` and the form locks.
 - After an unknown outcome, resend stays locked until the venue answers or the trader resends on purpose.
-- A plain order goes out with no dialog. Closing a position, cancelling all orders and forgetting the trading key confirm in two steps on the same row.
+- A plain order goes out with no dialog. Closing a position, cancelling all orders and forgetting the trading key confirm in two steps. Close puts its step on a full-width row under the position, so the columns hold; the others swap their button for the step in place.
 
 ## Motion
 
@@ -103,5 +103,7 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/lift.png`: a venue tab during a live best-price lift on mainnet, with its chain and mark raised to `level1` on the tint.
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
 - `reference/history.png`: `/history` in the graphite world. History itself is not redesigned yet.
+- `reference/close-confirm.png`: closing a position. Close stays in its cell, and the step with size, expected price and its own slippage takes a full-width row under the position.
+- `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter, with numbers and the address in Martian Mono.
 
-Not retaken yet: stale, offline and failed reads, the unknown and refused order outcomes, the close confirmation and the Deposit dialog. Their rules above still hold, and each enters here once a screen of it is approved.
+Not retaken yet: stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.
