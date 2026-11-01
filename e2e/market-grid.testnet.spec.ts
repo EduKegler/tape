@@ -6,6 +6,7 @@ const PANELS = ['Order ticket', 'Account', 'Chart', 'Order book', 'Trades', 'Dep
 
 async function focusedRegion(page: Page) {
   if (await page.getByRole('banner').locator(':focus').count()) return 'header'
+  if (await page.getByRole('navigation', { name: 'Venue' }).locator(':focus').count()) return 'venue strip'
   if (await page.getByRole('contentinfo').locator(':focus').count()) return 'status bar'
   for (const title of PANELS) if (await panel(page, title).locator(':focus').count()) return title
   return null
@@ -21,7 +22,7 @@ async function regionsFromHeaderToStatusBar(page: Page) {
   return stops
 }
 
-test('Tab walks the header, the ticket, the account, the market panels and the status bar', async ({
+test('Tab walks the header, the venue strip, the ticket, the account, the market panels and the status bar', async ({
   page,
   wallet: _wallet,
 }) => {
@@ -32,6 +33,7 @@ test('Tab walks the header, the ticket, the account, the market panels and the s
   const stops = await regionsFromHeaderToStatusBar(page)
   expect(stops.filter((region, index) => region !== stops[index - 1])).toEqual([
     'header',
+    'venue strip',
     'Order ticket',
     'Account',
     'Chart',

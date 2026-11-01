@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T00:00:00Z",
+  "title": "Design System: Tape",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Trader's Light",
+        "canonical": "oklch(94.1% 0.013 86)",
+        "tonalRamp": ["#0b0b0a", "#252422", "#41403d", "#5f5d5a", "#82807b", "#a4a19b", "#cac7bf", "#f0eeea"]
+      },
+      "bid": {
+        "role": "secondary",
+        "displayName": "Bid Green",
+        "canonical": "oklch(71.1% 0.144 161)",
+        "tonalRamp": ["#020f08", "#002e18", "#004e30", "#00704a", "#179768", "#2ebd85", "#74e1ae", "#d0fae3"]
+      },
+      "ask": {
+        "role": "secondary",
+        "displayName": "Ask Red",
+        "canonical": "oklch(67.1% 0.198 17)",
+        "tonalRamp": ["#190405", "#4c000e", "#761224", "#a32a3b", "#d74455", "#ff6574", "#ff989f", "#ffdddd"]
+      },
+      "bid-wash": { "role": "secondary", "displayName": "Bid Depth Wash" },
+      "ask-wash": { "role": "secondary", "displayName": "Ask Depth Wash" },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Stale Amber",
+        "canonical": "oklch(77.0% 0.139 79)",
+        "tonalRamp": ["#100a03", "#332000", "#553a00", "#79570d", "#a37820", "#cc9731", "#f3bd5d", "#ffebc5"]
+      },
+      "err": {
+        "role": "tertiary",
+        "displayName": "Failure Coral",
+        "canonical": "oklch(74.6% 0.156 34)",
+        "tonalRamp": ["#150704", "#401309", "#672a1c", "#914330", "#c15f48", "#f07b5e", "#ffa487", "#ffe1d4"]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "raised": {
+        "role": "neutral",
+        "displayName": "Raised Graphite",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "inset": {
+        "role": "neutral",
+        "displayName": "Well",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Edge",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "level1": {
+        "role": "neutral",
+        "displayName": "Level 1",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "level2": {
+        "role": "neutral",
+        "displayName": "Level 2",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "level3": {
+        "role": "neutral",
+        "displayName": "Level 3",
+        "tonalRamp": ["#121315", "#1a1b1e", "#232428", "#26282c", "#6e727a", "#8b8f96", "#b8babe", "#ecebe8"]
+      },
+      "ink": { "role": "neutral", "displayName": "Ink" },
+      "ink-contrast": { "role": "neutral", "displayName": "Ink Contrast" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The last price in the header, with its side mark." },
+      "figure": { "displayName": "Figure", "purpose": "Equity in Account and notional in the ticket." },
+      "number": { "displayName": "Number", "purpose": "Strip prices and field values." },
+      "number-sm": {
+        "displayName": "Number, small",
+        "purpose": "Book, trades, tables and stats. 11px in the dense Venues table."
+      },
+      "title": { "displayName": "Title", "purpose": "Panel titles and venue names in the strip." },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Text, notes, labels next to values, and sentences that carry numbers with tabular figures."
+      },
+      "body-strong": { "displayName": "Body, strong", "purpose": "The order outcome and primary buttons." },
+      "action": { "displayName": "Action", "purpose": "Buy, Sell and the side switch." },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Table headers, chain names, stat labels, panel state lines, the status bar."
+      }
+    },
+    "shadows": [
+      {
+        "name": "inset-shadow-selected",
+        "value": "inset 0 -2px var(--accent)",
+        "purpose": "The 2px off-white underline on the current venue tab, the current market and the checked segmented option. The only shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "wash",
+        "value": "wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; accent 20% at 0%, 15% at 35%, transparent at 100%",
+        "purpose": "The trader's fill (order outcome, changed position row) and a venue tab that newly takes the best bid or ask, at most once per venue every 2s."
+      },
+      {
+        "name": "wash-still",
+        "value": "wash-still 900ms step-end both; accent 12% held, then transparent",
+        "purpose": "The wash under prefers-reduced-motion. The one motion not behind motion-safe:."
+      },
+      {
+        "name": "fade-in",
+        "value": "fade-in 120ms cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Dialogs, backdrops and panel state changes, behind motion-safe:."
+      },
+      {
+        "name": "focus-ring",
+        "value": "outline: 2px solid var(--accent); outline-offset: 2px",
+        "purpose": "Every focus-visible element."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Venue strip",
+      "kind": "nav",
+      "refersTo": "venue-tab",
+      "description": "Four equal tabs under the header, each quoting the price it leads with. The current tab is raised with the off-white underline; a tab that takes the best price plays the wash.",
+      "html": "<nav class=\"ds-strip\" aria-label=\"Venue\"><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-name\">Binance</span><span class=\"ds-strip-chain\">Spot</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-word\">mid</span><span class=\"ds-num ds-strip-price\">77,833.875</span></span></a><a class=\"ds-strip-tab\" href=\"#\" aria-current=\"page\"><span class=\"ds-wash\" aria-hidden=\"true\"></span><span class=\"ds-strip-name\">Hyperliquid</span><span class=\"ds-strip-chain\">Hyperliquid L1</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-best\"><svg class=\"ds-dot ds-ask\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>best ask</span><span class=\"ds-num ds-strip-price\">77,342</span></span></a><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-name\">dYdX</span><span class=\"ds-strip-chain\">dYdX Chain</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-best\"><svg class=\"ds-dot ds-bid\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>best bid</span><span class=\"ds-num ds-strip-price\">80,193</span></span></a><a class=\"ds-strip-tab\" href=\"#\"><span class=\"ds-strip-name\">Orderly</span><span class=\"ds-strip-chain\">Orderly Network</span><span class=\"ds-strip-lead\"><span class=\"ds-strip-stale\">Reconnecting</span><span class=\"ds-num ds-strip-price ds-dim\">77,726.65</span></span></a></nav>",
+      "css": ".ds-strip { display: grid; grid-template-columns: repeat(4, 1fr); height: 35.75px; overflow: hidden; border-radius: 6.5px; background: var(--surface); font-family: 'Inter Variable', system-ui, sans-serif; } .ds-strip-tab { position: relative; display: flex; align-items: center; gap: 8.125px; min-width: 0; padding: 0 13px; color: var(--level3); text-decoration: none; } .ds-strip-tab:not(:last-child) { border-right: 1px solid var(--ground); } .ds-strip-tab:hover, .ds-strip-tab[aria-current=page] { background: var(--raised); } .ds-strip-tab[aria-current=page] { box-shadow: inset 0 -2px var(--accent); } .ds-strip-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-strip-name { position: relative; font-size: 13px; font-weight: 600; color: var(--level1); } .ds-strip-chain { position: relative; font-size: 11px; color: var(--level3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-strip-lead { position: relative; margin-left: auto; display: flex; align-items: baseline; gap: 6.5px; } .ds-strip-best, .ds-strip-word { font-size: 11px; color: var(--level2); } .ds-strip-word { color: var(--level3); } .ds-strip-stale { font-size: 11px; color: var(--warn); } .ds-dot { width: 6px; height: 6px; margin-right: 4px; } .ds-bid { color: var(--bid); } .ds-ask { color: var(--ask); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-strip-price { font-size: 13px; color: var(--level1); } .ds-dim { color: var(--level3); } .ds-wash { position: absolute; inset: 0; pointer-events: none; animation: ds-wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; } @keyframes ds-wash { 0% { background-color: color-mix(in srgb, var(--accent) 20%, transparent); } 35% { background-color: color-mix(in srgb, var(--accent) 15%, transparent); } 100% { background-color: transparent; } } @media (prefers-reduced-motion: reduce) { .ds-wash { animation: ds-wash-still 900ms step-end both; } } @keyframes ds-wash-still { from { background-color: color-mix(in srgb, var(--accent) 12%, transparent); } to { background-color: transparent; } }"
+    },
+    {
+      "name": "Panel card",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Every work panel: graphite card, title row with a rule under it, state line beside the title.",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">Order book</h2><span class=\"ds-panel-state\">Reconnecting · 4 s old</span></header><div class=\"ds-panel-body\">Book rows</div></section>",
+      "css": ".ds-panel { display: flex; flex-direction: column; overflow: hidden; border-radius: 6.5px; background: var(--surface); color: var(--level2); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; } .ds-panel-head { display: flex; align-items: center; gap: 6.5px; height: 29.25px; padding: 0 9.75px; border-bottom: 1px solid var(--rule); } .ds-panel-title { margin: 0; font-size: 13px; font-weight: 600; line-height: 1; color: var(--level1); } .ds-panel-state { font-size: 11px; color: var(--warn); } .ds-panel-body { padding: 9.75px; min-height: 80px; }"
+    },
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Off-white ink fill for the main non-order action, such as Connect wallet.",
+      "html": "<button class=\"ds-btn-primary\">Connect wallet</button> <button class=\"ds-btn-primary\" disabled>Connect wallet</button>",
+      "css": ".ds-btn-primary { height: 26px; padding: 0 9.75px; border: 0; border-radius: 4.875px; background: var(--ink); color: var(--ink-contrast); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary:disabled { background: var(--raised); color: var(--level2); box-shadow: inset 0 0 0 1px var(--rule); cursor: default; }"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Raised graphite for actions beside data, such as Close on a position.",
+      "html": "<button class=\"ds-btn-secondary\">Close</button>",
+      "css": ".ds-btn-secondary { height: 26px; padding: 0 9.75px; border: 0; border-radius: 4.875px; background: var(--raised); color: var(--level1); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; } .ds-btn-secondary:hover { background: color-mix(in srgb, var(--level1) 12%, var(--raised)); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-secondary:disabled { opacity: 0.4; }"
+    },
+    {
+      "name": "Side switch and submit",
+      "kind": "custom",
+      "refersTo": "side-switch",
+      "description": "The ticket's side choice on a well track, and the side-filled submit at the ticket's foot.",
+      "html": "<div class=\"ds-side\"><button class=\"ds-side-opt ds-side-buy\" aria-pressed=\"true\">Buy / Long</button><button class=\"ds-side-opt ds-side-sell\" aria-pressed=\"false\">Sell / Short</button></div><button class=\"ds-submit ds-submit-buy\">Buy BTC</button>",
+      "css": ".ds-side { display: grid; grid-template-columns: 1fr 1fr; gap: 3.25px; padding: 3.25px; border-radius: 6.5px; background: var(--inset); font-family: 'Inter Variable', system-ui, sans-serif; } .ds-side-opt { height: 26px; border: 0; border-radius: 4.875px; background: transparent; color: var(--level2); font-size: 13px; font-weight: 600; cursor: pointer; } .ds-side-opt:hover { color: var(--level1); } .ds-side-buy[aria-pressed=true] { background: var(--bid); color: var(--ink-contrast); } .ds-side-sell[aria-pressed=true] { background: var(--ask); color: var(--ink-contrast); } .ds-side-opt:focus-visible, .ds-submit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-submit { display: block; width: 100%; margin-top: 9.75px; height: 35.75px; border: 0; border-radius: 4.875px; color: var(--ink-contrast); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; } .ds-submit-buy { background: var(--bid); } .ds-submit:disabled { background: var(--raised); color: var(--level2); box-shadow: inset 0 0 0 1px var(--rule); }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Ticket field: label and hint above, number value in the well, and the drawn coral mark with a level1 message on error.",
+      "html": "<div class=\"ds-field\"><div class=\"ds-field-top\"><label for=\"ds-size\">Size (BTC)</label><span>Step <span class=\"ds-num\">0.00001</span></span></div><input id=\"ds-size\" class=\"ds-input\" value=\"0.0000001\" aria-invalid=\"true\"><span class=\"ds-field-error\"><svg class=\"ds-error-mark\" viewBox=\"0 0 14 14\" aria-hidden=\"true\"><circle cx=\"7\" cy=\"7\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M7 3.8v4\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/><circle cx=\"7\" cy=\"10.2\" r=\"0.9\" fill=\"currentColor\"/></svg>At most 5 decimals</span></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 3.25px; font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; } .ds-field-top { display: flex; justify-content: space-between; color: var(--level3); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-input { height: 29.25px; padding: 0 9.75px; border: 1px solid var(--edge); border-radius: 4.875px; background: var(--inset); color: var(--level1); font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; font-size: 13px; } .ds-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-input[aria-invalid=true] { border-color: var(--err); } .ds-field-error { display: flex; gap: 4.875px; color: var(--level1); } .ds-error-mark { width: 11.375px; height: 11.375px; margin-top: 1.625px; flex-shrink: 0; color: var(--err); }"
+    },
+    {
+      "name": "Segmented toggle",
+      "kind": "chip",
+      "description": "Text options for intervals, order type and tabs. The checked one is level1 with the off-white underline.",
+      "html": "<div class=\"ds-seg\" role=\"radiogroup\" aria-label=\"Interval\"><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"true\">1m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">5m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">15m</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">1h</button></div>",
+      "css": ".ds-seg { display: flex; align-items: center; gap: 9.75px; } .ds-seg-opt { height: 19.5px; padding: 0 3.25px; border: 0; background: transparent; color: var(--level3); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; cursor: pointer; } .ds-seg-opt:hover, .ds-seg-opt[aria-checked=true] { color: var(--level1); } .ds-seg-opt[aria-checked=true] { box-shadow: inset 0 -2px var(--accent); } .ds-seg-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Venues table",
+      "kind": "custom",
+      "refersTo": "table-row-current",
+      "description": "Dense comparison table. Best bid and ask carry the side color and dot; the current venue's row is raised with its name semibold in the accent.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Venue</th><th>Bid</th><th>Ask</th><th>Basis</th></tr></thead><tbody><tr><td>Binance</td><td class=\"ds-num\">77,833.87</td><td class=\"ds-num\">77,833.88</td><td class=\"ds-num\">+6.89</td></tr><tr aria-current=\"true\"><td>Hyperliquid</td><td class=\"ds-num\">77,338</td><td class=\"ds-num ds-ask\"><svg class=\"ds-dot\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>77,342</td><td class=\"ds-num\">-56.60</td></tr><tr><td>dYdX</td><td class=\"ds-num ds-bid\"><svg class=\"ds-dot\" viewBox=\"0 0 8 8\" aria-hidden=\"true\"><circle cx=\"4\" cy=\"4\" r=\"3.5\" fill=\"currentColor\"/></svg>80,193</td><td class=\"ds-num\">85,155</td><td class=\"ds-num\">+620.17</td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; background: var(--surface); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 11px; color: var(--level2); } .ds-table th { height: 19.5px; font-weight: 400; color: var(--level3); text-align: right; padding-right: 9.75px; } .ds-table th:first-child, .ds-table td:first-child { text-align: left; padding-left: 9.75px; } .ds-table td { height: 19.5px; text-align: right; padding-right: 9.75px; border-top: 1px solid var(--rule); } .ds-table tbody tr { cursor: pointer; } .ds-table tbody tr:hover { background: color-mix(in srgb, var(--level1) 5%, transparent); } .ds-table tr[aria-current=true] { background: var(--raised); color: var(--level1); } .ds-table tr[aria-current=true] td:first-child { font-weight: 600; color: var(--accent); } .ds-num { font-family: 'Martian Mono Variable', ui-monospace, monospace; font-stretch: 75%; font-variant-numeric: tabular-nums slashed-zero; } .ds-bid { color: var(--bid); } .ds-ask { color: var(--ask); } .ds-dot { width: 5px; height: 5px; margin-right: 3.25px; }"
+    },
+    {
+      "name": "Order outcome",
+      "kind": "custom",
+      "refersTo": "order-outcome",
+      "description": "Raised block under the ticket summary that reads the venue's answer. On a fill it plays the wash.",
+      "html": "<p class=\"ds-outcome\" role=\"status\"><span class=\"ds-wash\" aria-hidden=\"true\"></span><span class=\"ds-outcome-text\">Order filled. Filled 0.00015 at 77327.4</span></p>",
+      "css": ".ds-outcome { position: relative; overflow: hidden; margin: 0; padding: 6.5px 8.125px; border-radius: 4.875px; background: var(--raised); color: var(--level1); font-family: 'Inter Variable', system-ui, sans-serif; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; } .ds-outcome-text { position: relative; } .ds-wash { position: absolute; inset: 0; pointer-events: none; animation: ds-wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both; } @keyframes ds-wash { 0% { background-color: color-mix(in srgb, var(--accent) 20%, transparent); } 35% { background-color: color-mix(in srgb, var(--accent) 15%, transparent); } 100% { background-color: transparent; } } @media (prefers-reduced-motion: reduce) { .ds-wash { animation: ds-wash-still 900ms step-end both; } } @keyframes ds-wash-still { from { background-color: color-mix(in srgb, var(--accent) 12%, transparent); } to { background-color: transparent; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Graphite and the Trader's Light",
+    "overview": "The market sits on graphite. Four venues, a chart, a book, a tape and a ticket share one dark field of cards that stay quiet so the numbers can be read. Warm off-white is the light the trader brings: it marks the venue they chose, where their keyboard is, and their fill. The market only gets green, red and a small mark.\n\nThe screen is dense and built for hours of glances. The root type size is 13px, so every rem in the code is 13px: a 1rem gap is 13px and the 0.625rem gutter is 8.1px. Words are Inter. Numbers are Martian Mono pressed to 75% width with a slashed zero, so a column of prices lines up and reads as one block. Depth comes from three graphite steps, never from shadows.\n\nMovement is rare and means something. One animation, the wash, plays when the trader's own order fills and when a venue newly takes the best bid or ask. Prices, sizes, book rows and trades never move.",
+    "keyCharacteristics": [
+      "Graphite cards (rounded 0.5rem) on a darker ground, with 8.1px gutters.",
+      "Off-white accent only for what is the trader's: current choice, focus, fill.",
+      "Every number in narrow Martian Mono, every word in Inter.",
+      "Green and red for side and direction only. Amber for age. Coral with a drawn mark for failure.",
+      "No shadows. Current things are raised one graphite step.",
+      "One signature motion, the 900ms wash, and nothing else that draws the eye."
+    ],
+    "rules": [
+      {
+        "name": "The Trader's Light Rule",
+        "body": "The off-white accent marks only what the trader chose or did: the current choice, keyboard focus, their fill. The market never gets it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Side Color Rule",
+        "body": "Green and red mean side or direction and nothing else. They live only in the files on `SIDE_FILES`; a warning takes amber and a failure takes coral.",
+        "section": "colors"
+      },
+      {
+        "name": "The Drawn Failure Rule",
+        "body": "A failure always carries the drawn coral mark (a 14px circle with a bar and a dot). In fields and notes the message beside it stays level1, so the mark carries the color and the words stay readable.",
+        "section": "colors"
+      },
+      {
+        "name": "The Narrow Figures Rule",
+        "body": "The `num` class goes on the element that holds the number and nothing wider. Words stay Inter. A sentence that carries numbers, such as the order outcome, the order lookup and the liquidation note, stays Inter with tabular figures.",
+        "section": "typography"
+      },
+      {
+        "name": "The Canvas Exception",
+        "body": "Chart and depth axes are drawn on canvas, which cannot set font-stretch, so they use Inter at 11px.",
+        "section": "typography"
+      },
+      {
+        "name": "The Raised Means Current Rule",
+        "body": "A raised fill says this is the current one or it sits above the page: the current venue tab, the current Venues row, the order outcome, a dialog. Do not raise a thing for emphasis alone.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** put `num` on every element that holds a number, and only on that element.",
+      "**Do** keep sentences that carry numbers in Inter with tabular figures.",
+      "**Do** mark the current thing by raising it one graphite step, plus the 2px accent underline on tabs.",
+      "**Do** pair every failure with the drawn coral mark, and keep the message in level1 beside it.",
+      "**Do** show old data in amber with its age, and keep it readable.",
+      "**Do** give side a word or a mark besides its color.",
+      "**Do** take color, type size, weight, radius, z-index, duration and animation from the tokens in `src/styles.css`, and spacing from `SPACING_STEPS`.",
+      "**Do** keep the global focus ring: 2px off-white at a 2px offset."
+    ],
+    "donts": [
+      "**Don't** use the accent for market data or for emphasis. It is the trader's.",
+      "**Don't** use green or red for a warning, an error or decoration.",
+      "**Don't** animate prices, sizes, book rows, trades or charts. A change in the market gets a direction mark only.",
+      "**Don't** add a second animation or play the wash for anything but the trader's fill or a venue taking the best price.",
+      "**Don't** add drop shadows, glows or blur. Depth is the graphite steps.",
+      "**Don't** use full rounding or radii outside sm, md and lg.",
+      "**Don't** set words in Martian Mono, or numbers in Inter outside sentences and canvas.",
+      "**Don't** tint the screen by PnL or add confetti, streaks, badges or trade counters."
+    ]
+  }
+}

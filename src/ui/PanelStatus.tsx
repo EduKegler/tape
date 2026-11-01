@@ -4,6 +4,7 @@ import { useFrame, useFrameEffect, useHubStats } from '#/client/hooks'
 import { topicKey } from '#/core/topics'
 import type { Topic } from '#/core/topics'
 import { VENUES } from '#/site'
+import { ErrorMark } from './ErrorMark'
 import { STALE_AFTER_MS, panelState } from './panel-state'
 import type { PanelState } from './panel-state'
 import { Button } from './primitives'
@@ -15,10 +16,14 @@ function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => vo
         aria-live="polite"
         data-panel-state={state.data}
         data-connection={state.connection}
-        className={state.data === 'stale' || state.data === 'error' ? 'text-warn' : 'text-level3'}
+        className={state.data === 'error' ? 'text-err' : state.data === 'stale' ? 'text-warn' : 'text-level3'}
       >
         {state.text && (
-          <span key={`${state.data} ${state.connection}`} className="motion-safe:animate-fade-in">
+          <span
+            key={`${state.data} ${state.connection}`}
+            className="inline-flex items-center gap-1 motion-safe:animate-fade-in"
+          >
+            {state.data === 'error' && <ErrorMark className="size-3 shrink-0" />}
             {state.text}
           </span>
         )}

@@ -14,6 +14,7 @@ import { StatusBar } from '#/ui/StatusBar'
 import { Ticket } from '#/ui/Ticket'
 import { Account } from '#/ui/Account'
 import { Trades } from '#/ui/Trades'
+import { VenueStrip } from '#/ui/VenueStrip'
 
 const searchSchema = z.object({
   group: z.number().positive().optional().catch(undefined),
@@ -48,11 +49,12 @@ function Market() {
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh">
       <Header venue={venue} base={base} />
+      <VenueStrip base={base} current={venue} />
       {unlisted ? (
         <Unlisted venue={venue} base={base} />
       ) : (
-        <main className="grid flex-1 gap-px p-px lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_20rem_17rem_22rem] lg:grid-rows-[minmax(0,1fr)_9rem_fit-content(13rem)]">
-          <div className="lg:col-start-4 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
+        <main className="grid flex-1 gap-2.5 p-2.5 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_20rem_17rem_22rem] lg:grid-rows-[minmax(0,1fr)_9rem_fit-content(13rem)]">
+          <div className="rounded-lg lg:col-start-4 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
             <Ticket venue={venue} base={base} group={group} />
           </div>
           <div className="h-72 lg:col-span-3 lg:col-start-1 lg:row-start-3 lg:h-auto lg:min-h-0">
@@ -100,7 +102,8 @@ function Unlisted({ venue, base }: { venue: VenueId; base: Base }) {
         Tape does not show {base} on {VENUES[venue].label}
       </h1>
       <p className="text-sm text-level3">
-        {VENUES[venue].label} does not list it, or Tape leaves it out. Pick another market or venue in the header.
+        {VENUES[venue].label} does not list it, or Tape leaves it out. Pick another market in the header or another
+        venue above.
       </p>
     </main>
   )

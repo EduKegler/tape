@@ -31,7 +31,7 @@ export function Trades({ market }: { market: MarketKey }) {
   const keys = useRowKeys()
   return (
     <Panel title="Trades" status={<TopicStatus topic={topic} />}>
-      <div className="num flex h-full flex-col text-sm">
+      <div className="flex h-full flex-col text-sm">
         <div className="grid h-6 shrink-0 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 text-xs text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
@@ -50,7 +50,7 @@ export function Trades({ market }: { market: MarketKey }) {
                   data-row
                   tabIndex={-1}
                   onClick={() => proposePrice(trade.px)}
-                  className="absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3"
+                  className="num absolute inset-x-0 grid h-5 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3"
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
                   <span className={trade.side === 'buy' ? 'text-bid' : 'text-ask'}>

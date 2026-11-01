@@ -7,7 +7,7 @@ export function InlineInput({
   return (
     <input
       {...props}
-      className={`num h-6 rounded-sm border border-edge bg-inset px-1 text-level1 outline-none focus:border-accent aria-invalid:border-warn ${className}`}
+      className={`num h-6 rounded-sm border border-edge bg-inset px-1 text-level1 aria-invalid:border-err ${className}`}
     />
   )
 }

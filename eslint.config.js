@@ -43,7 +43,7 @@ const TOKEN_CLASSES = [
   },
   {
     pattern: '^(?:[^:]+:)*!?rounded(?:-[a-z]+)?-full$',
-    message: 'Use rounded-sm. The radius scale has one step.',
+    message: 'Use rounded-sm, rounded-md or rounded-lg from the radius scale.',
   },
   {
     pattern: '^(?!(?:[^:]+:)*motion-safe:)(?:[^:]+:)*!?(?:animate|transition)(?:-|$)',
@@ -71,6 +71,7 @@ const SIDE_FILES = [
   'src/ui/History.tsx',
   'src/ui/OrderBook.tsx',
   'src/ui/Trades.tsx',
+  'src/ui/VenueStrip.tsx',
   'src/ui/primitives/Button.tsx',
 ]
 

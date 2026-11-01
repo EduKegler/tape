@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { shallow } from '@tanstack/store'
-import { PINNED_BASES, VENUE_IDS, marketKey } from '@tape/core/ids'
+import { PINNED_BASES, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
-import { NETWORK, VENUES } from '#/site'
+import { NETWORK } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
 import { SIDE_MARK, formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
@@ -15,7 +15,7 @@ import { statsQuery } from './queries'
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
   const bases = PINNED_BASES.includes(base) ? PINNED_BASES : [...PINNED_BASES, base]
   return (
-    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule px-4 py-2 xl:flex-nowrap">
+    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-surface px-4 py-1.5 xl:flex-nowrap">
       <Brand />
       <nav aria-label="Market" className="flex shrink-0 items-center gap-1">
         {bases.map((marketBase) => (
@@ -32,21 +32,6 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
         ))}
       </nav>
       <MarketSearch venue={venue} />
-      <nav aria-label="Venue" className="flex shrink-0 items-center gap-1">
-        {VENUE_IDS.map((venueId) => (
-          <Link
-            key={venueId}
-            to="/$venue/$base"
-            params={{ venue: venueId, base }}
-            search={(search) => search}
-            aria-current={venueId === venue ? 'page' : undefined}
-            className="flex flex-col px-2 py-0.5 leading-tight text-level3 hover:text-level1 aria-[current=page]:text-level1 aria-[current=page]:inset-shadow-selected"
-          >
-            <span className="text-base">{VENUES[venueId].label}</span>
-            <span className="text-xs text-level3">{VENUES[venueId].chain}</span>
-          </Link>
-        ))}
-      </nav>
       <Ticker venue={venue} base={base} />
       <div className="ml-auto flex shrink-0 items-center gap-4">
         <HistoryLink className="text-base text-level3 hover:text-level1">History</HistoryLink>
@@ -76,11 +61,11 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
   const daily = stats.data
   return (
     <div className="flex min-w-0 items-baseline gap-3">
-      <dl className="num flex h-11.5 min-w-0 flex-wrap items-baseline gap-5 overflow-hidden text-sm">
+      <dl className="flex h-11.5 min-w-0 flex-wrap items-baseline gap-5 overflow-hidden text-sm">
         <div>
           <dt className="sr-only">Last price</dt>
           <dd
-            className={`text-xl leading-none ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+            className={`num text-xl leading-none ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
           >
             {last.side && (
               <>
@@ -117,7 +102,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: string; tone?
   return (
     <div className="flex flex-col leading-tight">
       <dt className="text-xs text-level3">{label}</dt>
-      <dd className={tone || 'text-level2'}>{value}</dd>
+      <dd className={`num ${tone || 'text-level2'}`}>{value}</dd>
     </div>
   )
 }
