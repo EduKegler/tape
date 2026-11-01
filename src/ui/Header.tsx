@@ -76,11 +76,11 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
   const daily = stats.data
   return (
     <div className="flex min-w-0 items-baseline gap-3">
-      <dl className="num flex h-11.5 min-w-0 flex-wrap items-baseline gap-5 overflow-hidden text-sm">
+      <dl className="flex h-11.5 min-w-0 flex-wrap items-baseline gap-5 overflow-hidden text-sm">
         <div>
           <dt className="sr-only">Last price</dt>
           <dd
-            className={`text-xl leading-none ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+            className={`num text-xl leading-none ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
           >
             {last.side && (
               <>
@@ -117,7 +117,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: string; tone?
   return (
     <div className="flex flex-col leading-tight">
       <dt className="text-xs text-level3">{label}</dt>
-      <dd className={tone || 'text-level2'}>{value}</dd>
+      <dd className={`num ${tone || 'text-level2'}`}>{value}</dd>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/martian-mono/standard.css';
 
 :root {
   --ground: #121315;
@@ -30,6 +31,7 @@
 
   --font-*: initial;
   --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-num: 'Martian Mono Variable', ui-monospace, monospace;
 
   --text-*: initial;
   --text-xs: 11px;
@@ -121,5 +123,7 @@ body {
 }
 
 .num {
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-num);
+  font-stretch: 75%;
+  font-variant-numeric: tabular-nums slashed-zero;
 }

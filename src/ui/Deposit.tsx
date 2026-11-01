@@ -347,7 +347,7 @@ function SendError({ error }: { error: Error }) {
             ? 'You declined in the wallet. Nothing was sent.'
             : 'The deposit was not sent.'}
       </p>
-      {failure.kind === 'failed' && <p className="num mt-1 text-xs break-all text-level3">{failure.detail}</p>}
+      {failure.kind === 'failed' && <p className="mt-1 text-xs break-all text-level3">{failure.detail}</p>}
     </div>
   )
 }
@@ -505,7 +505,7 @@ function RecentRow({
         look="row"
         aria-current={current}
         onClick={() => onShow(record.hash)}
-        className="num flex w-full justify-between py-0.5"
+        className="flex w-full justify-between py-0.5 tabular-nums"
       >
         <span>
           {usdc(record.amount)} USDC · {chainName(record.chainId)} · {clock(record.sentAt)}

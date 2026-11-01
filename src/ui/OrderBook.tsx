@@ -51,7 +51,7 @@ export function OrderBook({
         </label>
       }
     >
-      <div className="num flex h-full flex-col text-sm contain-strict" data-status={head.status}>
+      <div className="flex h-full flex-col text-sm contain-strict" data-status={head.status}>
         <div className="grid h-6 shrink-0 grid-cols-3 items-center px-3 text-xs text-level3">
           <span>Price</span>
           <span className="text-right">Size</span>
@@ -85,7 +85,7 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
       tabIndex={-1}
       aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
-      className="relative grid min-h-0 w-full flex-1 grid-cols-3 items-center px-3"
+      className="num relative grid min-h-0 w-full flex-1 grid-cols-3 items-center px-3"
     >
       <span
         aria-hidden
@@ -121,10 +121,14 @@ function Spread({ topic }: { topic: BookTopic }) {
   )
   return (
     <div className="flex h-9 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="text-xl leading-none text-level1">{summary.mid || '—'}</span>
+      <span className="num text-xl leading-none text-level1">{summary.mid || '—'}</span>
       <span className="text-xs whitespace-nowrap text-level3">
-        {summary.status === 'live'
-          && `Spread ${summary.spread} · ${summary.bps === '0.00' ? '<0.01' : summary.bps} bps`}
+        {summary.status === 'live' && (
+          <>
+            Spread <span className="num">{summary.spread}</span> ·{' '}
+            <span className="num">{summary.bps === '0.00' ? '<0.01' : summary.bps}</span> bps
+          </>
+        )}
       </span>
     </div>
   )

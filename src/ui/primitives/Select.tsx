@@ -23,7 +23,7 @@ export function Select({
     <select
       {...props}
       onChange={(event) => onChange(event.target.value)}
-      className={`num rounded-sm border border-edge bg-inset text-level1 disabled:opacity-40 ${sizes[size]}`}
+      className={`rounded-sm border border-edge bg-inset text-level1 disabled:opacity-40 ${sizes[size]}`}
     />
   )
 }

@@ -8,7 +8,7 @@ export function TradeNote({ error }: { error: TradeError | null }) {
   return (
     <div role="alert" data-trade-error={error.kind} className="border-l-2 border-warn pl-2 text-sm text-level1">
       <p>{title}</p>
-      {detail && <p className="num mt-0.5 text-xs break-all text-level3">{detail}</p>}
+      {detail && <p className="mt-0.5 text-xs break-all text-level3">{detail}</p>}
     </div>
   )
 }
@@ -36,7 +36,7 @@ export function OrderNote({
         <p className={lookup ? undefined : 'font-medium text-level1'}>
           <span className="text-warn">{orderResult(error)}.</span> {title}
         </p>
-        {detail && <p className="num text-xs break-all text-level3">{detail}</p>}
+        {detail && <p className="text-xs break-all text-level3">{detail}</p>}
       </div>
     )
   }
@@ -46,7 +46,7 @@ export function OrderNote({
       role="status"
       aria-live="assertive"
       data-trade-outcome={outcome.kind}
-      className="num border-l-2 border-level3 pl-2 text-sm text-level2"
+      className="border-l-2 border-level3 pl-2 text-sm text-level2 tabular-nums"
     >
       {outcome.kind === 'placed' ? `Order ${outcome.status}. ` : ''}
       {outcome.detail}
@@ -66,7 +66,7 @@ function LookupLine({ lookup }: { lookup: Lookup }) {
   return (
     <p
       data-order-lookup={lookup.error ? 'error' : (lookup.result?.kind ?? 'pending')}
-      className={`num text-level1 ${blocks ? 'font-medium' : ''}`}
+      className={`text-level1 tabular-nums ${blocks ? 'font-medium' : ''}`}
     >
       {text}
     </p>

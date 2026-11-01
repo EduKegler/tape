@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
@@ -358,7 +359,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
                         field.handleChange(near)
                       }}
                     >
-                      {side === 'buy' ? 'Bid' : 'Ask'} {groupThousands(near)}
+                      {side === 'buy' ? 'Bid' : 'Ask'} <span className="num">{groupThousands(near)}</span>
                     </Button>
                   ) : null
                 }
@@ -429,7 +430,11 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
               onBlur={field.handleBlur}
               onChange={field.handleChange}
               error={fieldError(field)}
-              hint={<span className="text-level3">Step {formatQty(spec.step, spec.scale)}</span>}
+              hint={
+                <span className="text-level3">
+                  Step <span className="num">{formatQty(spec.step, spec.scale)}</span>
+                </span>
+              }
             />
           )}
         </form.Field>
@@ -597,12 +602,20 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
             const px =
               kind === 'market' || kind === 'trailing' ? far : checkPrice(spec, values.price) ? '' : values.price
             const entry = legs ? averageEntry(spec, side, legs) : singleEntry(spec, side, px, values.size)
-            const total = entry ? `${formatNotional(entry.notional, spec.scale)} ${spec.quote}` : '—'
+            const total = entry ? formatNotional(entry.notional, spec.scale) : null
             return (
               <>
-                <dl className="num grid grid-cols-2 items-baseline gap-y-1 text-sm">
+                <dl className="grid grid-cols-2 items-baseline gap-y-1 text-sm">
                   <dt className="text-level3">Notional</dt>
-                  <dd className="text-right text-lg text-level1">{total}</dd>
+                  <dd className="text-right text-lg text-level1">
+                    {total ? (
+                      <>
+                        <span className="num">{total}</span> {spec.quote}
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </dd>
                   {margin.status !== 'no-estimate' && (
                     <>
                       <dt className="text-level3">Est. liquidation</dt>
@@ -695,24 +708,30 @@ function TakeProfitSplit({ spec, size, rows }: { spec: MarketSpec; size: string;
     return <p className="border-l-2 border-warn pl-2 text-sm text-level1">Sizes add up to {total}%, not 100%</p>
   const sizes = splitSize(spec, parseQty(size, spec.scale), shares)
   return (
-    <ol aria-label="Take profit sizes" className="num flex flex-col gap-0.5 text-sm">
+    <ol aria-label="Take profit sizes" className="flex flex-col gap-0.5 text-sm">
       {rows.map((row, index) => (
         // eslint-disable-next-line @eslint-react/no-array-index-key -- TanStack Form names array fields by index, so a row is its index
         <li key={index} className="flex justify-between">
-          <span className="text-level3">{row.price || `Take profit ${index + 1}`}</span>
-          <span className="text-level1">{formatQty(sizes[index]!, spec.scale)}</span>
+          <span className={row.price ? 'num text-level3' : 'text-level3'}>
+            {row.price || `Take profit ${index + 1}`}
+          </span>
+          <span className="num text-level1">{formatQty(sizes[index]!, spec.scale)}</span>
         </li>
       ))}
     </ol>
   )
 }
 
-function liquidationText(spec: MarketSpec, margin: MarginReading, entry: Entry | null): string {
+function liquidationText(spec: MarketSpec, margin: MarginReading, entry: Entry | null): ReactNode {
   if (margin.status !== 'known' || !entry) return '—'
   const liq = estimateLiquidation(margin.state, entry)
   switch (liq.kind) {
     case 'price':
-      return `${formatPx(toPx(Math.round(liq.px * 10 ** spec.scale.px)), spec.scale)} ${spec.quote}`
+      return (
+        <span className="num">
+          {formatPx(toPx(Math.round(liq.px * 10 ** spec.scale.px)), spec.scale)} {spec.quote}
+        </span>
+      )
     case 'none':
       return 'None'
     case 'insufficient-margin':

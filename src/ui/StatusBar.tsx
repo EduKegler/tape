@@ -6,27 +6,27 @@ export function StatusBar() {
   const offline = stats?.sockets === 0
   return (
     <footer
-      className={`num flex flex-wrap items-center gap-x-5 gap-y-1 border-t px-4 py-1.5 text-xs text-level3 lg:h-8 lg:flex-nowrap lg:py-0 lg:whitespace-nowrap ${offline ? 'border-warn' : 'border-rule'}`}
+      className={`flex flex-wrap items-center gap-x-5 gap-y-1 border-t px-4 py-1.5 text-xs text-level3 lg:h-8 lg:flex-nowrap lg:py-0 lg:whitespace-nowrap ${offline ? 'border-warn' : 'border-rule'}`}
     >
       {stats ? (
         <>
           <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">
-            Hub <span className="text-level2">{stats.mode}</span>
+            Hub <span className="num text-level2">{stats.mode}</span>
           </span>
           <span>
-            Tabs <span className="text-level2">{stats.tabs}</span>
+            Tabs <span className="num text-level2">{stats.tabs}</span>
           </span>
           <span>
-            Sockets <span className={offline ? 'text-warn' : 'text-level2'}>{stats.sockets}</span>
+            Sockets <span className={`num ${offline ? 'text-warn' : 'text-level2'}`}>{stats.sockets}</span>
           </span>
           <span>
-            Streams <span className="text-level2">{stats.streams}</span>
+            Streams <span className="num text-level2">{stats.streams}</span>
           </span>
           <span>
-            In <span className="text-level2">{stats.messagesPerSecond}</span> msg/s
+            In <span className="num text-level2">{stats.messagesPerSecond}</span> msg/s
           </span>
           <span>
-            Out <span className="text-level2">{stats.framesPerSecond}</span> frames/s
+            Out <span className="num text-level2">{stats.framesPerSecond}</span> frames/s
           </span>
         </>
       ) : (

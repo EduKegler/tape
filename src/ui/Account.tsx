@@ -32,7 +32,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
         ref ? (
           <span className="flex items-center gap-2">
             <DepositButton account={ref} />
-            <span className="num text-xs text-level3">{ref.network}</span>
+            <span className="text-xs text-level3">{ref.network}</span>
           </span>
         ) : null
       }
@@ -109,9 +109,9 @@ function AccountBody({
         />
         {tab === 'fills' && <HistoryLink className="text-level3 hover:text-level1">Full history</HistoryLink>}
         {snapshot && (
-          <span className="num text-level3">
-            Equity <span className="text-lg text-level1">{snapshot.equity}</span> · Available{' '}
-            <span className="text-level1">{snapshot.available}</span>
+          <span className="text-level3">
+            Equity <span className="num text-lg text-level1">{snapshot.equity}</span> · Available{' '}
+            <span className="num text-level1">{snapshot.available}</span>
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
@@ -260,7 +260,7 @@ function Positions({
 }) {
   const columns: Column<Position>[] = [
     { header: 'Market', cell: (position) => position.symbol },
-    { header: 'Side', cell: (position) => side(position.side) },
+    { header: 'Side', cell: (position) => side(position.side), words: true },
     { header: 'Size', cell: (position) => position.size },
     { header: 'Entry', cell: (position) => position.entry },
     { header: 'PnL', cell: (position) => position.unrealizedPnl },
@@ -288,8 +288,8 @@ function CloseTerms({ position, market }: { position: Position; market: MarketKe
   const slippage = useSelector(closeSlippageBps, (state) => state)
   return (
     <>
-      <span className="num text-level3">
-        Size <span className="text-level1">{position.size.replace(/^-/, '')}</span> · Expected{' '}
+      <span className="text-level3">
+        Size <span className="num text-level1">{position.size.replace(/^-/, '')}</span> · Expected{' '}
         {market ? <ExpectedPrice market={market} sell={position.side === 'long'} /> : <span>—</span>}
       </span>
       <span className="flex items-center gap-2 text-level3">
@@ -324,11 +324,11 @@ function Orders({
 }) {
   const columns: Column<OpenOrder>[] = [
     { header: 'Market', cell: (order) => order.symbol },
-    { header: 'Side', cell: (order) => side(order.side) },
-    { header: 'Type', cell: (order) => order.kind },
+    { header: 'Side', cell: (order) => side(order.side), words: true },
+    { header: 'Type', cell: (order) => order.kind, words: true },
     { header: 'Price', cell: (order) => order.px ?? 'market' },
     { header: 'Size', cell: (order) => order.size },
-    { header: 'Reduce', cell: (order) => (order.reduceOnly ? 'yes' : '') },
+    { header: 'Reduce', cell: (order) => (order.reduceOnly ? 'yes' : ''), words: true },
     {
       header: '',
       cell: (order) =>
@@ -345,7 +345,7 @@ function Orders({
 function Fills({ rows }: { rows: readonly Fill[] }) {
   const columns: Column<Fill>[] = [
     { header: 'Market', cell: (fill) => fill.symbol },
-    { header: 'Side', cell: (fill) => side(fill.side) },
+    { header: 'Side', cell: (fill) => side(fill.side), words: true },
     { header: 'Price', cell: (fill) => fill.px },
     { header: 'Size', cell: (fill) => fill.size },
     { header: 'Fee', cell: (fill) => fill.fee },

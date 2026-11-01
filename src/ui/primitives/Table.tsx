@@ -4,6 +4,7 @@ import { NoData } from './NoData'
 export interface Column<T> {
   header: string
   cell: (row: T) => ReactNode
+  words?: true
 }
 
 type RowAction<T> =
@@ -24,7 +25,7 @@ export function Table<T>({
 } & RowAction<T>) {
   if (empty !== undefined && rows.length === 0) return <NoData>{empty}</NoData>
   return (
-    <table className="num w-full text-sm">
+    <table className="w-full text-sm">
       <thead>
         <tr className="h-6 text-xs text-level3">
           {columns.map((column, index) => (
@@ -56,7 +57,9 @@ export function Table<T>({
                   key={column.header}
                   className={
                     index > 0
-                      ? 'pr-3 text-right'
+                      ? column.words
+                        ? 'pr-3 text-right'
+                        : 'num pr-3 text-right'
                       : current
                         ? 'pl-3 inset-shadow-current'
                         : isCurrent

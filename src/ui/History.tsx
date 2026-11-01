@@ -251,7 +251,7 @@ function VenueStatus({
         <ReadNote what={`${label} history`} error={result.error.error} onRetry={onRefresh} busy={result.isFetching} />
       )}
       {history && (
-        <p className="num text-level2">
+        <p className="text-level2 tabular-nums">
           {history.fills.length} fills · {history.funding.length} funding payments
         </p>
       )}
@@ -386,7 +386,7 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
       role="table"
       aria-label="Fills and funding"
       aria-rowcount={rows.length + 1}
-      className="num flex min-h-0 flex-1 flex-col overflow-x-auto text-sm"
+      className="flex min-h-0 flex-1 flex-col overflow-x-auto text-sm"
     >
       <div
         role="row"
@@ -442,7 +442,7 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
                 className={`absolute inset-x-0 grid h-6 ${COLUMNS} items-center gap-2 border-t border-rule px-3 text-level2`}
                 style={{ transform: `translateY(${item.start}px)` }}
               >
-                <span role="cell" className="whitespace-nowrap">
+                <span role="cell" className="num whitespace-nowrap">
                   {utcTime(row.time)}
                 </span>
                 <span role="cell">{VENUES[entry.venue].label}</span>
@@ -466,18 +466,18 @@ function FillCells({ fill }: { fill: RealizedFill }) {
       <span role="cell" className={fill.side === 'buy' ? 'text-bid' : 'text-ask'}>
         {fill.side === 'buy' ? 'Buy' : 'Sell'}
       </span>
-      <span role="cell" className="text-right">
+      <span role="cell" className="num text-right">
         {fill.size}
       </span>
-      <span role="cell" className="text-right">
+      <span role="cell" className="num text-right">
         {fill.px}
       </span>
-      <span role="cell" className="text-right">
+      <span role="cell" className="num text-right">
         {fill.fee}
       </span>
       <span
         role="cell"
-        className="text-right"
+        className="num text-right"
         title={fill.pnlSource === 'computed' ? 'Computed by Tape' : `As ${VENUES[fill.venue].label} reports it`}
       >
         <Signed value={fill.pnl} exact />
@@ -493,13 +493,13 @@ function FundingCells({ payment }: { payment: FundingPayment }) {
     <>
       <span role="cell">Funding</span>
       <span role="cell" />
-      <span role="cell" className="text-right">
+      <span role="cell" className="num text-right">
         {payment.position ?? ''}
       </span>
       <span role="cell" />
       <span role="cell" />
       <span role="cell" />
-      <span role="cell" className="text-right">
+      <span role="cell" className="num text-right">
         <Signed value={payment.amount} exact />
       </span>
     </>
