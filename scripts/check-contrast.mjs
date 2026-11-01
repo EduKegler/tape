@@ -40,6 +40,7 @@ const PAIRS = [
   ['Input error mark', 'err', 'ticket', 'graphic'],
   ['Input error edge', 'err', 'inset', 'graphic'],
   ['Select value', 'level1', 'inset', 'text'],
+  ['Checkbox mark', 'ink-contrast', 'level1', 'graphic'],
   ['Select pill value', 'level1', 'raised', 'text'],
   ['Select mark, on a pill', 'level3', 'raised', 'graphic'],
   ['Select mark, in a field', 'level3', 'inset', 'graphic'],
