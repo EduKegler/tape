@@ -11,22 +11,32 @@ export function StatusBar() {
       {stats ? (
         <>
           <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">
-            Hub <span className="num text-level2">{stats.mode}</span>
+            <span className="uppercase">Hub</span> <span className="num text-level2">{stats.mode}</span>
           </span>
           <span>
-            Tabs <span className="num text-level2">{stats.tabs}</span>
+            <span className="uppercase">Tabs</span> <span className="num text-level2">{stats.tabs}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span>
+              <span className="uppercase">Sockets</span>{' '}
+              <span className={`num ${offline ? 'text-warn' : 'text-level2'}`}>{stats.sockets}</span>
+            </span>
+            <span aria-hidden className="flex gap-0.5">
+              {Array.from({ length: stats.sockets }, (_, index) => (
+                <span key={index} className="size-1.5 rounded-sm bg-level2" />
+              ))}
+            </span>
           </span>
           <span>
-            Sockets <span className={`num ${offline ? 'text-warn' : 'text-level2'}`}>{stats.sockets}</span>
+            <span className="uppercase">Streams</span> <span className="num text-level2">{stats.streams}</span>
           </span>
           <span>
-            Streams <span className="num text-level2">{stats.streams}</span>
+            <span className="uppercase">In</span> <span className="num text-level2">{stats.messagesPerSecond}</span>{' '}
+            msg/s
           </span>
           <span>
-            In <span className="num text-level2">{stats.messagesPerSecond}</span> msg/s
-          </span>
-          <span>
-            Out <span className="num text-level2">{stats.framesPerSecond}</span> frames/s
+            <span className="uppercase">Out</span> <span className="num text-level2">{stats.framesPerSecond}</span>{' '}
+            frames/s
           </span>
         </>
       ) : (
