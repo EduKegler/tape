@@ -11,16 +11,20 @@ Tape's look lives in code, and this skill points at it instead of repeating it:
 - `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Search`, `Select`, `Table` and `TextLink`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
+- `DESIGN.md` describes the system in prose, with `.impeccable/design.json` beside it.
 
 These files win over any other skill, such as `interface-design` or `frontend-design`, and over a library's defaults. When another source suggests a value or a pattern, use the token or primitive that already carries that meaning. A new token or look enters only for a meaning the system lacks, in the same change as its contrast pair.
 
 ## Build with the system
 
-- **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `warn` means old data, a price warning or a failed read. `accent` marks focus and the selected item: market, venue, interval, order type, account tab and the current row. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
-- **One surface, split by `rule` lines.** The order ticket has its own tone, `ticket`. A dialog sits on `raised`. A field sits on `inset` inside an `edge` border.
-- **Numbers are tabular.** Give them `num`, align them right in columns, and keep the same decimals down a column.
-- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
-- **Side reads without color.** A label like `Buy / Long`, a mark like `▲` and `▼`, or position, as in the book.
+- **Graphite, one off-white.** The page is `ground`. Header, venue strip, panels and status bar are `surface` cards with an 8 px gutter (`gap-2.5` and `p-2.5`, since 1rem is 13 px). `raised` lifts one thing inside a card: the current venue tab, the current table row, the order outcome, a secondary button, a dialog. A field sits on `inset` inside an `edge` border.
+- **Off-white belongs to the trader.** `accent` marks the current venue, the selected item, focus as a 2 px ring with a 2 px offset, and the trader's own fill. It never decorates.
+- **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `err` (coral) with `ErrorMark` means something failed: a refused order, a rule error on a field, a failed read. `warn` (amber) means old data, a price warning or a venue reconnecting. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
+- **Numbers are Martian Mono.** `num` sets them at 75 % width, tabular, with a slashed zero. Put it on the number element, never on a container, so words stay in Inter. Align numbers right in columns and keep the same decimals down a column. A sentence that carries numbers, such as an order outcome, stays in Inter with `tabular-nums`. Canvas text in the chart stays in Inter, because canvas cannot set `font-stretch`.
+- **Corners.** Cards take `rounded-lg`, controls and blocks inside them `rounded-md`. No shadows, except `inset-shadow-selected`, the off-white underline of the current venue tab.
+- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. A pressed side fills with its color and `ink-contrast` text. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
+- **Side reads without color.** A label like `Buy / Long`, a mark like `▲`, `▼` or `●` with its words, or position, as in the book.
+- **The venue strip quotes each venue.** Four equal tabs under the header: venue and chain on the left, and on the right the best bid or ask the venue holds with its price, or `mid` with the mid. A venue that went quiet says `Reconnecting` in `warn`. Bid, ask and basis stay in the Venues panel.
 
 ## Panel state
 
@@ -46,7 +50,14 @@ The title bar is one line, 29 px high, in every state, so panels side by side ke
 
 ## Motion
 
-A dialog and the panel state fade in with `animate-fade-in`. An order outcome appears at once. Prices, sizes, book rows, new trades, the ticket total and balances hold still. Every animation sits behind `motion-safe:`, so `prefers-reduced-motion` turns it off.
+The wash is Tape's one signature. An off-white tint starts at 20 %, holds near 15 % for the first third and clears by 900 ms on `cubic-bezier(0.33, 1, 0.68, 1)`. It plays on:
+
+- the trader's own fill: the order outcome and the position row the fill changed;
+- a venue tab that newly takes the best bid or ask, at most once every 2 s per venue, never on the first frame and never for a venue that just came live.
+
+`src/ui/wash.ts` and `src/ui/lead.ts` decide when. The `wash` utility in `src/styles.css` draws it, and it is the one animation outside `motion-safe:`: under `prefers-reduced-motion` it shows a still 12 % tint and clears at once, because a fill must still be seen. Draw it as an overlay under the content, never over the text.
+
+A dialog and the panel state fade in with `animate-fade-in`. Prices, sizes, book rows, new trades, the ticket total and balances hold still. Every other animation sits behind `motion-safe:`.
 
 ## Guardrails
 
@@ -58,18 +69,18 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 - a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>`, or a Base UI import, outside `src/ui/primitives`;
 - an `underline` outside `src/ui/primitives`. A link is `TextLink`, or `Button` with look `link`;
 - a dialog overlay, such as `<dialog>`, `role="dialog"`, `aria-modal` or `z-dialog`, outside `src/ui/primitives`;
-- a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn` or `accent`;
-- an animation without `motion-safe:`.
+- a `bid` or `ask` color outside `SIDE_FILES`, the files that show a side. A new file that shows a side joins the list, and anything else takes `warn`, `err` or `accent`;
+- an animation without `motion-safe:`. The `wash` utility is the exception and carries its own reduced-motion still.
 
 Review catches the rest. A screen that shows one of these goes back:
 
-- a warm light background, a gradient, glass, blur, a texture or a decorative grid;
-- an italic or second font inside a title, a serif, a monospace label, or letter-spaced capitals above a panel;
+- a warm light background, a blue or tinted shell, a gradient, glass, blur, a texture or a decorative grid;
+- an italic or third font, a serif, words in Martian Mono, or letter-spaced capitals above a panel;
 - numbered labels such as 01, 02, 03, or a decorative icon beside each title;
-- identical cards with the same radius and shadow, or a colored pill on every state;
+- a shadow on a card, a side stripe on a row or a note, or a colored pill on every state;
 - weight above 600, or 600 outside a key number;
-- color carrying a meaning alone;
-- a number that moves while the trader reads it.
+- off-white on anything the trader does not own, or color carrying a meaning alone;
+- a number that moves while the trader reads it, or a wash on anything but a fill or a lift.
 
 ## Evidence
 
@@ -82,29 +93,14 @@ Review catches the rest. A screen that shows one of these goes back:
 
 ## Reference
 
-Screens approved for the visual direction. Layout in them may be ahead of the code. Tokens, primitives, state and motion are what they settle.
+Screens of the graphite redesign, taken from the code. Each settles tokens, primitives, state and motion.
 
-- `reference/trading-live.png`: the whole screen live at 1440×900. One surface, the ticket's own tone, violet only on the selected item.
-- `reference/trading-stale.png`: one venue went quiet. Each panel keeps its data and says `No updates` with the age beside its title.
-- `reference/trading-offline.png`: the hub has no socket. Every panel says `Offline` with its age, and the status bar says prices are frozen.
-- `reference/trading-error.png`: reads failed. Chart, ticker and ticket say what failed, each with Retry, and the panels that still read keep working.
-- `reference/trading-1280.png`: the ticket's longest state at 1280×800, with take profit and stop loss open and an unknown outcome beside the button.
-- `reference/ticket-warning.png`: a limit price far from the market gets a `warn` line under the field, and the button stays live.
-- `reference/history-error.png`: `/history` when a venue did not answer. Read wording, Retry per venue, and no totals beside the failure.
-- `reference/deposit-summary.png`: the Deposit dialog on `raised`. The summary is the confirmation, and the one button names the amount and the source chain.
+- `reference/trading-live.png`: the whole screen live at 1440×900. Graphite cards on the ground, the venue strip with each venue's best price or mid, Hyperliquid current with the off-white underline, 14 book levels a side, numbers in Martian Mono.
+- `reference/trading-1280.png`: the same at 1280×800. The ticket, Account and Venues still fit, and the strip keeps four tabs.
+- `reference/fill-ticket.png`: a real market fill early in the wash. The outcome sits on `raised` above the button, tinted off-white.
+- `reference/fill-position.png`: the same fill on the position row in Account.
+- `reference/lift.png`: a venue tab during a live best-price lift.
+- `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, and the off-white focus ring on Price.
+- `reference/history.png`: `/history` in the graphite world. History itself is not redesigned yet.
 
-Screens from the code, on the replay build. The market panels, the header, the ticket, the Account, `/history` and the Deposit dialog look like this today.
-
-- `reference/market-live.png`: the market panels live at 1440×900. Lockup in the header, last price at 22 px with the side arrow, book mid at 22 px, `▲` and `▼` on trades, `●` on the best venue bid and ask.
-- `reference/market-1280.png`: the same at 1280×800, with all 28 book levels in view.
-- `reference/market-stale.png`: Hyperliquid went quiet. Each panel keeps its data and says `Reconnecting` with the age. The book's state stacks under its title, and every title bar keeps one height.
-- `reference/market-offline.png`: no socket left. Every panel says `Offline` with its age.
-- `reference/market-error.png`: the candle history and the 24h stats failed. Each says what failed, with Retry as a link.
-- `reference/market-focus.png`: the book holds keyboard focus. One Tab stop, and the arrows move the focus ring between levels.
-- `reference/ticket-field-error.png`: a rule error sits on its field in a `warn` rule while typing, and the disabled button says why under the totals.
-- `reference/ticket-unknown.png`: the venue did not answer an order. The outcome sits above the button, says it was sent with no answer, and resend waits on `Checking the venue…`.
-- `reference/ticket-rejected.png`: the venue refused the order. The typed outcome sits right above the button with the venue's own words under it, and the form keeps its values.
-- `reference/account-close.png`: closing a position confirms on its own row, with size, expected price and its own slippage before `Confirm close`.
-- `reference/grid-offline.png`: the whole grid offline at 1440×900. The ticket runs the full height, Account and Venues size to their content, and the status bar says prices are frozen.
-- `reference/history-rows.png`: `/history` with rows. Totals per venue, the fills and funding as one table, and the address and date fields as `InlineInput`.
-- `reference/deposit-signing.png`: the Deposit dialog while the wallet signs. A `warn` rule says Esc stays and closing keeps the deposit, and the button says `Waiting for your wallet…`.
+Not retaken yet: stale, offline and failed reads, the unknown and refused order outcomes, the close confirmation and the Deposit dialog. Their rules above still hold, and each enters here once a screen of it is approved.
