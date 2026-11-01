@@ -58,7 +58,7 @@ function Deposit({ account, venue }: { account: AccountRef; venue: DepositVenue 
   const amountRef = useRef<HTMLInputElement>(null)
   return (
     <>
-      <Button look="primary" size="sm" onClick={() => setOpen(true)}>
+      <Button look="secondary" size="sm" onClick={() => setOpen(true)}>
         Deposit
       </Button>
       <Dialog

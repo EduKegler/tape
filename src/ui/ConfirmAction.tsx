@@ -49,7 +49,7 @@ export function ConfirmAction({
 
   if (!open)
     return (
-      <Button ref={trigger} look="quiet" disabled={disabled} onClick={() => setOpen(true)}>
+      <Button ref={trigger} look="secondary" size="sm" disabled={disabled} onClick={() => setOpen(true)}>
         {label}
       </Button>
     )
