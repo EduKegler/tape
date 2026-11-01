@@ -19,6 +19,7 @@ import { specsQuery } from './queries'
 import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
 import { OrderNote, ReadNote, TradeNote } from './TradeNote'
+import { useChangedKeys } from './wash'
 
 type Tab = 'positions' | 'orders' | 'fills'
 
@@ -158,6 +159,7 @@ function AccountBody({
         )}
         {snapshot && tab === 'positions' && (
           <Positions
+            key={venue}
             rows={snapshot.positions}
             busy={last.pending}
             question={(position) =>
@@ -258,6 +260,7 @@ function Positions({
   market: (p: Position) => MarketKey | null
   onClose: (p: Position) => void
 }) {
+  const washing = useChangedKeys(rows, positionKey, positionSize)
   const columns: Column<Position>[] = [
     { header: 'Market', cell: (position) => position.symbol },
     { header: 'Side', cell: (position) => side(position.side), words: true },
@@ -281,8 +284,19 @@ function Positions({
       ),
     },
   ]
-  return <Table rows={rows} rowKey={(position) => position.symbol} columns={columns} empty="No open positions." />
+  return (
+    <Table
+      rows={rows}
+      rowKey={positionKey}
+      columns={columns}
+      empty="No open positions."
+      rowClass={(position) => (washing.has(positionKey(position)) ? 'wash' : '')}
+    />
+  )
 }
+
+const positionKey = (position: Position) => position.symbol
+const positionSize = (position: Position) => `${position.side} ${position.size}`
 
 function CloseTerms({ position, market }: { position: Position; market: MarketKey | null }) {
   const slippage = useSelector(closeSlippageBps, (state) => state)

@@ -54,6 +54,7 @@ const PAIRS = [
   ['Table cell', 'level2', 'surface', 'text'],
   ['Table current row', 'level1', 'surface', 'text'],
   ['Table current row mark', 'accent', 'surface', 'graphic'],
+  ['Order outcome', 'level1', 'raised', 'text'],
   ['Panel title', 'level1', 'surface', 'text'],
   ['Panel state, empty', 'level3', 'surface', 'text'],
   ['Panel state, empty in the ticket', 'level3', 'ticket', 'text'],

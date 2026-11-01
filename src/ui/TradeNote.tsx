@@ -1,6 +1,7 @@
 import type { CommandOutcome, OrderLookup, TradeError } from '@tape/trade/types'
 import { Button } from './primitives'
 import { describeError, orderResult, readFailure } from './trade-errors'
+import { useWashCount } from './wash'
 
 export function TradeNote({ error }: { error: TradeError | null }) {
   if (!error) return null
@@ -24,6 +25,7 @@ export function OrderNote({
   outcome: CommandOutcome | null
   lookup?: Lookup | null
 }) {
+  const washes = useWashCount(outcome, outcome?.kind === 'placed' && outcome.status === 'filled')
   if (error) {
     const { title, detail } = describeError(error)
     return (
@@ -46,10 +48,13 @@ export function OrderNote({
       role="status"
       aria-live="assertive"
       data-trade-outcome={outcome.kind}
-      className="border-l-2 border-level3 pl-2 text-sm text-level2 tabular-nums"
+      className="relative overflow-hidden rounded-md bg-raised px-2.5 py-2 text-sm font-medium text-level1 tabular-nums"
     >
-      {outcome.kind === 'placed' ? `Order ${outcome.status}. ` : ''}
-      {outcome.detail}
+      {washes > 0 && <span key={washes} aria-hidden className="pointer-events-none absolute inset-0 wash" />}
+      <span className="relative">
+        {outcome.kind === 'placed' ? `Order ${outcome.status}. ` : ''}
+        {outcome.detail}
+      </span>
     </p>
   )
 }

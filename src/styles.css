@@ -124,6 +124,35 @@ body {
   outline-offset: 1px;
 }
 
+@keyframes wash {
+  0% {
+    background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  35% {
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes wash-still {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@utility wash {
+  animation: wash 900ms cubic-bezier(0.33, 1, 0.68, 1) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: wash-still 900ms step-end both;
+  }
+}
+
 .num {
   font-family: var(--font-num);
   font-stretch: 75%;

@@ -17,11 +17,13 @@ export function Table<T>({
   empty,
   isCurrent,
   onRowClick,
+  rowClass,
 }: {
   rows: readonly T[]
   rowKey: (row: T) => Key
   columns: readonly Column<T>[]
   empty?: string
+  rowClass?: (row: T) => string
 } & RowAction<T>) {
   if (empty !== undefined && rows.length === 0) return <NoData>{empty}</NoData>
   return (
@@ -46,11 +48,11 @@ export function Table<T>({
               tabIndex={onRowClick ? -1 : undefined}
               onClick={onRowClick && (() => onRowClick(row))}
               onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
-              className={
+              className={`${
                 isCurrent
                   ? 'h-7.5 cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:text-level1'
                   : 'h-7.5 border-t border-rule text-level2'
-              }
+              } ${rowClass?.(row) ?? ''}`}
             >
               {columns.map((column, index) => (
                 <td
