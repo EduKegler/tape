@@ -59,6 +59,7 @@
   --inset-shadow-*: initial;
   --inset-shadow-selected: inset 0 -2px var(--accent);
   --inset-shadow-newest: inset 2px 0 var(--level3);
+  --inset-shadow-current: inset 2px 0 var(--accent);
 
   --z-index-dialog: 50;
 

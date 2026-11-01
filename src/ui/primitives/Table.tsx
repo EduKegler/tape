@@ -52,7 +52,7 @@ export function Table<T>({
               onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
               className={`${
                 isCurrent
-                  ? `${dense ? 'h-6' : 'h-7.5'} cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1`
+                  ? `${dense ? 'h-6' : 'h-7.5'} cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1 aria-current:inset-shadow-current`
                   : `${dense ? 'h-6' : 'h-7.5'} border-t border-rule text-level2`
               } ${rowClass?.(row) ?? ''}`}
             >
@@ -67,7 +67,7 @@ export function Table<T>({
                       : current
                         ? 'pl-3 font-semibold text-accent'
                         : isCurrent
-                          ? 'pl-3'
+                          ? 'pl-3 font-medium text-level1'
                           : 'pl-3 text-level1'
                   }
                 >
