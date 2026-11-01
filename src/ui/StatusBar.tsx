@@ -6,7 +6,7 @@ export function StatusBar() {
   const offline = stats?.sockets === 0
   return (
     <footer
-      className={`flex flex-wrap items-center gap-x-5 gap-y-1 border-t px-4 py-1.5 text-xs text-level3 lg:h-8 lg:flex-nowrap lg:py-0 lg:whitespace-nowrap ${offline ? 'border-warn' : 'border-rule'}`}
+      className={`flex flex-wrap items-center gap-x-5 gap-y-1 bg-surface px-4 py-1.5 text-xs text-level3 lg:h-8 lg:flex-nowrap lg:py-0 lg:whitespace-nowrap ${offline ? 'border-t border-warn' : ''}`}
     >
       {stats ? (
         <>

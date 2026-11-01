@@ -96,7 +96,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
     URL.revokeObjectURL(url)
   }
   return (
-    <main className="grid flex-1 gap-px p-px lg:min-h-0 lg:grid-cols-[22rem_minmax(0,1fr)]">
+    <main className="grid flex-1 gap-2.5 p-2.5 lg:min-h-0 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <Panel title="Accounts">
         <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-sm">
           <Addresses
@@ -121,7 +121,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
           </p>
         </div>
       </Panel>
-      <div className="grid gap-px lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
+      <div className="grid gap-2.5 lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
         <Panel
           title="Totals"
           aside={

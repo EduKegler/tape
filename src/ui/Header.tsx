@@ -15,7 +15,7 @@ import { statsQuery } from './queries'
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
   const bases = PINNED_BASES.includes(base) ? PINNED_BASES : [...PINNED_BASES, base]
   return (
-    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-rule px-4 py-2 xl:flex-nowrap">
+    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-surface px-4 py-1.5 xl:flex-nowrap">
       <Brand />
       <nav aria-label="Market" className="flex shrink-0 items-center gap-1">
         {bases.map((marketBase) => (
