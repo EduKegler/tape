@@ -40,10 +40,11 @@ function draw(canvas: HTMLCanvasElement, frame: DepthFrame, base: Base): void {
   const askTotal = cumAt(frame.asks, (price) => price <= hi)
   const max = Math.max(bidTotal, askTotal) || 1
   const priceX = (px: number) => ((px - lo) / (hi - lo)) * width
-  const depthY = (cum: number) => height - 4 - (cum / max) * (height - 34)
+  const floor = height - 18
+  const depthY = (cum: number) => floor - (cum / max) * (floor - 30)
   const area = (side: DepthSide, sign: 1 | -1, stroke: string, fill: string) => {
     ctx.beginPath()
-    ctx.moveTo(priceX(frame.mid), height)
+    ctx.moveTo(priceX(frame.mid), floor)
     let prev = 0
     for (let level = 0; level < side.px.length; level++) {
       const px = side.px[level]!
@@ -53,7 +54,7 @@ function draw(canvas: HTMLCanvasElement, frame: DepthFrame, base: Base): void {
       ctx.lineTo(priceX(px), depthY(prev))
     }
     ctx.lineTo(priceX(sign === -1 ? lo : hi), depthY(prev))
-    ctx.lineTo(priceX(sign === -1 ? lo : hi), height)
+    ctx.lineTo(priceX(sign === -1 ? lo : hi), floor)
     ctx.closePath()
     ctx.fillStyle = fill
     ctx.fill()
@@ -69,19 +70,19 @@ function draw(canvas: HTMLCanvasElement, frame: DepthFrame, base: Base): void {
   ctx.setLineDash([2, 3])
   ctx.beginPath()
   ctx.moveTo(midX, 16)
-  ctx.lineTo(midX, height - 18)
+  ctx.lineTo(midX, floor)
   ctx.stroke()
   ctx.setLineDash([])
   ctx.fillStyle = cssVar(canvas, '--level3')
   ctx.font = `11px ${cssVar(canvas, '--font-sans')}`
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
-  ctx.fillText(amount(lo), 6, height - 6)
+  ctx.fillText(amount(lo), 6, height - 5)
   ctx.fillText(`Bids ${amount(bidTotal)} ${base}`, 6, 14)
   ctx.textAlign = 'center'
-  ctx.fillText(amount(frame.mid), midX, height - 6)
+  ctx.fillText(amount(frame.mid), midX, height - 5)
   ctx.textAlign = 'right'
-  ctx.fillText(amount(hi), width - 6, height - 6)
+  ctx.fillText(amount(hi), width - 6, height - 5)
   ctx.fillText(`Asks ${amount(askTotal)} ${base}`, width - 6, 14)
 }
 
