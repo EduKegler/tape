@@ -6,6 +6,7 @@ const NEED = { text: 4.5, large: 3, graphic: 3 }
 
 const PAIRS = [
   ['Page text', 'level2', 'surface', 'text'],
+  ['Page text, between panels', 'level3', 'ground', 'text'],
   ['Button primary', 'ink-contrast', 'ink', 'text'],
   ['Button primary, disabled', 'level2', 'raised', 'text'],
   ['Button buy', 'ink-contrast', 'bid', 'text'],

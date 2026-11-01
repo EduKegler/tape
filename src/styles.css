@@ -2,24 +2,25 @@
 @import '@fontsource-variable/inter';
 
 :root {
-  --surface: #19151f;
-  --raised: #231e2a;
-  --ticket: #211a2b;
-  --inset: #141019;
-  --rule: rgb(255 255 255 / 0.08);
-  --edge: #6f6978;
-  --level1: #eeecf1;
-  --level2: #c4bfcb;
-  --level3: #958f9e;
-  --ink: #eeecf1;
-  --ink-contrast: #19151f;
-  --accent: #9d8cff;
-  --bid: #5ad6a4;
-  --ask: #ff7f7c;
-  --bid-wash: rgb(90 214 164 / 0.12);
-  --ask-wash: rgb(255 127 124 / 0.12);
-  --warn: #e8b04f;
-  --selection: rgb(238 236 241 / 0.2);
+  --ground: #121315;
+  --surface: #1a1b1e;
+  --raised: #232428;
+  --ticket: #1a1b1e;
+  --inset: #141517;
+  --rule: #26282c;
+  --edge: #6e727a;
+  --level1: #ecebe8;
+  --level2: #b8babe;
+  --level3: #8b8f96;
+  --ink: #ecebe8;
+  --ink-contrast: #121315;
+  --accent: #efebe2;
+  --bid: #2ebd85;
+  --ask: #f75466;
+  --bid-wash: rgb(46 189 133 / 0.1);
+  --ask-wash: rgb(247 84 102 / 0.1);
+  --warn: #e2a93b;
+  --selection: rgb(239 235 226 / 0.2);
 }
 
 @theme {
@@ -71,6 +72,7 @@
 }
 
 @theme inline {
+  --color-ground: var(--ground);
   --color-surface: var(--surface);
   --color-raised: var(--raised);
   --color-ticket: var(--ticket);
@@ -95,7 +97,7 @@
 }
 
 html {
-  background-color: var(--surface);
+  background-color: var(--ground);
   color: var(--level2);
   font-family: var(--font-sans);
   font-size: 13px;
