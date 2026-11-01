@@ -69,6 +69,8 @@ export function CandleChart({
         borderColor: css('--rule'),
         timeVisible: true,
         secondsVisible: false,
+        barSpacing: 10,
+        rightOffset: 3,
         tickMarkFormatter: (time: UTCTimestamp, mark: TickMarkType) => formatChartTick(time, MARKS[mark]),
       },
       localization: { timeFormatter: (time: UTCTimestamp) => formatChartTime(time) },
@@ -112,7 +114,7 @@ export function CandleChart({
       history.data.map((bar) => ({
         time: chartTime(bar.time),
         value: bar.volume,
-        color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
+        color: bar.close >= bar.open ? css('--bid-volume') : css('--ask-volume'),
       })),
     )
     plot.lastTime = history.data.at(-1)?.time ?? 0
@@ -149,7 +151,7 @@ export function CandleChart({
       plot.volume.update({
         time: chartTime(bar.time),
         value: bar.volume,
-        color: bar.close >= bar.open ? css('--bid-wash') : css('--ask-wash'),
+        color: bar.close >= bar.open ? css('--bid-volume') : css('--ask-volume'),
       })
       plot.lastTime = bar.time
       setLatest(bar)
