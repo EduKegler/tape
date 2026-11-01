@@ -10,11 +10,18 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
         {(session.steps ?? []).map((step) => (
           <li key={step.id} className={`flex items-center gap-2 ${step.done ? 'text-level3' : 'text-level1'}`}>
             {step.done ? (
-              <span aria-hidden className="w-2 text-level2">
-                ✓
-              </span>
+              <svg aria-hidden viewBox="0 0 12 12" className="size-3 shrink-0 text-level2">
+                <path
+                  d="M2.5 6.5 5 9l4.5-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             ) : (
-              <span aria-hidden className="flex w-2 justify-center">
+              <span aria-hidden className="flex w-3 shrink-0 justify-center">
                 <span
                   className={`inline-block size-1.5 rounded-sm ${step.id === session.progress ? 'bg-ink' : 'bg-level3'}`}
                 />
