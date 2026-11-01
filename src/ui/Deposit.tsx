@@ -239,9 +239,14 @@ function Summary({
   quote: DepositQuote
 }) {
   const fee = quote.terms?.fee ?? null
-  const rows: [string, string][] = [
+  const rows: [string, React.ReactNode][] = [
     ['Route', [chainName(route.chainId), ...route.hops, venue.destination].join(' → ')],
-    ['Credited to', `${shortAddress(account.owner)}, the same address`],
+    [
+      'Credited to',
+      <span key="credited">
+        <span className="num">{shortAddress(account.owner)}</span>, the same address
+      </span>,
+    ],
     [
       'Fee',
       quote.terms
@@ -279,11 +284,27 @@ function Summary({
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-level3">{label}</dt>
-          <dd className="num text-right text-level1">{value}</dd>
+          <dd className="text-right text-level1">{typeof value === 'string' ? numbersIn(value) : value}</dd>
         </div>
       ))}
     </dl>
   )
+}
+
+function numbersIn(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  let at = 0
+  for (const match of text.matchAll(/\d[\d,.:]*/g)) {
+    parts.push(text.slice(at, match.index))
+    parts.push(
+      <span key={match.index} className="num">
+        {match[0]}
+      </span>,
+    )
+    at = match.index + match[0].length
+  }
+  parts.push(text.slice(at))
+  return parts
 }
 
 function issueText(issue: DepositIssue, route: DepositRoute, messenger: string | null): string {
@@ -400,7 +421,16 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
     ['Gas paid', record.gasPaid !== null ? gasText(record.gasPaid, record.chainId) : '…'],
     ['Fee', chargesText(kept === null ? record.fee : { expected: kept, max: kept }, record.message, record.chainId)],
     ['Credited', credited ? `${usdc(credited.amount)} USDC` : '…'],
-    ...(credited ? [['Venue record', shortAddress(credited.receipt)] as [string, string]] : []),
+    ...(credited
+      ? [
+          [
+            'Venue record',
+            <span key="record" className="num">
+              {shortAddress(credited.receipt)}
+            </span>,
+          ] as [string, React.ReactNode],
+        ]
+      : []),
   ]
   return (
     <section aria-label="Deposit receipt" data-deposit-stage={status.stage} className="flex flex-col gap-2">
@@ -424,7 +454,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-level3">{label}</dt>
-            <dd className="num text-right text-level1">{value}</dd>
+            <dd className="text-right text-level1">{typeof value === 'string' ? numbersIn(value) : value}</dd>
           </div>
         ))}
       </dl>
