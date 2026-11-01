@@ -32,7 +32,7 @@ export function Search<T>(props: {
       <Autocomplete.Input
         aria-label={props.label}
         placeholder={props.label}
-        className="w-40 rounded-md border border-edge bg-inset px-2.5 py-1.5 text-base text-level1 placeholder:text-level3"
+        className="h-8 w-57 rounded-md border border-edge bg-inset px-2.5 text-base text-level1 placeholder:text-level3"
       />
       <Autocomplete.Portal>
         <Autocomplete.Positioner className="z-dialog" sideOffset={4} align="start">
