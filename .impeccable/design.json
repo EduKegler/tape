@@ -101,10 +101,6 @@
         "displayName": "Display",
         "purpose": "The last price in the header and at the head of the book, 22px semibold with its side mark, colored by the side of the last trade."
       },
-      "figure": {
-        "displayName": "Figure",
-        "purpose": "18px Martian Mono step of the ramp. No shipped surface sets a number at 18px today: equity and notional render at 12px 500."
-      },
       "number": {
         "displayName": "Number",
         "purpose": "Strip mids and field values, 13px 500."
@@ -127,7 +123,11 @@
       },
       "action": {
         "displayName": "Action",
-        "purpose": "The side switch at 13px 600. The Buy and Sell submit takes the same weight at 18px."
+        "purpose": "The side switch, 13px 600."
+      },
+      "submit": {
+        "displayName": "Submit",
+        "purpose": "The submit names the side and the market at 18px 600; a 12px 500 line under it states size, price and venue."
       },
       "label": {
         "displayName": "Label",

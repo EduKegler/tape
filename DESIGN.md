@@ -5,6 +5,7 @@ colors:
   ground: "#121315"
   surface: "#1a1b1e"
   raised: "#232428"
+  ticket: "#1a1b1e"
   inset: "#141517"
   rule: "#26282c"
   edge: "#6e727a"
@@ -18,27 +19,23 @@ colors:
   ask: "#f75466"
   bid-wash: "rgb(46 189 133 / 0.1)"
   ask-wash: "rgb(247 84 102 / 0.1)"
+  bid-volume: "rgb(46 189 133 / 0.28)"
+  ask-volume: "rgb(247 84 102 / 0.28)"
   warn: "#e2a93b"
   err: "#ff8466"
+  selection: "rgb(239 235 226 / 0.2)"
 typography:
   display:
     fontFamily: "Martian Mono Variable, ui-monospace, monospace"
     fontSize: "22px"
-    fontWeight: 400
+    fontWeight: 600
     lineHeight: 1
-    fontFeature: "\"tnum\", \"zero\""
-    fontVariation: "\"wdth\" 75"
-  figure:
-    fontFamily: "Martian Mono Variable, ui-monospace, monospace"
-    fontSize: "18px"
-    fontWeight: 400
-    lineHeight: 1.4
     fontFeature: "\"tnum\", \"zero\""
     fontVariation: "\"wdth\" 75"
   number:
     fontFamily: "Martian Mono Variable, ui-monospace, monospace"
     fontSize: "13px"
-    fontWeight: 400
+    fontWeight: 500
     lineHeight: 1.4
     fontFeature: "\"tnum\", \"zero\""
     fontVariation: "\"wdth\" 75"
@@ -69,6 +66,11 @@ typography:
     fontSize: "13px"
     fontWeight: 600
     lineHeight: 1.4
+  submit:
+    fontFamily: "Inter Variable, system-ui, sans-serif"
+    fontSize: "18px"
+    fontWeight: 600
+    lineHeight: 1.4
   label:
     fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "11px"
@@ -97,12 +99,12 @@ components:
   panel-title:
     textColor: "{colors.level1}"
     typography: "{typography.title}"
-    height: "2.25rem"
+    height: "2.625rem"
     padding: "0 0.75rem"
   venue-tab:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.level3}"
-    height: "2.75rem"
+    height: "3.6875rem"
     padding: "0 1rem"
   venue-tab-current:
     backgroundColor: "{colors.raised}"
@@ -127,13 +129,13 @@ components:
   button-buy:
     backgroundColor: "{colors.bid}"
     textColor: "{colors.ink-contrast}"
-    typography: "{typography.action}"
+    typography: "{typography.submit}"
     rounded: "{rounded.md}"
     height: "2.75rem"
   button-sell:
     backgroundColor: "{colors.ask}"
     textColor: "{colors.ink-contrast}"
-    typography: "{typography.action}"
+    typography: "{typography.submit}"
     rounded: "{rounded.md}"
     height: "2.75rem"
   side-switch:
@@ -161,8 +163,8 @@ components:
     backgroundColor: "{colors.inset}"
     textColor: "{colors.level1}"
     rounded: "{rounded.md}"
-    height: "2rem"
-    padding: "0 0.5rem"
+    height: "2.75rem"
+    padding: "0 2rem 0 0.75rem"
   table-row:
     textColor: "{colors.level2}"
     typography: "{typography.number-sm}"
