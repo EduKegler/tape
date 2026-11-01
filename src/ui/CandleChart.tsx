@@ -175,7 +175,12 @@ export function CandleChart({
           {latest && decimals !== undefined && <Ohlc bar={latest} decimals={decimals} />}
         </div>
       }
-      aside={spec && <span className="text-sm text-level3">{`${base}-${spec.quote} · ${VENUES[venue].label}`}</span>}
+      aside={
+        spec && (
+          <span className="text-sm text-level3 @max-2xl:hidden">{`${base}-${spec.quote} · ${VENUES[venue].label}`}</span>
+        )
+      }
+      className="@container"
     >
       <div ref={host} className="absolute inset-0" />
     </Panel>
