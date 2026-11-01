@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { Key, ReactNode } from 'react'
 import { NoData } from './NoData'
 
@@ -18,6 +19,7 @@ export function Table<T>({
   isCurrent,
   onRowClick,
   rowClass,
+  detail,
   dense = false,
 }: {
   rows: readonly T[]
@@ -25,6 +27,7 @@ export function Table<T>({
   columns: readonly Column<T>[]
   empty?: string
   rowClass?: (row: T) => string
+  detail?: (row: T) => ReactNode
   dense?: boolean
 } & RowAction<T>) {
   if (empty !== undefined && rows.length === 0) return <NoData>{empty}</NoData>
@@ -42,39 +45,48 @@ export function Table<T>({
       <tbody>
         {rows.map((row) => {
           const current = isCurrent?.(row)
+          const below = detail?.(row)
           return (
-            <tr
-              key={rowKey(row)}
-              aria-current={current}
-              data-row={onRowClick ? true : undefined}
-              tabIndex={onRowClick ? -1 : undefined}
-              onClick={onRowClick && (() => onRowClick(row))}
-              onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
-              className={`${
-                isCurrent
-                  ? `${dense ? 'h-6' : 'h-7.5'} cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1 aria-current:inset-shadow-current`
-                  : `${dense ? 'h-6' : 'h-7.5'} border-t border-rule text-level2`
-              } ${rowClass?.(row) ?? ''}`}
-            >
-              {columns.map((column, index) => (
-                <td
-                  key={column.header}
-                  className={
-                    index > 0
-                      ? column.words
-                        ? 'pr-3 text-right'
-                        : 'num pr-3 text-right whitespace-nowrap'
-                      : current
-                        ? 'pl-3 font-semibold text-accent'
-                        : isCurrent
-                          ? 'pl-3 font-medium text-level1'
-                          : 'pl-3 text-level1'
-                  }
-                >
-                  {column.cell(row)}
-                </td>
-              ))}
-            </tr>
+            <Fragment key={rowKey(row)}>
+              <tr
+                aria-current={current}
+                data-row={onRowClick ? true : undefined}
+                tabIndex={onRowClick ? -1 : undefined}
+                onClick={onRowClick && (() => onRowClick(row))}
+                onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
+                className={`${
+                  isCurrent
+                    ? `${dense ? 'h-6' : 'h-7.5'} cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1 aria-current:inset-shadow-current`
+                    : `${dense ? 'h-6' : 'h-7.5'} border-t border-rule text-level2`
+                } ${rowClass?.(row) ?? ''}`}
+              >
+                {columns.map((column, index) => (
+                  <td
+                    key={column.header}
+                    className={
+                      index > 0
+                        ? column.words
+                          ? 'pr-3 text-right'
+                          : 'num pr-3 text-right whitespace-nowrap'
+                        : current
+                          ? 'pl-3 font-semibold text-accent'
+                          : isCurrent
+                            ? 'pl-3 font-medium text-level1'
+                            : 'pl-3 text-level1'
+                    }
+                  >
+                    {column.cell(row)}
+                  </td>
+                ))}
+              </tr>
+              {below ? (
+                <tr>
+                  <td colSpan={columns.length} className="px-3 pb-2 text-right">
+                    {below}
+                  </td>
+                </tr>
+              ) : null}
+            </Fragment>
           )
         })}
       </tbody>

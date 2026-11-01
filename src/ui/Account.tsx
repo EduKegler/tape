@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, MarketKey, VenueId } from '@tape/core/ids'
@@ -12,7 +12,7 @@ import type { TradeSession } from '#/trade/hooks'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { Panel, Segmented } from './Panel'
-import { ConfirmAction } from './ConfirmAction'
+import { ConfirmAction, ConfirmStep } from './ConfirmAction'
 import { Button, InlineInput, NoData, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
@@ -262,6 +262,8 @@ function Positions({
   onClose: (p: Position) => void
 }) {
   const washing = useChangedKeys(rows, positionKey, positionSize)
+  const [closing, setClosing] = useState<string | null>(null)
+  const closeTrigger = useRef<HTMLButtonElement>(null)
   const columns: Column<Position>[] = [
     { header: 'Market', cell: (position) => position.symbol },
     { header: 'Side', cell: (position) => side(position.side), words: true },
@@ -273,16 +275,16 @@ function Positions({
       header: '',
       words: true,
       cell: (position) => (
-        <ConfirmAction
-          label="Close"
-          question={question(position)}
-          confirm="Confirm close"
-          keep="Keep position"
+        <Button
+          ref={closing === positionKey(position) ? closeTrigger : undefined}
+          look="secondary"
+          size="sm"
           disabled={busy}
-          onConfirm={() => onClose(position)}
+          aria-expanded={closing === positionKey(position)}
+          onClick={() => setClosing(positionKey(position))}
         >
-          <CloseTerms position={position} market={market(position)} />
-        </ConfirmAction>
+          Close
+        </Button>
       ),
     },
   ]
@@ -293,6 +295,26 @@ function Positions({
       columns={columns}
       empty="No open positions."
       rowClass={(position) => (washing.has(positionKey(position)) ? 'wash' : '')}
+      detail={(position) =>
+        closing === positionKey(position) ? (
+          <ConfirmStep
+            question={question(position)}
+            confirm="Confirm close"
+            keep="Keep position"
+            trigger={closeTrigger}
+            onConfirm={() => {
+              setClosing(null)
+              onClose(position)
+            }}
+            onCancel={(refocus) => {
+              setClosing(null)
+              if (refocus) closeTrigger.current?.focus()
+            }}
+          >
+            <CloseTerms position={position} market={market(position)} />
+          </ConfirmStep>
+        ) : null
+      }
     />
   )
 }
