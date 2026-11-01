@@ -87,24 +87,26 @@ export function Panel({
   )
 }
 
+const TAB_GAP = { roomy: 'gap-5', snug: 'gap-3' } as const
+
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
   label,
-  tabs = false,
+  tabs,
 }: {
   value: T
   options: readonly { value: T; label: string }[]
   onChange: (v: T) => void
   label: string
-  tabs?: boolean
+  tabs?: keyof typeof TAB_GAP
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className={tabs ? 'flex items-stretch gap-3 self-stretch' : 'flex items-center gap-3'}
+      className={tabs ? `flex items-stretch self-stretch ${TAB_GAP[tabs]}` : 'flex items-center gap-3'}
     >
       {options.map((option) => (
         <Button

@@ -93,7 +93,7 @@ function AccountBody({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-10.5 shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 text-sm">
         <Segmented
-          tabs
+          tabs="roomy"
           label="Account view"
           value={tab}
           onChange={setTab}

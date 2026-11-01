@@ -169,7 +169,7 @@ export function CandleChart({
       lead={
         <div className="flex items-center gap-5 self-stretch">
           <Segmented
-            tabs
+            tabs="roomy"
             label="Interval"
             value={interval}
             onChange={onInterval}
