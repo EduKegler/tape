@@ -63,7 +63,7 @@ export function Table<T>({
                     index > 0
                       ? column.words
                         ? 'pr-3 text-right'
-                        : 'num pr-3 text-right'
+                        : 'num pr-3 text-right whitespace-nowrap'
                       : current
                         ? 'pl-3 font-semibold text-accent'
                         : isCurrent
