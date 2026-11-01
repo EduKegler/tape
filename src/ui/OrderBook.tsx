@@ -7,6 +7,7 @@ import type { BookFrame } from '#/core/topics'
 import { Panel, useRowKeys } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { Button, Select } from './primitives'
+import { SideMark } from './SideMark'
 import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
@@ -39,7 +40,7 @@ export function OrderBook({
       title="Order book"
       status={<TopicStatus topic={topic} ageLimit />}
       aside={
-        <label className="flex items-center text-sm">
+        <label className="flex items-center">
           <span className="sr-only">Group</span>
           <Select size="sm" value={head.group} onChange={onGroup}>
             {(head.options ? head.options.split('|') : [head.group]).map((step) => (
@@ -100,7 +101,7 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
         <span className="sr-only">size </span>
         {row.qty}
       </span>
-      <span className="relative text-right text-level3">
+      <span className="relative text-right text-level2">
         <span className="sr-only">total </span>
         {row.cum}
       </span>
@@ -109,6 +110,11 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
 })
 
 function Spread({ topic }: { topic: BookTopic }) {
+  const last = useFrame(
+    { kind: 'trades', market: topic.market },
+    (frame) => ({ px: frame?.last ?? '', side: frame?.lastSide ?? null }),
+    shallow,
+  )
   const summary = useFrame(
     topic,
     (frame) => ({
@@ -120,13 +126,29 @@ function Spread({ topic }: { topic: BookTopic }) {
     shallow,
   )
   return (
-    <div className="flex h-9 shrink-0 items-center justify-between border-y border-rule px-3">
-      <span className="num text-xl leading-none text-level1">{summary.mid || '—'}</span>
+    <div className="mx-1 my-0.5 flex shrink-0 flex-col justify-center gap-1.5 rounded-md bg-inset p-2">
+      <span
+        className={`num flex items-center gap-1.5 text-xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+      >
+        {last.side && (
+          <>
+            <SideMark side={last.side} className="size-3.5" />
+            <span className="sr-only">Last {last.side === 'buy' ? 'buy' : 'sell'} </span>
+          </>
+        )}
+        {last.px || summary.mid || '—'}
+      </span>
       <span className="text-xs whitespace-nowrap text-level3">
+        <span>
+          Mid <span className="num">{summary.mid || '—'}</span>
+        </span>
         {summary.status === 'live' && (
           <>
-            Spread <span className="num">{summary.spread}</span> ·{' '}
-            <span className="num">{summary.bps === '0.00' ? '<0.01' : summary.bps}</span> bps
+            {' · '}
+            <span>
+              Spread <span className="num">{summary.spread}</span> ·{' '}
+              <span className="num">{summary.bps === '0.00' ? '<0.01' : summary.bps}</span> bps
+            </span>
           </>
         )}
       </span>
