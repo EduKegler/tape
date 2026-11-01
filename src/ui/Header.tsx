@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { shallow } from '@tanstack/store'
-import { PINNED_BASES, VENUE_IDS, marketKey } from '@tape/core/ids'
+import { PINNED_BASES, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
-import { NETWORK, VENUES } from '#/site'
+import { NETWORK } from '#/site'
 import { WalletButton } from '#/wallet/Wallet'
 import { SIDE_MARK, formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
@@ -32,21 +32,6 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
         ))}
       </nav>
       <MarketSearch venue={venue} />
-      <nav aria-label="Venue" className="flex shrink-0 items-center gap-1">
-        {VENUE_IDS.map((venueId) => (
-          <Link
-            key={venueId}
-            to="/$venue/$base"
-            params={{ venue: venueId, base }}
-            search={(search) => search}
-            aria-current={venueId === venue ? 'page' : undefined}
-            className="flex flex-col px-2 py-0.5 leading-tight text-level3 hover:text-level1 aria-[current=page]:text-level1 aria-[current=page]:inset-shadow-selected"
-          >
-            <span className="text-base">{VENUES[venueId].label}</span>
-            <span className="text-xs text-level3">{VENUES[venueId].chain}</span>
-          </Link>
-        ))}
-      </nav>
       <Ticker venue={venue} base={base} />
       <div className="ml-auto flex shrink-0 items-center gap-4">
         <HistoryLink className="text-base text-level3 hover:text-level1">History</HistoryLink>
