@@ -253,7 +253,7 @@ function TicketForm({ spec, group, session }: { spec: MarketSpec; group: string;
       }}
     >
       <fieldset disabled={last.pending} className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        <div className="grid grid-cols-2 gap-1 rounded-sm border border-rule p-0.5">
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-inset p-1">
           {(['buy', 'sell'] as const).map((choice) => (
             <Button
               key={choice}

@@ -32,11 +32,11 @@ export function Search<T>(props: {
       <Autocomplete.Input
         aria-label={props.label}
         placeholder={props.label}
-        className="w-40 rounded-sm border border-edge bg-inset px-2 py-1.5 text-base text-level1 outline-none placeholder:text-level3 focus:border-accent"
+        className="w-40 rounded-md border border-edge bg-inset px-2.5 py-1.5 text-base text-level1 placeholder:text-level3"
       />
       <Autocomplete.Portal>
         <Autocomplete.Positioner className="z-dialog" sideOffset={4} align="start">
-          <Autocomplete.Popup className="w-56 max-w-(--available-width) rounded-sm border border-rule bg-raised text-base text-level1">
+          <Autocomplete.Popup className="w-56 max-w-(--available-width) rounded-md border border-rule bg-raised text-base text-level1">
             <Autocomplete.Empty>
               <div className="p-2 text-level3">{props.empty}</div>
             </Autocomplete.Empty>

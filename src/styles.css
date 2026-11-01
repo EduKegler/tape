@@ -57,7 +57,6 @@
   --blur-*: initial;
   --inset-shadow-*: initial;
   --inset-shadow-selected: inset 0 -2px var(--accent);
-  --inset-shadow-current: inset 2px 0 var(--accent);
 
   --z-index-dialog: 50;
 
@@ -121,7 +120,7 @@ body {
 
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 @keyframes wash {

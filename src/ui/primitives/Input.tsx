@@ -40,7 +40,7 @@ export function Input({
         disabled={props.disabled}
         aria-invalid={Boolean(props.error)}
         aria-describedby={message}
-        className="num h-9 rounded-sm border border-edge bg-inset px-2 text-base text-level1 outline-none focus:border-accent aria-invalid:border-warn"
+        className="num h-9 rounded-md border border-edge bg-inset px-3 text-base text-level1 aria-invalid:border-warn"
       />
       <div
         aria-live={props.warning === undefined ? undefined : 'polite'}
