@@ -155,7 +155,7 @@ components:
     textColor: "{colors.level1}"
     typography: "{typography.number}"
     rounded: "{rounded.md}"
-    height: "2.25rem"
+    height: "2.75rem"
     padding: "0 0.75rem"
   select:
     backgroundColor: "{colors.inset}"
@@ -253,13 +253,12 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 **Character:** Inter names things and Martian Mono counts them. The narrow mono keeps long prices compact and makes every column align without help.
 
 ### Hierarchy
-- **Display** (Martian Mono, 400, 22px, line-height 1): the last price in the header, with its side mark.
-- **Figure** (Martian Mono, 400, 18px): equity in Account and notional in the ticket.
-- **Number** (Martian Mono, 400, 13px or 12px): strip prices and field values at 13px; book, trades, tables and stats at 12px, and 11px in the dense Venues table.
+- **Display** (Martian Mono, 600, 22px, line-height 1): the last price in the header and at the head of the book, with its side mark.
+- **Number** (Martian Mono, 400 or 500, 13px or 12px): strip mids, header stats and field values at 13px in 500; book, trades, tables, equity and notional at 12px.
 - **Title** (Inter, 600, 13px, line-height 1): panel titles and venue names in the strip.
-- **Action** (Inter, 600, 13px): Buy, Sell and the side switch.
+- **Action** (Inter, 600, 18px or 13px): the submit names the side and the market at 18px; the side switch is 13px.
 - **Body** (Inter, 400 or 500, 12px, line-height 1.4): text, notes, labels next to values. 500 for the order outcome and primary buttons.
-- **Label** (Inter, 400, 11px): table headers, chain names, stat labels, panel state lines, the status bar.
+- **Label** (Inter, 400, 11px): table headers, chain names, stat labels, field labels, panel state lines, the status bar. The status bar sets its labels in capitals.
 
 Sizes come only from the closed scale 11, 12, 13, 18 and 22px. Weights stop at 600.
 
@@ -270,9 +269,9 @@ Sizes come only from the closed scale 11, 12, 13, 18 and 22px. Weights stop at 6
 
 ## Layout
 
-The trading screen fills the viewport from 1024px up. A header (about 48px) and the venue strip (36px, inset by the gutter) sit on top. Under them a grid holds the panels: the chart column takes the rest of the width beside the book (20rem), trades (17rem) and the ticket (22rem). Rows are the chart (flexible), Depth (9rem) and Account (up to 13rem). The ticket spans the top two rows; the Venues table sits under it beside Account. A 26px status bar closes the screen.
+The trading screen fills the viewport from 1024px up. A header (48px) and the venue strip (48px, inset by the gutter) sit on top. Under them a grid holds the panels: the chart column takes the rest of the width beside the book (19rem), trades (16.25rem) and the ticket (22rem). Rows are the chart (flexible), Depth (13rem) and Account (up to 13rem). The ticket spans the top two rows; the Venues table sits under it beside Account. A 26px status bar closes the screen.
 
-Every gap and padding is a step of `SPACING_STEPS`. Gutters between cards and around the grid are 0.625rem (8.1px). Panel titles are 2.25rem tall with 0.75rem side padding. Table rows are 1.875rem, and 1.5rem when dense.
+Every gap and padding is a step of `SPACING_STEPS`. Gutters between cards and around the grid are 0.625rem (8.1px). Panel titles are 2.625rem (34px) tall with 0.75rem side padding. Table rows are 1.875rem, and 1.5rem when dense.
 
 Below 1024px the panels stack in one column with fixed heights. Below 640px the venue strip stacks its four tabs. The header lays out on one line from 1280px and wraps below.
 
@@ -280,10 +279,12 @@ History uses the same cards and gutters under its own header, with Accounts in a
 
 ## Elevation & Depth
 
-Tape is flat. Depth is three graphite steps: ground under graphite cards, raised graphite for what is current or on top, and a darker well for fields. There are no drop shadows, blurs or glows; the shadow scales are reset to nothing in the theme. The one inset shadow is the 2px off-white underline that marks a current tab or choice.
+Tape is flat. Depth is three graphite steps: ground under graphite cards, raised graphite for what is current or on top, and a darker well for fields. There are no drop shadows, blurs or glows; the shadow scales are reset to nothing in the theme. Three 2px inset lines mark what is current or newest.
 
 ### Shadow Vocabulary
 - **Selected underline** (`box-shadow: inset 0 -2px var(--accent)`): the current venue tab, the current market (BTC, ETH, SOL), and the checked option of a segmented control.
+- **Current bar** (`box-shadow: inset 2px 0 var(--accent)`): the left edge of the current Venues row.
+- **Newest bar** (`box-shadow: inset 2px 0 var(--level3)`): the left edge of the newest trade. It is level3, because the trades tape is market data, not the trader's.
 
 ### Named Rules
 **The Raised Means Current Rule.** A raised fill says this is the current one or it sits above the page: the current venue tab, the current Venues row, the order outcome, a dialog. Do not raise a thing for emphasis alone.
@@ -301,7 +302,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Shape:** medium radius (0.375rem).
 - **Primary:** off-white ink fill with graphite text, weight 500. Disabled turns raised graphite with a rule ring and level2 text.
 - **Secondary:** raised graphite with level1 text; hover lifts it with level1 at 12%.
-- **Buy / Sell:** the submit at the ticket's foot, 2.75rem tall, filled bid or ask, graphite text, 600.
+- **Buy / Sell:** the submit at the ticket's foot, at least 2.75rem tall, filled bid or ask, graphite text. It reads Buy / Long BTC or Sell / Short BTC at 18px 600. For a limit or market order with a valid size, a 12px 500 second line states size, price and venue, such as 0.01 BTC at 77,614 on Hyperliquid.
 - **Quiet and link:** level3 text that turns level1 on hover; a link is level1 and underlined.
 - **Focus:** the global 2px off-white ring at a 2px offset.
 
@@ -311,36 +312,38 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 
 ### Segmented and tabs
 - Text-only options in level3. The checked one turns level1 and carries the selected underline. Used for intervals, order type, account tabs and History filters.
+- Where the options head a card, as the intervals, the order types and the account tabs do, they fill the height of their row, so the underline sits on the rule under it, like the markets in the header.
 
 ### Cards / Containers
 - **Corner Style:** large radius (0.5rem).
 - **Background:** graphite.
 - **Shadow Strategy:** none, see Elevation & Depth.
-- **Border:** none outside. A rule line under the 2.25rem title row.
-- **Title row:** title in level1 semibold, the panel state line beside it, controls on the right.
+- **Border:** none outside. A rule line under the 2.625rem title row.
+- **Title row:** title in level1 semibold, the panel state line beside it, controls on the right. The chart shows its intervals and the latest candle's OHLC in place of the title. The ticket and Account fold their title into their first row, the order types and the account tabs, and keep it as a hidden heading.
 
 ### Inputs / Fields
-- **Style:** well fill, 1px edge border, medium radius, 2.25rem tall in the ticket, value in Martian Mono 13px level1. The label sits above in level3 with a hint or a button on the right.
+- **Style:** well fill, 1px edge border, medium radius, 2.75rem tall in the ticket, value in Martian Mono 13px 500 level1, and the unit at the right edge in 12px level3. The label sits above in 11px level3 with a hint or a button on the right.
 - **Focus:** the global off-white ring outside the border.
 - **Error:** coral border, then the drawn mark and the message in level1 below. A price warning shows in amber with no mark.
-- **Selects and search:** the same well, edge and radius.
+- **Selects and search:** the same well, edge and radius. A select draws its own chevron in level3, never the native one.
+- **Checkbox:** a 1rem well box with an edge border and the small radius. Checked, it fills level1 and draws a graphite check.
 
 ### Panel state
 - One 11px line beside the panel title. Empty is level3 (Loading…, Waiting for the venue). Stale is amber with its age (Reconnecting · 4 s old). Error is coral with the drawn mark and a Retry link. It fades in at 120ms when it changes.
 
 ### Venue strip (signature)
-- Four equal tabs on one graphite card under the header, 2.75rem tall.
-- Left: the venue name in title type, level1, and its chain in 11px level3.
-- Right: when the venue holds the best bid or ask, a small dot in the side color, "best bid" or "best ask" in 11px level2, and the price in Martian Mono 13px. When it holds neither, "mid" in level3 and the mid price.
-- A venue that lost its feed shows Reconnecting in amber and its mid in level3. An unlisted market shows Not shown in level3.
+- Four equal tabs on one graphite card under the header, 48px tall.
+- Left: the venue name in title type, level1, and under it the chain in 11px level3. When the venue holds the best bid or ask, the chain line goes on with a dot in the side color and "best bid" or "best ask".
+- Right: "Mid" in 11px level3 over the mid price in Martian Mono 13px 500.
+- A venue that lost its feed says Reconnecting in amber in place of "Mid", over its mid in level3. An unlisted market shows Not shown in level3.
 - The current tab is raised with the selected underline. Hover raises any tab.
 - When a venue newly takes the best bid or ask, its tab plays the wash, at most once per venue every 2s, never on the first frame or when the venue just came live. While it washes, the chain and the best or mid label turn level1 so they stay readable on the tint.
 
 ### Venues table
-- Dense table (11px, 1.5rem rows) of venue, bid, ask and basis in bps. The best bid and best ask carry the side color and the dot. The current venue's row is raised with its name semibold in the accent. Rows are keyboard reachable and switch the venue.
+- Dense table (12px, 1.5rem rows) of venue, bid, ask and basis in bps. Venue names are level1 500. The best bid and best ask carry the side color and the dot. The current venue's row is raised with the current bar and its name semibold in the accent. Rows are keyboard reachable and switch the venue.
 
 ### Order outcome
-- A raised block with the medium radius under the ticket summary, 12px Inter 500 in level1 with tabular figures. On a fill it plays the wash. A failed send shows the drawn mark, the result word in coral and the venue's words.
+- A raised block with the medium radius under the notional, right above the submit, 12px Inter 500 in level1 with tabular figures. On a fill it plays the wash. A failed send shows the drawn mark, the result word in coral and the venue's words.
 
 ### The wash (signature motion)
 - A background tint of the accent: 20% at the start, 15% at 35%, clear at 900ms, eased with `cubic-bezier(0.33, 1, 0.68, 1)`.
