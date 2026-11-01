@@ -104,6 +104,6 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
 - `reference/history.png`: `/history` in the graphite world. History itself is not redesigned yet.
 - `reference/close-confirm.png`: closing a position. Close stays in its cell, and the step with size, expected price and its own slippage takes a full-width row under the position.
-- `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter, with numbers and the address in Martian Mono.
+- `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in Martian Mono.
 
 Not retaken yet: stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.

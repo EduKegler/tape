@@ -284,27 +284,11 @@ function Summary({
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-level3">{label}</dt>
-          <dd className="text-right text-level1">{typeof value === 'string' ? numbersIn(value) : value}</dd>
+          <dd className="text-right text-level1 tabular-nums">{value}</dd>
         </div>
       ))}
     </dl>
   )
-}
-
-function numbersIn(text: string): React.ReactNode[] {
-  const parts: React.ReactNode[] = []
-  let at = 0
-  for (const match of text.matchAll(/\d[\d,.:]*/g)) {
-    parts.push(text.slice(at, match.index))
-    parts.push(
-      <span key={match.index} className="num">
-        {match[0]}
-      </span>,
-    )
-    at = match.index + match[0].length
-  }
-  parts.push(text.slice(at))
-  return parts
 }
 
 function issueText(issue: DepositIssue, route: DepositRoute, messenger: string | null): string {
@@ -454,7 +438,7 @@ function Receipt({ account, venue, record }: { account: AccountRef; venue: Depos
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-level3">{label}</dt>
-            <dd className="text-right text-level1">{typeof value === 'string' ? numbersIn(value) : value}</dd>
+            <dd className="text-right text-level1 tabular-nums">{value}</dd>
           </div>
         ))}
       </dl>
