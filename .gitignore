@@ -17,3 +17,7 @@ docs/research/
 docs/decisions/
 e2e/.cache
 e2e/results
+
+.impeccable/*
+!.impeccable/surfaces/
+!.impeccable/design.json
