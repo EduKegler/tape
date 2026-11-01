@@ -276,8 +276,9 @@ function TicketForm({
             </Button>
           ))}
         </div>
-        <div className="-mx-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-rule px-3 pb-2">
+        <div className="-mx-3 flex min-h-9 flex-wrap items-center justify-between gap-x-2 border-b border-rule px-3">
           <Segmented
+            tabs
             label="Order type"
             value={kind}
             onChange={(nextKind) => {

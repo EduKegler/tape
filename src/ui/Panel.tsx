@@ -74,7 +74,7 @@ export function Panel({
       {bare && <h2 className="sr-only top-0 left-1">{title}</h2>}
       {!bare && (
         <header className="flex h-10.5 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <div className={`flex min-w-0 gap-x-2 ${lead ? 'items-center self-stretch' : 'flex-wrap items-baseline'}`}>
             <h2 className={lead ? 'sr-only' : 'text-base/none font-semibold whitespace-nowrap text-level1'}>{title}</h2>
             {lead}
             {status}
@@ -92,18 +92,24 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  tabs = false,
 }: {
   value: T
   options: readonly { value: T; label: string }[]
   onChange: (v: T) => void
   label: string
+  tabs?: boolean
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex items-center gap-3">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={tabs ? 'flex items-stretch gap-3 self-stretch' : 'flex items-center gap-3'}
+    >
       {options.map((option) => (
         <Button
           key={option.value}
-          look="toggle"
+          look={tabs ? 'tab' : 'toggle'}
           role="radio"
           aria-checked={option.value === value}
           onClick={() => onChange(option.value)}
