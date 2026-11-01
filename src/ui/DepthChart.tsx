@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import type { MarketKey } from '@tape/core/ids'
+import { useEffect, useRef, useState } from 'react'
+import type { Base, MarketKey } from '@tape/core/ids'
 import { useFrameEffect } from '#/client/hooks'
 import type { DepthFrame, DepthSide } from '#/core/topics'
 import { Panel } from './Panel'
@@ -9,7 +9,14 @@ function cssVar(el: Element, name: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim()
 }
 
-function draw(canvas: HTMLCanvasElement, frame: DepthFrame): void {
+const amount = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+
+function reachOf(frame: DepthFrame): number | null {
+  if (!frame.bids.px.length || !frame.asks.px.length || !frame.mid) return null
+  return Math.min(frame.mid - (frame.bids.px.at(-1) ?? frame.mid), (frame.asks.px.at(-1) ?? frame.mid) - frame.mid)
+}
+
+function draw(canvas: HTMLCanvasElement, frame: DepthFrame, base: Base): void {
   const dpr = window.devicePixelRatio || 1
   const { clientWidth: width, clientHeight: height } = canvas
   if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
@@ -20,11 +27,8 @@ function draw(canvas: HTMLCanvasElement, frame: DepthFrame): void {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width, height)
-  if (!frame.bids.px.length || !frame.asks.px.length || !frame.mid) return
-  const reach = Math.min(
-    frame.mid - (frame.bids.px.at(-1) ?? frame.mid),
-    (frame.asks.px.at(-1) ?? frame.mid) - frame.mid,
-  )
+  const reach = reachOf(frame)
+  if (reach === null) return
   const lo = frame.mid - reach
   const hi = frame.mid + reach
   const cumAt = (side: DepthSide, inside: (px: number) => boolean) => {
@@ -32,13 +36,11 @@ function draw(canvas: HTMLCanvasElement, frame: DepthFrame): void {
     for (let level = 0; level < side.px.length && inside(side.px[level]!); level++) cumulative = side.cum[level]!
     return cumulative
   }
-  const max =
-    Math.max(
-      cumAt(frame.bids, (price) => price >= lo),
-      cumAt(frame.asks, (price) => price <= hi),
-    ) || 1
+  const bidTotal = cumAt(frame.bids, (price) => price >= lo)
+  const askTotal = cumAt(frame.asks, (price) => price <= hi)
+  const max = Math.max(bidTotal, askTotal) || 1
   const priceX = (px: number) => ((px - lo) / (hi - lo)) * width
-  const depthY = (cum: number) => height - 4 - (cum / max) * (height - 20)
+  const depthY = (cum: number) => height - 4 - (cum / max) * (height - 34)
   const area = (side: DepthSide, sign: 1 | -1, stroke: string, fill: string) => {
     ctx.beginPath()
     ctx.moveTo(priceX(frame.mid), height)
@@ -61,32 +63,53 @@ function draw(canvas: HTMLCanvasElement, frame: DepthFrame): void {
   }
   area(frame.bids, -1, cssVar(canvas, '--bid'), cssVar(canvas, '--bid-wash'))
   area(frame.asks, 1, cssVar(canvas, '--ask'), cssVar(canvas, '--ask-wash'))
+  const midX = Math.round(priceX(frame.mid)) + 0.5
+  ctx.strokeStyle = cssVar(canvas, '--edge')
+  ctx.lineWidth = 1
+  ctx.setLineDash([2, 3])
+  ctx.beginPath()
+  ctx.moveTo(midX, 16)
+  ctx.lineTo(midX, height - 18)
+  ctx.stroke()
+  ctx.setLineDash([])
   ctx.fillStyle = cssVar(canvas, '--level3')
   ctx.font = `11px ${cssVar(canvas, '--font-sans')}`
+  ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
-  ctx.fillText(lo.toLocaleString('en-US', { maximumFractionDigits: 2 }), 6, height - 6)
+  ctx.fillText(amount(lo), 6, height - 6)
+  ctx.fillText(`Bids ${amount(bidTotal)} ${base}`, 6, 14)
+  ctx.textAlign = 'center'
+  ctx.fillText(amount(frame.mid), midX, height - 6)
   ctx.textAlign = 'right'
-  ctx.fillText(hi.toLocaleString('en-US', { maximumFractionDigits: 2 }), width - 6, height - 6)
+  ctx.fillText(amount(hi), width - 6, height - 6)
+  ctx.fillText(`Asks ${amount(askTotal)} ${base}`, width - 6, 14)
 }
 
-export function DepthChart({ market }: { market: MarketKey }) {
+export function DepthChart({ market, base }: { market: MarketKey; base: Base }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const last = useRef<DepthFrame | null>(null)
   const raf = useRef(0)
+  const [reach, setReach] = useState<string | null>(null)
   useFrameEffect({ kind: 'depth', market }, (frame) => {
     last.current = frame
+    const span = reachOf(frame)
+    setReach(span === null ? null : amount(span))
     cancelAnimationFrame(raf.current)
-    raf.current = requestAnimationFrame(() => canvas.current && draw(canvas.current, frame))
+    raf.current = requestAnimationFrame(() => canvas.current && draw(canvas.current, frame, base))
   })
   useEffect(() => {
     const el = canvas.current
     if (!el) return
-    const observer = new ResizeObserver(() => last.current && draw(el, last.current))
+    const observer = new ResizeObserver(() => last.current && draw(el, last.current, base))
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [base])
   return (
-    <Panel title="Depth" status={<TopicStatus topic={{ kind: 'depth', market }} ageLimit />}>
+    <Panel
+      title="Depth"
+      status={<TopicStatus topic={{ kind: 'depth', market }} ageLimit />}
+      aside={reach && <span className="text-sm text-level3">±{reach} from mid</span>}
+    >
       <canvas ref={canvas} className="absolute inset-0 size-full" aria-label="Cumulative order book depth" role="img" />
     </Panel>
   )

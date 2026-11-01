@@ -83,7 +83,7 @@ function Market() {
             <Trades market={market} />
           </div>
           <div className="h-52 lg:col-start-1 lg:row-start-2 lg:h-auto lg:min-h-0">
-            <DepthChart market={market} />
+            <DepthChart market={market} base={base} />
           </div>
           <div className="lg:col-start-4 lg:row-start-3 lg:min-h-0">
             <Compare base={base} current={venue} />
