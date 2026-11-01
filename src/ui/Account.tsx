@@ -20,9 +20,12 @@ import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
 import { SiteReadOnly } from './Ticket'
 import { OrderNote, ReadNote, TradeNote } from './TradeNote'
 import { ErrorMark } from './ErrorMark'
+import { groupThousands } from './format'
 import { useChangedKeys } from './wash'
 
 type Tab = 'positions' | 'orders' | 'fills'
+
+const grouped = (value: string) => (/^\d+(?:\.\d+)?$/.test(value) ? groupThousands(value) : value)
 
 export function Account({ venue, base }: { venue: VenueId; base: Base }) {
   const session = useTradeSession(venue)
@@ -102,8 +105,8 @@ function AccountBody({
         {tab === 'fills' && <HistoryLink className="text-level3 hover:text-level1">Full history</HistoryLink>}
         {snapshot && (
           <span className="text-level3">
-            Equity <span className="num font-medium text-level1">{snapshot.equity}</span> · Available{' '}
-            <span className="num font-medium text-level1">{snapshot.available}</span>
+            Equity <span className="num font-medium text-level1">{grouped(snapshot.equity)}</span> · Available{' '}
+            <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
           </span>
         )}
         {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
@@ -159,6 +162,7 @@ function AccountBody({
               `Close ${position.size} ${specOf(position)?.base ?? position.symbol} ${position.side} on ${venue}?`
             }
             market={(position) => specOf(position)?.key ?? null}
+            unit={(position) => specOf(position)?.base ?? ''}
             onClose={close}
           />
         )}
@@ -246,22 +250,24 @@ function Positions({
   busy,
   question,
   market,
+  unit,
   onClose,
 }: {
   rows: readonly Position[]
   busy: boolean
   question: (p: Position) => string
   market: (p: Position) => MarketKey | null
+  unit: (p: Position) => string
   onClose: (p: Position) => void
 }) {
   const washing = useChangedKeys(rows, positionKey, positionSize)
   const columns: Column<Position>[] = [
     { header: 'Market', cell: (position) => position.symbol },
     { header: 'Side', cell: (position) => side(position.side), words: true },
-    { header: 'Size', cell: (position) => position.size },
-    { header: 'Entry', cell: (position) => position.entry },
+    { header: 'Size', cell: (position) => `${position.size} ${unit(position)}`.trim() },
+    { header: 'Entry', cell: (position) => grouped(position.entry) },
     { header: 'PnL', cell: (position) => position.unrealizedPnl },
-    { header: 'Liq.', cell: (position) => position.liquidation ?? '—' },
+    { header: 'Liq.', cell: (position) => (position.liquidation ? grouped(position.liquidation) : '—') },
     {
       header: '',
       words: true,
