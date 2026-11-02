@@ -129,5 +129,11 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
 - `reference/history.png`: `/history` with a connected wallet that has no fills, matched to the history target frame. Accounts stacks the form over one block per venue, and the filters are pills in a well beside the Market select and the From and To fields.
 - `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in tabular figures.
+- `reference/position-tpsl.png`: TP/SL on a live Hyperliquid testnet position, moving an armed take profit. The ruler shows liquidation in `err`, SL in `ask` and TP in `bid` over the track, Now and Entry under it. The fields pair price and return on margin, and the submit names the replace.
+- `reference/position-no-legs.png`: the same popover on a short with no legs. Dashed `+ TP` and `+ SL` marks wait on the track, liquidation sits on the right, and Set TP/SL stays off until a price is set.
+- `reference/position-close-limit.png`: Close on half a position at a limit. Share chips, Market, Limit and Mid, the terms line with what is kept and the estimated PnL, and the submit filled with the side it sends.
+- `reference/order-move.png`: Move on a resting limit. One handle that keeps the old price as `was`, price and size fields, and the line that says how the venue moves it.
+- `reference/cancel-all.png`: Cancel all over every market, one row per order, and the `warn` note that TP/SL legs go with them.
+- `reference/close-all.png`: the Close all report, one line per position with its fill and PnL, and Done on `secondary-raised`.
 
 Not retaken yet: a venue tab during a live best-price lift, stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.
