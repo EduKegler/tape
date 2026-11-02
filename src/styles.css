@@ -50,6 +50,8 @@
 
   --spacing: 0.25rem;
 
+  --breakpoint-wide: 85rem;
+
   --radius-*: initial;
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
