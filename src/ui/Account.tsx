@@ -7,6 +7,7 @@ import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Posi
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
+import { CloseAllPanel } from './BatchPanel'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { MovePanel } from './MovePanel'
@@ -61,6 +62,7 @@ function message(session: TradeSession) {
 type Open =
   | { readonly kind: 'position'; readonly symbol: string; readonly tab: PositionTab; readonly from: 'tpsl' | 'close' }
   | { readonly kind: 'order'; readonly ref: OrderRef }
+  | { readonly kind: 'close-all' }
   | null
 
 function AccountBody({
@@ -123,6 +125,26 @@ function AccountBody({
               Equity <span className="num font-medium text-level1">{grouped(snapshot.equity)}</span> · Available{' '}
               <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
             </span>
+          )}
+          {snapshot && caps && tab === 'positions' && (snapshot.positions.length > 0 || open?.kind === 'close-all') && (
+            <Anchored
+              open={open?.kind === 'close-all'}
+              onOpenChange={toggle({ kind: 'close-all' })}
+              trigger={
+                <Button look="action" className="h-6 px-2">
+                  {`Close all${snapshot.positions.length > 0 ? ` ${snapshot.positions.length}` : ''}`}
+                </Button>
+              }
+            >
+              <CloseAllPanel
+                account={account}
+                venue={venue}
+                positions={snapshot.positions}
+                specOf={specOf}
+                caps={caps}
+                onDone={() => setOpen(null)}
+              />
+            </Anchored>
           )}
           {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
             <ConfirmAction

@@ -55,6 +55,9 @@ const recorded = (name: string) => recordedWrite('hyperliquid', name).exchanges[
 
 export const UNKNOWN_OID = recorded('lookupUnknown')
 
+/** One recorded Hyperliquid testnet reply, such as `fill` or `reduceOnly`, as the exchange answers it. */
+export const replyOf = (name: string) => ({ json: recorded(name) })
+
 type RestingReply = { response: { data: { statuses: [{ resting: { oid: number } }] } } }
 
 /** The recorded reply to an order that rests, with the oid a spec tells apart. */

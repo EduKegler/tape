@@ -73,4 +73,10 @@ test('dYdX closes only what fills now and sizes its TP/SL legs', async ({ page, 
   await expect(ruler.getByRole('textbox', { name: 'Take profit return on margin' })).toHaveCount(0)
   await settled(page)
   await expectAccessible(page)
+  await page.keyboard.press('Escape')
+
+  await account.getByRole('button', { name: /^Close all/ }).click()
+  const batch = page.getByRole('dialog', { name: 'Close positions on dYdX' })
+  await expect(batch.getByRole('button', { name: 'Close 1 position at market' })).toBeVisible()
+  await expect(batch.getByRole('radio', { name: 'At mid' })).toHaveCount(0)
 })

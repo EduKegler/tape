@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import { connectWallet, expect, expectAccessible, openMarket, panel, settled, test } from './fixtures'
-import { fakeHyperliquid } from './hyperliquid'
+import { fakeHyperliquid, replyOf } from './hyperliquid'
 import type { ExchangeBody } from './hyperliquid'
 
 const UNIVERSE = (
@@ -10,6 +10,7 @@ const UNIVERSE = (
   ) as { universe: { name: string }[] }
 ).universe.map((asset) => asset.name)
 const BTC = UNIVERSE.indexOf('BTC')
+const ETH = UNIVERSE.indexOf('ETH')
 
 const position = (coin: string, szi: string, entryPx: string, positionValue: string, unrealizedPnl: string) => ({
   type: 'oneWay',
@@ -48,6 +49,7 @@ const state = (positions: readonly unknown[]) => ({
 })
 
 const BTC_LONG = position('BTC', '0.01', '80000.0', '800.0', '0.0')
+const ETH_SHORT = position('ETH', '-0.5', '3000.0', '1500.0', '0.0')
 const RESTING = order('BTC', 41, {})
 const TAKE_PROFIT = order('BTC', 42, {
   side: 'A',
@@ -72,6 +74,10 @@ async function holding(page: Page, positions: readonly unknown[], orders: readon
   await expect(account.getByRole('button', { name: 'Close', exact: true }).first()).toBeVisible()
   return { hyperliquid, account }
 }
+
+/** Answers each order with the next reply queued for its asset. */
+const answering = (replies: Record<number, ReturnType<typeof replyOf>[]>) => (body: ExchangeBody) =>
+  replies[body.action.orders?.[0]?.a ?? -1]?.shift() ?? replyOf('close')
 
 const writes = (sent: readonly ExchangeBody[]) => sent.filter((body) => body.action.type !== 'approveAgent')
 
@@ -170,6 +176,41 @@ test('a resting order moves to a typed price in place', async ({ page, wallet: _
     type: 'batchModify',
     modifies: [{ oid: 41, order: { a: BTC, b: true, p: '70500', s: '0.002', r: false, t: { limit: { tif: 'Gtc' } } } }],
   })
+})
+
+test('close all keeps its report after the last position closes', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page, [BTC_LONG], [])
+  hyperliquid.exchange = () => replyOf('close')
+  await account.getByRole('button', { name: 'Close all 1' }).click()
+  const asking = page.getByRole('dialog', { name: 'Close positions on Hyperliquid' })
+  hyperliquid.account = { ...hyperliquid.account, clearinghouseState: state([]) }
+  await asking.getByRole('button', { name: 'Close 1 position at market' }).click()
+
+  await expect(account.getByText('No open positions.')).toBeVisible()
+  // Hyperliquid testnet's recorded fill of a close: 0.00026 at 77648.0, of a 0.01 long from 80,000,
+  // so (77,648 - 80,000) x 0.00026 = -0.61 realized.
+  await expect(page.getByRole('dialog', { name: 'Closed 1 of 1 on Hyperliquid' }).getByRole('listitem')).toContainText(
+    'Filled 0.00026 BTC at 77,648-0.61',
+  )
+})
+
+test('close all reports each close and retries only the refused one', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page, [BTC_LONG, ETH_SHORT], [])
+  hyperliquid.exchange = answering({ [BTC]: [replyOf('close')], [ETH]: [replyOf('reduceOnly'), replyOf('close')] })
+  await account.getByRole('button', { name: 'Close all 2' }).click()
+  const asking = page.getByRole('dialog', { name: 'Close positions on Hyperliquid' })
+  await expect(asking.getByText(/^One order each, so a refusal leaves the others closed\./)).toBeVisible()
+  await asking.getByRole('button', { name: 'Close 2 positions at market' }).click()
+
+  const batch = page.getByRole('dialog', { name: 'Closed 1 of 2 on Hyperliquid' })
+  // Hyperliquid testnet's recorded fill of a close: 0.00026 at 77648.0.
+  await expect(batch.getByRole('listitem').filter({ hasText: 'BTC' })).toContainText('Filled 0.00026 BTC at 77,648')
+  await expect(batch.getByRole('listitem').filter({ hasText: 'ETH' })).toContainText(
+    'RefusedReduce only order would increase position. asset=3',
+  )
+  await batch.getByRole('button', { name: 'Try ETH again' }).click()
+  await expect.poll(() => writes(hyperliquid.sent).length).toBe(3)
+  expect(writes(hyperliquid.sent).map((body) => body.action.orders?.[0]?.a)).toEqual([BTC, ETH, ETH])
 })
 
 test('the positions table shows mark, return on margin and the legs', async ({ page, wallet: _wallet }) => {
