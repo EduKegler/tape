@@ -49,8 +49,16 @@ export type TradeSession =
       readonly status: 'ready'
       readonly ref: AccountRef
       readonly capabilities: Capabilities
-      readonly forget: () => void
+      readonly forget: KeyForget
     }
+
+export interface KeyForget {
+  /** The venue takes the key back on a wallet signature before the device forgets it. */
+  readonly revokes: boolean
+  readonly run: () => void
+  readonly pending: boolean
+  readonly error: TradeError | null
+}
 
 const ACCOUNT_POLL_MS = 10_000
 const LOOKUP_DELAY_MS = 2_000
@@ -162,6 +170,22 @@ export function useTradeSession(venue: VenueId): TradeSession {
       if (ref) void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
     },
   })
+  const forget = useMutation<undefined, TradeFailure>({
+    networkMode: 'always',
+    mutationFn: async () => {
+      const account = ref!
+      const { revoke, secrets } = TRADING[account.venue]
+      if (revoke)
+        await guard(account.venue, async () => {
+          const provider = toEip1193(await connector!.getProvider())
+          await revoke(contextFor(account), walletSigner(provider, account.owner, switchOrAddChain))
+        })
+      keySlot(account, secrets).clear()
+    },
+    onSettled: () => {
+      if (ref) void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
+    },
+  })
   if (!module) return { status: 'read-only', cause: 'venue-not-traded' }
   if (!sendsOrders(venue)) return { status: 'read-only', cause: 'testnet-only', venue: module.id }
   if (unavailable) return { status: 'unavailable', reason: unavailable }
@@ -171,9 +195,11 @@ export function useTradeSession(venue: VenueId): TradeSession {
       status: 'ready',
       ref,
       capabilities: module.capabilities,
-      forget: () => {
-        keySlot(ref, module.secrets).clear()
-        void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
+      forget: {
+        revokes: Boolean(module.revoke),
+        run: () => forget.mutate(),
+        pending: forget.isPending,
+        error: forget.error?.error ?? null,
       },
     }
   }
@@ -257,11 +283,18 @@ export function useTradeCommands(ref: AccountRef | null) {
     select: (pending) => pending.state.variables,
   })
   const unknown =
-    mutation.error?.error.kind === 'unknown-outcome' && mutation.variables ? sentOrders(mutation.variables) : null
+    mutation.error?.error.kind === 'unknown-outcome' && mutation.variables
+      ? sentOrders(mutation.variables, mutation.submittedAt)
+      : null
   const lookup = useQuery(
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client ids name the write
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client ids and the send time name the write
     queryOptions<OrderLookup, TradeFailure>({
-      queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientIds.join() ?? null],
+      queryKey: [
+        ...(ref ? tradeKeys(ref).all : ['trade', 'none']),
+        'lookup',
+        unknown?.clientIds.join() ?? null,
+        unknown?.trailing?.sentAt ?? null,
+      ],
       queryFn:
         ref && unknown
           ? async () => {

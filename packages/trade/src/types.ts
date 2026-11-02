@@ -1,5 +1,6 @@
 import { isHex } from 'viem'
 import type { Address, Hex } from 'viem'
+import { wireDecimal } from '@tape/core/fixed'
 import type { Brand, Network } from '@tape/core/ids'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
@@ -149,21 +150,29 @@ export interface ProtectIntent {
   readonly stopLoss: ExitEdit
 }
 
-/** What a write sent that its venue can find again by client id, after a send that ended in unknown-outcome. */
+/** What a write sent that its venue can find again, after a send that ended in unknown-outcome. */
 export interface SentOrders {
   readonly venueSymbol: string
   readonly clientIds: readonly ClientOrderId[]
+  /** Hyperliquid's trailingStop action takes no client id, so its order is found by side, size and the time it went out. */
+  readonly trailing?: { readonly side: Side; readonly size: Decimal; readonly sentAt: number }
 }
 
-/** Null for a write that carries no client id: a cancel, a leverage change, or a Hyperliquid trailing stop. */
-export function sentOrders(command: Command): SentOrders | null {
+/** Null for a write that carries no order: a cancel or a leverage change. `sentAt` is when the write went out. */
+export function sentOrders(command: Command, sentAt = Date.now()): SentOrders | null {
   if (command.kind === 'protect') {
     const { spec, takeProfit, stopLoss } = command.intent
     const clientIds = [takeProfit, stopLoss].flatMap((edit) => (edit.kind === 'set' ? [edit.clientId] : []))
     return clientIds.length > 0 ? { venueSymbol: spec.venueSymbol, clientIds } : null
   }
-  if ((command.kind !== 'place' && command.kind !== 'modify') || command.intent.order.kind === 'trailing') return null
+  if (command.kind !== 'place' && command.kind !== 'modify') return null
   const { intent } = command
+  if (intent.order.kind === 'trailing')
+    return {
+      venueSymbol: intent.spec.venueSymbol,
+      clientIds: [],
+      trailing: { side: intent.side, size: toDecimal(wireDecimal(intent.size, intent.spec.scale.qty)), sentAt },
+    }
   return {
     venueSymbol: intent.spec.venueSymbol,
     clientIds: intent.order.kind === 'scale' ? intent.order.legs.map((leg) => leg.clientId) : [intent.clientId],
@@ -209,6 +218,12 @@ export interface OrderExit {
   readonly whole: boolean
 }
 
+/** How a trailing stop trails: from its activation price, or at once when that is null, by a share or a price distance. */
+export interface Trail {
+  readonly activation: Decimal | null
+  readonly retracement: { readonly pct: Decimal } | { readonly px: Decimal }
+}
+
 export interface OpenOrder {
   readonly ref: OrderRef
   readonly symbol: string
@@ -221,6 +236,8 @@ export interface OpenOrder {
   /** False for an order Tape lists but cannot cancel, such as a Hyperliquid spot order. */
   readonly cancelable: boolean
   readonly exit: OrderExit | null
+  /** Set on a trailing stop. Its `px` is the stop it trails at, null until it activates. */
+  readonly trail?: Trail
 }
 
 export interface Fill {
@@ -367,12 +384,14 @@ export interface TradingVenue {
   steps: (ctx: VenueContext) => Promise<readonly SetupStep[]>
   /** Runs the undone steps. A new key is written as draft before the wallet signs for it. */
   enable: (ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void) => Promise<void>
+  /** Has the wallet sign that the venue stops taking orders from the slot's key. Absent where only the device forgets it. */
+  revoke?: (ctx: VenueContext, wallet: WalletSigner) => Promise<void>
   account: (ctx: VenueContext) => Promise<AccountView>
   /** Absent where Tape cannot rebuild the venue's liquidation math. */
   margin?: (ctx: VenueContext, symbol: string) => Promise<MarginState>
   /** Signs with the slot's key, draft or linked, and lets the venue judge. */
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
-  /** Asks the venue for each order by its clientId, after a send that ended in unknown-outcome. */
+  /** Asks the venue for each order it sent, after a send that ended in unknown-outcome. */
   lookup: (ctx: VenueContext, sent: SentOrders) => Promise<OrderLookup>
   /** Every fill and funding payment the venue still serves, read without a key. */
   history: (request: HistoryRequest) => Promise<VenueHistory>

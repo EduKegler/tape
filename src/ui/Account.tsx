@@ -3,10 +3,20 @@ import type { ReactElement, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Base, VenueId } from '@tape/core/ids'
 import { isMovable, leverageOf, orderKindLabel, pnlAt, roeOf } from '@tape/trade/position'
-import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Position } from '@tape/trade/types'
+import type {
+  AccountRef,
+  Capabilities,
+  Command,
+  Fill,
+  OpenOrder,
+  OrderRef,
+  Position,
+  TradeError,
+  Trail,
+} from '@tape/trade/types'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
-import type { TradeSession } from '#/trade/hooks'
+import type { KeyForget, TradeSession } from '#/trade/hooks'
 import { CancelAllPanel, CloseAllPanel } from './BatchPanel'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
@@ -21,6 +31,7 @@ import { specsQuery } from './queries'
 import { domainOf } from './ruler-layout'
 import { TestnetOnly } from './Ticket'
 import { OrderNote, ReadNote } from './TradeNote'
+import { describeError } from './trade-errors'
 import { ErrorMark } from './ErrorMark'
 import { formatAgo, formatPct, formatSigned, groupedAmount } from './format'
 import { armedLeg, ordered, shownPrice, shownSize } from './manage'
@@ -74,7 +85,7 @@ function AccountBody({
   account: AccountRef
   base: Base
   leverage: boolean
-  forget: (() => void) | null
+  forget: KeyForget | null
   capabilities: Capabilities | null
 }) {
   const [tab, setTab] = useState<Tab>('positions')
@@ -173,15 +184,7 @@ function AccountBody({
               onSet={(multiplier) => run({ kind: 'leverage', symbol, leverage: multiplier })}
             />
           )}
-          {forget && (
-            <ConfirmAction
-              label="Forget trading key"
-              question={`Forget the trading key for ${venue} on this device?`}
-              confirm="Forget key"
-              keep="Keep key"
-              onConfirm={forget}
-            />
-          )}
+          {forget && <ForgetKey forget={forget} venue={venue} />}
           <DepositButton account={account} />
           {snapshot && <WithdrawButton account={account} available={snapshot.available} />}
         </span>
@@ -240,6 +243,7 @@ function AccountBody({
           <Orders
             rows={snapshot.orders}
             price={price}
+            quote={(venueSymbol) => specOf(venueSymbol)?.quote}
             size={(order) => size(order.symbol, ordered(order, snapshot.positions))}
             current={open?.kind === 'order' ? open.ref : null}
             busy={(order) => busy({ kind: 'cancel', order: order.ref })}
@@ -279,6 +283,54 @@ function AccountBody({
           <OrderNote error={last.error} outcome={last.outcome} />
         </div>
       )}
+      {forget?.error && (
+        <div className="shrink-0 p-2">
+          <RevokeNote error={forget.error} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ForgetKey({ forget, venue }: { forget: KeyForget; venue: string }) {
+  if (!forget.revokes)
+    return (
+      <ConfirmAction
+        label="Forget trading key"
+        question={`Forget the trading key for ${venue} on this device?`}
+        confirm="Forget key"
+        keep="Keep key"
+        disabled={forget.pending}
+        onConfirm={forget.run}
+      />
+    )
+  return (
+    <ConfirmAction
+      label={forget.pending ? 'Revoking…' : 'Revoke trading key'}
+      question={`Revoke the trading key on ${venue}?`}
+      confirm="Revoke key"
+      keep="Keep key"
+      disabled={forget.pending}
+      onConfirm={forget.run}
+    />
+  )
+}
+
+function RevokeNote({ error }: { error: TradeError }) {
+  const { title, detail } = describeError(error)
+  const unanswered = error.kind === 'unknown-outcome'
+  return (
+    <div role="alert" data-trade-error={error.kind} className="flex gap-1.5 text-sm text-level2">
+      <ErrorMark />
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="font-medium text-level1">
+          <span className="text-err">{unanswered ? 'No answer.' : 'Not revoked.'}</span>{' '}
+          {unanswered
+            ? 'The venue may have revoked the key. It stays on this device until a revoke goes through.'
+            : `The key stays on this device. ${title}`}
+        </p>
+        {detail && <p className="text-xs break-all text-level3">{detail}</p>}
+      </div>
     </div>
   )
 }
@@ -468,9 +520,44 @@ function MiniRuler({ position, tp, sl }: { position: Position; tp: string | null
   )
 }
 
+function TrailTerms({
+  order,
+  trail,
+  price,
+  quote,
+}: {
+  order: OpenOrder
+  trail: Trail
+  price: (symbol: string, value: string) => string
+  quote: string | undefined
+}) {
+  const distance =
+    'pct' in trail.retracement
+      ? `${trail.retracement.pct}%`
+      : [groupedAmount(trail.retracement.px), quote].filter(Boolean).join(' ')
+  const [lead, at] =
+    order.px !== null
+      ? ['Stops at', price(order.symbol, order.px)]
+      : trail.activation !== null
+        ? ['Activates', price(order.symbol, trail.activation)]
+        : [null, null]
+  return (
+    <span className="tabular-nums">
+      {lead && (
+        <>
+          <span className="text-level3">{lead}</span> {at}
+          <span className="text-level3"> · trails</span>
+        </>
+      )}
+      {!lead && <span className="text-level3">Trails</span>} {distance}
+    </span>
+  )
+}
+
 function Orders({
   rows,
   price,
+  quote,
   size,
   current,
   busy,
@@ -479,6 +566,7 @@ function Orders({
 }: {
   rows: readonly OpenOrder[]
   price: (symbol: string, value: string) => string
+  quote: (symbol: string) => string | undefined
   size: (o: OpenOrder) => string
   current: OrderRef | null
   busy: (o: OpenOrder) => boolean
@@ -493,7 +581,9 @@ function Orders({
     {
       header: 'Price',
       cell: (order) =>
-        order.px === null ? (
+        order.trail ? (
+          <TrailTerms order={order} trail={order.trail} price={price} quote={quote(order.symbol)} />
+        ) : order.px === null ? (
           'market'
         ) : (
           <>

@@ -35,6 +35,7 @@ import type {
   SetupStep,
   StepId,
   TradeError,
+  Trail,
   TradingVenue,
   VenueContext,
   WalletSigner,
@@ -491,8 +492,49 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 
 const OrderLookupReply = z.object({ status: z.string(), order: z.object({ status: z.string() }).nullish() })
 
+const HistoricalOrders = z.array(
+  z.object({
+    order: z.object({
+      coin: z.string(),
+      side: z.string(),
+      origSz: z.string(),
+      oid: z.string(),
+      timestamp: z.string(),
+      orderType: z.string(),
+    }),
+    status: z.string(),
+  }),
+)
+/** Hyperliquid stamps an order with its own clock, which the device's clock can run ahead of. */
+const CLOCK_SKEW_MS = 5_000
+
+/**
+ * Hyperliquid refuses a `c` or a `cloid` in the trailingStop action, so its order is the newest
+ * trailing stop on the market with the side and size sent, stamped after the send.
+ */
+async function findTrailing(
+  ctx: VenueContext,
+  venueSymbol: string,
+  trailing: NonNullable<SentOrders['trailing']>,
+): Promise<OrderLookup> {
+  const orders = await info(ctx, { type: 'historicalOrders', user: ctx.ref.owner }, HistoricalOrders)
+  const side = trailing.side === 'buy' ? 'B' : 'A'
+  const found = orders.find(
+    ({ order }) =>
+      order.orderType === 'Trailing Stop Market'
+      && order.coin === venueSymbol
+      && order.side === side
+      && Number(order.origSz) === Number(trailing.size)
+      && Number(order.timestamp) >= trailing.sentAt - CLOCK_SKEW_MS,
+  )
+  return found
+    ? { kind: 'found', detail: `Trailing stop ${found.order.oid} ${found.status}` }
+    : { kind: 'absent', detail: 'Hyperliquid lists no trailing stop like it since it was sent' }
+}
+
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
+  if (sent.trailing) return findTrailing(ctx, sent.venueSymbol, sent.trailing)
   const replies = await Promise.all(
     sent.clientIds.map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
   )
@@ -524,27 +566,51 @@ const HlOrders = z.array(
     isTrigger: z.boolean(),
     triggerPx: z.string(),
     isPositionTpsl: z.boolean().optional(),
+    triggerCondition: z.string().optional(),
   }),
 )
 type HlOrder = z.infer<typeof HlOrders>[number]
+
+/** Hyperliquid states a trailing stop's terms only in prose, as `Activation above 90000, retracement 10%, best waiting`. */
+const TRAIL_TERMS = /^Activation (?:immediate|(?:above|below) (\d+(?:\.\d+)?)), retracement (\d+(?:\.\d+)?)(%?),/
+
+function trailOf(order: HlOrder): Trail | undefined {
+  const terms = order.orderType === 'Trailing Stop Market' ? TRAIL_TERMS.exec(order.triggerCondition ?? '') : null
+  if (!terms) return undefined
+  const [, activation, distance = '', inPercent] = terms
+  return {
+    activation: activation === undefined ? null : toDecimal(activation),
+    retracement: inPercent ? { pct: toDecimal(distance) } : { px: toDecimal(distance) },
+  }
+}
+
+/** A trailing stop that has not activated yet comes with a trigger price of 0. */
+function shownPx(order: HlOrder, trail: Trail | undefined) {
+  if (!order.isTrigger) return toDecimal(order.limitPx)
+  return trail && Number(order.triggerPx) === 0 ? null : toDecimal(order.triggerPx)
+}
 
 const exitOf = (order: HlOrder): OrderExit | null =>
   order.isTrigger && order.reduceOnly
     ? { kind: order.orderType.startsWith('Take Profit') ? 'tp' : 'sl', whole: order.isPositionTpsl === true }
     : null
 
-const openOrderOf = (order: HlOrder, markets: Meta): OpenOrder => ({
-  ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
-  symbol: order.coin,
-  side: order.side === 'B' ? 'buy' : 'sell',
-  kind: order.orderType,
-  px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
-  size: toDecimal(order.sz),
-  reduceOnly: order.reduceOnly,
-  placedAt: Number(order.timestamp),
-  cancelable: markets.has(order.coin),
-  exit: exitOf(order),
-})
+function openOrderOf(order: HlOrder, markets: Meta): OpenOrder {
+  const trail = trailOf(order)
+  return {
+    ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
+    symbol: order.coin,
+    side: order.side === 'B' ? 'buy' : 'sell',
+    kind: order.orderType,
+    px: shownPx(order, trail),
+    size: toDecimal(order.sz),
+    reduceOnly: order.reduceOnly,
+    placedAt: Number(order.timestamp),
+    cancelable: markets.has(order.coin),
+    exit: exitOf(order),
+    ...(trail ? { trail } : {}),
+  }
+}
 
 async function openOrders(ctx: VenueContext): Promise<OpenOrder[]> {
   const [orders, markets] = await Promise.all([
@@ -775,6 +841,27 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   if (key) ctx.keys.write({ ...key, status: 'linked' })
 }
 
+/**
+ * Hyperliquid deregisters a named agent when the wallet approves another address under the same
+ * name, and documents no other way to take one back. The address approved here has a key no one keeps.
+ */
+async function revoke(ctx: VenueContext, wallet: WalletSigner): Promise<void> {
+  const nonce = Date.now()
+  await userAction(
+    ctx,
+    wallet,
+    'HyperliquidTransaction:ApproveAgent',
+    {
+      hyperliquidChain: CHAIN[ctx.ref.network],
+      agentAddress: privateKeyToAccount(generatePrivateKey()).address,
+      agentName: AGENT_NAME,
+      nonce,
+    },
+    { type: 'approveAgent' },
+    nonce,
+  )
+}
+
 /** Page sizes from the info endpoint docs. */
 const FILL_PAGE = 2000
 const FUNDING_PAGE = 500
@@ -890,6 +977,7 @@ export const hyperliquid = {
     network === 'mainnet' && !config.mainnet.has('hyperliquid') ? 'Mainnet trading is off in this build' : null,
   steps,
   enable,
+  revoke,
   account,
   margin,
   execute,

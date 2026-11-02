@@ -278,3 +278,16 @@ test('the positions table shows mark, return on margin and the legs', async ({ p
     '84,000 / —',
   )
 })
+
+test('a trailing stop row reads its activation and how far it trails', async ({ page, wallet: _wallet }) => {
+  // Recorded on testnet: one trailing 800 USDC from 75,563, and one trailing 10% that waits for 90,000.
+  const { frontendOpenOrders } = JSON.parse(
+    readFileSync(new URL('../packages/trade/src/__fixtures__/trailing.hyperliquid.json', import.meta.url), 'utf8'),
+  ) as { frontendOpenOrders: unknown[] }
+  const { account } = await holding(page, [BTC_LONG], frontendOpenOrders)
+  await account.getByRole('radio', { name: 'Orders 2' }).click()
+  await expect(account.getByRole('row', { name: /Trailing stop market/ })).toHaveText([
+    /Stops at 75,563 · trails 800 USDC/,
+    /Activates 90,000 · trails 10%/,
+  ])
+})

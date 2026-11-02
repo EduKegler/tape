@@ -118,17 +118,46 @@ test('positions and orders spell their side out', async ({ page, wallet: _wallet
   await expect(account.getByRole('row', { name: /^BTC Buy / })).toBeVisible()
 })
 
-test('forgetting the trading key sits in the account bar and asks first', async ({ page, wallet: _wallet }) => {
-  const { account } = await holding(page)
-  const ticket = panel(page, 'Order ticket')
-  await expect(ticket.getByRole('button', { name: /Forget/ })).toHaveCount(0)
-  await account.getByRole('button', { name: 'Forget trading key' }).click()
-  const step = account.getByRole('group', { name: 'Forget the trading key for Hyperliquid on this device?' })
-  await expect(step.getByRole('button', { name: 'Forget key' })).toBeFocused()
-  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
+const agentApprovals = (sent: readonly ExchangeBody[]) =>
+  sent.filter((body) => body.action.type === 'approveAgent').map((body) => body.action)
 
-  await step.getByRole('button', { name: 'Forget key' }).click()
+test('revoking the trading key asks first, approves a key no one keeps under its name, then forgets it', async ({
+  page,
+  wallet,
+}) => {
+  const { hyperliquid, account } = await holding(page)
+  const ticket = panel(page, 'Order ticket')
+  await expect(ticket.getByRole('button', { name: /Revoke|Forget/ })).toHaveCount(0)
+  await account.getByRole('button', { name: 'Revoke trading key' }).click()
+  const step = account.getByRole('group', { name: 'Revoke the trading key on Hyperliquid?' })
+  await expect(step.getByRole('button', { name: 'Revoke key' })).toBeFocused()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
+  expect(agentApprovals(hyperliquid.sent)).toHaveLength(1)
+
+  await step.getByRole('button', { name: 'Revoke key' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()
+  // The API wallet docs: approving another address under a named agent's name deregisters that agent.
+  const [enabled, revoked] = agentApprovals(hyperliquid.sent)
+  expect(revoked).toMatchObject({ agentName: 'tape' })
+  expect(revoked?.agentAddress).not.toEqual(enabled?.agentAddress)
+  expect(wallet.askedFor('sign').map((ask) => ask.typedData.primaryType)).toEqual([
+    'HyperliquidTransaction:ApproveAgent',
+    'HyperliquidTransaction:ApproveAgent',
+  ])
+})
+
+test('a revoke Hyperliquid refuses keeps the key and says so', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page)
+  const ticket = panel(page, 'Order ticket')
+  hyperliquid.exchange = () => ({ json: { status: 'err', response: 'User has pending agent removal' } })
+  await account.getByRole('button', { name: 'Revoke trading key' }).click()
+  await account.getByRole('button', { name: 'Revoke key' }).click()
+  const alert = account.getByRole('alert')
+  await expect(alert).toContainText('Not revoked. The key stays on this device. The venue rejected it.')
+  await expect(alert).toContainText('User has pending agent removal')
+  await expect(account.getByRole('button', { name: 'Revoke trading key' })).toBeEnabled()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
+  await expectAccessible(page)
 })
 
 test('leverage starts at the position leverage and refuses a value out of range in the field', async ({

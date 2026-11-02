@@ -483,13 +483,21 @@ test('switching the retracement unit checks the value against the unit picked', 
   await expect(buy).toBeEnabled()
 })
 
-test('a trailing stop write that times out shows an unknown outcome and lets the trader send again', async ({
+test('a trailing stop write that times out is found by side, size and time, since it carries no client id', async ({
   page,
   wallet: _wallet,
   consoleErrors,
 }) => {
   const { hyperliquid, ticket } = await enable(page)
-  hyperliquid.exchange = () => ({ abort: 'timedout' })
+  // A historicalOrders entry as Hyperliquid testnet answered for a trailing stop, stamped when it was sent.
+  hyperliquid.exchange = (body) => {
+    const order = { coin: 'BTC', side: 'B', origSz: '0.002', oid: 77738308, timestamp: body.nonce }
+    hyperliquid.account = {
+      ...hyperliquid.account,
+      historicalOrders: [{ order: { ...order, orderType: 'Trailing Stop Market', cloid: null }, status: 'open' }],
+    }
+    return { abort: 'timedout' }
+  }
   const asked: string[] = []
   hyperliquid.orderStatus = (cloid) => {
     asked.push(cloid)
@@ -498,15 +506,14 @@ test('a trailing stop write that times out shows an unknown outcome and lets the
   await page.getByRole('radio', { name: 'Trailing stop', exact: true }).click()
   await ticket.getByRole('textbox', { name: 'Retracement (%)' }).fill('1')
   await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
-  const buy = ticket.getByRole('button', { name: 'Buy / Long BTC' })
-  await buy.click()
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
 
   const alert = ticket.getByRole('alert')
   await expect(alert).toContainText(
     'Sent, but no answer came back. Check positions, orders and fills before sending again.',
   )
-  await expect(buy).toBeEnabled()
-  await expect(alert).not.toContainText(/about this order|Asking the venue/)
+  await expect(alert).toContainText('The venue has this order. Trailing stop 77738308 open. Do not send it again.')
+  await expect(ticket.getByRole('button', { name: 'The venue has this order' })).toBeDisabled()
   expect(asked).toEqual([])
   expect(trailingStops(hyperliquid.sent)).toHaveLength(1)
   expect(consoleErrors.splice(0).filter((error) => !error.includes(hyperliquid.exchangeUrl))).toEqual([])
