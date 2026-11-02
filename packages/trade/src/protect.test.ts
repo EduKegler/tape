@@ -89,6 +89,20 @@ describe('a position take profit and stop loss', () => {
     expect([bare.takeProfit, bare.stopLoss]).toEqual([{ kind: 'keep' }, { kind: 'keep' }])
   })
 
+  it('keeps the legs there when asked to keep them', () => {
+    const intent = protectIntent(
+      btc,
+      long,
+      orders,
+      { wholeExits: true },
+      {
+        takeProfit: { kind: 'keep' },
+        stopLoss: { kind: 'keep' },
+      },
+    )
+    expect([intent.takeProfit, intent.stopLoss]).toEqual([{ kind: 'keep' }, { kind: 'keep' }])
+  })
+
   it('gives each set leg its own client id', () => {
     const intent = protectIntent(
       btc,

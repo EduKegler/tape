@@ -346,6 +346,12 @@ describe('closing part of a position', () => {
     expect(closeIntent(hl, { ...long, side: 'short' }, { kind: 'mid' })).toMatchObject({ side: 'buy', size: 1230 })
   })
 
+  it('closes part of a position whose whole size is off the step, but not all of it', () => {
+    const dust = { ...long, size: '0.0123456' as Decimal }
+    expect(closeIntent(hl, dust, { kind: 'mid' }, 500 as Qty)).toMatchObject({ side: 'sell', size: 500 })
+    expect(closeIntent(hl, dust, { kind: 'mid' })).toBeNull()
+  })
+
   it('takes a size on the step and no larger than the position', () => {
     expect(checkCloseSize(hl, long, '0.0123')).toBeUndefined()
     expect(checkCloseSize(hl, long, '0.005')).toBeUndefined()

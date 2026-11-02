@@ -94,4 +94,10 @@ describe('sending a close-all', () => {
     })
     expect(await closeEach([], answering({}))).toEqual({ kind: 'done', detail: 'Nothing to close' })
   })
+
+  it('lets a bug in one close escape instead of reporting it as a refusal', async () => {
+    await expect(
+      closeEach(intents, answering({ BTC: filled, ETH: filled, SOL: { kind: 'closed', rows: [], detail: '' } })),
+    ).rejects.toThrow('not an order outcome')
+  })
 })
