@@ -78,7 +78,7 @@ Before a venue ships, its tests prove these:
 | A failed read says what it could not read, never what was sent | `src/ui/trade-errors.test.ts`, and the read failure tests in `e2e/history.mainnet.spec.ts` and `e2e/trading.testnet.spec.ts` |
 | The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |
 | Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
-| Every lint suppression gives its reason after `--` | `eslint-comments/require-description`, and `oxlint-comments/require-description` in `eslint.config.js` for `oxlint-disable` |
+| Every lint suppression gives its reason after `--` | `eslint-comments/require-description`, and `oxlint-comments/directive` in `eslint.config.js` for Oxlint, which also takes only a one-line `oxlint-disable` that names its rule |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | No one-letter names | `id-length` in `eslint.config.js` |
 | No casts that narrow a type outside the constructor that owns it | `typescript/no-unsafe-type-assertion` in `.oxlintrc.json`, off in tests |

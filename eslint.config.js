@@ -88,21 +88,30 @@ const TYPED_RULES = new Set([
   'regexp/no-useless-flag',
 ])
 
-const OXLINT_DIRECTIVE = /^\s*oxlint-(?:disable|enable)/
+const ONE_LINE_DIRECTIVES = ['oxlint-disable-next-line', 'oxlint-disable-line']
 const oxlintComments = {
   rules: {
-    'require-description': {
+    directive: {
       meta: {
         type: 'suggestion',
         schema: [],
-        messages: { missing: 'Give the reason for this oxlint directive after --.' },
+        messages: {
+          block: 'Turn an Oxlint rule off for one line, with oxlint-disable-next-line or oxlint-disable-line.',
+          unnamed: 'Name the Oxlint rule this directive turns off.',
+          reason: 'Give the reason for this oxlint directive after --.',
+        },
       },
       create: (context) => ({
         Program: () => {
           for (const comment of context.sourceCode.getAllComments()) {
-            if (OXLINT_DIRECTIVE.test(comment.value) && !/\s--\s*\S/.test(comment.value)) {
-              context.report({ loc: comment.loc ?? { line: 1, column: 0 }, messageId: 'missing' })
-            }
+            const text = comment.value.trim()
+            if (!/^oxlint-(?:disable|enable)/.test(text)) continue
+            const [head = '', reason = ''] = text.split(/\s--\s/)
+            const [directive = '', ...rules] = head.split(/[\s,]+/)
+            const loc = comment.loc ?? { line: 1, column: 0 }
+            if (!ONE_LINE_DIRECTIVES.includes(directive)) context.report({ loc, messageId: 'block' })
+            else if (rules.length === 0) context.report({ loc, messageId: 'unnamed' })
+            if (reason.trim() === '') context.report({ loc, messageId: 'reason' })
           }
         },
       }),
@@ -169,7 +178,7 @@ const config = [
     plugins: { 'oxlint-comments': oxlintComments },
     rules: {
       '@eslint-community/eslint-comments/require-description': 'error',
-      'oxlint-comments/require-description': 'error',
+      'oxlint-comments/directive': 'error',
     },
   },
   regexp.configs['flat/recommended'],
