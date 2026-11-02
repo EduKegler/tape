@@ -22,7 +22,7 @@ jobs:
         id: changes
         env:
           RANGE: ${{ github.event.before }}..${{ github.sha }}
-        run: node scripts/change-kind.mjs "$RANGE"
+        run: node scripts/change-kind.ts "$RANGE"
       - run: pnpm install --frozen-lockfile
       - name: trees verified by earlier runs of the pull request
         if: github.event_name == 'pull_request'
@@ -64,7 +64,7 @@ jobs:
         id: changes
         env:
           RANGE: ${{ github.event_name == 'pull_request' && format('origin/{0}...HEAD', github.base_ref) || format('{0}..{1}', github.event.before, github.sha) }}
-        run: node scripts/change-kind.mjs "$RANGE"
+        run: node scripts/change-kind.ts "$RANGE"
       - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
         run: pnpm install --frozen-lockfile
       - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'

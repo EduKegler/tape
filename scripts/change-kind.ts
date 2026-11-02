@@ -2,17 +2,19 @@ import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const isDoc = (path) => path.endsWith('.md')
-const isTest = (path) => /\.test\.tsx?$/.test(path) && !/(?:^|\/)(?:e2e|__fixtures__)\//.test(path)
+const isDoc = (path: string) => path.endsWith('.md')
+const isTest = (path: string) => /\.test\.tsx?$/.test(path) && !/(?:^|\/)(?:e2e|__fixtures__)\//.test(path)
 
-export const changeKind = (paths) => {
+export type ChangeKind = 'code' | 'docs' | 'tests'
+
+export const changeKind = (paths: readonly string[]): ChangeKind => {
   if (paths.length === 0) return 'code'
   if (paths.every(isDoc)) return 'docs'
   if (paths.every((path) => isDoc(path) || isTest(path))) return 'tests'
   return 'code'
 }
 
-export const changedFiles = (range, env = process.env) => {
+export const changedFiles = (range: string, env = process.env): string[] => {
   try {
     return execFileSync('git', ['diff', '--name-only', '--no-renames', '-z', range], {
       encoding: 'utf8',

@@ -38,7 +38,7 @@ jobs:
         id: changes
         env:
           RANGE: ${{ inputs.range }}
-        run: node scripts/change-kind.mjs "$RANGE"
+        run: node scripts/change-kind.ts "$RANGE"
       - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
         run: pnpm install --frozen-lockfile
       - name: the build variables of the network's environment
