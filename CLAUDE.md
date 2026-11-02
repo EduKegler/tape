@@ -20,7 +20,7 @@ Every commit passes `pnpm verify` on its own, which sets the order: the cleanup 
 
 ## Pull requests
 
-A PR carries a whole ticket or plan block, and tickets on the same area go in one PR. A PR goes out on its own only when it fixes a red `main` or a broken workflow. Branch each PR from `main`, never from another open PR. Each PR costs at least two CI runs with the e2e job, one per push to it and one for the merge to `main`. This overrides the pstack Opening a PR playbook, which prefers narrow PRs and treats each commit as a future PR.
+A PR carries one ticket. Tickets go in one PR only when they touch the same files. Branch each PR from `main`, never from another open PR. Each PR costs two CI runs of about 4 minutes, one per push to it and one for the merge to `main`, and a small PR is easier to review and to revert.
 
 ## Comments
 
@@ -89,7 +89,7 @@ Before a venue ships, its tests prove these:
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
 | The testnet build shows each venue's live book | the `smoke` job in `.github/workflows/nightly.yml` |
 | One logical change per commit | review only |
-| A PR carries a whole ticket or plan block | review only |
+| A PR carries one ticket, and tickets that touch the same files share one | review only |
 | A test's expected value comes from outside the code under test | review only |
 | Comments only for constraints from outside the repo | review only |
 | StrykerJS runs only in its own worktree, with `.claude/worktrees/**` in `ignorePatterns`, and the mode of `.claude/skills/verify-tape/scripts/verify-tape.mjs` is restored after each `inPlace` run | review only |
