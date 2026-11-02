@@ -10,33 +10,40 @@ export function StatusBar() {
     >
       {stats ? (
         <>
-          <span title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab.">
-            <span className="uppercase">Hub</span> <span className="num text-level2">{stats.mode}</span>
+          <span
+            title="SharedWorker shares one socket per venue across tabs. Dedicated runs one hub per tab."
+            className="flex items-center gap-1.5"
+          >
+            <span aria-hidden className={`size-1.5 rounded-sm ${offline ? 'bg-warn' : 'bg-live'}`} />
+            <span className="tracking-wider uppercase">Hub</span>{' '}
+            <span className="num font-medium text-level2">{stats.mode}</span>
           </span>
           <span>
-            <span className="uppercase">Tabs</span> <span className="num text-level2">{stats.tabs}</span>
+            <span className="tracking-wider uppercase">Tabs</span>{' '}
+            <span className="num font-medium text-level2">{stats.tabs}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span>
-              <span className="uppercase">Sockets</span>{' '}
-              <span className={`num ${offline ? 'text-warn' : 'text-level2'}`}>{stats.sockets}</span>
+              <span className="tracking-wider uppercase">Sockets</span>{' '}
+              <span className={`num font-medium ${offline ? 'text-warn' : 'text-level2'}`}>{stats.sockets}</span>
             </span>
             <span aria-hidden className="flex gap-0.5">
               {Array.from({ length: stats.sockets }, (_, index) => (
-                <span key={index} className="size-1.5 rounded-sm bg-level2" />
+                <span key={index} className="size-1.5 rounded-sm bg-live" />
               ))}
             </span>
           </span>
           <span>
-            <span className="uppercase">Streams</span> <span className="num text-level2">{stats.streams}</span>
+            <span className="tracking-wider uppercase">Streams</span>{' '}
+            <span className="num font-medium text-level2">{stats.streams}</span>
           </span>
           <span>
-            <span className="uppercase">In</span> <span className="num text-level2">{stats.messagesPerSecond}</span>{' '}
-            msg/s
+            <span className="tracking-wider uppercase">In</span>{' '}
+            <span className="num font-medium text-level2">{stats.messagesPerSecond}</span> msg/s
           </span>
           <span>
-            <span className="uppercase">Out</span> <span className="num text-level2">{stats.framesPerSecond}</span>{' '}
-            frames/s
+            <span className="tracking-wider uppercase">Out</span>{' '}
+            <span className="num font-medium text-level2">{stats.framesPerSecond}</span> frames/s
           </span>
         </>
       ) : (

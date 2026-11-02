@@ -23,6 +23,7 @@
   --ask-volume: rgb(247 84 102 / 0.28);
   --warn: #e2a93b;
   --err: #ff8466;
+  --live: #2ebd85;
   --selection: rgb(239 235 226 / 0.2);
   --option: rgb(236 235 232 / 0.06);
   --option-hover: rgb(236 235 232 / 0.1);
@@ -42,6 +43,7 @@
   --text-base: 13px;
   --text-lg: 18px;
   --text-xl: 22px;
+  --text-2xl: 24px;
 
   --font-weight-*: initial;
   --font-weight-normal: 400;
@@ -173,6 +175,7 @@
   --color-ask-wash: var(--ask-wash);
   --color-warn: var(--warn);
   --color-err: var(--err);
+  --color-live: var(--live);
   --color-option: var(--option);
   --color-option-hover: var(--option-hover);
 }

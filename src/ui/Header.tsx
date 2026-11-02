@@ -10,7 +10,6 @@ import { formatCompact, formatPct } from './format'
 import { HistoryLink } from './HistoryLink'
 import { MarketSearch } from './MarketSearch'
 import { TopicStatus } from './PanelStatus'
-import { LINK_LOOK } from './primitives'
 import { statsQuery } from './queries'
 import { SideMark } from './SideMark'
 import { MARK } from './TapeMark'
@@ -37,7 +36,7 @@ export function Header({ venue, base }: { venue: VenueId; base: Base }) {
       <MarketSearch venue={venue} />
       <Ticker venue={venue} base={base} />
       <div className="ml-auto flex shrink-0 items-center gap-4">
-        <HistoryLink className={`text-base font-medium ${LINK_LOOK}`}>History</HistoryLink>
+        <HistoryLink className="text-sm font-medium text-level1 hover:text-level2">History</HistoryLink>
         <WalletButton />
       </div>
     </header>
@@ -68,7 +67,7 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
         <div>
           <dt className="sr-only">Last price</dt>
           <dd
-            className={`num flex items-center gap-1.5 text-xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+            className={`num flex items-center gap-1.5 text-2xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
           >
             {last.side && (
               <>
@@ -103,7 +102,7 @@ function Stat({ label, value, tone = '' }: { label: string; value: string; tone?
   return (
     <div className="flex flex-col leading-tight">
       <dt className="text-xs text-level3">{label}</dt>
-      <dd className={`num font-medium ${tone || 'text-level1'}`}>{value}</dd>
+      <dd className={`num text-sm font-medium ${tone || 'text-level1'}`}>{value}</dd>
     </div>
   )
 }
