@@ -129,8 +129,28 @@ export type Command =
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
   /** Replaces a resting limit with the intent's price and size. The intent carries a new client id. */
   | { readonly kind: 'modify'; readonly order: OrderRef; readonly intent: OrderIntent }
+  | { readonly kind: 'protect'; readonly intent: ProtectIntent }
   /** One reduce-only order per position, each sent and reported on its own. */
   | { readonly kind: 'close-all'; readonly intents: readonly OrderIntent[] }
+
+/**
+ * One kind of exit on a position: left alone, removed, or set to a trigger price. `legs` are the
+ * orders that stand for it now, which a set replaces and a remove cancels.
+ */
+export type ExitEdit =
+  | { readonly kind: 'keep' }
+  | { readonly kind: 'remove'; readonly legs: readonly OrderRef[] }
+  | { readonly kind: 'set'; readonly px: Px; readonly clientId: ClientOrderId; readonly legs: readonly OrderRef[] }
+
+/** A take profit and a stop loss that close the whole position at market once the trigger trades. */
+export interface ProtectIntent {
+  readonly spec: MarketSpec
+  readonly position: 'long' | 'short'
+  /** The position's size, for a venue whose exits carry one. */
+  readonly size: Qty
+  readonly takeProfit: ExitEdit
+  readonly stopLoss: ExitEdit
+}
 
 /** What a write sent that its venue can find again by client id, after a send that ended in unknown-outcome. */
 export interface SentOrders {
@@ -140,6 +160,11 @@ export interface SentOrders {
 
 /** Null for a write that carries no client id: a cancel, a leverage change, or a Hyperliquid trailing stop. */
 export function sentOrders(command: Command): SentOrders | null {
+  if (command.kind === 'protect') {
+    const { spec, takeProfit, stopLoss } = command.intent
+    const clientIds = [takeProfit, stopLoss].flatMap((edit) => (edit.kind === 'set' ? [edit.clientId] : []))
+    return clientIds.length > 0 ? { venueSymbol: spec.venueSymbol, clientIds } : null
+  }
   if ((command.kind !== 'place' && command.kind !== 'modify') || command.intent.order.kind === 'trailing') return null
   const { intent } = command
   return {
@@ -235,6 +260,8 @@ export interface Capabilities {
   readonly trailingStop: boolean
   /** A reduce-only limit can rest on the book. False where the venue takes reduce-only only as IOC. */
   readonly restingReduceOnly: boolean
+  /** A take profit or stop loss can close the whole position at whatever size it reaches. False where each carries a size. */
+  readonly wholeExits: boolean
 }
 
 export type TradeError =

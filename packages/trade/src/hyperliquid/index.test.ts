@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address } from 'viem'
+import { parsePx } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { closeIntents } from '../close-all'
 import { recordedWrite } from '../fixtures'
-import { buildIntent, closeIntent, closeTif } from '../intent'
+import { buildIntent, closeIntent, closeTif, newClientId } from '../intent'
 import type { TakeProfitDraft } from '../intent'
 import { TradeFailure, sentOrders, toDecimal } from '../types'
-import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext, WalletSigner } from '../types'
+import type { Bps, Command, ExitEdit, KeySlot, OrderRef, StoredKey, VenueContext, WalletSigner } from '../types'
 import { hyperliquid } from '.'
 
 const owner: Address = '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b'
@@ -538,6 +539,102 @@ describe('hyperliquid order edits', () => {
       detail: 'An edit is a limit with no take profit or stop loss',
     })
     expect(posts()).toEqual([])
+  })
+})
+
+describe('hyperliquid position take profit and stop loss', () => {
+  const px = (text: string) => parsePx(text, btc.scale)
+  const protect = (takeProfit: ExitEdit, stopLoss: ExitEdit): Command => ({
+    kind: 'protect',
+    intent: { spec: btc, position: 'long', size: 26 as Qty, takeProfit, stopLoss },
+  })
+  const set = (trigger: string, legs: OrderRef[] = []): ExitEdit => ({
+    kind: 'set',
+    px: px(trigger),
+    clientId: newClientId(),
+    legs,
+  })
+  const actionOf = (name: string) =>
+    (recordedWrite('hyperliquid', name).exchanges[0]!.request as { action: Record<string, unknown> }).action
+  const withCloids = (orders: Record<string, unknown>[], edits: ExitEdit[]) =>
+    orders.map((order, index) => {
+      const edit = edits[index]!
+      return edit.kind === 'set' ? { ...order, c: edit.clientId } : order
+    })
+
+  // positionTpslZero is recorded on testnet: both legs at size 0, grouped positionTpsl, each waiting for its trigger.
+  // The stop bound is 46580 less 10%, 41922. The take profit bound is 116512 less 10%, 104860.8, which a sell
+  // takes up to 104861, since Hyperliquid allows any integer price. The recorder rounded it down to 104860.
+  it('adds a take profit and a stop loss for the whole position in one positionTpsl order', async () => {
+    const edits = [set('116512'), set('46580')]
+    const { ctx, posts } = venue(replied('positionTpslZero'))
+    expect(await hyperliquid.execute(ctx, protect(edits[0]!, edits[1]!))).toEqual({
+      kind: 'done',
+      detail: 'Take profit at 116512, stop loss at 46580',
+    })
+    const recordedOrders = actionOf('positionTpslZero').orders as Record<string, unknown>[]
+    expect(posts().map((post) => post.body.action)).toEqual([
+      {
+        ...actionOf('positionTpslZero'),
+        orders: withCloids([{ ...recordedOrders[0], p: '104861' }, recordedOrders[1]!], edits),
+      },
+    ])
+  })
+
+  // modifyWhole moved recorded leg 64334764485 to 112628 at size 0, and it stayed a whole-position leg. The bound
+  // is 112628 less 10%, 101365.2, up to the integer 101366 for a sell, where the recorder rounded to 101365.
+  it('moves the leg that stands for the position with batchModify, at size 0', async () => {
+    const edit = set('112628', ['3:64334764485' as OrderRef])
+    const { ctx, posts } = venue(replied('modifyWhole'))
+    expect(await hyperliquid.execute(ctx, protect(edit, { kind: 'keep' }))).toEqual({
+      kind: 'done',
+      detail: 'Take profit at 112628',
+    })
+    const recordedModify = (actionOf('modifyWhole').modifies as { oid: number; order: Record<string, unknown> }[])[0]!
+    expect(posts().map((post) => post.body.action)).toEqual([
+      {
+        type: 'batchModify',
+        modifies: [{ oid: 64334764485, order: withCloids([{ ...recordedModify.order, p: '101366' }], [edit])[0] }],
+      },
+    ])
+  })
+
+  // cancelTpsl canceled recorded leg 64334763008.
+  it('removes a leg with a cancel, after the other leg is set, and cancels extra legs of a kind', async () => {
+    const replies = [recorded('modifyWhole'), recorded('cancelTpsl')]
+    const { ctx, posts } = venue(() => json(replies.shift()))
+    const edit = set('112628', ['3:64334764485' as OrderRef, '3:64334763007' as OrderRef])
+    expect(
+      await hyperliquid.execute(ctx, protect(edit, { kind: 'remove', legs: ['3:64334763008' as OrderRef] })),
+    ).toEqual({ kind: 'done', detail: 'Take profit at 112628, stop loss removed' })
+    expect(posts().map((post) => post.body.action)).toEqual([
+      expect.objectContaining({ type: 'batchModify' }),
+      {
+        type: 'cancel',
+        cancels: [
+          { a: 3, o: 64334763007 },
+          { a: 3, o: 64334763008 },
+        ],
+      },
+    ])
+  })
+
+  it('cancels nothing when Hyperliquid refuses the new leg, so the old one still stands', async () => {
+    const { ctx, posts } = venue(replied('modifyFilled'))
+    const edit = set('112628', ['3:64334764485' as OrderRef])
+    expect(
+      await failureOf(hyperliquid.execute(ctx, protect(edit, { kind: 'remove', legs: ['3:1' as OrderRef] }))),
+    ).toEqual({ kind: 'rejected', detail: 'Cannot modify canceled or filled order' })
+    expect(posts()).toHaveLength(1)
+  })
+
+  it('finds a leg it set by the new client id after an unknown outcome', () => {
+    const edit = set('112628')
+    expect(sentOrders(protect(edit, { kind: 'remove', legs: [] }))).toEqual({
+      venueSymbol: 'BTC',
+      clientIds: [edit.kind === 'set' && edit.clientId],
+    })
+    expect(sentOrders(protect({ kind: 'keep' }, { kind: 'remove', legs: [] }))).toBeNull()
   })
 })
 

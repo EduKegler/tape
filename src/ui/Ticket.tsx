@@ -80,6 +80,7 @@ const NO_CAPS: Capabilities = {
   scaleOrders: 0,
   trailingStop: false,
   restingReduceOnly: true,
+  wholeExits: true,
 }
 const NO_ERRORS: Partial<Record<DraftField, string>> = {}
 type FieldShape = {

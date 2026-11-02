@@ -34,6 +34,7 @@ const COMMANDS = {
   'cancel-all': true,
   leverage: true,
   modify: true,
+  protect: true,
   'close-all': true,
 } satisfies Record<Command['kind'], true>
 

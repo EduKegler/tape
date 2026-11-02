@@ -375,6 +375,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       return closeEach(command.intents, (intent) => place(ctx, intent))
     case 'modify':
       return modify(ctx, command.order, command.intent)
+    case 'protect':
+      return fail({ kind: 'unsupported', detail: 'Tape sets no position take profit or stop loss on Orderly yet' })
     case 'cancel': {
       const [symbol, id] = command.order.split(':')
       try {
@@ -703,6 +705,7 @@ export const orderly = {
     scaleOrders: BATCH_ORDERS,
     trailingStop: false,
     restingReduceOnly: true,
+    wholeExits: true,
   },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {

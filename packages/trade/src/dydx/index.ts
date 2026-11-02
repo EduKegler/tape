@@ -457,6 +457,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       return closeEach(command.intents, (intent) => place(ctx, intent))
     case 'modify':
       return modify(ctx, command.order, command.intent)
+    case 'protect':
+      return fail({ kind: 'unsupported', detail: 'Tape sets no position take profit or stop loss on dYdX yet' })
     case 'cancel':
       await cancel(ctx, command.order)
       return { kind: 'done', detail: 'Cancel broadcast' }
@@ -665,6 +667,7 @@ export const dydx = {
     scaleOrders: 0,
     trailingStop: false,
     restingReduceOnly: false,
+    wholeExits: false,
   },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>
