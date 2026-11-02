@@ -332,9 +332,9 @@ export interface KeySlot {
   clear: () => void
 }
 
-/** Null builder means no fee, null broker means the network is off. */
+/** Mainnet names the venues that send orders on mainnet. Null builder means no fee, null broker means the network is off. */
 export interface TradeConfig {
-  readonly mainnet: boolean
+  readonly mainnet: ReadonlySet<TradeVenueId>
   readonly hyperliquid: { readonly builder: { readonly b: Address; readonly f: number } | null }
   readonly dydx: { readonly builder: { readonly builderAddress: string; readonly feePpm: number } | null }
   readonly orderly: { readonly brokerId: { readonly mainnet: string | null; readonly testnet: string } }

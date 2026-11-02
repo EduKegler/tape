@@ -202,7 +202,7 @@ async function recordHyperliquid(keyFile: string) {
   const ctx = (key: Hex, user: Address): VenueContext => ({
     ref: { venue: 'hyperliquid', network: 'testnet', owner: user },
     config: {
-      mainnet: false,
+      mainnet: new Set(),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: null, testnet: 'demo' } },
@@ -560,7 +560,7 @@ async function recordDydx() {
   const ctx = (secret: string, dydxAddress: string): VenueContext => ({
     ref: { venue: 'dydx', network: 'testnet', owner: evm.address.toLowerCase() as Address },
     config: {
-      mainnet: false,
+      mainnet: new Set(),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: null, testnet: 'demo' } },
@@ -691,7 +691,7 @@ async function recordOrderly() {
   const ctxOf = (evm: ReturnType<typeof privateKeyToAccount>, keys: KeySlot): VenueContext => ({
     ref: { venue: 'orderly', network: 'testnet', owner: evm.address.toLowerCase() as Address },
     config: {
-      mainnet: false,
+      mainnet: new Set(),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: null, testnet: ORDERLY_BROKER } },

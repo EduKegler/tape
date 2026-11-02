@@ -24,7 +24,7 @@ import { accountId, orderlyKey } from './sign'
 const VAULT: Address = '0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9'
 const ARBITRUM_USDC: Address = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 const config = (mainnet: string | null): TradeConfig => ({
-  mainnet: true,
+  mainnet: new Set(['hyperliquid', 'dydx', 'orderly']),
   hyperliquid: { builder: null },
   dydx: { builder: null },
   orderly: { brokerId: { mainnet, testnet: 'demo' } },

@@ -50,7 +50,7 @@ Preconditions:
 - Errors only show after the field is touched. Pass `--blur` to `fill`, or click submit.
 - With a `group` in the URL, the book rows are grouped but the `Bid` and `Ask` hints stay on the exact touch.
 - Quote currency depends on venue: `USDT` on Binance, `USDC` on Hyperliquid and Orderly, `USD` on dYdX.
-- Mainnet trading needs `VITE_TRADE_MAINNET=1` at build time. The harness build has it off, so mainnet is never sendable here.
+- Mainnet trading needs the venue in `VITE_TRADE_MAINNET`, a comma list of venue ids such as `hyperliquid`, at build time. The harness build has it off, so mainnet is never sendable here.
 - The ticket resets when the market or the wallet changes, because it remounts on each.
 - `Scale` and `Trailing stop` only show once the wallet is connected, because the venue's capabilities come with the session.
 - With TP/SL open the ticket is taller than the panel. The panel scrolls, and `vt click` scrolls to its target.

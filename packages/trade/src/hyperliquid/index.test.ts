@@ -105,7 +105,7 @@ function venue(
   const ctx: VenueContext = {
     ref: { venue: 'hyperliquid', network: 'testnet', owner },
     config: {
-      mainnet: false,
+      mainnet: new Set(),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: null, testnet: 'demo' } },

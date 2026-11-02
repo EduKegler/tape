@@ -777,7 +777,7 @@ export const dydx = {
   },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>
-    network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
+    network === 'mainnet' && !config.mainnet.has('dydx') ? 'Mainnet trading is off in this build' : null,
   steps,
   enable,
   account,

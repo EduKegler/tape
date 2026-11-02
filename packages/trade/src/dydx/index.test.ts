@@ -88,7 +88,7 @@ const btc: MarketSpec = {
 const ctx: VenueContext = {
   ref: { venue: 'dydx', network: 'testnet', owner: '0x9f3c2b1a0e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b' },
   config: {
-    mainnet: false,
+    mainnet: new Set(),
     hyperliquid: { builder: null },
     dydx: { builder: null },
     orderly: { brokerId: { mainnet: null, testnet: 'demo' } },

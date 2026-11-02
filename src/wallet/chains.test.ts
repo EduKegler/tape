@@ -5,7 +5,7 @@ import type { TradeConfig } from '@tape/trade/types'
 import { CHAINS } from './chains'
 
 const config: TradeConfig = {
-  mainnet: true,
+  mainnet: new Set(['hyperliquid', 'dydx', 'orderly']),
   hyperliquid: { builder: null },
   dydx: { builder: null },
   orderly: { brokerId: { mainnet: 'tape', testnet: 'demo' } },

@@ -49,7 +49,7 @@ function margin(symbol: string, answers: { mode?: string; positions?: unknown[];
   const ctx: VenueContext = {
     ref: { venue: 'hyperliquid', network: 'mainnet', owner },
     config: {
-      mainnet: true,
+      mainnet: new Set(['hyperliquid', 'dydx', 'orderly']),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: 'tape', testnet: 'demo' } },

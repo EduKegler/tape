@@ -1,20 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import type { TradeConfig } from './types'
+import type { TradeConfig, TradeVenueId } from './types'
 import { isTradeVenue } from './types'
 import { TRADING } from './index'
 
-const build = (mainnet: boolean): TradeConfig => ({
-  mainnet,
+const OFF = 'Mainnet trading is off in this build'
+const VENUES = Object.values(TRADING)
+
+const build = (mainnet: readonly TradeVenueId[]): TradeConfig => ({
+  mainnet: new Set(mainnet),
   hyperliquid: { builder: null },
   dydx: { builder: null },
   orderly: { brokerId: { mainnet: 'tape', testnet: 'demo' } },
 })
 
 describe('mainnet guard', () => {
-  it.each(Object.values(TRADING))('keeps $label off mainnet unless the build turns mainnet trading on', (venue) => {
-    expect(venue.unavailable('mainnet', build(false))).toBe('Mainnet trading is off in this build')
-    expect(venue.unavailable('mainnet', build(true))).toBeNull()
-    expect(venue.unavailable('testnet', build(false))).toBeNull()
+  it.each(VENUES)('keeps $label off mainnet unless the build turns mainnet trading on for it', (venue) => {
+    const others = VENUES.filter((other) => other.id !== venue.id).map((other) => other.id)
+    expect(venue.unavailable('mainnet', build([]))).toBe(OFF)
+    expect(venue.unavailable('mainnet', build(others))).toBe(OFF)
+    expect(venue.unavailable('mainnet', build([venue.id]))).toBeNull()
+    expect(venue.unavailable('testnet', build([]))).toBeNull()
+  })
+
+  it.each(VENUES)('turns on no other venue when the build turns $label on', (venue) => {
+    for (const other of VENUES.filter((candidate) => candidate.id !== venue.id))
+      expect(other.unavailable('mainnet', build([venue.id]))).toBe(OFF)
   })
 })
 

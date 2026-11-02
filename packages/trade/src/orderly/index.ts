@@ -884,7 +884,7 @@ export const orderly = {
   },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {
-    if (network === 'mainnet' && !config.mainnet) return 'Mainnet trading is off in this build'
+    if (network === 'mainnet' && !config.mainnet.has('orderly')) return 'Mainnet trading is off in this build'
     return brokerOf(config, network) ? null : 'No Orderly broker id is configured'
   },
   steps,

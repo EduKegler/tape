@@ -887,7 +887,7 @@ export const hyperliquid = {
     wholeExits: true,
   },
   unavailable: (network, config) =>
-    network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
+    network === 'mainnet' && !config.mainnet.has('hyperliquid') ? 'Mainnet trading is off in this build' : null,
   steps,
   enable,
   account,
