@@ -170,7 +170,9 @@ test('a scale order sends one leg per row of the list the ticket shows', async (
   await ticket.getByRole('textbox', { name: 'End price' }).fill('72000')
   await ticket.getByRole('textbox', { name: 'Orders' }).fill('3')
   await ticket.getByRole('textbox', { name: 'Total size (BTC)' }).fill('0.003')
-  const legs = ticket.getByRole('list', { name: 'Scale orders' }).getByRole('listitem')
+  const list = ticket.getByRole('list', { name: 'Scale orders' })
+  await expect(list).toBeVisible()
+  const legs = list.getByRole('listitem')
   await expect(legs).toHaveCount(3)
   const rows = (await legs.allInnerTexts()).map((row) =>
     row.split(/\s+/).map((cell) => Number(cell.replaceAll(',', ''))),

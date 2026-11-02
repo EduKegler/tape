@@ -722,7 +722,7 @@ function averageEntry(spec: MarketSpec, side: Side, legs: readonly Slice[]): Pre
 
 function ScaleLegs({ spec, legs }: { spec: MarketSpec; legs: readonly Slice[] }) {
   return (
-    <ol aria-label="Scale orders" className="num flex max-h-40 flex-col gap-0.5 overflow-y-auto text-sm">
+    <ol aria-label="Scale orders" className="num flex max-h-40 shrink-0 flex-col gap-0.5 overflow-y-auto text-sm">
       {legs.map((leg) => (
         <li key={leg.px} className="flex justify-between">
           <span className="text-level3">{formatPx(leg.px, spec.scale)}</span>
