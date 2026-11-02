@@ -229,10 +229,15 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
     busy.current = false
   }
 
-  const enter = () => {
+  const enter = (retry = true) => {
+    const root = body.current
+    // React attaches the Popover's refs after the panel's layout effect on mount, so the open reads them a microtask later.
+    if (!root && retry) {
+      queueMicrotask(() => enter(false))
+      return
+    }
     const pending = entry.current
     entry.current = null
-    const root = body.current
     if (!pending || !root) return
     const reduced = reducedMotion()
     if (pending.kind === 'open') {
@@ -324,7 +329,7 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
         initialFocus={() => body.current?.querySelector<HTMLElement>('[data-focus]') ?? null}
         finalFocus={() => chip.current ?? (opener.current?.isConnected ? opener.current : null)}
       >
-        <Panel view={view} wallets={wallets} onEnter={enter} onChoose={choose} onBack={back} />
+        <Panel view={view} wallets={wallets} onEnter={() => enter()} onChoose={choose} onBack={back} />
       </Popover>
     </FlowContext>
   )
