@@ -4,6 +4,12 @@ export function describeError(error: TradeError): { readonly title: string; read
   switch (error.kind) {
     case 'wallet-rejected':
       return { title: 'You declined in the wallet.', detail: null }
+    case 'nondeterministic-wallet':
+      return {
+        title:
+          'Your wallet signed the same request two different ways, so each tab would get a different account. Connect another wallet to trade here.',
+        detail: null,
+      }
     case 'needs-setup':
       return { title: 'The venue is missing a setup step. Enable trading again.', detail: error.detail }
     case 'no-account':
@@ -32,6 +38,7 @@ export function describeError(error: TradeError): { readonly title: string; read
 
 const ORDER_RESULT: Record<TradeError['kind'], string> = {
   'wallet-rejected': 'Not sent',
+  'nondeterministic-wallet': 'Not sent',
   'needs-setup': 'Not sent',
   'no-account': 'Rejected',
   'insufficient-margin': 'Rejected',
