@@ -1,5 +1,6 @@
-import { parseQty, toQty } from '@tape/core/fixed'
+import { parseQty, toPx, toQty } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
+import { priceTick } from '@tape/core/market'
 import type { MarketSpec } from '@tape/core/market'
 import { capitalized } from './protect'
 import { toTick } from './scale-order'
@@ -81,3 +82,15 @@ export const isMovable = (order: Pick<OpenOrder, 'kind' | 'px' | 'exit'>) =>
 
 /** A venue's order type in sentence case: "Stop Market" and "STOP_MARKET" both read "Stop market". */
 export const orderKindLabel = (kind: string) => capitalized(kind.replaceAll('_', ' ').toLowerCase())
+
+/** The tick nearest to `price`, for a price picked off a ruler rather than typed. */
+export function nearestTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, price: number): Px {
+  const units = Math.max(1, Math.round(price * 10 ** spec.scale.px))
+  const tick = priceTick(spec, toPx(units))
+  return toPx(Math.max(tick, Math.round(units / tick) * tick))
+}
+
+/** The decimals a price shows at, those its tick leaves. */
+export function priceDecimals(spec: Pick<MarketSpec, 'scale' | 'tick'>, px: Px): number {
+  return Math.max(0, spec.scale.px - Math.round(Math.log10(priceTick(spec, px))))
+}

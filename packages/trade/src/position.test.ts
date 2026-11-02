@@ -12,8 +12,10 @@ import {
   keptAfter,
   leverageOf,
   marginOf,
+  nearestTick,
   orderKindLabel,
   pnlAt,
+  priceDecimals,
   priceForRoe,
   roeOf,
 } from './position'
@@ -175,5 +177,27 @@ describe('orders', () => {
     expect(orderKindLabel('STOP_LIMIT')).toBe('Stop limit')
     expect(orderKindLabel('TAKE_PROFIT')).toBe('Take profit')
     expect(orderKindLabel('Limit')).toBe('Limit')
+  })
+})
+
+describe('ticks', () => {
+  const btc: MarketSpec = { ...eth, scale: { px: 1, qty: 5 }, tick: { kind: 'sigfig', figures: 5 } }
+
+  it('snaps to the nearest tick', () => {
+    expect(nearestTick(eth, 3042.857)).toBe(parsePx('3042.86', eth.scale))
+    expect(nearestTick(eth, 3042.852)).toBe(parsePx('3042.85', eth.scale))
+    // Five figures at 78,632 leave a whole-dollar tick.
+    expect(nearestTick(btc, 78632.4)).toBe(parsePx('78632', btc.scale))
+    expect(nearestTick(btc, 78636.5)).toBe(parsePx('78637', btc.scale))
+  })
+
+  it('never snaps to zero', () => {
+    expect(nearestTick(eth, 0.001)).toBe(parsePx('0.01', eth.scale))
+  })
+
+  it('shows the decimals the tick leaves', () => {
+    expect(priceDecimals(eth, parsePx('3042.86', eth.scale))).toBe(2)
+    expect(priceDecimals(btc, parsePx('78632', btc.scale))).toBe(0)
+    expect(priceDecimals(btc, parsePx('3520.5', btc.scale))).toBe(1)
   })
 })
