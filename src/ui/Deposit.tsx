@@ -309,7 +309,7 @@ function issueText(issue: DepositIssue, route: DepositRoute, messenger: string |
     case 'chain-rejects':
       return `${chain} would reject this transaction: ${issue.reason}. Nothing was sent.`
     case 'high-fee':
-      return `The fee is ${(issue.bps / 100).toFixed(2)}% of this deposit.`
+      return `The fee should be about ${(issue.bps / 100).toFixed(2)}% of this deposit.`
     case 'no-account':
       return 'The venue has no account for this address yet. Enable trading first, which registers it, then deposit.'
     case 'over-limit':

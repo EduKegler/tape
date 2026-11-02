@@ -225,7 +225,7 @@ describe('Hyperliquid bridge deposit', () => {
 
 describe('Hyperliquid CCTP deposit', () => {
   const base = routeFrom(8453)
-  const fee = feeOnly({ expected: 280_927n, max: 280_927n })
+  const fee = feeOnly({ expected: 263_890n, max: 280_927n })
 
   it('leaves from Base, Optimism and Ethereum on mainnet only', () => {
     expect(DEPOSITS.hyperliquid!.routes('mainnet', config).map((route) => route.chainId)).toEqual([42161, 8453, 10, 1])
@@ -254,7 +254,7 @@ describe('Hyperliquid CCTP deposit', () => {
     expect(base.calls(owner, 100_000_000n, fee, 100_000_000n).map((call) => call.kind)).toEqual(['deposit'])
   })
 
-  it('quotes the padded Fast Transfer fee plus the high forwarding fee, which Circle takes whole', async () => {
+  it('expects the Fast Transfer fee plus the medium forwarding fee and caps it at the padded fee plus the high one', async () => {
     const asked: string[] = []
     const fetch = (async (url: string) => {
       asked.push(url)
@@ -296,9 +296,9 @@ describe('Hyperliquid CCTP deposit', () => {
     expect(await failure(replying({ error: 'busy' }, 500))).toEqual({ kind: 'unreachable', detail: 'Circle 500' })
     const cutOff = (async () => new Response('[{"finalityThreshold":1000,')) as unknown as typeof globalThis.fetch
     expect(await failure(cutOff)).toEqual({ kind: 'unreachable', detail: 'Circle sent an unreadable reply' })
-    expect(await failure(replying([{ finalityThreshold: 2000, minimumFee: 0, forwardFee: { high: 265327 } }]))).toEqual(
-      noFast,
-    )
+    expect(
+      await failure(replying([{ finalityThreshold: 2000, minimumFee: 0, forwardFee: { med: 250890, high: 265327 } }])),
+    ).toEqual(noFast)
     expect(await failure(replying({ code: 0 }))).toEqual(noFast)
   })
 
