@@ -6,14 +6,101 @@ on:
     branches: [main]
 
 jobs:
-  verify:
+  commits:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      pending: ${{ steps.list.outputs.pending }}
+      count: ${{ steps.list.outputs.count }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: trees verified by earlier runs of the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+        run: |
+          gh cache list --ref "$REF" --key verified-tree- --limit 1000 --json key --jq '.[].key' \
+            | sed 's/^verified-tree-//' > "$(git rev-parse --git-common-dir)/tape-verified-trees"
+          wc -l < "$(git rev-parse --git-common-dir)/tape-verified-trees"
+      - name: each commit of the pull request and its merge that no run verified yet
+        id: list
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          pending=$(node scripts/verify-commits.mjs --list "origin/$BASE")
+          echo "$pending" | jq -r '.[] | "\(.subject)\(if .docsOnly then " (markdown only)" else "" end)"'
+          echo "pending=$pending" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq length <<< "$pending")" >> "$GITHUB_OUTPUT"
+
+  commit:
+    needs: commits
+    if: needs.commits.outputs.count != '0'
+    name: commit ${{ matrix.subject }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include: ${{ fromJSON(needs.commits.outputs.pending) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.sha }}
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: the markdown checks of pnpm verify
+        if: matrix.docsOnly
+        run: pnpm verify --docs
+      - name: pnpm verify
+        if: ${{ !matrix.docsOnly }}
+        run: pnpm verify
+      - name: the tree this commit passed with
+        if: ${{ !matrix.docsOnly }}
+        env:
+          TREE: ${{ matrix.tree }}
+        run: echo "$TREE" > .verified-tree
+      - name: keep the tree for later runs of the pull request
+        if: ${{ !matrix.docsOnly }}
+        uses: actions/cache/save@v6
+        with:
+          path: .verified-tree
+          key: verified-tree-${{ matrix.tree }}
+
+  verify:
+    needs: [commits, commit]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: every pending commit of the pull request passed pnpm verify
+        if: github.event_name == 'pull_request'
+        env:
+          COMMITS: ${{ needs.commits.result }}
+          COUNT: ${{ needs.commits.outputs.count }}
+          COMMIT: ${{ needs.commit.result }}
+        run: |
+          echo "listing $COMMITS, $COUNT pending, verifying them $COMMIT"
+          [ "$COMMITS" = success ] && { [ "$COUNT" = 0 ] && [ "$COMMIT" = skipped ] || [ "$COMMIT" = success ]; }
+      - if: github.event_name == 'push'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - if: github.event_name == 'push'
+        uses: pnpm/action-setup@v6
+      - if: github.event_name == 'push'
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -23,25 +110,8 @@ jobs:
         env:
           RANGE: ${{ github.event.before }}..${{ github.sha }}
         run: node scripts/change-kind.ts "$RANGE"
-      - run: pnpm install --frozen-lockfile
-      - name: trees verified by earlier runs of the pull request
-        if: github.event_name == 'pull_request'
-        uses: actions/cache/restore@v6
-        with:
-          path: .git/tape-verified-trees
-          key: verified-trees-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: verified-trees-
-      - name: pnpm verify on each commit of the pull request and its merge
-        if: github.event_name == 'pull_request'
-        env:
-          BASE: ${{ github.base_ref }}
-        run: pnpm verify:commits "origin/$BASE"
-      - name: keep the trees this run verified
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/cache/save@v6
-        with:
-          path: .git/tape-verified-trees
-          key: verified-trees-${{ github.run_id }}-${{ github.run_attempt }}
+      - if: github.event_name == 'push'
+        run: pnpm install --frozen-lockfile
       - name: the markdown checks of pnpm verify
         if: github.event_name == 'push' && steps.changes.outputs.kind == 'docs'
         run: pnpm verify --docs
