@@ -491,8 +491,49 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 
 const OrderLookupReply = z.object({ status: z.string(), order: z.object({ status: z.string() }).nullish() })
 
+const HistoricalOrders = z.array(
+  z.object({
+    order: z.object({
+      coin: z.string(),
+      side: z.string(),
+      origSz: z.string(),
+      oid: z.string(),
+      timestamp: z.string(),
+      orderType: z.string(),
+    }),
+    status: z.string(),
+  }),
+)
+/** Hyperliquid stamps an order with its own clock, which the device's clock can run ahead of. */
+const CLOCK_SKEW_MS = 5_000
+
+/**
+ * Hyperliquid refuses a `c` or a `cloid` in the trailingStop action, so its order is the newest
+ * trailing stop on the market with the side and size sent, stamped after the send.
+ */
+async function findTrailing(
+  ctx: VenueContext,
+  venueSymbol: string,
+  trailing: NonNullable<SentOrders['trailing']>,
+): Promise<OrderLookup> {
+  const orders = await info(ctx, { type: 'historicalOrders', user: ctx.ref.owner }, HistoricalOrders)
+  const side = trailing.side === 'buy' ? 'B' : 'A'
+  const found = orders.find(
+    ({ order }) =>
+      order.orderType === 'Trailing Stop Market'
+      && order.coin === venueSymbol
+      && order.side === side
+      && Number(order.origSz) === Number(trailing.size)
+      && Number(order.timestamp) >= trailing.sentAt - CLOCK_SKEW_MS,
+  )
+  return found
+    ? { kind: 'found', detail: `Trailing stop ${found.order.oid} ${found.status}` }
+    : { kind: 'absent', detail: 'Hyperliquid lists no trailing stop like it since it was sent' }
+}
+
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
 async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
+  if (sent.trailing) return findTrailing(ctx, sent.venueSymbol, sent.trailing)
   const replies = await Promise.all(
     sent.clientIds.map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
   )

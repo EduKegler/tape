@@ -1,0 +1,156 @@
+{
+  "network": "testnet",
+  "recordedAt": "2026-11-02T23:05:40.000Z",
+  "owner": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
+  "coin": "BTC",
+  "frontendOpenOrders": [
+    {
+      "coin": "BTC",
+      "side": "A",
+      "limitPx": "68007.0",
+      "sz": "0.0002",
+      "oid": 64364695537,
+      "timestamp": 1793660715264,
+      "triggerCondition": "Activation immediate, retracement 800, best 76363",
+      "isTrigger": true,
+      "triggerPx": "75563.0",
+      "children": [],
+      "isPositionTpsl": false,
+      "reduceOnly": false,
+      "orderType": "Trailing Stop Market",
+      "origSz": "0.0002",
+      "tif": null,
+      "cloid": null
+    },
+    {
+      "coin": "BTC",
+      "side": "A",
+      "limitPx": "72901.0",
+      "sz": "0.0002",
+      "oid": 64364657300,
+      "timestamp": 1793660678458,
+      "triggerCondition": "Activation above 90000, retracement 10%, best waiting",
+      "isTrigger": true,
+      "triggerPx": "0.0",
+      "children": [],
+      "isPositionTpsl": false,
+      "reduceOnly": false,
+      "orderType": "Trailing Stop Market",
+      "origSz": "0.0002",
+      "tif": null,
+      "cloid": null
+    }
+  ],
+  "historicalOrders": [
+    {
+      "order": {
+        "coin": "BTC",
+        "side": "A",
+        "limitPx": "68047.0",
+        "sz": "0.0002",
+        "oid": 64364695537,
+        "timestamp": 1793660715264,
+        "triggerCondition": "Activation immediate, retracement 800, best 76407",
+        "isTrigger": true,
+        "triggerPx": "75607.0",
+        "children": [],
+        "isPositionTpsl": false,
+        "reduceOnly": false,
+        "orderType": "Trailing Stop Market",
+        "origSz": "0.0002",
+        "tif": null,
+        "cloid": null
+      },
+      "status": "canceled",
+      "statusTimestamp": 1793660739333
+    },
+    {
+      "order": {
+        "coin": "BTC",
+        "side": "A",
+        "limitPx": "68007.0",
+        "sz": "0.0002",
+        "oid": 64364695537,
+        "timestamp": 1793660715264,
+        "triggerCondition": "Activation immediate, retracement 800, best 76363",
+        "isTrigger": true,
+        "triggerPx": "75563.0",
+        "children": [],
+        "isPositionTpsl": false,
+        "reduceOnly": false,
+        "orderType": "Trailing Stop Market",
+        "origSz": "0.0002",
+        "tif": null,
+        "cloid": null
+      },
+      "status": "open",
+      "statusTimestamp": 1793660715264
+    },
+    {
+      "order": {
+        "coin": "BTC",
+        "side": "A",
+        "limitPx": "72901.0",
+        "sz": "0.0002",
+        "oid": 64364657300,
+        "timestamp": 1793660678458,
+        "triggerCondition": "Activation above 90000, retracement 10%, best waiting",
+        "isTrigger": true,
+        "triggerPx": "0.0",
+        "children": [],
+        "isPositionTpsl": false,
+        "reduceOnly": false,
+        "orderType": "Trailing Stop Market",
+        "origSz": "0.0002",
+        "tif": null,
+        "cloid": null
+      },
+      "status": "open",
+      "statusTimestamp": 1793660678458
+    },
+    {
+      "order": {
+        "coin": "BTC",
+        "side": "B",
+        "limitPx": "45552.0",
+        "sz": "21.95293",
+        "oid": 64350445591,
+        "timestamp": 1793646138449,
+        "triggerCondition": "N/A",
+        "isTrigger": false,
+        "triggerPx": "0.0",
+        "children": [],
+        "isPositionTpsl": false,
+        "reduceOnly": false,
+        "orderType": "Limit",
+        "origSz": "21.95293",
+        "tif": "Gtc",
+        "cloid": "0x7722c69f2dca8b671d2296f7a389914d"
+      },
+      "status": "perpMarginRejected",
+      "statusTimestamp": 1793646138449
+    },
+    {
+      "order": {
+        "coin": "BTC",
+        "side": "A",
+        "limitPx": "106500.0",
+        "sz": "0.00027",
+        "oid": 64350445147,
+        "timestamp": 1793646137476,
+        "triggerCondition": "N/A",
+        "isTrigger": false,
+        "triggerPx": "0.0",
+        "children": [],
+        "isPositionTpsl": false,
+        "reduceOnly": true,
+        "orderType": "Limit",
+        "origSz": "0.00027",
+        "tif": "Gtc",
+        "cloid": "0x917c548eefcef4006712276dda0b3074"
+      },
+      "status": "reduceOnlyRejected",
+      "statusTimestamp": 1793646137476
+    }
+  ]
+}

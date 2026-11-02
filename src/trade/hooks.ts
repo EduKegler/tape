@@ -257,11 +257,18 @@ export function useTradeCommands(ref: AccountRef | null) {
     select: (pending) => pending.state.variables,
   })
   const unknown =
-    mutation.error?.error.kind === 'unknown-outcome' && mutation.variables ? sentOrders(mutation.variables) : null
+    mutation.error?.error.kind === 'unknown-outcome' && mutation.variables
+      ? sentOrders(mutation.variables, mutation.submittedAt)
+      : null
   const lookup = useQuery(
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client ids name the write
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client ids and the send time name the write
     queryOptions<OrderLookup, TradeFailure>({
-      queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientIds.join() ?? null],
+      queryKey: [
+        ...(ref ? tradeKeys(ref).all : ['trade', 'none']),
+        'lookup',
+        unknown?.clientIds.join() ?? null,
+        unknown?.trailing?.sentAt ?? null,
+      ],
       queryFn:
         ref && unknown
           ? async () => {

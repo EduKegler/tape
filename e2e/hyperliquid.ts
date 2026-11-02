@@ -42,6 +42,7 @@ const EMPTY_ACCOUNT: Record<string, unknown> = {
   spotClearinghouseState: { balances: [] },
   userAbstraction: 'default',
   frontendOpenOrders: [],
+  historicalOrders: [],
   userFills: [],
   extraAgents: [],
   maxBuilderFee: 0,

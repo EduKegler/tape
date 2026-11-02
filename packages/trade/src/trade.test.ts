@@ -1100,10 +1100,44 @@ describe('order lookup after an unknown outcome', () => {
     }
   })
 
-  it('has nothing to find a Hyperliquid trailing stop by, since its action carries no cloid', () => {
-    const stop = buildIntent(btc, trailing, caps)
+  // Recorded on testnet: two sells of 0.0002 BTC, one stamped 1793660678458 and one 1793660715264, newest first.
+  const trailingOrders = (
+    JSON.parse(readFileSync(new URL('./__fixtures__/trailing.hyperliquid.json', import.meta.url), 'utf8')) as {
+      historicalOrders: unknown
+    }
+  ).historicalOrders
+
+  it('finds a Hyperliquid trailing stop by market, side and size among the orders stamped after the send', async () => {
+    const stop = buildIntent(btc, { ...trailing, size: '0.0002' }, caps)
     if (!stop.ok) throw new Error('intent')
-    expect(sentOrders({ kind: 'place', intent: stop.intent })).toBeNull()
+    const lookupAt = async (sentIntent: OrderIntent, sentAt: number) => {
+      const { fetch, sent } = venue(() => trailingOrders)
+      const sentNow = sentOrders({ kind: 'place', intent: sentIntent }, sentAt)!
+      const result = await TRADING.hyperliquid.lookup(
+        { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
+        sentNow,
+      )
+      expect(sent.map((request) => request.body)).toEqual([{ type: 'historicalOrders', user: owner }])
+      return result
+    }
+    expect(sentOrders({ kind: 'place', intent: stop.intent }, 1793660715000)).toEqual({
+      venueSymbol: 'BTC',
+      clientIds: [],
+      trailing: { side: 'sell', size: '0.0002', sentAt: 1793660715000 },
+    })
+    expect(await lookupAt(stop.intent, 1793660715000)).toEqual({
+      kind: 'found',
+      detail: 'Trailing stop 64364695537 canceled',
+    })
+    // A device clock up to 5 s ahead of Hyperliquid's still finds it.
+    expect((await lookupAt(stop.intent, 1793660715264 + 5000)).kind).toBe('found')
+    const absent = { kind: 'absent', detail: 'Hyperliquid lists no trailing stop like it since it was sent' }
+    expect(await lookupAt(stop.intent, 1793660715264 + 5001)).toEqual(absent)
+    const buy = buildIntent(btc, { ...trailing, side: 'buy', size: '0.0002' }, caps)
+    const bigger = buildIntent(btc, { ...trailing, size: '0.0003' }, caps)
+    if (!buy.ok || !bigger.ok) throw new Error('intent')
+    expect(await lookupAt(buy.intent, 1793660715000)).toEqual(absent)
+    expect(await lookupAt(bigger.intent, 1793660715000)).toEqual(absent)
   })
 
   it('calls a scale order found when any leg is on Hyperliquid, since legs are judged one by one', async () => {
