@@ -3,35 +3,66 @@ import { connectWallet, expect, expectAccessible, openMarket, panel, settled, te
 
 const SEPOLIA = 11155111
 
-test('enabling dYdX asks the wallet for the onboarding signature on Sepolia', async ({ page, wallet }) => {
+const ONBOARDING = {
+  kind: 'sign',
+  from: 'alice',
+  selected: 'alice',
+  chainId: SEPOLIA,
+  typedData: {
+    domain: { name: 'dYdX Chain', chainId: SEPOLIA },
+    primaryType: 'dYdX',
+    message: { action: 'dYdX Chain Onboarding' },
+  },
+}
+
+test('enabling dYdX for a new account asks the wallet twice for the onboarding signature on Sepolia', async ({
+  page,
+  wallet,
+}) => {
   const dydx = await fakeDydx(page, 'testnet')
   await openMarket(page, '/dydx/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
   await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
   await expect(ticket.getByText('Unlock your dYdX key in this tab')).toBeVisible()
+  const release = wallet.holdSign(2)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
-  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)
+  await expect(ticket.getByRole('button', { name: 'Sign once more in your wallet…' })).toBeDisabled()
+  await expect(ticket.getByText('Sign the same request once more')).toBeVisible()
+  release()
+  await expect(ticket.getByRole('button', { name: /Enable trading|Sign once more/ })).toHaveCount(0)
   await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   await expect(panel(page, 'Account').getByText('No account on this venue yet. Deposit to start.')).toBeVisible()
   await expectAccessible(page)
 
-  // What dYdX's own frontend, v4-web, asks the wallet to sign to derive the key on testnet.
+  // What dYdX's own frontend, v4-web, asks the wallet to sign to derive the key on testnet, twice for an address with no subaccount.
   expect(wallet.asked()).toEqual([
     { kind: 'connect', account: 'alice' },
     { kind: 'switch-chain', from: 1, to: SEPOLIA },
-    {
-      kind: 'sign',
-      from: 'alice',
-      selected: 'alice',
-      chainId: SEPOLIA,
-      typedData: {
-        domain: { name: 'dYdX Chain', chainId: SEPOLIA },
-        primaryType: 'dYdX',
-        message: { action: 'dYdX Chain Onboarding' },
-      },
-    },
+    ONBOARDING,
+    ONBOARDING,
   ])
-  expect(dydx.asked).toEqual([expect.stringMatching(/^\/v4\/addresses\/dydx1[0-9a-z]{38}\/subaccountNumber\/0$/)])
+  const subaccount = expect.stringMatching(/^\/v4\/addresses\/dydx1[0-9a-z]{38}\/subaccountNumber\/0$/)
+  expect(dydx.asked).toEqual([subaccount, subaccount])
+})
+
+test('dYdX refuses a wallet that signs the onboarding request two ways, and keeps trading off', async ({
+  page,
+  wallet,
+}) => {
+  await fakeDydx(page, 'testnet')
+  await openMarket(page, '/dydx/BTC?interval=1m')
+  const ticket = panel(page, 'Order ticket')
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
+  wallet.signUnstably()
+  await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByRole('alert')).toHaveText(
+    'Your wallet signed the same request two different ways, so each tab would get a different account. Connect another wallet to trade here.',
+  )
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeEnabled()
+  await expect(ticket.getByText('Unlock your dYdX key in this tab')).toBeVisible()
+  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toHaveCount(0)
+  expect(wallet.askedFor('sign')).toEqual([ONBOARDING, ONBOARDING])
+  await expectAccessible(page)
 })
 
 /** A dYdX subaccount holding 0.01 BTC long, in the shape of the indexer's `/addresses/{address}/subaccountNumber/0`. */

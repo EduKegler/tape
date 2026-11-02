@@ -11,11 +11,13 @@ const STEPS = {
   'approve-agent': true,
   'approve-builder': true,
   'derive-key': true,
+  'confirm-key': true,
   'add-key': true,
 } satisfies Record<StepId, true>
 
 const ERRORS = {
   'wallet-rejected': true,
+  'nondeterministic-wallet': true,
   'needs-setup': true,
   'no-account': true,
   'insufficient-margin': true,

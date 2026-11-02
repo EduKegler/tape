@@ -4,6 +4,8 @@ import { TradeNote } from './TradeNote'
 
 export function EnableTrading({ session }: { session: Extract<TradeSession, { status: 'setup' }> }) {
   const busy = session.progress !== null
+  const signingAgain = session.progress === 'confirm-key'
+  const current = signingAgain ? 'derive-key' : session.progress
   return (
     <div className="flex flex-col gap-2 rounded-sm border border-rule p-2 text-sm">
       <ol className="flex flex-col gap-1">
@@ -22,9 +24,7 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
               </svg>
             ) : (
               <span aria-hidden className="flex w-3 shrink-0 justify-center">
-                <span
-                  className={`inline-block size-1.5 rounded-sm ${step.id === session.progress ? 'bg-ink' : 'bg-level3'}`}
-                />
+                <span className={`inline-block size-1.5 rounded-sm ${step.id === current ? 'bg-ink' : 'bg-level3'}`} />
               </span>
             )}
             {step.label}
@@ -33,8 +33,12 @@ export function EnableTrading({ session }: { session: Extract<TradeSession, { st
         ))}
         {!session.steps && <li className="text-level3">Checking the venue…</li>}
       </ol>
+      <p aria-live="polite" className="text-level2 empty:hidden">
+        {signingAgain
+          && 'Sign the same request once more, so Tape can check your wallet signs it the same way each time.'}
+      </p>
       <Button look="primary" size="lg" disabled={busy || !session.steps} onClick={session.enable}>
-        {busy ? 'Confirm in your wallet…' : 'Enable trading'}
+        {signingAgain ? 'Sign once more in your wallet…' : busy ? 'Confirm in your wallet…' : 'Enable trading'}
       </Button>
       <TradeNote error={session.error} />
     </div>

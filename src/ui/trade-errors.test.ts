@@ -4,6 +4,7 @@ import { readFailure } from './trade-errors'
 
 const KINDS: Record<TradeError['kind'], true> = {
   'wallet-rejected': true,
+  'nondeterministic-wallet': true,
   'needs-setup': true,
   'no-account': true,
   'insufficient-margin': true,

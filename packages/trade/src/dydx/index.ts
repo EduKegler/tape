@@ -655,12 +655,25 @@ async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
   return [{ id: 'derive-key', label: 'Unlock your dYdX key in this tab', done: Boolean(ctx.keys.read()?.secret) }]
 }
 
+/** v4-web's useGenerateKeys signs a second time only for an address with no subaccount, since a funded one proves the signature repeats. */
+const holdsSubaccount = (ctx: VenueContext, address: string) =>
+  indexer(ctx, `/addresses/${address}/subaccountNumber/0`, Subaccount).then(
+    () => true,
+    () => false,
+  )
+
 async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void): Promise<void> {
   if (ctx.keys.read()?.secret) return
   onStep('derive-key')
   const chainId = ONBOARDING_CHAIN[ctx.ref.network]
   if ((await wallet.chainId()) !== chainId) await wallet.switchChain(chainId)
-  const { mnemonic, address } = await deriveKey(await wallet.signTypedData(onboarding(ctx.ref.network)))
+  const request = onboarding(ctx.ref.network)
+  const signature = await wallet.signTypedData(request)
+  const { mnemonic, address } = await deriveKey(signature)
+  if (!(await holdsSubaccount(ctx, address))) {
+    onStep('confirm-key')
+    if ((await wallet.signTypedData(request)) !== signature) fail({ kind: 'nondeterministic-wallet' })
+  }
   ctx.keys.write({ status: 'linked', public: { address }, secret: mnemonic })
 }
 

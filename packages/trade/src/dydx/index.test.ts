@@ -931,6 +931,10 @@ describe('dydx account', () => {
 
 describe('dydx setup', () => {
   const SIGNATURE = `0x${'ab'.repeat(65)}` as const
+  const OTHER_SIGNATURE = `0x${'cd'.repeat(65)}` as const
+  const unseen = recordedWrite('dydx', 'unknownAddress').exchanges[0]!
+  const { ctx: newAccount } = indexer(() => new Response(JSON.stringify(unseen.response), { status: unseen.status }))
+  const held = { subaccount: { equity: '10', freeCollateral: '10', openPerpetualPositions: {} } }
 
   function tab(initial: StoredKey | null) {
     let key = initial
@@ -948,7 +952,7 @@ describe('dydx setup', () => {
     }
   }
 
-  function wallet(chainId: number) {
+  function wallet(chainId: number, signatures: readonly `0x${string}`[] = [SIGNATURE]) {
     let active = chainId
     const signed: Eip712[] = []
     return {
@@ -960,7 +964,7 @@ describe('dydx setup', () => {
       }),
       signTypedData: async (typed: Eip712) => {
         signed.push(typed)
-        return SIGNATURE
+        return signatures[Math.min(signed.length, signatures.length) - 1]!
       },
     }
   }
@@ -975,12 +979,14 @@ describe('dydx setup', () => {
     const keys = tab(null)
     const signer = wallet(1)
     const steps: StepId[] = []
-    await dydx.enable({ ...ctx, keys }, signer, (step) => steps.push(step))
-    expect(steps).toEqual(['derive-key'])
+    await dydx.enable({ ...newAccount, keys }, signer, (step) => steps.push(step))
+    expect(steps).toEqual(['derive-key', 'confirm-key'])
     // ethereumChainId of the testnet in v4-web's public/configs/v1/env.json.
     expect(signer.switchChain.mock.calls).toEqual([[11_155_111]])
+    const onboarding = ['dYdX', { name: 'dYdX Chain', chainId: 11_155_111 }, { action: 'dYdX Chain Onboarding' }]
     expect(signer.signed.map((request) => [request.primaryType, request.domain, request.message])).toEqual([
-      ['dYdX', { name: 'dYdX Chain', chainId: 11_155_111 }, { action: 'dYdX Chain Onboarding' }],
+      onboarding,
+      onboarding,
     ])
     expect(chain.deriveKey.mock.calls).toEqual([[SIGNATURE]])
     expect(keys.writes).toEqual([
@@ -988,14 +994,52 @@ describe('dydx setup', () => {
     ])
   })
 
+  it('refuses a wallet that signs the onboarding request two ways for a new account, and keeps no key', async () => {
+    const keys = tab(null)
+    const signer = wallet(11_155_111, [SIGNATURE, OTHER_SIGNATURE])
+    expect(await failure(dydx.enable({ ...newAccount, keys }, signer, () => {}))).toEqual({
+      kind: 'nondeterministic-wallet',
+    })
+    expect(signer.signed).toHaveLength(2)
+    expect(keys.writes).toEqual([])
+  })
+
+  it('signs once for an address the indexer holds a subaccount for', async () => {
+    const keys = tab(null)
+    const signer = wallet(11_155_111, [SIGNATURE, OTHER_SIGNATURE])
+    const { urls, ctx: holding } = indexer(() => held)
+    const steps: StepId[] = []
+    await dydx.enable({ ...holding, keys }, signer, (step) => steps.push(step))
+    expect(urls).toEqual(['https://indexer.v4testnet.dydx.exchange/v4/addresses/dydx1derived/subaccountNumber/0'])
+    expect(steps).toEqual(['derive-key'])
+    expect(signer.signed).toHaveLength(1)
+    expect(keys.writes).toHaveLength(1)
+  })
+
+  it('signs a second time when the indexer cannot say whether the address holds a subaccount', async () => {
+    const down = [
+      async () => new Response('Bad Gateway', { status: 502 }),
+      async () => {
+        throw new TypeError('Failed to fetch')
+      },
+    ] as (typeof globalThis.fetch)[]
+    for (const fetch of down) {
+      const signer = wallet(11_155_111, [SIGNATURE, OTHER_SIGNATURE])
+      expect(await failure(dydx.enable({ ...ctx, fetch, keys: tab(null) }, signer, () => {}))).toEqual({
+        kind: 'nondeterministic-wallet',
+      })
+      expect(signer.signed).toHaveLength(2)
+    }
+  })
+
   it('signs nothing for a tab that already holds the dYdX key, and stays on the chain the wallet is on', async () => {
     const keys = tab({ status: 'linked', public: { address: 'dydx1test' }, secret: 'mnemonic' })
     const signer = wallet(11_155_111)
-    await dydx.enable({ ...ctx, keys }, signer, () => {})
+    await dydx.enable({ ...newAccount, keys }, signer, () => {})
     expect(signer.signed).toEqual([])
     expect(keys.writes).toEqual([])
     const fresh = tab(null)
-    await dydx.enable({ ...ctx, keys: fresh }, signer, () => {})
+    await dydx.enable({ ...newAccount, keys: fresh }, signer, () => {})
     expect(signer.switchChain).not.toHaveBeenCalled()
     expect(fresh.writes).toHaveLength(1)
   })
