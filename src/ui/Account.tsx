@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSelector } from '@tanstack/react-store'
 import type { Base, MarketKey, VenueId } from '@tape/core/ids'
 import { closeIntent } from '@tape/trade/intent'
+import { leverageOf } from '@tape/trade/position'
 import { toBps } from '@tape/trade/types'
 import type { AccountRef, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
 import { useFrame } from '#/client/hooks'
@@ -73,8 +74,8 @@ function AccountBody({
   const slippage = useSelector(closeSlippageBps, (state) => state)
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
-  const held =
-    /^\d+/.exec(snapshot?.positions.find((position) => position.symbol === symbol)?.leverage ?? '')?.[0] ?? null
+  const holding = snapshot?.positions.find((position) => position.symbol === symbol)
+  const held = holding ? (leverageOf(holding)?.toString() ?? null) : null
   const busy = (command: Command) => inFlight.some((pending) => JSON.stringify(pending) === JSON.stringify(command))
   const [closeError, setCloseError] = useState<string | null>(null)
   const venue = VENUES[account.venue].label
