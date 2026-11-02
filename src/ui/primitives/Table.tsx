@@ -6,6 +6,7 @@ export interface Column<T> {
   header: string
   cell: (row: T) => ReactNode
   words?: true
+  left?: true
 }
 
 type RowAction<T> =
@@ -34,7 +35,10 @@ export function Table<T>({
       <thead>
         <tr className="h-6 text-xs text-level3">
           {columns.map((column, index) => (
-            <th key={column.header} className={`font-normal ${index === 0 ? 'pl-3 text-left' : 'pr-3 text-right'}`}>
+            <th
+              key={column.header}
+              className={`font-normal ${index === 0 ? 'pl-3 text-left' : column.left ? 'pr-3 text-left' : 'pr-3 text-right'}`}
+            >
               {column.header}
             </th>
           ))}
@@ -63,9 +67,11 @@ export function Table<T>({
                     key={column.header}
                     className={
                       index > 0
-                        ? column.words
-                          ? 'pr-3 text-right'
-                          : 'num pr-3 text-right whitespace-nowrap'
+                        ? column.left
+                          ? 'pr-3 text-left'
+                          : column.words
+                            ? 'pr-3 text-right'
+                            : 'num pr-3 text-right whitespace-nowrap'
                         : current
                           ? 'pl-3 font-semibold text-accent'
                           : isCurrent

@@ -8,7 +8,7 @@ import { checkExits, checkPrice, checkSize, midPrice, takeProfitField, worstPric
 import { lookupSummary, scaleOutcome } from '../scale-order'
 import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
-import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { EXIT_NAMES, capitalized, exitDetail, notePrice } from '../protect'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, readReply, send } from '../send'
@@ -334,6 +334,7 @@ function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatu
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}`,
+      fill: { size: toDecimal(first.filled.totalSz), price: toDecimal(first.filled.avgPx) },
     }
   if (typeof first === 'object' && first.resting)
     return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
@@ -437,7 +438,7 @@ async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<Comman
     if (moved) moves.push({ oid: refParts(moved).oid, order: wire })
     else adds.push(wire)
     cancels.push(...extra)
-    notes.push(`${name} at ${px}`)
+    notes.push(`${name} at ${notePrice(edit.px, intent.spec.scale)}`)
   }
   const refusals = async (action: unknown) =>
     ((await exchange(ctx, action)).response.data?.statuses ?? []).flatMap((status) => errorOf(status) ?? [])
@@ -565,6 +566,7 @@ const AccountState = z.object({
         coin: z.string(),
         szi: z.string(),
         entryPx: z.string(),
+        positionValue: z.string(),
         unrealizedPnl: z.string(),
         liquidationPx: z.string().nullable(),
         leverage: z.object({ type: z.string(), value: z.string() }),
@@ -613,18 +615,22 @@ async function account(ctx: VenueContext): Promise<AccountView> {
     snapshot: {
       equity: toDecimal(equity),
       available: toDecimal(available),
-      positions: state.assetPositions.map(({ position }) => ({
-        symbol: position.coin,
-        side: position.szi.startsWith('-') ? 'short' : 'long',
-        size: toDecimal(position.szi.replace(/^-/, '')),
-        entry: toDecimal(position.entryPx),
-        unrealizedPnl: toDecimal(position.unrealizedPnl),
-        // An estimate the venue sends unrounded, so it gets the market's price decimals.
-        liquidation: position.liquidationPx
-          ? toDecimal(Number(position.liquidationPx).toFixed(markets.get(position.coin)?.spec.scale.px ?? 6))
-          : null,
-        leverage: `${position.leverage.value}x ${position.leverage.type}`,
-      })),
+      positions: state.assetPositions.map(({ position }) => {
+        const decimals = markets.get(position.coin)?.spec.scale.px ?? 6
+        // Hyperliquid sends the position's value at the mark and no mark, so the mark is that value over the size.
+        const mark = Math.abs(Number(position.positionValue) / Number(position.szi))
+        return {
+          symbol: position.coin,
+          side: position.szi.startsWith('-') ? 'short' : 'long',
+          size: toDecimal(position.szi.replace(/^-/, '')),
+          entry: toDecimal(position.entryPx),
+          mark: Number.isFinite(mark) ? toDecimal(mark.toFixed(decimals)) : null,
+          unrealizedPnl: toDecimal(position.unrealizedPnl),
+          // An estimate the venue sends unrounded, so it gets the market's price decimals.
+          liquidation: position.liquidationPx ? toDecimal(Number(position.liquidationPx).toFixed(decimals)) : null,
+          leverage: `${position.leverage.value}x ${position.leverage.type}`,
+        }
+      }),
       orders: orders.map((order) => openOrderOf(order, markets)),
       fills: fills.slice(0, 20).map((fill) => ({
         id: fill.tid,

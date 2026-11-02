@@ -23,6 +23,7 @@ const held = (symbol: string, side: Position['side'], size: string, pnl: string)
   side,
   size: toDecimal(size),
   entry: toDecimal('100'),
+  mark: null,
   unrealizedPnl: toDecimal(pnl),
   liquidation: null,
   leverage: null,

@@ -66,10 +66,13 @@ const PRIMITIVES = 'src/ui/primitives/**'
 
 const SIDE_FILES = [
   'src/ui/Account.tsx',
+  'src/ui/BatchPanel.tsx',
   'src/ui/Compare.tsx',
   'src/ui/Header.tsx',
   'src/ui/History.tsx',
   'src/ui/OrderBook.tsx',
+  'src/ui/PositionPanel.tsx',
+  'src/ui/Ruler.tsx',
   'src/ui/Trades.tsx',
   'src/ui/VenueStrip.tsx',
   'src/ui/primitives/Button.tsx',

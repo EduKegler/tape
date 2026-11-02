@@ -1,5 +1,5 @@
-import { parseQty } from '@tape/core/fixed'
-import type { Px } from '@tape/core/fixed'
+import { formatPx, parseQty, wireDecimal } from '@tape/core/fixed'
+import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { checkExits, newClientId } from './intent'
 import type { Capabilities, ExitEdit, OpenOrder, OrderExit, OrderRef, Position, ProtectIntent } from './types'
@@ -8,7 +8,12 @@ export const EXIT_NAMES = { tp: 'take profit', sl: 'stop loss' } as const
 
 export const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
-/** What a protect did, such as "Take profit at 95000, stop loss removed". */
+/** A price in a protect note, grouped and with no trailing zeros, such as "80,000" or "95,000.5". */
+export function notePrice(px: Px, scale: Scale): string {
+  return formatPx(px, scale, wireDecimal(px, scale.px).split('.')[1]?.length ?? 0)
+}
+
+/** What a protect did, such as "Take profit at 95,000, stop loss removed". */
 export const exitDetail = (notes: readonly string[]) => capitalized(notes.join(', ')) || 'Nothing to change'
 
 /** What the trader asks of one kind of exit. */

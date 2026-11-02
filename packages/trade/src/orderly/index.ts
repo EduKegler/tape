@@ -8,7 +8,7 @@ import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
-import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { EXIT_NAMES, capitalized, exitDetail, notePrice } from '../protect'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
@@ -434,7 +434,7 @@ async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<Comman
     const issue = checkPrice(spec, px)
     if (issue)
       fail({ kind: 'invalid-order', detail: `${capitalized(EXIT_NAMES[kind])} ${px}: ${issue} on this network` })
-    notes.push(`${EXIT_NAMES[kind]} at ${px}`)
+    notes.push(`${EXIT_NAMES[kind]} at ${notePrice(edit.px, intent.spec.scale)}`)
     return [{ kind, px }]
   })
   const detail = exitDetail(notes)
@@ -517,6 +517,7 @@ const Positions = z.object({
       position_qty: z.string(),
       average_open_price: z.string(),
       unsettled_pnl: z.string(),
+      mark_price: z.string().nullish(),
       est_liq_price: z.string(),
     }),
   ),
@@ -654,6 +655,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         side: position.position_qty.startsWith('-') ? 'short' : 'long',
         size: venueDecimal(position.position_qty.replace(/^-/, '')),
         entry: venueDecimal(position.average_open_price),
+        mark: position.mark_price ? venueDecimal(position.mark_price) : null,
         unrealizedPnl: venueDecimal(position.unsettled_pnl),
         liquidation: Number(position.est_liq_price) > 0 ? venueDecimal(position.est_liq_price) : null,
         leverage: null,

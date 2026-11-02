@@ -91,10 +91,22 @@ export async function connectWallet(page: Page, opener: Locator) {
   await expect(chip).toHaveText((await chip.getAttribute('aria-label')) ?? '')
 }
 
+/** Resolves once every finite animation on the page has ended. */
+export const settled = (page: Page) =>
+  page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every((animation) => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity),
+  )
+
 const BLOCKING_IMPACT = new Set(['serious', 'critical'])
 
 export async function expectAccessible(page: Page) {
-  const { violations } = await new AxeBuilder({ page }).exclude('canvas').analyze()
+  // Base UI keeps focus in order around a non-modal popup with focusable spans it hides from screen readers.
+  const { violations } = await new AxeBuilder({ page })
+    .exclude('canvas')
+    .exclude('[data-base-ui-focus-guard]')
+    .analyze()
   const blocking = violations
     .filter((violation) => BLOCKING_IMPACT.has(violation.impact ?? ''))
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`)

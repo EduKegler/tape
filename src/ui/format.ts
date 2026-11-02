@@ -56,3 +56,17 @@ export function formatChartTime(seconds: number): string {
 export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
+
+/** A signed amount such as +738.00 or -1,354.00, with a plus on gains. */
+export function formatSigned(value: number, digits = 2): string {
+  return signed(digits).format(value)
+}
+
+/** How long ago, in the largest whole unit: "40 s", "24 min", "3 h", "2 d". */
+export function formatAgo(ms: number, now: number): string {
+  const seconds = Math.max(0, Math.floor((now - ms) / 1000))
+  if (seconds < 60) return `${seconds} s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)} h`
+  return `${Math.floor(seconds / 86_400)} d`
+}

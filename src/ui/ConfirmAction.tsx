@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Button } from './primitives'
 
-export function ConfirmStep({
+function ConfirmStep({
   question,
   confirm = 'Confirm',
   keep = 'Cancel',

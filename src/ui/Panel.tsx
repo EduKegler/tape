@@ -104,7 +104,7 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void
   label: string
   tabs?: keyof typeof TAB_GAP
-  pills?: boolean
+  pills?: boolean | 'small'
 }) {
   return (
     <div
@@ -117,7 +117,7 @@ export function Segmented<T extends string>({
       {options.map((option) => (
         <Button
           key={option.value}
-          look={tabs ? 'tab' : pills ? 'pill' : 'toggle'}
+          look={tabs ? 'tab' : pills === 'small' ? 'chip' : pills ? 'pill' : 'toggle'}
           role="radio"
           aria-checked={option.value === value}
           onClick={() => onChange(option.value)}

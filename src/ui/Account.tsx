@@ -1,26 +1,29 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSelector } from '@tanstack/react-store'
-import type { Base, MarketKey, VenueId } from '@tape/core/ids'
-import { closeIntent } from '@tape/trade/intent'
-import { toBps } from '@tape/trade/types'
-import type { AccountRef, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
-import { useFrame } from '#/client/hooks'
+import type { Base, VenueId } from '@tape/core/ids'
+import { isMovable, leverageOf, orderKindLabel, pnlAt, roeOf } from '@tape/trade/position'
+import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Position } from '@tape/trade/types'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
+import { CancelAllPanel, CloseAllPanel } from './BatchPanel'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
+import { MovePanel } from './MovePanel'
 import { Panel, Segmented } from './Panel'
-import { ConfirmAction, ConfirmStep } from './ConfirmAction'
-import { Button, InlineInput, NoData, Table } from './primitives'
+import { ConfirmAction } from './ConfirmAction'
+import { PositionPanel } from './PositionPanel'
+import type { PositionTab } from './PositionPanel'
+import { Anchored, AnchoredHead, Button, InlineInput, NoData, Table } from './primitives'
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
-import { closeSlippageBps, SLIPPAGE_STEPS } from './ticket-store'
+import { domainOf } from './ruler-layout'
 import { SiteReadOnly } from './Ticket'
-import { OrderNote, ReadNote, TradeNote } from './TradeNote'
+import { OrderNote, ReadNote } from './TradeNote'
 import { ErrorMark } from './ErrorMark'
-import { groupThousands } from './format'
+import { formatAgo, formatPct, formatSigned, groupThousands } from './format'
+import { armedLeg, ordered, shownPrice, shownSize } from './manage'
 import { useChangedKeys } from './wash'
 import { WithdrawButton } from './Withdraw'
 
@@ -40,6 +43,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
           base={base}
           leverage={session.status === 'ready' && session.capabilities.leverage}
           forget={session.status === 'ready' ? session.forget : null}
+          capabilities={session.status === 'ready' ? session.capabilities : null}
         />
       ) : (
         <NoData>{message(session)}</NoData>
@@ -55,41 +59,49 @@ function message(session: TradeSession) {
   return 'Trading is not available here.'
 }
 
+type Open =
+  | { readonly kind: 'position'; readonly symbol: string; readonly tab: PositionTab; readonly from: 'tpsl' | 'close' }
+  | { readonly kind: 'order'; readonly ref: OrderRef }
+  | { readonly kind: 'close-all' }
+  | { readonly kind: 'cancel-all' }
+  | null
+
 function AccountBody({
   account,
   base,
   leverage,
   forget,
+  capabilities,
 }: {
   account: AccountRef
   base: Base
   leverage: boolean
   forget: (() => void) | null
+  capabilities: Capabilities | null
 }) {
   const [tab, setTab] = useState<Tab>('positions')
+  const [open, setOpen] = useState<Open>(null)
   const { view, error, isFetching, retry } = useAccountView(account)
   const { run, last, inFlight } = useTradeCommands(account)
   const specs = useQuery(specsQuery(account.venue))
-  const slippage = useSelector(closeSlippageBps, (state) => state)
   const symbol = specs.data?.get(base)?.venueSymbol
   const snapshot = view?.kind === 'live' ? view.snapshot : null
-  const held =
-    /^\d+/.exec(snapshot?.positions.find((position) => position.symbol === symbol)?.leverage ?? '')?.[0] ?? null
+  const holding = snapshot?.positions.find((position) => position.symbol === symbol)
+  const held = holding ? (leverageOf(holding)?.toString() ?? null) : null
   const busy = (command: Command) => inFlight.some((pending) => JSON.stringify(pending) === JSON.stringify(command))
-  const [closeError, setCloseError] = useState<string | null>(null)
   const venue = VENUES[account.venue].label
-  const specOf = (position: Position) =>
-    [...(specs.data?.values() ?? [])].find((spec) => spec.venueSymbol === position.symbol)
-  const close = (position: Position) => {
-    const spec = specOf(position)
-    const intent = spec ? closeIntent(spec, position, { kind: 'market', slippage }) : null
-    setCloseError(
-      intent
-        ? null
-        : `${position.symbol} ${position.size} does not fit the size step Tape knows for it. Close it on the venue.`,
-    )
-    if (intent) run({ kind: 'place', intent })
+  const specOf = (venueSymbol: string) =>
+    [...(specs.data?.values() ?? [])].find((spec) => spec.venueSymbol === venueSymbol)
+  const price = (venueSymbol: string, value: string) => {
+    const spec = specOf(venueSymbol)
+    return spec ? shownPrice(spec, Number(value)) : grouped(value)
   }
+  const size = (venueSymbol: string, value: string) => {
+    const spec = specOf(venueSymbol)
+    return spec ? shownSize(spec, value) : value.replace(/^-/, '')
+  }
+  const toggle = (next: Exclude<Open, null>) => (opening: boolean) => setOpen(opening ? next : null)
+  const caps = capabilities
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-5 border-b border-rule px-3 text-sm">
@@ -97,7 +109,10 @@ function AccountBody({
           tabs="roomy"
           label="Account view"
           value={tab}
-          onChange={setTab}
+          onChange={(next) => {
+            setOpen(null)
+            setTab(next)
+          }}
           options={[
             { value: 'positions', label: `Positions${snapshot ? ` ${snapshot.positions.length}` : ''}` },
             { value: 'orders', label: `Orders${snapshot ? ` ${snapshot.orders.length}` : ''}` },
@@ -112,19 +127,46 @@ function AccountBody({
               <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
             </span>
           )}
-          {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
-            <ConfirmAction
-              label={`Cancel all ${base}`}
-              confirm="Confirm cancel all"
-              keep="Keep orders"
-              question={cancelAllQuestion(
-                snapshot.orders.filter((order) => order.symbol === symbol).length,
-                base,
-                venue,
-              )}
-              onConfirm={() => run({ kind: 'cancel-all', symbol })}
-              look="outline"
-            />
+          {snapshot && caps && tab === 'positions' && (snapshot.positions.length > 0 || open?.kind === 'close-all') && (
+            <Anchored
+              open={open?.kind === 'close-all'}
+              onOpenChange={toggle({ kind: 'close-all' })}
+              trigger={
+                <Button look="action" className="h-6 px-2">
+                  {`Close all${snapshot.positions.length > 0 ? ` ${snapshot.positions.length}` : ''}`}
+                </Button>
+              }
+            >
+              <CloseAllPanel
+                account={account}
+                venue={venue}
+                positions={snapshot.positions}
+                specOf={specOf}
+                caps={caps}
+                onDone={() => setOpen(null)}
+              />
+            </Anchored>
+          )}
+          {snapshot && tab === 'orders' && (snapshot.orders.length > 0 || open?.kind === 'cancel-all') && (
+            <Anchored
+              open={open?.kind === 'cancel-all'}
+              onOpenChange={toggle({ kind: 'cancel-all' })}
+              trigger={
+                <Button look="action" className="h-6 px-2">
+                  Cancel all
+                </Button>
+              }
+            >
+              <CancelAllPanel
+                account={account}
+                venue={venue}
+                orders={snapshot.orders}
+                symbol={symbol}
+                base={base}
+                specOf={specOf}
+                onDone={() => setOpen(null)}
+              />
+            </Anchored>
           )}
           {leverage && symbol && (
             <LeverageControl
@@ -155,49 +197,92 @@ function AccountBody({
         {!view && !error && <NoData>Loading account…</NoData>}
         {view?.kind === 'unknown' && <NoData>Enable trading to read this account.</NoData>}
         {view?.kind === 'empty' && <NoData>No account on this venue yet. Deposit to start.</NoData>}
-        {closeError && (
-          <div className="p-2">
-            <TradeNote error={{ kind: 'invalid-order', detail: closeError }} />
-          </div>
-        )}
         {snapshot && tab === 'positions' && (
           <Positions
-            key={venue}
             rows={snapshot.positions}
-            busy={last.pending}
-            question={(position) =>
-              `Close ${position.size} ${specOf(position)?.base ?? position.symbol} ${position.side} on ${venue}?`
-            }
-            market={(position) => specOf(position)?.key ?? null}
-            unit={(position) => specOf(position)?.base ?? ''}
-            onClose={close}
+            orders={snapshot.orders}
+            price={price}
+            size={size}
+            caps={caps}
+            unit={(position) => specOf(position.symbol)?.base ?? ''}
+            current={open?.kind === 'position' ? open.symbol : null}
+            manage={(position, from) => {
+              const spec = specOf(position.symbol)
+              const key = { kind: 'position', symbol: position.symbol, from } as const
+              const shown = open?.kind === 'position' && open.symbol === position.symbol ? open.tab : null
+              return {
+                open: open?.kind === 'position' && open.symbol === position.symbol && open.from === from,
+                onOpenChange: (opening: boolean) =>
+                  setOpen(opening ? { ...key, tab: from === 'close' ? 'close' : 'protect' } : null),
+                panel:
+                  spec && caps ? (
+                    <>
+                      <AnchoredHead>
+                        {spec.base} {side(position.side)}{' '}
+                        <span className="font-normal text-level3">{shownSize(spec, position.size)} · PnL</span>{' '}
+                        <span className="num">{formatSigned(Number(position.unrealizedPnl))}</span>
+                      </AnchoredHead>
+                      <PositionPanel
+                        account={account}
+                        venue={venue}
+                        position={position}
+                        spec={spec}
+                        caps={caps}
+                        orders={snapshot.orders}
+                        tab={shown ?? (from === 'close' ? 'close' : 'protect')}
+                        onTab={(next) => setOpen({ ...key, tab: next })}
+                      />
+                    </>
+                  ) : null,
+              }
+            }}
           />
         )}
         {snapshot && tab === 'orders' && (
           <Orders
             rows={snapshot.orders}
+            price={price}
+            size={(order) => size(order.symbol, ordered(order, snapshot.positions))}
+            current={open?.kind === 'order' ? open.ref : null}
             busy={(order) => busy({ kind: 'cancel', order: order.ref })}
             onCancel={(order) => run({ kind: 'cancel', order: order.ref })}
+            move={(order) => {
+              const spec = specOf(order.symbol)
+              const position = snapshot.positions.find((other) => other.symbol === order.symbol) ?? null
+              return {
+                open: open?.kind === 'order' && open.ref === order.ref,
+                onOpenChange: toggle({ kind: 'order', ref: order.ref }),
+                panel:
+                  spec && caps ? (
+                    <>
+                      <AnchoredHead>
+                        Move {spec.base} {side(order.side)}{' '}
+                        <span className="font-normal text-level3">{orderKindLabel(order.kind).toLowerCase()}</span>
+                      </AnchoredHead>
+                      <MovePanel
+                        account={account}
+                        venue={venue}
+                        order={order}
+                        position={position}
+                        spec={spec}
+                        caps={caps}
+                        orders={snapshot.orders}
+                      />
+                    </>
+                  ) : null,
+              }
+            }}
           />
         )}
         {snapshot && tab === 'fills' && <Fills rows={snapshot.fills} />}
       </div>
-      {last.command && last.command.kind !== 'place' && (
+      {last.command && (
         <div className="shrink-0 p-2">
           <OrderNote error={last.error} outcome={last.outcome} />
         </div>
       )}
-      {last.command?.kind === 'place' && last.command.intent.reduceOnly && (
-        <div className="shrink-0 p-2">
-          <OrderNote error={last.error} outcome={last.outcome} lookup={last.lookup} />
-        </div>
-      )}
     </div>
   )
-}
-
-function cancelAllQuestion(count: number, base: Base, venue: string) {
-  return `Cancel ${count === 1 ? `1 ${base} order` : `all ${count} ${base} orders`} on ${venue}?`
 }
 
 const LEVERAGE_RANGE = { min: 1, max: 50 }
@@ -252,46 +337,93 @@ const side = (direction: keyof typeof SIDE_WORD) => (
   <span className={direction === 'long' || direction === 'buy' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[direction]}</span>
 )
 
+type Managed = { open: boolean; onOpenChange: (open: boolean) => void; panel: ReactNode }
+
 function Positions({
   rows,
-  busy,
-  question,
-  market,
+  orders,
+  price,
+  size,
+  caps,
   unit,
-  onClose,
+  current,
+  manage,
 }: {
   rows: readonly Position[]
-  busy: boolean
-  question: (p: Position) => string
-  market: (p: Position) => MarketKey | null
+  orders: readonly OpenOrder[]
+  price: (symbol: string, value: string) => string
+  size: (symbol: string, value: string) => string
+  caps: Capabilities | null
   unit: (p: Position) => string
-  onClose: (p: Position) => void
+  current: string | null
+  manage: (p: Position, from: 'tpsl' | 'close') => Managed
 }) {
   const washing = useChangedKeys(rows, positionKey, positionSize)
-  const [closing, setClosing] = useState<string | null>(null)
-  const closeTrigger = useRef<HTMLButtonElement>(null)
+  const trigger = (position: Position, from: 'tpsl' | 'close', button: ReactElement) => {
+    const managed = manage(position, from)
+    return managed.panel ? (
+      <Anchored open={managed.open} onOpenChange={managed.onOpenChange} trigger={button}>
+        {managed.panel}
+      </Anchored>
+    ) : (
+      button
+    )
+  }
   const columns: Column<Position>[] = [
     { header: 'Market', cell: (position) => position.symbol },
     { header: 'Side', cell: (position) => side(position.side), words: true },
-    { header: 'Size', cell: (position) => `${position.size} ${unit(position)}`.trim() },
-    { header: 'Entry', cell: (position) => grouped(position.entry) },
-    { header: 'PnL', cell: (position) => position.unrealizedPnl },
-    { header: 'Liq.', cell: (position) => (position.liquidation ? grouped(position.liquidation) : '—') },
+    { header: 'Size', cell: (position) => `${size(position.symbol, position.size)} ${unit(position)}`.trim() },
+    { header: 'Entry', cell: (position) => price(position.symbol, position.entry) },
+    { header: 'Mark', cell: (position) => (position.mark ? price(position.symbol, position.mark) : '—') },
+    { header: 'PnL', cell: (position) => formatSigned(Number(position.unrealizedPnl)) },
+    {
+      header: 'ROE',
+      cell: (position) => {
+        const roe = roeOf(position, Number(position.unrealizedPnl))
+        return roe === null ? '—' : formatPct(roe)
+      },
+    },
+    { header: 'Liq.', cell: (position) => (position.liquidation ? price(position.symbol, position.liquidation) : '—') },
+    {
+      header: 'TP / SL',
+      left: true,
+      cell: (position) => {
+        const tp = caps && armedLeg(orders, position.symbol, 'tp', caps)
+        const sl = caps && armedLeg(orders, position.symbol, 'sl', caps)
+        const text = (leg: OpenOrder | null | undefined) => (leg?.px ? price(position.symbol, leg.px) : '—')
+        return trigger(
+          position,
+          'tpsl',
+          <Button
+            look="row"
+            className="-ml-1.5 flex h-6 items-center gap-2 rounded-sm px-1.5 aria-expanded:bg-option-hover"
+          >
+            <MiniRuler position={position} tp={tp?.px ?? null} sl={sl?.px ?? null} />
+            {tp || sl ? (
+              <span className="num text-level1">
+                <span className="sr-only">{position.symbol} take profit and stop loss </span>
+                {text(tp)} / {text(sl)}
+              </span>
+            ) : (
+              <span className="text-level3 in-aria-expanded:text-level2">
+                Add TP/SL<span className="sr-only"> to {position.symbol}</span>
+              </span>
+            )}
+          </Button>,
+        )
+      },
+    },
     {
       header: '',
       words: true,
-      cell: (position) => (
-        <Button
-          ref={closing === positionKey(position) ? closeTrigger : undefined}
-          look="secondary"
-          size="sm"
-          disabled={busy}
-          aria-expanded={closing === positionKey(position)}
-          onClick={() => setClosing(positionKey(position))}
-        >
-          Close
-        </Button>
-      ),
+      cell: (position) =>
+        trigger(
+          position,
+          'close',
+          <Button look="secondary" size="sm">
+            Close
+          </Button>,
+        ),
     },
   ]
   return (
@@ -300,26 +432,8 @@ function Positions({
       rowKey={positionKey}
       columns={columns}
       empty="No open positions."
-      rowClass={(position) => (washing.has(positionKey(position)) ? 'wash' : '')}
-      detail={(position) =>
-        closing === positionKey(position) ? (
-          <ConfirmStep
-            question={question(position)}
-            confirm="Confirm close"
-            keep="Keep position"
-            trigger={closeTrigger}
-            onConfirm={() => {
-              setClosing(null)
-              onClose(position)
-            }}
-            onCancel={(refocus) => {
-              setClosing(null)
-              if (refocus) closeTrigger.current?.focus()
-            }}
-          >
-            <CloseTerms position={position} market={market(position)} />
-          </ConfirmStep>
-        ) : null
+      rowClass={(position) =>
+        `${washing.has(positionKey(position)) ? 'wash' : ''} ${current === position.symbol ? 'bg-raised text-level1' : ''}`
       }
     />
   )
@@ -328,63 +442,110 @@ function Positions({
 const positionKey = (position: Position) => position.symbol
 const positionSize = (position: Position) => `${position.side} ${position.size}`
 
-function CloseTerms({ position, market }: { position: Position; market: MarketKey | null }) {
-  const slippage = useSelector(closeSlippageBps, (state) => state)
-  return (
-    <>
-      <span className="text-level3">
-        Size <span className="num text-level1">{position.size.replace(/^-/, '')}</span> · Expected{' '}
-        {market ? <ExpectedPrice market={market} sell={position.side === 'long'} /> : <span>—</span>}
-      </span>
-      <span className="flex items-center gap-2 text-level3">
-        Slippage
-        <Segmented
-          label="Close slippage"
-          value={String(slippage)}
-          onChange={(value) => closeSlippageBps.setState(() => toBps(Number(value)))}
-          options={SLIPPAGE_STEPS.map((step) => ({ value: String(step), label: `${step / 100}%` }))}
-        />
-      </span>
-    </>
-  )
-}
+const MINI = { width: 64, inset: 3 } as const
 
-function ExpectedPrice({ market, sell }: { market: MarketKey; sell: boolean }) {
-  const px = useFrame(
-    { kind: 'book', market, group: '' },
-    (frame) => (sell ? frame?.touch.bid : frame?.touch.ask) ?? null,
+function MiniRuler({ position, tp, sl }: { position: Position; tp: string | null; sl: string | null }) {
+  const now = Number(position.mark ?? position.entry)
+  const entry = Number(position.entry)
+  const legs = [tp, sl].flatMap((leg) => (leg === null ? [] : [Number(leg)]))
+  const [low, high] = domainOf(now, [entry, ...legs], null)
+  const toX = (price: number) =>
+    MINI.inset + Math.min(1, Math.max(0, (price - low) / (high - low))) * (MINI.width - MINI.inset * 2)
+  return (
+    <svg aria-hidden width={MINI.width} height={14} viewBox={`0 0 ${MINI.width} 14`} className="shrink-0">
+      <rect x={0.5} y={5} width={MINI.width - 1} height={4} rx={2} className="fill-inset stroke-edge" />
+      {legs.map((price) => (
+        <rect
+          key={price}
+          x={Math.min(toX(entry), toX(price))}
+          y={5}
+          width={Math.abs(toX(price) - toX(entry))}
+          height={4}
+          className={pnlAt(position, price) >= 0 ? 'fill-bid/55' : 'fill-ask/55'}
+        />
+      ))}
+      <line x1={toX(entry)} x2={toX(entry)} y1={2} y2={12} className="stroke-level3" />
+      <circle cx={toX(now)} cy={7} r={2.5} className="fill-level1" />
+    </svg>
   )
-  return <span className="text-level1">{px ?? '—'}</span>
 }
 
 function Orders({
   rows,
+  price,
+  size,
+  current,
   busy,
   onCancel,
+  move,
 }: {
   rows: readonly OpenOrder[]
+  price: (symbol: string, value: string) => string
+  size: (o: OpenOrder) => string
+  current: OrderRef | null
   busy: (o: OpenOrder) => boolean
   onCancel: (o: OpenOrder) => void
+  move: (o: OpenOrder) => Managed
 }) {
+  const [now] = useState(() => Date.now())
   const columns: Column<OpenOrder>[] = [
     { header: 'Market', cell: (order) => order.symbol },
     { header: 'Side', cell: (order) => side(order.side), words: true },
-    { header: 'Type', cell: (order) => order.kind, words: true },
-    { header: 'Price', cell: (order) => order.px ?? 'market' },
-    { header: 'Size', cell: (order) => order.size },
+    { header: 'Type', cell: (order) => orderKindLabel(order.kind), words: true, left: true },
+    {
+      header: 'Price',
+      cell: (order) =>
+        order.px === null ? (
+          'market'
+        ) : (
+          <>
+            {price(order.symbol, order.px)}
+            {order.exit !== null && <span className="text-level3"> trigger</span>}
+          </>
+        ),
+    },
+    { header: 'Size', cell: size },
     { header: 'Reduce', cell: (order) => (order.reduceOnly ? 'yes' : ''), words: true },
+    {
+      header: 'Placed',
+      cell: (order) => <span className="text-level3">{order.placedAt ? formatAgo(order.placedAt, now) : '—'}</span>,
+    },
     {
       header: '',
       words: true,
-      cell: (order) =>
-        order.cancelable && (
-          <Button look="quiet" disabled={busy(order)} onClick={() => onCancel(order)}>
-            Cancel
+      cell: (order) => {
+        const managed = move(order)
+        const moveButton = (
+          <Button look="secondary" size="sm">
+            Move
           </Button>
-        ),
+        )
+        return (
+          <span className="inline-flex items-center gap-2.5">
+            {isMovable(order) && managed.panel ? (
+              <Anchored open={managed.open} onOpenChange={managed.onOpenChange} trigger={moveButton}>
+                {managed.panel}
+              </Anchored>
+            ) : null}
+            {order.cancelable && (
+              <Button look="quiet" disabled={busy(order)} onClick={() => onCancel(order)}>
+                Cancel
+              </Button>
+            )}
+          </span>
+        )
+      },
     },
   ]
-  return <Table rows={rows} rowKey={(order) => order.ref} columns={columns} empty="No open orders." />
+  return (
+    <Table
+      rows={rows}
+      rowKey={(order) => order.ref}
+      columns={columns}
+      empty="No open orders."
+      rowClass={(order) => (current === order.ref ? 'bg-raised text-level1' : '')}
+    />
+  )
 }
 
 function Fills({ rows }: { rows: readonly Fill[] }) {

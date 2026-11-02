@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Popover`, `Search`, `Select`, `Table` and `TextLink`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Anchored`, `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Popover`, `Search`, `Select`, `Table`, `TextLink` and `UnitInput`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 - `DESIGN.md` describes the system in prose, with `.impeccable/design.json` beside it.
@@ -20,10 +20,10 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 - **Connected is `live`.** A small `live` square marks a connected wallet in the address chip and each open socket and the hub in the status bar. It shares the bid hue but never means side, and the hub's square turns `warn` while it is offline.
 - **Graphite, one off-white.** The page is `ground`. Header, venue strip, panels and status bar are `surface` cards with an 8 px gutter (`gap-2.5` and `p-2.5`, since 1rem is 13 px). `raised` lifts one thing inside a card: the current venue tab, the current table row, the order outcome, a secondary button, a dialog. A field sits on `inset` inside an `edge` border.
 - **Off-white belongs to the trader.** `accent` marks the current venue, the selected item, focus as a 2 px ring with a 2 px offset, and the trader's own fill. It never decorates.
-- **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `err` (coral) with `ErrorMark` means something failed: a refused order, a rule error on a field, a failed read. `warn` (amber) means old data, a price warning or a venue reconnecting. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
+- **Color carries meaning.** `bid` and `ask` mean side, and on the price ruler the direction of the trader's money: gain zone, take profit and a gain in `bid`, loss zone, stop loss and a loss in `ask`, always beside a signed number or a word. `err` (coral) with `ErrorMark` means something failed: a refused order, a rule error on a field, a failed read. `warn` (amber) means old data, a price warning or a venue reconnecting. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
 - **Numbers are Inter with tabular figures.** `num` sets them on the number element. Align numbers right in columns and keep the same decimals down a column. A sentence that carries numbers, such as an order outcome, takes `tabular-nums`. Canvas text in the chart is Inter too.
 - **Corners.** Cards take `rounded-lg`, controls and blocks inside them `rounded-md`. No shadows, except three 2 px inset lines: `inset-shadow-selected` under the current venue tab and the checked option, `inset-shadow-current` at the left of the current Venues row, and `inset-shadow-newest` in `level3` at the left of the newest trade.
-- **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. A pressed side fills with its color and `ink-contrast` text. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
+- **Controls come from primitives.** `Button` takes a `look`, and only `primary`, `secondary`, `bid` and `ask` take a `size`. A pressed side fills with its color and `ink-contrast` text. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`. `UnitInput` is the compact field with its unit inside, for popovers, and `Anchored` the popover that opens above its trigger with a caret.
 - **Side reads without color.** A label like `Buy / Long`, a mark like `▲`, `▼` or `●` with its words, or position, as in the book.
 - **The venue strip quotes each venue.** Four equal tabs under the header: venue on the left with its chain under it, and `Bid`, `Ask` and `Basis` over their values on the right. The label of the best bid or ask across venues carries `●` in the side color, and from the `wide` breakpoint the strip ends with a `● ● best across venues` legend. A venue that went quiet says `Reconnecting` in `warn` with a dot over its last quotes in `level3`.
 - **The submit names the order.** It reads `Buy / Long BTC` or `Sell / Short BTC`, and for a limit or market order with a valid size a second line states size, price and venue. The second line is hidden from the accessible name and read as its description.
@@ -48,7 +48,7 @@ The title bar is one line, 36 px high, in every state, so panels side by side ke
 - A price warning is its own level, apart from an error, and never blocks.
 - While sending, the button says `Sending…` and the form locks.
 - After an unknown outcome, resend stays locked until the venue answers or the trader resends on purpose.
-- A plain order goes out with no dialog. Closing a position, cancelling all orders, forgetting the trading key and disconnecting the wallet confirm in two steps. Close puts its step on a full-width row under the position, so the columns hold, and the address chip opens a small `Popover` that grows from it like the connect panel; the others swap their button for the step in place.
+- A plain order goes out with no dialog. TP/SL, Close and Move on a row, and Close all and Cancel all in the account bar, open an `Anchored` popover with the price ruler, and its submit is the confirmation: nothing goes out on the first click. Forgetting the trading key and disconnecting the wallet confirm in two steps: the address chip opens a small `Popover` that grows from it like the connect panel, and Forget swaps its button for the step in place.
 
 ## Motion
 
@@ -61,7 +61,7 @@ The wash is Tape's one signature. An off-white tint starts at 20 %, holds near 1
 
 `src/ui/wash.ts` and `src/ui/lead.ts` decide when. The `wash` utility in `src/styles.css` draws it, and it is the one animation outside `motion-safe:`: under `prefers-reduced-motion` it shows a still 12 % tint and clears at once, because a fill must still be seen. Draw it as an overlay under the content, never over the text.
 
-A dialog and the panel state fade in with `animate-fade-in`. Prices, sizes, book rows, new trades, the ticket total and balances hold still. Every other animation sits behind `motion-safe:`.
+A dialog and the panel state fade in with `animate-fade-in`. An `Anchored` popover grows from its trigger with a fade, behind `motion-safe:`. Prices, sizes, book rows, new trades, the ticket total and balances hold still. Every other animation sits behind `motion-safe:`.
 
 ### The connect flow
 
@@ -128,7 +128,12 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/fill-position.png`: the same fill as a position in Account: tabs on the left, then equity, leverage, the key and Deposit grouped on the right, size with its unit.
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
 - `reference/history.png`: `/history` with a connected wallet that has no fills, matched to the history target frame. Accounts stacks the form over one block per venue, and the filters are pills in a well beside the Market select and the From and To fields.
-- `reference/close-confirm.png`: closing a position. Close stays in its cell, and the step with size, expected price and its own slippage takes a full-width row under the position.
 - `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in tabular figures.
+- `reference/position-tpsl.png`: TP/SL on a live Hyperliquid testnet position, moving an armed take profit. The ruler shows liquidation in `err`, SL in `ask` and TP in `bid` over the track, Now and Entry under it. The fields pair price and return on margin, and the submit names the replace.
+- `reference/position-no-legs.png`: the same popover on a short with no legs. Dashed `+ TP` and `+ SL` marks wait on the track, liquidation sits on the right, and Set TP/SL stays off until a price is set.
+- `reference/position-close-limit.png`: Close on half a position at a limit. Share chips, Market, Limit and Mid, the terms line with what is kept and the estimated PnL, and the submit filled with the side it sends.
+- `reference/order-move.png`: Move on a resting limit. One handle that keeps the old price as `was`, price and size fields, and the line that says how the venue moves it.
+- `reference/cancel-all.png`: Cancel all over every market, one row per order, and the `warn` note that TP/SL legs go with them.
+- `reference/close-all.png`: the Close all report, one line per position with its fill and PnL, and Done on `secondary-raised`.
 
 Not retaken yet: a venue tab during a live best-price lift, stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.

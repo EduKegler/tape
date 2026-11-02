@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { parsePx } from '@tape/core/fixed'
-import type { Qty } from '@tape/core/fixed'
+import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
-import { checkProtect, positionLegs, protectIntent } from './protect'
+import { checkProtect, exitDetail, notePrice, positionLegs, protectIntent } from './protect'
 import { toDecimal } from './types'
 import type { OpenOrder, OrderExit, OrderRef, Position } from './types'
 
@@ -44,6 +44,7 @@ const long: Position = {
   side: 'long',
   size: toDecimal('0.0025'),
   entry: toDecimal('80000'),
+  mark: null,
   unrealizedPnl: toDecimal('1'),
   liquidation: null,
   leverage: null,
@@ -133,5 +134,21 @@ describe('a position take profit and stop loss', () => {
     expect(
       checkProtect('short', { bid: null, ask: null }, { takeProfit: { kind: 'keep' }, stopLoss: { kind: 'remove' } }),
     ).toEqual({})
+  })
+})
+
+describe('protect notes', () => {
+  it('groups the thousands of a price and drops its trailing zeros', () => {
+    expect(notePrice(800_000 as Px, btc.scale)).toBe('80,000')
+    expect(notePrice(950_005 as Px, btc.scale)).toBe('95,000.5')
+    expect(notePrice(1_234_567 as Px, { px: 2, qty: 4 })).toBe('12,345.67')
+    expect(notePrice(5 as Px, btc.scale)).toBe('0.5')
+  })
+
+  it('reads each change in one sentence', () => {
+    expect(exitDetail([`take profit at ${notePrice(800_000 as Px, btc.scale)}`, 'stop loss removed'])).toBe(
+      'Take profit at 80,000, stop loss removed',
+    )
+    expect(exitDetail([])).toBe('Nothing to change')
   })
 })

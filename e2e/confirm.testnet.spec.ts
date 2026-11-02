@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
-import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, settled, test } from './fixtures'
 import { fakeHyperliquid } from './hyperliquid'
 import type { ExchangeBody } from './hyperliquid'
 
@@ -24,6 +24,7 @@ const HOLDING: Record<string, unknown> = {
           coin: 'BTC',
           szi: '0.01',
           entryPx: '80000.0',
+          positionValue: '800.0',
           unrealizedPnl: '0.0',
           liquidationPx: null,
           leverage: { type: 'cross', value: 20 },
@@ -68,16 +69,19 @@ async function holding(page: Page) {
 
 const writes = (sent: readonly ExchangeBody[]) => sent.filter((body) => body.action.type !== 'approveAgent')
 
-test('one click on Close only asks, and Confirm sends one reduce-only close', async ({ page, wallet }) => {
+test('Close opens the ruler on its Close tab, and closing at market sends one reduce-only close', async ({
+  page,
+  wallet,
+}) => {
   const { hyperliquid, account } = await holding(page)
   await account.getByRole('button', { name: 'Close', exact: true }).click()
-  const step = account.getByRole('group', { name: 'Close 0.01 BTC long on Hyperliquid?' })
-  await expect(step).toBeVisible()
-  await expect(step.getByRole('button', { name: 'Confirm' })).toBeFocused()
+  const ruler = page.getByRole('dialog', { name: /^BTC Long/ })
+  await expect(ruler.getByRole('radio', { name: 'Close', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await settled(page)
   await expectAccessible(page)
   expect(writes(hyperliquid.sent)).toEqual([])
 
-  await step.getByRole('button', { name: 'Confirm' }).click()
+  await ruler.getByRole('button', { name: 'Close 0.01000 BTC at market' }).click()
   await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
   // Closing 0.01 long sells it as an IOC limit at the bid 79990 less 1%, 79190.1, rounded up to the
   // whole dollar Hyperliquid's five significant figures allow at this price: 79191.
@@ -89,60 +93,29 @@ test('one click on Close only asks, and Confirm sends one reduce-only close', as
   ])
 })
 
-test('the close step shows its size, the bid it sells into and its own slippage', async ({ page, wallet: _wallet }) => {
-  const { hyperliquid, account } = await holding(page)
-  await account.getByRole('button', { name: 'Close', exact: true }).click()
-  const step = account.getByRole('group', { name: 'Close 0.01 BTC long on Hyperliquid?' })
-  await expect(step).toContainText(/Size 0\.01 · Expected \d{2},\d{3}/)
-  await expect(step.getByRole('radio', { name: '1%', exact: true })).toHaveAttribute('aria-checked', 'true')
-  await step.getByRole('radio', { name: '0.5%', exact: true }).click()
-
-  await step.getByRole('button', { name: 'Confirm close' }).click()
-  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
-  // The bid 79990 less 0.5% is 79590.05, rounded up to the whole dollar five significant figures allow: 79591.
-  expect(writes(hyperliquid.sent).map((body) => body.action.orders?.[0]?.p)).toEqual(['79591'])
-  const ticket = panel(page, 'Order ticket')
-  await ticket.getByRole('radio', { name: 'Market', exact: true }).click()
-  await expect(ticket.getByRole('radio', { name: '1%', exact: true })).toHaveAttribute('aria-checked', 'true')
-})
-
-test('Escape and a click outside put Close back and send nothing', async ({ page, wallet: _wallet }) => {
+test('Escape and a click outside close the ruler and send nothing', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, account } = await holding(page)
   const close = account.getByRole('button', { name: 'Close', exact: true })
-  const step = account.getByRole('group', { name: 'Close 0.01 BTC long on Hyperliquid?' })
+  const ruler = page.getByRole('dialog', { name: /^BTC Long/ })
 
   await close.click()
-  await expect(step).toBeVisible()
+  await expect(ruler).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(step).toHaveCount(0)
+  await expect(ruler).toHaveCount(0)
   await expect(close).toBeFocused()
 
   await close.click()
-  await expect(step).toBeVisible()
+  await expect(ruler).toBeVisible()
   await panel(page, 'Order book').click()
-  await expect(step).toHaveCount(0)
+  await expect(ruler).toHaveCount(0)
   expect(writes(hyperliquid.sent)).toEqual([])
 })
 
 test('positions and orders spell their side out', async ({ page, wallet: _wallet }) => {
   const { account } = await holding(page)
-  await expect(account.getByRole('row', { name: /^BTC Long 0\.01 / })).toBeVisible()
+  await expect(account.getByRole('row', { name: /^BTC Long 0\.01000 BTC / })).toBeVisible()
   await account.getByRole('radio', { name: 'Orders 1' }).click()
   await expect(account.getByRole('row', { name: /^BTC Buy / })).toBeVisible()
-})
-
-test('Cancel all BTC asks first, then sends one cancel for the BTC orders', async ({ page, wallet: _wallet }) => {
-  const { hyperliquid, account } = await holding(page)
-  await account.getByRole('button', { name: 'Cancel all BTC' }).click()
-  const step = account.getByRole('group', { name: 'Cancel 1 BTC order on Hyperliquid?' })
-  await expect(step).toBeVisible()
-  expect(writes(hyperliquid.sent)).toEqual([])
-
-  await step.getByRole('button', { name: 'Confirm' }).click()
-  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
-  expect(writes(hyperliquid.sent).map((body) => body.action)).toEqual([
-    { type: 'cancel', cancels: [{ a: BTC, o: 41 }] },
-  ])
 })
 
 test('forgetting the trading key sits in the account bar and asks first', async ({ page, wallet: _wallet }) => {

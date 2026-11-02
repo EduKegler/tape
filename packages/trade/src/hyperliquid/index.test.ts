@@ -570,7 +570,7 @@ describe('hyperliquid position take profit and stop loss', () => {
     const { ctx, posts } = venue(replied('positionTpslZero'))
     expect(await hyperliquid.execute(ctx, protect(edits[0]!, edits[1]!))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 116512, stop loss at 46580',
+      detail: 'Take profit at 116,512, stop loss at 46,580',
     })
     const recordedOrders = actionOf('positionTpslZero').orders as Record<string, unknown>[]
     expect(posts().map((post) => post.body.action)).toEqual([
@@ -588,7 +588,7 @@ describe('hyperliquid position take profit and stop loss', () => {
     const { ctx, posts } = venue(replied('modifyWhole'))
     expect(await hyperliquid.execute(ctx, protect(edit, { kind: 'keep' }))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 112628',
+      detail: 'Take profit at 112,628',
     })
     const recordedModify = (actionOf('modifyWhole').modifies as { oid: number; order: Record<string, unknown> }[])[0]!
     expect(posts().map((post) => post.body.action)).toEqual([
@@ -606,7 +606,7 @@ describe('hyperliquid position take profit and stop loss', () => {
     const edit = set('112628', ['3:64334764485' as OrderRef, '3:64334763007' as OrderRef])
     expect(
       await hyperliquid.execute(ctx, protect(edit, { kind: 'remove', legs: ['3:64334763008' as OrderRef] })),
-    ).toEqual({ kind: 'done', detail: 'Take profit at 112628, stop loss removed' })
+    ).toEqual({ kind: 'done', detail: 'Take profit at 112,628, stop loss removed' })
     expect(posts().map((post) => post.body.action)).toEqual([
       expect.objectContaining({ type: 'batchModify' }),
       {
@@ -665,6 +665,7 @@ describe('hyperliquid exits', () => {
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
+      fill: { size: recordedFill.totalSz, price: recordedFill.avgPx },
     })
 
     const noStop = venue(() => statuses([filled, 'waitingForTrigger', { error: 'Invalid TP/SL price.' }]))
@@ -672,6 +673,7 @@ describe('hyperliquid exits', () => {
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}. SL not placed: Invalid TP/SL price.`,
+      fill: { size: recordedFill.totalSz, price: recordedFill.avgPx },
     })
 
     const noTarget = venue(() => statuses([statusOf('rest'), { error: 'Invalid TP/SL price.' }, 'waitingForTrigger']))
@@ -739,6 +741,7 @@ describe('hyperliquid market orders without exits', () => {
       side: 'short',
       size: '0.001',
       entry: '80100',
+      mark: null,
       unrealizedPnl: '0',
       liquidation: null,
       leverage: null,
@@ -753,6 +756,7 @@ describe('hyperliquid market orders without exits', () => {
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
+      fill: { size: recordedFill.totalSz, price: recordedFill.avgPx },
     })
     expect(sent.find((request) => request.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80810', true, { limit: { tif: 'Ioc' } }]] })
@@ -774,6 +778,7 @@ describe('hyperliquid closes', () => {
     side: 'long',
     size: toDecimal('0.002'),
     entry: toDecimal('79000'),
+    mark: null,
     unrealizedPnl: toDecimal('2'),
     liquidation: null,
     leverage: null,
@@ -831,6 +836,7 @@ describe('hyperliquid close all', () => {
       side: 'long' as const,
       size: toDecimal(size),
       entry: toDecimal('1'),
+      mark: null,
       unrealizedPnl: toDecimal('1'),
       liquidation: null,
       leverage: null,
@@ -861,6 +867,7 @@ describe('hyperliquid close all', () => {
             kind: 'placed',
             status: 'filled',
             detail: `Filled ${recordedClose.totalSz} at ${recordedClose.avgPx}`,
+            fill: { size: recordedClose.totalSz, price: recordedClose.avgPx },
           },
         },
         {
@@ -881,6 +888,7 @@ describe('hyperliquid account sides', () => {
         coin,
         szi,
         entryPx: '80100.0',
+        positionValue: '1602.0',
         unrealizedPnl: '1.5',
         liquidationPx,
         leverage: { type: 'cross', value: 5 },
@@ -919,6 +927,9 @@ describe('hyperliquid account sides', () => {
       ['BTC', 'long', '0.02', '40000.5'],
       ['ETH', 'long', '0.5', '3100.123457'],
     ])
+    // 1602 over 0.02 BTC is a mark of 80100, at BTC's one price decimal. Over 0.5 ETH it is 3204, at the six
+    // decimals a market missing from the meta gets, as its liquidation price does.
+    expect(view.snapshot.positions.map((held) => held.mark)).toEqual(['80100.0', '3204.000000'])
     const [btcOrder, ethOrder] = view.snapshot.orders
     expect([btcOrder?.ref, btcOrder?.side]).toEqual(['3:589008353129', 'sell'])
     expect(ethOrder?.side).toBe('sell')

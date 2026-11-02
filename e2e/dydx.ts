@@ -10,15 +10,23 @@ const INDEXER: Record<Network, string> = {
 /** The dYdX testnet indexer's recorded answer for an address it has never seen. */
 const UNSEEN = recordedWrite('dydx', 'unknownAddress').exchanges[0]!
 
-export async function fakeDydx(page: Page, network: Network) {
+const CORS = { 'access-control-allow-origin': '*' }
+
+/**
+ * Answers the indexer as for an address it has never seen, or, given `subaccount`, as for one holding it
+ * with no open orders and no fills, in the shapes of the dYdX indexer API docs.
+ */
+export async function fakeDydx(page: Page, network: Network, subaccount?: Record<string, unknown>) {
   const asked: string[] = []
   await page.route(`${INDEXER[network]}/addresses/**`, (route) => {
     asked.push(new URL(route.request().url()).pathname)
-    return route.fulfill({
-      status: UNSEEN.status,
-      json: UNSEEN.response,
-      headers: { 'access-control-allow-origin': '*' },
-    })
+    return subaccount
+      ? route.fulfill({ json: { subaccount }, headers: CORS })
+      : route.fulfill({ status: UNSEEN.status, json: UNSEEN.response, headers: CORS })
   })
+  if (subaccount) {
+    await page.route(`${INDEXER[network]}/orders?**`, (route) => route.fulfill({ json: [], headers: CORS }))
+    await page.route(`${INDEXER[network]}/fills?**`, (route) => route.fulfill({ json: { fills: [] }, headers: CORS }))
+  }
   return { asked }
 }

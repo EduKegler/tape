@@ -233,12 +233,12 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 - **Trader's Light** (accent): the underline on the current venue tab, market and segmented choice; the venue name in the current Venues row, semibold; the keyboard focus ring; the wash on the trader's fill. Text selection uses it at 20%.
 
 ### Secondary
-- **Bid Green** (bid) and **Ask Red** (ask): side and direction. Book prices, trade marks, the last price by the side of the last trade, the 24h change, Buy and Sell buttons, the selected side, the best-price dot in the strip and the Venues table. Their 10% washes fill book depth bars, the depth chart and candle volume.
+- **Bid Green** (bid) and **Ask Red** (ask): side and direction. Book prices, trade marks, the last price by the side of the last trade, the 24h change, Buy and Sell buttons, the selected side, the best-price dot in the strip and the Venues table. Their 10% washes fill book depth bars, the depth chart and candle volume. On the price ruler they read as direction of the trader's money: bid fills the gain zone, the take profit grip and a gain, ask the loss zone, the stop loss grip and a loss, always beside a signed number or the words Profit and Loss.
 
 ### Tertiary
-- **Stale Amber** (warn): old data, its age, Reconnecting, Offline, price warnings under a field, the dialog lock note.
+- **Stale Amber** (warn): old data, its age, Reconnecting, Offline, price warnings under a field, the dialog lock note, the cancel-all note that TP/SL legs go with the orders, a close the venue did not answer.
 - **Live Green** (live): a connected wallet in the address chip, each open socket and the hub in the status bar. It shares the bid hue, never sits next to a side, and never carries text.
-- **Failure Coral** (err): the drawn error mark, a field's error edge, the result word of a failed order, a panel's error line.
+- **Failure Coral** (err): the drawn error mark, a field's error edge, the result word of a failed order, a panel's error line, the liquidation price on the price ruler.
 
 ### Neutral
 - **Ground** (ground): the page between cards, and the well under the book's last price.
@@ -319,7 +319,9 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Secondary:** raised graphite with level1 text; hover lifts it with level1 at 12%. On raised graphite it takes the option fill instead, and option hover.
 - **Connect:** one primary button, Connect, in the header and on History. The ticket keeps Connect wallet in its submit slot. Either one opens the connect panel.
 - **Buy / Sell:** the submit at the ticket's foot, at least 2.75rem tall, filled bid or ask, graphite text. It reads Buy / Long BTC or Sell / Short BTC at 18px 600. For a limit or market order with a valid size, a 12px 500 second line states size, price and venue, such as 0.01 BTC at 77,614 on Hyperliquid. With no wallet, Connect wallet takes the same slot: primary, full width, at least 2.75rem tall.
-- **Quiet and link:** level3 text that turns level1 on hover; a link is level1 and underlined.
+- **Bid / Ask:** the submit of a close or a move, filled with the side of the order it sends and graphite text, 2.25rem tall and full width in its popover.
+- **Chip:** small pills, 1.5rem tall, level3 text; the checked one lifts to raised with level1 text and the selected underline. They pick a share, a close type or a scope inside a popover.
+- **Quiet and link:** level3 text that turns level1 on hover; a link is level1 and underlined. An action inside a sentence, such as Cancel beside an armed leg, is level1 500 with no underline.
 - **Focus:** the global 2px off-white ring at a 2px offset.
 
 ### Side switch
@@ -343,6 +345,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Focus:** the global off-white ring outside the border.
 - **Error:** coral border, then the drawn mark and the message in level1 below. A price warning shows in amber with no mark.
 - **Selects and search:** the same well, edge and radius. A select draws its own chevron in level3, never the native one.
+- **Unit field:** a compact 2rem field for popovers, the value right aligned in 13px 500 and the unit inside it in 11px level3. Its name is for screen readers only, because the row label or the column says what it holds.
 - **Checkbox:** a 1rem well box with an edge border and the small radius. Checked, it fills level1 and draws a graphite check.
 
 ### Panel state
@@ -402,6 +405,14 @@ Moving money out is the trader's own act and rare, so the withdrawal gets the se
 - The WalletConnect QR shows in the same panel, dark modules on the accent inside a graphite frame, with Back and Copy link. Once the phone approves, the panel goes to the handshake.
 - Connected, it says Connected over the address in display type, then shrinks into the address chip in the header.
 - Escape, a click outside and Close shut it. Focus stays inside while it is open and goes back to the button that opened it, or to the address chip once connected.
+
+### Position popovers
+- TP/SL, Close and Move in an Account row, and Close all and Cancel all in the account bar, open a popover above their trigger, 28rem wide, on raised graphite with a rule border, the medium radius and a caret pointing at the trigger. It shifts to stay inside the viewport. The title is 13px 600 in level1, such as BTC Long 0.25000 · PnL +191.38, with a drawn close. Escape and a click outside close it and focus goes back to the trigger, which stays lifted while its popover is open.
+- **Price ruler:** an SVG band, lower prices on the left, over a 6px well track. Under the track sit Entry, Now and Liq. in 11px, in two lanes so labels never collide; Now is level1 500 with a 1.5px line, Liq. is err and points off the edge with an arrow when it falls outside the range. Resting orders are small squares in their side color, armed legs a level2 bar with their price. Each handle is a grip in its color under a surface chip that names it and its price over its outcome in the gain or loss color. An unset handle is dashed and reads drag or click. Handles are sliders: arrows move five ticks, Shift fifty, and a release near an edge widens the range.
+- **TP/SL:** a row per leg with its price and its return on margin, linked, then Profit or Loss and Armed X · Cancel or Not set. A note says each leg closes the whole position, or on venues whose legs carry a size, the size held now. The submit is primary and names what changes.
+- **Close:** size with 25%, 50%, 75% and All, then Market, Limit and, where the venue rests a reduce-only close, Mid. One line states slippage or how the order rests, what is kept and the estimated PnL. The submit is filled ask for a long and bid for a short and names size and price.
+- **Move:** one handle from the order's price, price and size fields, Cancel order, and a line that says how the venue moves it. The submit takes the order's side.
+- **Close all and Cancel all:** chips for the scope, one row per position or order, dimmed when out of scope, and the primary submit with the count. Close all then reports each position: Filled with size, price and PnL, or the drawn mark, Refused in coral and the venue's words in quotes on their own lines, and offers to try the refused ones again.
 
 ### Navigation
 - The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search with a `/` hint that focuses it, the ticker with the last price at 24px, then History in 12px 500 level1 and the wallet on the right. The wallet is Connect, or the network select and the address chip, which starts with a `live` square. The chip opens a small panel in the connect panel's style, 20rem wide, that asks Disconnect this wallet? over the wallet and its address, with Stay connected and Disconnect. While wagmi restores the last session after a reload, the slot holds Connect hidden, so a connected trader never sees it flash.

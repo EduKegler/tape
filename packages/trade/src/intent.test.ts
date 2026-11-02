@@ -9,6 +9,7 @@ import { priceTick } from '@tape/core/market'
 import {
   buildIntent,
   checkCloseSize,
+  closePrice,
   checkCount,
   checkExitPrices,
   checkPrice,
@@ -270,6 +271,7 @@ describe('order intent properties', () => {
               ? size
               : `${size}${size.includes('.') ? '' : '.'}00000000${finerDigit}`) as Decimal,
             entry: '1' as Decimal,
+            mark: null,
             unrealizedPnl: '0' as Decimal,
             liquidation: null,
             leverage: null,
@@ -328,6 +330,7 @@ describe('closing part of a position', () => {
     side: 'long',
     size: '0.0123' as Decimal,
     entry: '79000' as Decimal,
+    mark: null,
     unrealizedPnl: '12' as Decimal,
     liquidation: null,
     leverage: null,
@@ -353,11 +356,42 @@ describe('closing part of a position', () => {
   })
 
   it('takes a size on the step and no larger than the position', () => {
-    expect(checkCloseSize(hl, long, '0.0123')).toBeUndefined()
-    expect(checkCloseSize(hl, long, '0.005')).toBeUndefined()
-    expect(checkCloseSize(hl, long, '0.0124')).toBe('At most 0.0123')
-    expect(checkCloseSize(hl, long, '')).toBe('Enter a size')
-    expect(checkCloseSize(dydx, long, '0.00005')).toBe('At most 4 decimals')
+    expect(checkCloseSize(hl, long, '0.0123', null)).toBeUndefined()
+    expect(checkCloseSize(hl, long, '0.005', null)).toBeUndefined()
+    expect(checkCloseSize(hl, long, '0.0124', null)).toBe('At most 0.0123')
+    expect(checkCloseSize(hl, long, '', null)).toBe('Enter a size')
+    expect(checkCloseSize(dydx, long, '0.00005', null)).toBe('At most 4 decimals')
+  })
+
+  // Hyperliquid's error responses page: MinTradeNtl, "Order must have minimum value of $10."
+  it('refuses part of a position worth less than the venue minimum at the price the close carries', () => {
+    const ten = { ...hl, minNotional: 100 as Px }
+    expect(checkCloseSize(ten, long, '0.0001', 800_000 as Px)).toBe('Must be worth at least 10.0 USDC')
+    expect(checkCloseSize(ten, long, '0.00013', 800_000 as Px)).toBeUndefined()
+    expect(checkCloseSize(ten, long, '0.0001', null)).toBeUndefined()
+    expect(checkCloseSize(dydx, long, '0.0001', 800_000 as Px)).toBeUndefined()
+  })
+
+  it('lets the whole position close at any worth', () => {
+    const ten = { ...hl, minNotional: 100 as Px }
+    const small = { ...long, size: '0.0001' as Decimal }
+    expect(checkCloseSize(ten, small, '0.0001', 800_000 as Px)).toBeUndefined()
+  })
+
+  it('prices a close at its limit, at the mid on the passive tick, or at the far touch past the slippage', () => {
+    const touch = { bid: 799_900 as Px, ask: 800_100 as Px }
+    expect(closePrice(hl, long, { kind: 'limit', px: 805_000 as Px, tif: 'gtc' }, touch)).toBe(805_000)
+    expect(closePrice(hl, long, { kind: 'mid' }, touch)).toBe(800_000)
+    expect(closePrice(hl, long, { kind: 'market', slippage: 500 as Bps }, touch)).toBe(759_910)
+    expect(closePrice(hl, { side: 'short' }, { kind: 'market', slippage: 500 as Bps }, touch)).toBe(840_100)
+    expect(closePrice(hl, long, { kind: 'mid' }, { bid: null, ask: 800_100 as Px })).toBeNull()
+  })
+
+  it('reads a market close at the slipped price, so a size the touch would pass can fall short', () => {
+    const ten = { ...hl, minNotional: 100 as Px }
+    const touch = { bid: 800_000 as Px, ask: 800_100 as Px }
+    const market = closePrice(ten, long, { kind: 'market', slippage: 500 as Bps }, touch)
+    expect(checkCloseSize(ten, long, '0.00013', market)).toBe('Must be worth at least 10.0 USDC')
   })
 
   // MsgPlaceOrder.ValidateBasic in v4-chain takes reduce-only only on an IOC.

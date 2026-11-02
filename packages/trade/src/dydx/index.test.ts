@@ -409,6 +409,7 @@ describe('dydx closes', () => {
     side: 'long',
     size: toDecimal('0.002'),
     entry: toDecimal('79000'),
+    mark: null,
     unrealizedPnl: toDecimal('2'),
     liquidation: null,
     leverage: null,
@@ -666,7 +667,7 @@ describe('dydx position take profit and stop loss', () => {
     chain.reply = { height: 1, hash: 'P1', code: 0, rawLog: '' }
     expect(await dydx.execute(ctx, protect(set('95000'), set('70000')))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 95000, stop loss at 70000. Broadcast P1',
+      detail: 'Take profit at 95,000, stop loss at 70,000. Broadcast P1',
     })
     expect(chain.send).toHaveBeenCalledTimes(1)
     expect(typesSent()).toEqual(['place', 'place'])
@@ -682,7 +683,7 @@ describe('dydx position take profit and stop loss', () => {
     const replaced = set('96000', ['BTC-USD:21:32:0' as OrderRef])
     expect(
       await dydx.execute(ctx, protect(replaced, { kind: 'remove', legs: ['BTC-USD:22:32:0' as OrderRef] })),
-    ).toMatchObject({ kind: 'done', detail: 'Take profit at 96000, stop loss removed. Broadcast P2' })
+    ).toMatchObject({ kind: 'done', detail: 'Take profit at 96,000, stop loss removed. Broadcast P2' })
     expect(typesSent()).toEqual(['cancel', 'cancel', 'place'])
     expect(chain.cancelOrderMsg.mock.calls.map((call) => call.slice(2, 6))).toEqual([
       [21, 32, 0, 0],
@@ -811,6 +812,7 @@ describe('dydx account', () => {
             side: 'short',
             size: '0.002',
             entry: '80000',
+            mark: null,
             unrealizedPnl: '3.5',
             liquidation: null,
             leverage: null,
@@ -820,6 +822,7 @@ describe('dydx account', () => {
             side: 'long',
             size: '0.5',
             entry: '2330.5',
+            mark: null,
             unrealizedPnl: '-1.25',
             liquidation: null,
             leverage: null,
