@@ -45,14 +45,14 @@ export function useWithdraw(ref: AccountRef) {
   }
 }
 
-/** Looks for the withdrawal on the venue until it finalizes. Null before the first answer. */
-export function useWithdrawProgress(ref: AccountRef, sent: SentWithdrawal): WithdrawProgress | null {
+/** Looks for the withdrawal on the venue until it finalizes. Null before the first answer or with nothing sent. */
+export function useWithdrawProgress(ref: AccountRef, sent: SentWithdrawal | null): WithdrawProgress | null {
   const venue = withdrawVenue(ref)
   const query = useQuery(
     // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the nonce names the withdrawal
     queryOptions<WithdrawProgress, TradeFailure>({
-      queryKey: [...tradeKeys(ref).all, 'withdraw', sent.nonce],
-      queryFn: venue ? () => guard(ref.venue, () => venue.progress(contextFor(ref), sent)) : skipToken,
+      queryKey: [...tradeKeys(ref).all, 'withdraw', sent?.nonce ?? null],
+      queryFn: venue && sent ? () => guard(ref.venue, () => venue.progress(contextFor(ref), sent)) : skipToken,
       refetchInterval: (state) => (state.state.data?.stage === 'finalized' ? false : (venue?.pollEvery ?? false)),
       staleTime: (state) => (state.state.data?.stage === 'finalized' ? Infinity : 0),
     }),

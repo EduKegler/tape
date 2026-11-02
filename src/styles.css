@@ -81,6 +81,9 @@
   --animate-module: module 260ms var(--ease-out) both;
   --animate-scan: scan 2.4s cubic-bezier(0.45, 0, 0.55, 1) 600ms infinite alternate;
   --animate-wipe: wipe 520ms var(--ease-out) 160ms both;
+  --animate-print: print 300ms steps(8, end) both;
+  --animate-slip-feed: slip-feed 320ms var(--ease-out) both;
+  --animate-caret: caret 1s steps(1) infinite;
 
   @keyframes fade-in {
     from {
@@ -149,6 +152,27 @@
     }
     to {
       clip-path: inset(0 0 0 0 round var(--radius-md));
+    }
+  }
+
+  @keyframes print {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes slip-feed {
+    from {
+      transform: translateY(1.5rem);
+    }
+  }
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
     }
   }
 }

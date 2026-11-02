@@ -40,13 +40,16 @@ test('the withdraw form stops an amount the fee eats or the account lacks', asyn
 
   await dialog.getByRole('button', { name: 'Max 50' }).click()
   await expect(amount).toHaveValue('50')
-  await expect(dialog.getByRole('definition')).toHaveText([
-    'Hyperliquid perps → Hyperliquid bridge → Arbitrum Sepolia',
-    '0xf39f…2266, the same address',
-    '1 USDC',
+  await expect(dialog.getByRole('region', { name: 'Withdrawal slip' }).getByRole('definition')).toHaveText([
+    'Hyperliquid perps',
+    'Hyperliquid bridge',
+    '0xf39f…2266 on Arbitrum Sepolia',
+    '50',
+    '−1',
     '49 USDC',
+    '50',
+    '0',
     'About 5 min',
-    'One signature, no gas',
   ])
   await expect(dialog.getByRole('alert')).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Withdraw 50 USDC to Arbitrum Sepolia' })).toBeEnabled()
@@ -60,10 +63,12 @@ test('a withdrawal the wallet signs is followed until Hyperliquid sends it', asy
   await amount.fill('10')
   await dialog.getByRole('button', { name: 'Withdraw 10 USDC to Arbitrum Sepolia' }).click()
 
-  const receipt = dialog.getByRole('region', { name: 'Withdrawal receipt' })
-  await expect(receipt.getByRole('status')).toHaveText(
-    /^Hyperliquid perps took the withdrawal at [\d:]{8}\. 9 USDC goes to 0xf39f…2266 on Arbitrum Sepolia in about 5 min\.$/,
-  )
+  const slip = dialog.getByRole('region', { name: 'Withdrawal slip' })
+  const answers = slip.getByRole('list', { name: 'Answers' }).getByRole('listitem')
+  await expect(answers).toHaveText([
+    /^Taken by Hyperliquid perps[\d:]{8}$/,
+    /^Arrives in[45]:\d\dThe bridge signs it, then it pays out on Arbitrum Sepolia\.$/,
+  ])
   const [sent] = withdrawals(hyperliquid.sent) as [ExchangeBody]
   expect(sent.action).toEqual({
     type: 'withdraw3',
@@ -77,6 +82,12 @@ test('a withdrawal the wallet signs is followed until Hyperliquid sends it', asy
     'HyperliquidTransaction:Withdraw',
   ])
 
+  await dialog.getByRole('button', { name: 'Close', exact: true }).last().click()
+  const trail = panel(page, 'Account').getByRole('button', { name: /^Withdrawing 10 USDC [45]:\d\d$/ })
+  await expect(trail).toBeVisible()
+  await trail.click()
+  await expect(answers.first()).toHaveText(/^Taken by Hyperliquid perps/)
+
   // Hyperliquid's ledger names a finalized withdrawal by its nonce in thousandths, with what it sent after the fee.
   hyperliquid.account.userNonFundingLedgerUpdates = [
     {
@@ -86,10 +97,12 @@ test('a withdrawal the wallet signs is followed until Hyperliquid sends it', asy
     },
   ]
   await page.clock.fastForward(15_000)
-  await expect(receipt.getByRole('status')).toHaveText(
-    /^Hyperliquid perps sent 9 USDC to 0xf39f…2266 on Arbitrum Sepolia at [\d:]{8}\.$/,
-  )
-  await expect(receipt.getByRole('link', { name: 'Hyperliquid explorer' })).toHaveAttribute(
+  await expect(answers).toHaveText([
+    /^Taken by Hyperliquid perps[\d:]{8}$/,
+    /^Sent 9 USDC on Arbitrum Sepolia[\d:]{8}$/,
+    'Hyperliquid explorer',
+  ])
+  await expect(slip.getByRole('link', { name: 'Hyperliquid explorer' })).toHaveAttribute(
     'href',
     `https://app.hyperliquid-testnet.xyz/explorer/address/${ACCOUNTS.alice.toLowerCase()}`,
   )
@@ -107,7 +120,7 @@ test('a withdrawal Hyperliquid refuses says the USDC stayed, with the venue word
   await dialog.getByRole('button', { name: 'Withdraw 10 USDC to Arbitrum Sepolia' }).click()
 
   await expect(dialog.getByRole('alert')).toHaveText(
-    'Hyperliquid perps refused the withdrawal. The USDC stayed in the account.Error withdrawing from bridge',
+    'Hyperliquid perps refused it. The USDC stayed in the account.“Error withdrawing from bridge”',
   )
   await expect(dialog.getByRole('button', { name: 'Withdraw 10 USDC to Arbitrum Sepolia' })).toBeEnabled()
   await expectAccessible(page)
@@ -120,7 +133,7 @@ test('a withdrawal with no answer sends again only when the trader asks', async 
   await dialog.getByRole('button', { name: 'Withdraw 10 USDC to Arbitrum Sepolia' }).click()
 
   await expect(dialog.getByRole('alert')).toHaveText(
-    'No answer came back, so the withdrawal may have gone through. Open the Hyperliquid explorer before you withdraw again.',
+    'No answer came back. It may have gone through.Open the Hyperliquid explorer before you withdraw again.',
   )
   await expect.poll(() => withdrawals(hyperliquid.sent).length).toBe(1)
   await amount.fill('12')
@@ -128,6 +141,9 @@ test('a withdrawal with no answer sends again only when the trader asks', async 
 
   hyperliquid.exchange = () => ACCEPTED
   await dialog.getByRole('button', { name: 'Withdraw again 12 USDC to Arbitrum Sepolia' }).click()
-  await expect(dialog.getByRole('region', { name: 'Withdrawal receipt' })).toBeVisible()
+  await expect(dialog.getByRole('region', { name: 'Withdrawal slip' })).toHaveAttribute(
+    'data-withdraw-stage',
+    'pending',
+  )
   expect(withdrawals(hyperliquid.sent).map((body) => body.action.amount)).toEqual(['10', '12'])
 })

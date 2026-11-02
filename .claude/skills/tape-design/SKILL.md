@@ -55,7 +55,8 @@ The wash is Tape's one signature. An off-white tint starts at 20 %, holds near 1
 
 - the trader's own fill: the order outcome and the position row the fill changed;
 - a venue tab that newly takes the best bid or ask, at most once every 2 s per venue, never on the first frame and never for a venue that just came live;
-- the wallet and the address chip that just connected.
+- the wallet and the address chip that just connected;
+- a withdrawal that lands: its slip and the chip beside Withdraw.
 
 `src/ui/wash.ts` and `src/ui/lead.ts` decide when. The `wash` utility in `src/styles.css` draws it, and it is the one animation outside `motion-safe:`: under `prefers-reduced-motion` it shows a still 12 % tint and clears at once, because a fill must still be seen. Draw it as an overlay under the content, never over the text.
 
@@ -74,6 +75,15 @@ Connecting a wallet is the one motion exception beside the wash, because it is t
 - the ticket's submit wipes from Connect wallet to what comes next.
 
 The moves that need a measured rect run on the Web Animations API through `src/wallet/motion.ts`, which lint cannot gate, so each one checks `reducedMotion()` first. The rest are tokens in `src/styles.css` behind `motion-safe:`. Under reduced motion the panel and its views only fade, the feed holds still, and the chip shows the still wash. Nothing else borrows these moves.
+
+### The withdrawal slip
+
+A withdrawal is the second exception, in the Withdraw dialog and the chip beside Withdraw only. `src/ui/Withdraw.tsx` plays it with the `print`, `slip-feed` and `caret` tokens, all behind `motion-safe:`:
+
+- the slip sits in an `inset` well beside the form, with a torn top edge drawn in SVG, never a gradient;
+- each answer from the wallet and the venue prints one line left to right, and the slip rises into place;
+- the arrival countdown is the only figure that moves while read, in the slip and in the chip;
+- once the venue takes it, the dialog narrows to the slip, and closing leaves the chip in Account until the USDC lands.
 
 ## Guardrails
 
@@ -96,7 +106,7 @@ Review catches the rest. A screen that shows one of these goes back:
 - a shadow on a card, a side stripe on a row or a note, or a colored pill on every state;
 - weight above 600, or 600 outside a key number;
 - off-white on anything the trader does not own, or color carrying a meaning alone;
-- a number that moves while the trader reads it, or a wash on anything but a fill, a lift or a wallet that just connected, outside the connect flow above.
+- a number that moves while the trader reads it, or a wash on anything but a fill, a lift, a wallet that just connected or a withdrawal that landed, outside the connect flow and the withdrawal slip above.
 
 ## Evidence
 
