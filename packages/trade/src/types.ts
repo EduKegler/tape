@@ -381,6 +381,8 @@ export interface TradingVenue {
   steps: (ctx: VenueContext) => Promise<readonly SetupStep[]>
   /** Runs the undone steps. A new key is written as draft before the wallet signs for it. */
   enable: (ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void) => Promise<void>
+  /** Has the wallet sign that the venue stops taking orders from the slot's key. Absent where only the device forgets it. */
+  revoke?: (ctx: VenueContext, wallet: WalletSigner) => Promise<void>
   account: (ctx: VenueContext) => Promise<AccountView>
   /** Absent where Tape cannot rebuild the venue's liquidation math. */
   margin?: (ctx: VenueContext, symbol: string) => Promise<MarginState>

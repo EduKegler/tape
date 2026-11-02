@@ -1231,6 +1231,66 @@ describe('hyperliquid setup', () => {
     ])
   })
 
+  // approveAgent from the exchange endpoint docs. Its API wallet docs: an approveAgent with the name of a
+  // named agent deregisters that agent. The EIP-712 types are hyperliquid-python-sdk signing.py's.
+  it('revokes the agent named tape by approving in its place an address whose key Tape drops', async () => {
+    const now = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now)
+    const keys = withKey('linked')
+    const { ctx, posts } = setup(keys, valid())
+    const { signer, signed } = wallet()
+    await hyperliquid.revoke(ctx, signer)
+    const [post] = posts()
+    const action = post?.body.action as { agentAddress: string }
+    expect(action.agentAddress).toMatch(/^0x[\dA-Fa-f]{40}$/)
+    expect(action.agentAddress).not.toBe(agent)
+    const message = { hyperliquidChain: 'Testnet', agentAddress: action.agentAddress, agentName: 'tape', nonce: now }
+    expect(posts().map((sent) => [sent.url, sent.body])).toEqual([
+      [
+        'https://api.hyperliquid-testnet.xyz/exchange',
+        {
+          action: { type: 'approveAgent', signatureChainId: '0x66eee', ...message },
+          nonce: now,
+          signature: { r: `0x${'11'.repeat(32)}`, s: `0x${'22'.repeat(32)}`, v: 27 },
+        },
+      ],
+    ])
+    expect(signed).toEqual([
+      {
+        domain: {
+          name: 'HyperliquidSignTransaction',
+          version: '1',
+          chainId: 421614,
+          verifyingContract: '0x0000000000000000000000000000000000000000',
+        },
+        types: {
+          'HyperliquidTransaction:ApproveAgent': [
+            { name: 'hyperliquidChain', type: 'string' },
+            { name: 'agentAddress', type: 'address' },
+            { name: 'agentName', type: 'string' },
+            { name: 'nonce', type: 'uint64' },
+          ],
+        },
+        primaryType: 'HyperliquidTransaction:ApproveAgent',
+        message,
+      },
+    ])
+    expect(keys.read()).toEqual({ status: 'linked', public: { agent }, secret: agentKey })
+  })
+
+  it('throws the refusal when Hyperliquid will not revoke, and a 5xx as an unknown outcome', async () => {
+    for (const [reply, kind] of [
+      [() => json({ status: 'err', response: 'User has pending agent removal' }), 'rejected'],
+      [() => new Response('<html>502 Bad Gateway</html>', { status: 502 }), 'unknown-outcome'],
+    ] as const) {
+      const { ctx } = setup(withKey('linked'), valid())
+      const refusing = (async (url: string, init?: RequestInit) =>
+        url.endsWith('/exchange') ? reply() : ctx.fetch(url, init)) as typeof globalThis.fetch
+      expect(await failureOf(hyperliquid.revoke({ ...ctx, fetch: refusing }, wallet().signer))).toMatchObject({ kind })
+    }
+  })
+
   it('skips the steps already done and keeps the approved key', async () => {
     const keys = withKey('draft')
     const { ctx, posts } = setup(keys, valid(), 0)

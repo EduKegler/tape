@@ -841,6 +841,27 @@ async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: St
   if (key) ctx.keys.write({ ...key, status: 'linked' })
 }
 
+/**
+ * Hyperliquid deregisters a named agent when the wallet approves another address under the same
+ * name, and documents no other way to take one back. The address approved here has a key no one keeps.
+ */
+async function revoke(ctx: VenueContext, wallet: WalletSigner): Promise<void> {
+  const nonce = Date.now()
+  await userAction(
+    ctx,
+    wallet,
+    'HyperliquidTransaction:ApproveAgent',
+    {
+      hyperliquidChain: CHAIN[ctx.ref.network],
+      agentAddress: privateKeyToAccount(generatePrivateKey()).address,
+      agentName: AGENT_NAME,
+      nonce,
+    },
+    { type: 'approveAgent' },
+    nonce,
+  )
+}
+
 /** Page sizes from the info endpoint docs. */
 const FILL_PAGE = 2000
 const FUNDING_PAGE = 500
@@ -956,6 +977,7 @@ export const hyperliquid = {
     network === 'mainnet' && !config.mainnet.has('hyperliquid') ? 'Mainnet trading is off in this build' : null,
   steps,
   enable,
+  revoke,
   account,
   margin,
   execute,

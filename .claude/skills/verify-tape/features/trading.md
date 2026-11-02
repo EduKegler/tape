@@ -16,6 +16,7 @@ On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends order
 - `trade-order-dydx` gets `account dydx1… not found` from the chain, with the derived address. The client looks the account up before it signs, so an unfunded wallet never reaches the order signature. This proves the derivation, not the order encoding.
 - `trade-enable-orderly` switches the wallet to Arbitrum Sepolia, signs `Registration`, and the guard blocks the POST. The ticket shows the 451 text and `wallet.jsonl` holds the signed body.
 - `trade-funded-hl` signs with the funded testnet key from `VERIFY_TAPE_KEY_FILE`. Enable trading approves the agent, the `Account` panel shows the funded equity, a limit order rests with an `oid`, and its cancel answers `canceled`.
+- `trade-revoke-hl` revokes the agent from `Revoke trading key` in the `Account` bar. The wallet signs an `approveAgent` under the name `tape` for an address whose key Tape drops, `extraAgents` lists that address in place of the device's agent, and the ticket goes back to `Approve a trading key`. A refusal keeps the key and says `Not revoked`.
 - `trade-account` shows `No account on this venue yet. Deposit to start.` for an unfunded wallet, after setup on dYdX and right away on Hyperliquid.
 
 ## How to get to it (user POV)
