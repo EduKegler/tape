@@ -5,12 +5,14 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
 import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
+import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { lookupSummary } from '../scale-order'
 import { readReply, send } from '../send'
 import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
   AccountView,
+  ClientOrderId,
   Command,
   CommandOutcome,
   HistoryRequest,
@@ -19,8 +21,10 @@ import type {
   OrderIntent,
   OrderLookup,
   OrderRules,
+  ProtectIntent,
   OrderRef,
   SentOrders,
+  Side,
   SetupStep,
   StepId,
   TradeError,
@@ -41,7 +45,14 @@ const INDEXER: Record<Network, string> = {
 const CANCEL_SECONDS = 60
 const SIDE = { buy: 1, sell: 2 } as const
 const TIF = { gtc: 0, ioc: 1, 'post-only': 2 } as const
-const FLAGS = { short: 0, long: 64 } as const
+const FLAGS = { short: 0, conditional: 32, long: 64 } as const
+/** Order_ConditionType in dydxprotocol/v4-chain proto/dydxprotocol/clob/order.proto. */
+const CONDITION = { sl: 1, tp: 2 } as const
+/** v4-client-js calculateClientMetadata marks a market order 1, which is how the indexer and v4-web tell one. */
+const MARKET_METADATA = 1
+/** v4-web bounds a market take profit or stop loss 5% past the trigger on these markets and 10% on the rest. */
+const MAJOR_MARKETS = new Set(['BTC-USD', 'ETH-USD', 'SOL-USD'])
+const exitSlippageBps = (ticker: string) => (MAJOR_MARKETS.has(ticker) ? 500 : 1000)
 
 interface Market extends ClobMarket {
   readonly spec: OrderRules
@@ -344,6 +355,100 @@ async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Pr
   return { kind: 'placed', status: 'resting', detail: `Broadcast ${hash}` }
 }
 
+/**
+ * dYdX has no whole-position exit, so each leg is a reduce-only conditional market order for the
+ * position's size. The cancels of the legs it replaces and the new legs go in one transaction, which
+ * the chain runs whole or not at all.
+ */
+async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<CommandOutcome> {
+  const ticker = intent.spec.venueSymbol
+  const perp = await market(ctx, ticker)
+  const size = wireDecimal(intent.size, intent.spec.scale.qty)
+  const sizeIssue = checkSize(perp.spec, size)
+  if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
+  const closing: Side = intent.position === 'long' ? 'sell' : 'buy'
+  const cancels: OrderRef[] = []
+  const places: { tpsl: 'tp' | 'sl'; trigger: Px; clientId: ClientOrderId }[] = []
+  const notes: string[] = []
+  for (const [tpsl, edit, name] of [
+    ['tp', intent.takeProfit, EXIT_NAMES.tp],
+    ['sl', intent.stopLoss, EXIT_NAMES.sl],
+  ] as const) {
+    if (edit.kind === 'keep') continue
+    cancels.push(...edit.legs)
+    if (edit.kind === 'remove') {
+      notes.push(`${name} removed`)
+      continue
+    }
+    const px = wireDecimal(edit.px, intent.spec.scale.px)
+    const issue = checkPrice(perp.spec, px)
+    if (issue) fail({ kind: 'invalid-order', detail: `${capitalized(name)} ${px}: ${issue} on this network` })
+    places.push({ tpsl, trigger: parsePx(px, perp.spec.scale), clientId: edit.clientId })
+    notes.push(`${name} at ${px}`)
+  }
+  const detail = exitDetail(notes)
+  if (cancels.length === 0 && places.length === 0) return { kind: 'done', detail }
+  const { default: Long } = await import('long')
+  const baseQuantums = Long.fromString(
+    quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(),
+    true,
+  )
+  const { SubaccountInfo } = await sdk()
+  const wallet = await walletOf(mnemonicOf(ctx))
+  const address = wallet.address ?? ''
+  const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
+  const now = Math.floor(Date.now() / 1000)
+  const units = (px: Px) => Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true)
+  const hash = await sequenced(address, () =>
+    broadcast(ctx.ref.network, (client) =>
+      client.post.send(
+        subaccount,
+        async () => [
+          ...(await Promise.all(
+            cancels.map((ref) => {
+              const [, clientId, flags, clobPairId] = ref.split(':')
+              return client.post.cancelOrderMsg(
+                address,
+                0,
+                Number(clientId),
+                Number(flags),
+                Number(clobPairId),
+                0,
+                now + CANCEL_SECONDS,
+              )
+            }),
+          )),
+          ...(await Promise.all(
+            places.map((leg) =>
+              client.post.placeOrderMsg(
+                address,
+                0,
+                clientIdOf(leg.clientId),
+                perp.clobPairId,
+                SIDE[closing],
+                baseQuantums,
+                units(worstPrice(perp.spec, closing, leg.trigger, exitSlippageBps(ticker))),
+                TIF.ioc,
+                FLAGS.conditional,
+                true,
+                0,
+                now + LONG_TERM_SECONDS,
+                MARKET_METADATA,
+                CONDITION[leg.tpsl],
+                units(leg.trigger),
+                undefined,
+                ctx.config.dydx.builder ?? undefined,
+              ),
+            ),
+          )),
+        ],
+        false,
+      ),
+    ),
+  )
+  return { kind: 'done', detail: `${detail}. Broadcast ${hash}` }
+}
+
 const IndexerOrder = z.object({
   clientId: z.string(),
   clobPairId: z.string(),
@@ -458,7 +563,7 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
     case 'modify':
       return modify(ctx, command.order, command.intent)
     case 'protect':
-      return fail({ kind: 'unsupported', detail: 'Tape sets no position take profit or stop loss on dYdX yet' })
+      return protect(ctx, command.intent)
     case 'cancel':
       await cancel(ctx, command.order)
       return { kind: 'done', detail: 'Cancel broadcast' }

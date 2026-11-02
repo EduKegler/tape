@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parsePx } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
-import { buildIntent, closeIntent, closeTif } from '../intent'
+import { buildIntent, closeIntent, closeTif, newClientId } from '../intent'
 import type { IntentDraft } from '../intent'
 import { TradeFailure, sentOrders, toDecimal } from '../types'
-import type { Bps, Eip712, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import type { Bps, Command, Eip712, ExitEdit, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { clientIdOf } from './wire'
 import { dydx } from '.'
 
@@ -629,6 +630,79 @@ describe('dydx order edits', () => {
       { kind: 'modify', order: resting, intent: intentOf(btc, { kind: 'market' }) },
     ] as const
     for (const edit of edits) expect(await failure(dydx.execute(ctx, edit))).toMatchObject({ kind: 'invalid-order' })
+    expect(chain.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('dydx position take profit and stop loss', () => {
+  const protect = (takeProfit: ExitEdit, stopLoss: ExitEdit): Command => ({
+    kind: 'protect',
+    intent: { spec: btc, position: 'long', size: 20 as Qty, takeProfit, stopLoss },
+  })
+  const set = (trigger: string, legs: OrderRef[] = []): ExitEdit => ({
+    kind: 'set',
+    px: parsePx(trigger, btc.scale),
+    clientId: newClientId(),
+    legs,
+  })
+  const placed = (call: unknown[] | undefined) => ({
+    side: call?.[4],
+    quantums: String(call?.[5]),
+    subticks: String(call?.[6]),
+    tif: call?.[7],
+    flags: call?.[8],
+    reduceOnly: call?.[9],
+    clientMetadata: call?.[12],
+    conditionType: call?.[13],
+    triggerSubticks: String(call?.[14]),
+  })
+  const typesSent = () => chain.sent.map((sent) => (sent as { typeUrl: string }).typeUrl)
+
+  // A conditional market order as v4-client-js builds one: flags 32, IOC, clientMetadata 1, condition type
+  // 2 for a take profit and 1 for a stop loss, the trigger in subticks. v4-web bounds a BTC-USD one 5% past
+  // the trigger: 95000 less 5% is 90250, and 70000 less 5% is 66500. BTC-USD has 1e5 subticks per dollar
+  // and 1e10 quantums per BTC.
+  it('places each leg as a reduce-only conditional market order for the position size, in one transaction', async () => {
+    chain.reply = { height: 1, hash: 'P1', code: 0, rawLog: '' }
+    expect(await dydx.execute(ctx, protect(set('95000'), set('70000')))).toEqual({
+      kind: 'done',
+      detail: 'Take profit at 95000, stop loss at 70000. Broadcast P1',
+    })
+    expect(chain.send).toHaveBeenCalledTimes(1)
+    expect(typesSent()).toEqual(['place', 'place'])
+    const leg = { side: 2, quantums: '20000000', tif: 1, flags: 32, reduceOnly: true, clientMetadata: 1 }
+    expect(chain.placeOrderMsg.mock.calls.map(placed)).toEqual([
+      { ...leg, subticks: '9025000000', conditionType: 2, triggerSubticks: '9500000000' },
+      { ...leg, subticks: '6650000000', conditionType: 1, triggerSubticks: '7000000000' },
+    ])
+  })
+
+  it('cancels the legs it replaces or removes in the same transaction, before the new leg', async () => {
+    chain.reply = { height: 1, hash: 'P2', code: 0, rawLog: '' }
+    const replaced = set('96000', ['BTC-USD:21:32:0' as OrderRef])
+    expect(
+      await dydx.execute(ctx, protect(replaced, { kind: 'remove', legs: ['BTC-USD:22:32:0' as OrderRef] })),
+    ).toMatchObject({ kind: 'done', detail: 'Take profit at 96000, stop loss removed. Broadcast P2' })
+    expect(typesSent()).toEqual(['cancel', 'cancel', 'place'])
+    expect(chain.cancelOrderMsg.mock.calls.map((call) => call.slice(2, 6))).toEqual([
+      [21, 32, 0, 0],
+      [22, 32, 0, 0],
+    ])
+  })
+
+  it('reports a refused transaction as refused, so the legs there still stand', async () => {
+    // ErrStatefulOrderDoesNotExist, code 3006 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = { height: 1, hash: 'P3', code: 3006, log: 'Stateful order does not exist' }
+    expect(
+      await failure(dydx.execute(ctx, protect(set('96000', ['BTC-USD:21:32:0' as OrderRef]), { kind: 'keep' }))),
+    ).toEqual({ kind: 'rejected', detail: 'Stateful order does not exist' })
+  })
+
+  it('sends nothing when both kinds stay as they are', async () => {
+    expect(await dydx.execute(ctx, protect({ kind: 'keep' }, { kind: 'keep' }))).toEqual({
+      kind: 'done',
+      detail: 'Nothing to change',
+    })
     expect(chain.send).not.toHaveBeenCalled()
   })
 })
