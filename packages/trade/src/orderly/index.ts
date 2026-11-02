@@ -6,6 +6,7 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
+import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
@@ -16,6 +17,7 @@ import type {
   Command,
   CommandOutcome,
   HistoryRequest,
+  OpenOrder,
   OrderIntent,
   OrderLookup,
   OrderRules,
@@ -354,9 +356,13 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       }
       return { kind: 'done', detail: 'Canceled' }
     }
-    case 'cancel-all':
-      await signed(ctx, 'DELETE', `/v1/orders?symbol=${command.symbol}`, SOME_DATA)
-      return { kind: 'done', detail: `Canceled open ${command.symbol} orders` }
+    case 'cancel-all': {
+      const listed = await signed(ctx, 'GET', '/v1/orders?status=INCOMPLETE', Orders)
+      const orders = onMarket(listed.rows.map(openOrderOf), command.symbol)
+      if (orders.length > 0)
+        await signed(ctx, 'DELETE', command.symbol ? `/v1/orders?symbol=${command.symbol}` : '/v1/orders', SOME_DATA)
+      return canceled(orders)
+    }
     case 'leverage':
       await signed(ctx, 'POST', '/v1/client/leverage', SOME_DATA, JSON.stringify({ leverage: command.leverage }))
       return { kind: 'done', detail: `Account leverage ${command.leverage}x` }
@@ -392,6 +398,20 @@ const Orders = z.object({
     }),
   ),
 })
+
+const openOrderOf = (order: z.infer<typeof Orders>['rows'][number]): OpenOrder => ({
+  ref: orderRef(order.symbol, order.order_id),
+  symbol: order.symbol,
+  side: order.side === 'BUY' ? 'buy' : 'sell',
+  kind: order.type,
+  px: order.price === null ? null : venueDecimal(order.price),
+  size: venueDecimal(order.quantity),
+  reduceOnly: order.reduce_only,
+  placedAt: Number(order.created_time),
+  cancelable: true,
+  exit: null,
+})
+
 const Trades = z.object({
   rows: z.array(
     z.object({
@@ -435,18 +455,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         liquidation: Number(position.est_liq_price) > 0 ? venueDecimal(position.est_liq_price) : null,
         leverage: null,
       })),
-      orders: orders.rows.map((order) => ({
-        ref: orderRef(order.symbol, order.order_id),
-        symbol: order.symbol,
-        side: order.side === 'BUY' ? 'buy' : 'sell',
-        kind: order.type,
-        px: order.price === null ? null : venueDecimal(order.price),
-        size: venueDecimal(order.quantity),
-        reduceOnly: order.reduce_only,
-        placedAt: Number(order.created_time),
-        cancelable: true,
-        exit: null,
-      })),
+      orders: orders.rows.map(openOrderOf),
       fills: trades.rows.map((trade) => ({
         id: trade.id,
         symbol: trade.symbol,

@@ -6,6 +6,7 @@ import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { checkExits, checkPrice, checkSize, midPrice, takeProfitField, worstPrice } from '../intent'
 import { lookupSummary, scaleOutcome } from '../scale-order'
+import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
@@ -21,6 +22,7 @@ import type {
   HistoryRequest,
   IntentFields,
   OrderIntent,
+  OpenOrder,
   OrderExit,
   OrderLookup,
   OrderRules,
@@ -380,6 +382,14 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   return order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
 }
 
+async function cancel(ctx: VenueContext, refs: readonly OrderRef[]): Promise<void> {
+  const reply = await exchange(ctx, cancelAction(refs.map(refParts)))
+  const errors = (reply.response.data?.statuses ?? []).flatMap((status) =>
+    typeof status === 'object' && status.error && !GONE.test(status.error) ? [status.error] : [],
+  )
+  if (errors.length > 0) fail(classifyText(errors.join('; ')))
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place':
@@ -387,15 +397,16 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
     case 'close-all':
       return closeEach(command.intents, (intent) => place(ctx, intent))
     case 'cancel':
+      await cancel(ctx, [command.order])
+      return { kind: 'done', detail: 'Canceled 1' }
     case 'cancel-all': {
-      const targets = command.kind === 'cancel' ? [refParts(command.order)] : await openOf(ctx, command.symbol)
-      if (targets.length === 0) return { kind: 'done', detail: 'Nothing to cancel' }
-      const reply = await exchange(ctx, cancelAction(targets))
-      const errors = (reply.response.data?.statuses ?? []).flatMap((status) =>
-        typeof status === 'object' && status.error && !GONE.test(status.error) ? [status.error] : [],
-      )
-      if (errors.length > 0) fail(classifyText(errors.join('; ')))
-      return { kind: 'done', detail: `Canceled ${targets.length}` }
+      const orders = onMarket(await openOrders(ctx), command.symbol).filter((order) => order.cancelable)
+      if (orders.length > 0)
+        await cancel(
+          ctx,
+          orders.map((order) => order.ref),
+        )
+      return canceled(orders)
     }
     case 'leverage': {
       const market = await asset(ctx, command.symbol)
@@ -449,18 +460,25 @@ const exitOf = (order: HlOrder): OrderExit | null =>
     ? { kind: order.orderType.startsWith('Take Profit') ? 'tp' : 'sl', whole: order.isPositionTpsl === true }
     : null
 
-async function openOf(ctx: VenueContext, symbol: string) {
+const openOrderOf = (order: HlOrder, markets: Meta): OpenOrder => ({
+  ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
+  symbol: order.coin,
+  side: order.side === 'B' ? 'buy' : 'sell',
+  kind: order.orderType,
+  px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
+  size: toDecimal(order.sz),
+  reduceOnly: order.reduceOnly,
+  placedAt: Number(order.timestamp),
+  cancelable: markets.has(order.coin),
+  exit: exitOf(order),
+})
+
+async function openOrders(ctx: VenueContext): Promise<OpenOrder[]> {
   const [orders, markets] = await Promise.all([
-    info(
-      ctx,
-      { type: 'frontendOpenOrders', user: ctx.ref.owner },
-      z.array(z.object({ coin: z.string(), oid: z.string() })),
-    ),
+    info(ctx, { type: 'frontendOpenOrders', user: ctx.ref.owner }, HlOrders),
     meta(ctx),
   ])
-  return orders
-    .filter((order) => order.coin === symbol)
-    .map((order) => ({ asset: markets.get(order.coin)?.index ?? -1, oid: Number(order.oid) }))
+  return orders.map((order) => openOrderOf(order, markets))
 }
 
 const UNIFIED = new Set(['unifiedAccount', 'portfolioMargin'])
@@ -535,18 +553,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
           : null,
         leverage: `${position.leverage.value}x ${position.leverage.type}`,
       })),
-      orders: orders.map((order) => ({
-        ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
-        symbol: order.coin,
-        side: order.side === 'B' ? 'buy' : 'sell',
-        kind: order.orderType,
-        px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
-        size: toDecimal(order.sz),
-        reduceOnly: order.reduceOnly,
-        placedAt: Number(order.timestamp),
-        cancelable: markets.has(order.coin),
-        exit: exitOf(order),
-      })),
+      orders: orders.map((order) => openOrderOf(order, markets)),
       fills: fills.slice(0, 20).map((fill) => ({
         id: fill.tid,
         symbol: fill.coin,

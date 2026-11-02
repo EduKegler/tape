@@ -551,8 +551,8 @@ describe('dydx cancel all', () => {
       { ...order, id: 'c', clientId: '13', clobPairId: '0', ticker: 'BTC-USD', orderFlags: '0', goodTilBlock: '30' },
     ])
     chain.reply = { code: 0, hash: 'A1' }
-    expect(await dydx.execute(open, { kind: 'cancel-all', symbol: 'BTC-USD' })).toEqual({
-      kind: 'done',
+    expect(await dydx.execute(open, { kind: 'cancel-all', symbol: 'BTC-USD' })).toMatchObject({
+      kind: 'canceled',
       detail: 'Canceled 2',
     })
     expect(chain.cancelOrder.mock.calls.map((call) => call.slice(1, 4))).toEqual([

@@ -124,7 +124,8 @@ export const orderRef = (...parts: readonly (string | number)[]) => parts.join('
 export type Command =
   | { readonly kind: 'place'; readonly intent: OrderIntent }
   | { readonly kind: 'cancel'; readonly order: OrderRef }
-  | { readonly kind: 'cancel-all'; readonly symbol: string }
+  /** Every open order on one market, or on every market when the symbol is null. */
+  | { readonly kind: 'cancel-all'; readonly symbol: string | null }
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
   /** One reduce-only order per position, each sent and reported on its own. */
   | { readonly kind: 'close-all'; readonly intents: readonly OrderIntent[] }
@@ -158,6 +159,7 @@ export type CommandOutcome =
   | { readonly kind: 'placed'; readonly status: 'resting' | 'filled' | 'accepted'; readonly detail: string }
   | { readonly kind: 'done'; readonly detail: string }
   | { readonly kind: 'closed'; readonly rows: readonly CloseRow[]; readonly detail: string }
+  | { readonly kind: 'canceled'; readonly orders: readonly OpenOrder[]; readonly detail: string }
 
 export interface Position {
   readonly symbol: string

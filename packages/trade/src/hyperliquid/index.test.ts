@@ -439,18 +439,47 @@ describe('hyperliquid cancels', () => {
     })
   })
 
-  it('cancels every open order of the market and nothing when none is open', async () => {
-    const order = (coin: string, oid: number) => ({ coin, side: 'B', limitPx: '70000.0', sz: '0.001', oid })
-    const open = venue(() => statuses(['success', 'success']), [order('BTC', 11), order('SOL', 12), order('BTC', 13)])
-    expect(await hyperliquid.execute(open.ctx, { kind: 'cancel-all', symbol: 'BTC' })).toEqual({
-      kind: 'done',
+  // openWithTpsl is recorded: five BTC legs, two with a size and three for the whole position.
+  it('cancels every open order on the market and reports the take profits and stop losses among them', async () => {
+    const open = venue(() => statuses(Array(5).fill('success')), recorded('openWithTpsl') as unknown[])
+    const outcome = await hyperliquid.execute(open.ctx, { kind: 'cancel-all', symbol: 'BTC' })
+    expect(outcome).toMatchObject({ kind: 'canceled', detail: 'Canceled 5' })
+    expect(outcome.kind === 'canceled' && outcome.orders.map((order) => [order.ref, order.exit])).toEqual([
+      ['3:64334767007', { kind: 'sl', whole: false }],
+      ['3:64334767006', { kind: 'tp', whole: false }],
+      ['3:64334765660', { kind: 'tp', whole: true }],
+      ['3:64334763008', { kind: 'sl', whole: true }],
+      ['3:64334763007', { kind: 'tp', whole: true }],
+    ])
+    expect(open.posts()[0]?.body.action).toEqual({
+      type: 'cancel',
+      cancels: [64334767007, 64334767006, 64334765660, 64334763008, 64334763007].map((oid) => ({ a: 3, o: oid })),
+    })
+  })
+
+  it('cancels on every market only the orders Tape can cancel, and sends nothing when none is open', async () => {
+    const order = (coin: string, oid: number) => ({
+      coin,
+      side: 'B',
+      limitPx: '70000.0',
+      sz: '0.001',
+      oid,
+      timestamp: 1793248070251,
+      orderType: 'Limit',
+      reduceOnly: false,
+      isTrigger: false,
+      triggerPx: '0.0',
+    })
+    const open = venue(() => statuses(['success', 'success']), [order('BTC', 11), order('@107', 12), order('SOL', 13)])
+    expect(await hyperliquid.execute(open.ctx, { kind: 'cancel-all', symbol: null })).toMatchObject({
+      kind: 'canceled',
       detail: 'Canceled 2',
     })
     expect(open.posts()[0]?.body.action).toEqual({
       type: 'cancel',
       cancels: [
         { a: 3, o: 11 },
-        { a: 3, o: 13 },
+        { a: 0, o: 13 },
       ],
     })
 

@@ -576,16 +576,51 @@ describe('orderly cancels', () => {
         body: undefined,
       },
     ])
-    const all = orderlyAt(() => ({
-      body: '{"success":true,"timestamp":1702989203989,"data":{"status":"CANCEL_ALL_SENT"}}',
+  })
+
+  // The rows are the example reply of GET /v1/orders, and CANCEL_ALL_SENT the one of DELETE /v1/orders.
+  const listed = {
+    rows: [
+      { order_id: 78151, symbol: 'PERP_WOO_USDC', side: 'BUY', type: 'LIMIT', price: 0.67772, quantity: 20 },
+      { order_id: 78152, symbol: 'PERP_BTC_USDC', side: 'SELL', type: 'LIMIT', price: 90000, quantity: 0.01 },
+    ].map((row) => ({ ...row, reduce_only: false, created_time: 1653563963000 })),
+  }
+  const cancelAll = (rows: unknown) =>
+    orderlyAt((request) => ({
+      body: JSON.stringify({
+        success: true,
+        timestamp: 1702989203989,
+        data: request.method === 'GET' ? rows : { status: 'CANCEL_ALL_SENT' },
+      }),
     }))
-    expect(await orderly.execute(all.ctx, { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' })).toEqual({
-      kind: 'done',
-      detail: 'Canceled open PERP_BTC_USDC orders',
-    })
-    expect(all.sent).toEqual([
-      { method: 'DELETE', url: 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC', body: undefined },
+
+  it('cancels every open order of one market or of all, and reports which it canceled', async () => {
+    const one = cancelAll(listed)
+    const outcome = await orderly.execute(one.ctx, { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' })
+    expect(outcome).toMatchObject({ kind: 'canceled', detail: 'Canceled 1' })
+    expect(outcome.kind === 'canceled' && outcome.orders.map((order) => [order.ref, order.exit])).toEqual([
+      ['PERP_BTC_USDC:78152', null],
     ])
+    expect(one.sent.map((request) => [request.method, request.url])).toEqual([
+      ['GET', 'https://testnet-api.orderly.org/v1/orders?status=INCOMPLETE'],
+      ['DELETE', 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC'],
+    ])
+
+    const every = cancelAll(listed)
+    expect(await orderly.execute(every.ctx, { kind: 'cancel-all', symbol: null })).toMatchObject({
+      kind: 'canceled',
+      detail: 'Canceled 2',
+    })
+    expect(every.sent.at(-1)?.url).toBe('https://testnet-api.orderly.org/v1/orders')
+  })
+
+  it('sends no cancel when nothing is open on the market', async () => {
+    const none = cancelAll(listed)
+    expect(await orderly.execute(none.ctx, { kind: 'cancel-all', symbol: 'PERP_ETH_USDC' })).toEqual({
+      kind: 'done',
+      detail: 'Nothing to cancel',
+    })
+    expect(none.sent.map((request) => request.method)).toEqual(['GET'])
   })
 
   it('sets the leverage of the whole account with the request Orderly documents', async () => {

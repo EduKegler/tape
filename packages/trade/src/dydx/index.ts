@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
+import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { lookupSummary } from '../scale-order'
@@ -13,6 +14,7 @@ import type {
   Command,
   CommandOutcome,
   HistoryRequest,
+  OpenOrder,
   OrderExit,
   OrderIntent,
   OrderLookup,
@@ -330,12 +332,26 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
 
 const addressOf = (ctx: VenueContext) => ctx.keys.read()?.public.address ?? null
 
-async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOrder[]> {
-  return indexer(
+const openOrderOf = (order: IndexerOrder): OpenOrder => ({
+  ref: refOf(order),
+  symbol: order.ticker,
+  side: order.side === 'BUY' ? 'buy' : 'sell',
+  kind: order.type,
+  px: toDecimal(order.triggerPrice ?? order.price),
+  size: toDecimal(order.size),
+  reduceOnly: order.reduceOnly,
+  placedAt: order.updatedAt ? Date.parse(order.updatedAt) : 0,
+  cancelable: true,
+  exit: exitOf(order),
+})
+
+async function openOrders(ctx: VenueContext, address: string): Promise<OpenOrder[]> {
+  const orders = await indexer(
     ctx,
     `/orders?address=${address}&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50`,
     z.array(IndexerOrder),
   )
+  return orders.map(openOrderOf)
 }
 
 /** The indexer has no clientId filter, so the latest orders on the market are searched. */
@@ -374,9 +390,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       return { kind: 'done', detail: 'Cancel broadcast' }
     case 'cancel-all': {
       const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
-      const orders = (await openOrders(ctx, address)).filter((order) => order.ticker === command.symbol)
-      for (const order of orders) await cancel(ctx, refOf(order))
-      return { kind: 'done', detail: `Canceled ${orders.length}` }
+      const orders = onMarket(await openOrders(ctx, address), command.symbol)
+      for (const order of orders) await cancel(ctx, order.ref)
+      return canceled(orders)
     }
     case 'leverage':
       return fail({ kind: 'unsupported', detail: 'dYdX sets leverage by margin, not by a setting' })
@@ -441,18 +457,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         liquidation: null,
         leverage: null,
       })),
-      orders: orders.map((order) => ({
-        ref: refOf(order),
-        symbol: order.ticker,
-        side: order.side === 'BUY' ? 'buy' : 'sell',
-        kind: order.type,
-        px: toDecimal(order.triggerPrice ?? order.price),
-        size: toDecimal(order.size),
-        reduceOnly: order.reduceOnly,
-        placedAt: order.updatedAt ? Date.parse(order.updatedAt) : 0,
-        cancelable: true,
-        exit: exitOf(order),
-      })),
+      orders,
       fills: fills.fills.map((fill) => ({
         id: fill.id,
         symbol: fill.market,

@@ -64,7 +64,7 @@ describe('sending a close-all', () => {
   const answering = (answers: Record<string, CommandOutcome | TradeError>) => async (intent: OrderIntent) => {
     const answer = answers[intent.spec.venueSymbol]!
     if (answer.kind === 'placed' || answer.kind === 'done') return answer
-    if (answer.kind === 'closed') throw new Error('not an order outcome')
+    if (answer.kind === 'closed' || answer.kind === 'canceled') throw new Error('not an order outcome')
     throw new TradeFailure('hyperliquid', answer)
   }
 
