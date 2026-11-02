@@ -33,6 +33,7 @@ import type {
 import { walkByTime } from '../history'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
+import type { UserActionType } from './sign'
 import { cancelAction, leverageAction, orderAction, orderWire, trailingStopAction } from './wire'
 import type { OrderWire, Tif } from './wire'
 
@@ -602,36 +603,41 @@ async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
   return list
 }
 
+/** Signs `message` with the wallet on its active chain and sends it inside `action`. */
+async function userAction(
+  ctx: VenueContext,
+  wallet: WalletSigner,
+  primaryType: UserActionType,
+  message: Record<string, string | number>,
+  action: Record<string, unknown>,
+  nonce: number,
+): Promise<void> {
+  const chainId = await wallet.chainId()
+  const signature = await signUserAction(
+    { address: wallet.address, signTypedData: (data) => wallet.signTypedData(data) },
+    primaryType,
+    message,
+    chainId,
+  )
+  await send(
+    'hyperliquid',
+    ctx.fetch,
+    `${API[ctx.ref.network]}/exchange`,
+    {
+      ...post({ action: { ...action, signatureChainId: signatureChainIdHex(chainId), ...message }, nonce, signature }),
+      mutates: true,
+    },
+    classify,
+  )
+}
+
 async function enable(ctx: VenueContext, wallet: WalletSigner, onStep: (step: StepId) => void): Promise<void> {
   const chain = CHAIN[ctx.ref.network]
-  const chainId = await wallet.chainId()
-  const signatureChainId = signatureChainIdHex(chainId)
-  const user = async (
-    primaryType: Parameters<typeof signUserAction>[1],
+  const user = (
+    primaryType: UserActionType,
     message: Record<string, string | number>,
     action: Record<string, unknown>,
-  ) => {
-    const signature = await signUserAction(
-      { address: wallet.address, signTypedData: (data) => wallet.signTypedData(data) },
-      primaryType,
-      message,
-      chainId,
-    )
-    await send(
-      'hyperliquid',
-      ctx.fetch,
-      `${API[ctx.ref.network]}/exchange`,
-      {
-        ...post({
-          action: { ...action, signatureChainId, hyperliquidChain: chain, ...message },
-          nonce: message.nonce,
-          signature,
-        }),
-        mutates: true,
-      },
-      classify,
-    )
-  }
+  ) => userAction(ctx, wallet, primaryType, message, action, Number(message.nonce))
   for (const step of (await steps(ctx)).filter((entry) => !entry.done)) {
     onStep(step.id)
     if (step.id === 'approve-agent') {
