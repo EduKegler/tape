@@ -78,10 +78,11 @@ Before a venue ships, its tests prove these:
 | A failed read says what it could not read, never what was sent | `src/ui/trade-errors.test.ts`, and the read failure tests in `e2e/history.mainnet.spec.ts` and `e2e/trading.testnet.spec.ts` |
 | The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |
 | Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
-| Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
+| Every lint suppression gives its reason after `--` | `eslint-comments/require-description`, and `oxlint-comments/require-description` in `eslint.config.js` for `oxlint-disable` |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | No one-letter names | `id-length` in `eslint.config.js` |
-| No casts that narrow a type outside the constructor that owns it | `@typescript-eslint/no-unsafe-type-assertion` in `eslint.config.js`, off in tests |
+| No casts that narrow a type outside the constructor that owns it | `typescript/no-unsafe-type-assertion` in `.oxlintrc.json`, off in tests |
+| A lint rule that needs types runs in Oxlint, or in `TYPED_RULES` when Oxlint lacks it, so ESLint builds the TypeScript program only for those | `eslint.config.js` turns `projectService` on only in `eslint.typed.config.js`, so a typed rule anywhere else fails `pnpm verify` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
 | UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |

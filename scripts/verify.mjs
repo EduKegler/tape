@@ -9,6 +9,8 @@ const checks = process.argv.includes('--docs')
       'node scripts/check-cycles.mjs',
       'node scripts/check-contrast.mjs',
       'eslint --max-warnings 0',
+      'eslint --config eslint.typed.config.js --max-warnings 0',
+      'oxlint',
       'knip',
       'vitest run',
     ]

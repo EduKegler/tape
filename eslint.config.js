@@ -1,5 +1,6 @@
 //  @ts-check
 
+import { readFileSync } from 'node:fs'
 import comments from '@eslint-community/eslint-plugin-eslint-comments/configs'
 import { tanstackConfig } from '@tanstack/eslint-config'
 import pluginQuery from '@tanstack/eslint-plugin-query'
@@ -64,6 +65,49 @@ const LINK_CLASSES = {
 
 const PRIMITIVES = 'src/ui/primitives/**'
 
+// Oxlint reads comments in its config, and JSON.parse does not.
+const OXLINT = JSON.parse(readFileSync(new URL('.oxlintrc.json', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, ''))
+const OXLINT_RULES = new Set(
+  OXLINT.overrides
+    .flatMap((override) => Object.keys(override.rules))
+    .map((name) => name.replace(/^typescript\//, '@typescript-eslint/')),
+)
+
+// Rules that read the TypeScript program and that Oxlint 1.90 does not have, or has without the
+// no-meaningless-void-operator report on a void that discards no call. eslint.typed.config.js runs them.
+const TYPED_RULES = new Set([
+  '@eslint-react/no-leaked-conditional-rendering',
+  '@tanstack/query/no-rest-destructuring',
+  '@tanstack/query/no-void-query-fn',
+  '@typescript-eslint/no-meaningless-void-operator',
+  'regexp/no-legacy-features',
+  'regexp/no-missing-g-flag',
+  'regexp/no-unused-capturing-group',
+  'regexp/no-useless-dollar-replacements',
+])
+
+const OXLINT_DIRECTIVE = /^\s*oxlint-(?:disable|enable)/
+const oxlintComments = {
+  rules: {
+    'require-description': {
+      meta: {
+        type: 'suggestion',
+        schema: [],
+        messages: { missing: 'Give the reason for this oxlint directive after --.' },
+      },
+      create: (context) => ({
+        Program: () => {
+          for (const comment of context.sourceCode.getAllComments()) {
+            if (OXLINT_DIRECTIVE.test(comment.value) && !/\s--\s*\S/.test(comment.value)) {
+              context.report({ loc: comment.loc ?? { line: 1, column: 0 }, messageId: 'missing' })
+            }
+          }
+        },
+      }),
+    },
+  },
+}
+
 const SIDE_FILES = [
   'src/ui/Account.tsx',
   'src/ui/BatchPanel.tsx',
@@ -78,13 +122,11 @@ const SIDE_FILES = [
   'src/ui/primitives/Button.tsx',
 ]
 
-export default [
+const config = [
   ...tanstackConfig,
   {
     files: ['**/*.{js,ts,tsx}'],
-    languageOptions: {
-      parserOptions: { project: null, projectService: true, tsconfigRootDir: import.meta.dirname },
-    },
+    languageOptions: { parserOptions: { project: null } },
   },
   ...[...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked].map((config) => ({
     ...config,
@@ -99,17 +141,7 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
-      '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }],
       '@typescript-eslint/no-invalid-void-type': ['error', { allowInGenericTypeArguments: true }],
-      '@typescript-eslint/only-throw-error': [
-        'error',
-        {
-          allow: [{ from: 'package', package: '@tanstack/router-core', name: ['Redirect', 'NotFoundError'] }],
-        },
-      ],
-      '@typescript-eslint/prefer-nullish-coalescing': ['error', { ignorePrimitives: { string: true } }],
-      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
-      '@typescript-eslint/switch-exhaustiveness-check': ['error', { considerDefaultExhaustiveForUnions: false }],
       'no-shadow': 'off',
       '@typescript-eslint/no-shadow': 'error',
     },
@@ -132,7 +164,11 @@ export default [
   comments.recommended,
   {
     linterOptions: { reportUnusedDisableDirectives: 'error' },
-    rules: { '@eslint-community/eslint-comments/require-description': 'error' },
+    plugins: { 'oxlint-comments': oxlintComments },
+    rules: {
+      '@eslint-community/eslint-comments/require-description': 'error',
+      'oxlint-comments/require-description': 'error',
+    },
   },
   regexp.configs['flat/recommended'],
   { rules: { 'regexp/no-super-linear-move': 'error' } },
@@ -202,32 +238,11 @@ export default [
     },
   },
   {
-    // The dYdX client exports none of its order enums, so the adapter passes their numbers.
-    files: ['packages/trade/src/dydx/**'],
-    rules: {
-      '@typescript-eslint/no-unsafe-enum-assignment': 'off',
-      '@typescript-eslint/no-unsafe-enum-comparison': 'off',
-    },
-  },
-  {
     ...vitest.configs.recommended,
     files: ['**/*.test.{ts,tsx}'],
     rules: {
       ...vitest.configs.recommended.rules,
       'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'expectSig'] }],
-    },
-  },
-  {
-    files: ['src/**/*.{ts,tsx}', 'packages/**/*.ts'],
-    rules: { '@typescript-eslint/no-unsafe-type-assertion': 'error' },
-  },
-  {
-    files: ['**/*.test.{ts,tsx}'],
-    rules: {
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-type-assertion': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
   {
@@ -356,6 +371,7 @@ export default [
   {
     ignores: [
       'eslint.config.js',
+      'eslint.typed.config.js',
       'prettier.config.js',
       '.output/**',
       '**/.cache/**',
@@ -369,3 +385,22 @@ export default [
     ],
   },
 ]
+
+const only = (keep) =>
+  config.map((block) =>
+    block.rules
+      ? { ...block, rules: Object.fromEntries(Object.entries(block.rules).filter(([name]) => keep(name))) }
+      : block,
+  )
+
+export const typed = [
+  ...only((name) => TYPED_RULES.has(name)),
+  {
+    files: ['**/*.{js,ts,tsx}'],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+  },
+  // The other rules' eslint-disable comments suppress nothing in this run.
+  { linterOptions: { reportUnusedDisableDirectives: 'off' } },
+]
+
+export default only((name) => !TYPED_RULES.has(name) && !OXLINT_RULES.has(name))
