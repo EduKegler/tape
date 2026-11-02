@@ -324,6 +324,8 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   if (draft.kind === 'trailing') checkTrailing(spec, draft, caps, errors)
   const rests = draft.kind === 'limit' || draft.kind === 'scale'
   if (rests && !caps.tif.includes(draft.tif)) errors.tif = 'Not offered on this venue'
+  else if (rests && draft.reduceOnly && draft.tif !== 'ioc' && !caps.restingReduceOnly)
+    errors.tif = 'Reduce-only goes only as IOC on this venue'
   const scaleTif = draft.kind === 'scale' && draft.tif !== 'ioc' ? draft.tif : null
   if (draft.kind === 'scale' && scaleTif === null) errors.tif = 'Not with a scale order'
   const offered = (field: 'takeProfits' | 'stopLoss') => {

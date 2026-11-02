@@ -645,6 +645,7 @@ export const orderly = {
     leverage: true,
     scaleOrders: BATCH_ORDERS,
     trailingStop: false,
+    restingReduceOnly: true,
   },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {

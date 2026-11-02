@@ -193,6 +193,8 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   if (intent.order.kind === 'limit') {
     px = recheckPx(perp, intent, intent.order.px)
     tif = TIF[intent.order.tif]
+    if (intent.reduceOnly && tif !== TIF.ioc)
+      fail({ kind: 'invalid-order', detail: 'dYdX takes a reduce-only order only as IOC' })
   } else {
     const book = await indexer(ctx, `/orderbooks/perpetualMarket/${intent.spec.venueSymbol}`, Orderbook)
     const far = intent.side === 'buy' ? book.asks[0] : book.bids[0]
@@ -563,6 +565,7 @@ export const dydx = {
     leverage: false,
     scaleOrders: 0,
     trailingStop: false,
+    restingReduceOnly: false,
   },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>

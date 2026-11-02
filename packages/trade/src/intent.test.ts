@@ -191,6 +191,18 @@ describe('order intent exits and time in force', () => {
     })
   })
 
+  // MsgPlaceOrder.ValidateBasic in v4-chain: reduce-only orders must be short-term IOC orders.
+  it('keeps a reduce-only limit IOC on dYdX, and lets it rest elsewhere', () => {
+    const caps = TRADING.dydx.capabilities
+    for (const tif of ['gtc', 'post-only'] as const)
+      expect(errorsOf({ tif, reduceOnly: true }, dydx, caps)).toEqual({
+        tif: 'Reduce-only goes only as IOC on this venue',
+      })
+    expect(errorsOf({ tif: 'ioc', reduceOnly: true }, dydx, caps)).toEqual({})
+    expect(errorsOf({ tif: 'gtc' }, dydx, caps)).toEqual({})
+    expect(errorsOf({ tif: 'gtc', reduceOnly: true })).toEqual({})
+  })
+
   it('refuses a time in force the venue does not offer on a resting order only', () => {
     const gtcOnly: Capabilities = { ...TRADING.hyperliquid.capabilities, tif: ['gtc'] }
     expect(errorsOf({ tif: 'post-only' }, hl, gtcOnly)).toEqual({ tif: 'Not offered on this venue' })

@@ -210,6 +210,8 @@ export interface Capabilities {
   readonly scaleOrders: number
   /** The venue keeps a stop that trails the price, so it fires with the browser closed. */
   readonly trailingStop: boolean
+  /** A reduce-only limit can rest on the book. False where the venue takes reduce-only only as IOC. */
+  readonly restingReduceOnly: boolean
 }
 
 export type TradeError =

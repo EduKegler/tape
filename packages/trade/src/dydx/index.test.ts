@@ -406,6 +406,23 @@ describe('dydx contract', () => {
     expect(urls).toEqual([])
   })
 
+  // MsgPlaceOrder.ValidateBasic in v4-chain refuses reduce-only on anything but a short-term IOC with code 9003.
+  it('refuses a resting reduce-only limit before signing, and sends a reduce-only IOC', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const resting = { ...dydx.capabilities, restingReduceOnly: true }
+    for (const tif of ['gtc', 'post-only'] as const) {
+      const built = buildIntent(btc, { ...draft, tif, reduceOnly: true }, resting)
+      if (!built.ok) throw new Error('intent')
+      expect(await failure(dydx.execute(ctx, { kind: 'place', intent: built.intent }))).toEqual({
+        kind: 'invalid-order',
+        detail: 'dYdX takes a reduce-only order only as IOC',
+      })
+    }
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+    await dydx.execute(ctx, { kind: 'place', intent: intentOf(btc, { tif: 'ioc', reduceOnly: true }) })
+    expect(chain.placeOrder.mock.calls[0]?.[8]).toBe(true)
+  })
+
   it('keeps the dYdX mnemonic in the tab, out of storage', () => {
     expect(dydx.secrets).toBe('tab')
   })

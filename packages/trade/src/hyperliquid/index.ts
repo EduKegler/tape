@@ -773,6 +773,7 @@ export const hyperliquid = {
     leverage: true,
     scaleOrders: SCALE_ORDERS,
     trailingStop: true,
+    restingReduceOnly: true,
   },
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,
