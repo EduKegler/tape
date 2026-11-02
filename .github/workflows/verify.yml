@@ -119,8 +119,13 @@ jobs:
         if: github.event_name == 'push' && steps.changes.outputs.kind != 'docs'
         run: pnpm verify
 
-  e2e:
+  e2e-shard:
+    name: e2e shard ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -140,13 +145,27 @@ jobs:
       - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
         run: pnpm exec playwright install --with-deps chromium
       - if: steps.changes.outputs.kind != 'docs' && steps.changes.outputs.kind != 'tests'
-        run: pnpm e2e
+        env:
+          SHARD: ${{ matrix.shard }}/3
+        run: pnpm e2e --shard="$SHARD"
       - name: traces and screenshots of the failed journeys
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-results
+          name: e2e-results-shard-${{ matrix.shard }}
           path: e2e/results
+
+  e2e:
+    needs: e2e-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: every e2e shard passed
+        env:
+          SHARDS: ${{ needs.e2e-shard.result }}
+        run: |
+          echo "shards $SHARDS"
+          [ "$SHARDS" = success ]
 
   deploy:
     if: github.event_name == 'push'
