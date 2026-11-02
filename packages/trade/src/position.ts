@@ -2,9 +2,12 @@ import { parseQty, toPx, toQty } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { priceTick } from '@tape/core/market'
 import type { MarketSpec } from '@tape/core/market'
+import { buildIntent } from './intent'
+import type { Built } from './intent'
 import { capitalized } from './protect'
 import { toTick } from './scale-order'
-import type { OpenOrder, Position } from './types'
+import { toBps } from './types'
+import type { Capabilities, OpenOrder, Position } from './types'
 
 const direction = (position: Pick<Position, 'side'>) => (position.side === 'long' ? 1 : -1)
 const held = (position: Pick<Position, 'size'>) => Math.abs(Number(position.size))
@@ -93,4 +96,38 @@ export function nearestTick(spec: Pick<MarketSpec, 'scale' | 'tick'>, price: num
 /** The decimals a price shows at, those its tick leaves. */
 export function priceDecimals(spec: Pick<MarketSpec, 'scale' | 'tick'>, px: Px): number {
   return Math.max(0, spec.scale.px - Math.round(Math.log10(priceTick(spec, px))))
+}
+
+/** The good-til-canceled limit a resting order becomes when it moves to `price` and `size`. */
+export function moveIntent(
+  spec: MarketSpec,
+  order: Pick<OpenOrder, 'side' | 'reduceOnly'>,
+  caps: Capabilities,
+  price: string,
+  size: string,
+): Built {
+  return buildIntent(
+    spec,
+    {
+      side: order.side,
+      kind: 'limit',
+      price,
+      size,
+      tif: 'gtc',
+      reduceOnly: order.reduceOnly,
+      takeProfits: [],
+      stopLoss: '',
+      slippage: toBps(0),
+      bid: '',
+      ask: '',
+      start: '',
+      end: '',
+      count: '',
+      skew: '',
+      retracement: '',
+      retracementUnit: 'pct',
+      activation: '',
+    },
+    caps,
+  )
 }

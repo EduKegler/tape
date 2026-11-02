@@ -12,6 +12,7 @@ import {
   keptAfter,
   leverageOf,
   marginOf,
+  moveIntent,
   nearestTick,
   orderKindLabel,
   pnlAt,
@@ -20,7 +21,7 @@ import {
   roeOf,
 } from './position'
 import { toDecimal } from './types'
-import type { Position } from './types'
+import type { Capabilities, Position } from './types'
 
 const eth: MarketSpec = {
   key: marketKey('hyperliquid', 'ETH' as Base),
@@ -199,5 +200,36 @@ describe('ticks', () => {
     expect(priceDecimals(eth, parsePx('3042.86', eth.scale))).toBe(2)
     expect(priceDecimals(btc, parsePx('78632', btc.scale))).toBe(0)
     expect(priceDecimals(btc, parsePx('3520.5', btc.scale))).toBe(1)
+  })
+})
+
+describe('move intent', () => {
+  const caps: Capabilities = {
+    tif: ['gtc', 'ioc', 'post-only'],
+    triggers: null,
+    leverage: true,
+    scaleOrders: 0,
+    trailingStop: false,
+    restingReduceOnly: true,
+    wholeExits: true,
+  }
+
+  it('makes a good-til-canceled limit on the order side', () => {
+    const built = moveIntent(eth, { side: 'buy', reduceOnly: false }, caps, '3000.5', '0.25')
+    expect(built.ok && built.intent).toMatchObject({
+      side: 'buy',
+      size: parseQty('0.25', eth.scale),
+      reduceOnly: false,
+      order: { kind: 'limit', px: parsePx('3000.5', eth.scale), tif: 'gtc' },
+    })
+  })
+
+  it('refuses a price off the tick and a reduce-only rest where the venue takes none', () => {
+    expect(moveIntent(eth, { side: 'sell', reduceOnly: false }, caps, '3000.505', '1')).toMatchObject({
+      ok: false,
+      errors: { price: 'At most 2 decimals' },
+    })
+    const ioc = { ...caps, restingReduceOnly: false }
+    expect(moveIntent(eth, { side: 'sell', reduceOnly: true }, ioc, '3000', '1')).toMatchObject({ ok: false })
   })
 })
