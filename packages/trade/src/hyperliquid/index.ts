@@ -8,7 +8,7 @@ import { checkExits, checkPrice, checkSize, midPrice, takeProfitField, worstPric
 import { lookupSummary, scaleOutcome } from '../scale-order'
 import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
-import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { EXIT_NAMES, capitalized, exitDetail, notePrice } from '../protect'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, readReply, send } from '../send'
@@ -438,7 +438,7 @@ async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<Comman
     if (moved) moves.push({ oid: refParts(moved).oid, order: wire })
     else adds.push(wire)
     cancels.push(...extra)
-    notes.push(`${name} at ${px}`)
+    notes.push(`${name} at ${notePrice(edit.px, intent.spec.scale)}`)
   }
   const refusals = async (action: unknown) =>
     ((await exchange(ctx, action)).response.data?.statuses ?? []).flatMap((status) => errorOf(status) ?? [])

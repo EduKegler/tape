@@ -570,7 +570,7 @@ describe('hyperliquid position take profit and stop loss', () => {
     const { ctx, posts } = venue(replied('positionTpslZero'))
     expect(await hyperliquid.execute(ctx, protect(edits[0]!, edits[1]!))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 116512, stop loss at 46580',
+      detail: 'Take profit at 116,512, stop loss at 46,580',
     })
     const recordedOrders = actionOf('positionTpslZero').orders as Record<string, unknown>[]
     expect(posts().map((post) => post.body.action)).toEqual([
@@ -588,7 +588,7 @@ describe('hyperliquid position take profit and stop loss', () => {
     const { ctx, posts } = venue(replied('modifyWhole'))
     expect(await hyperliquid.execute(ctx, protect(edit, { kind: 'keep' }))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 112628',
+      detail: 'Take profit at 112,628',
     })
     const recordedModify = (actionOf('modifyWhole').modifies as { oid: number; order: Record<string, unknown> }[])[0]!
     expect(posts().map((post) => post.body.action)).toEqual([
@@ -606,7 +606,7 @@ describe('hyperliquid position take profit and stop loss', () => {
     const edit = set('112628', ['3:64334764485' as OrderRef, '3:64334763007' as OrderRef])
     expect(
       await hyperliquid.execute(ctx, protect(edit, { kind: 'remove', legs: ['3:64334763008' as OrderRef] })),
-    ).toEqual({ kind: 'done', detail: 'Take profit at 112628, stop loss removed' })
+    ).toEqual({ kind: 'done', detail: 'Take profit at 112,628, stop loss removed' })
     expect(posts().map((post) => post.body.action)).toEqual([
       expect.objectContaining({ type: 'batchModify' }),
       {

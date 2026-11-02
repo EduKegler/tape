@@ -8,7 +8,7 @@ import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
-import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { EXIT_NAMES, capitalized, exitDetail, notePrice } from '../protect'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
@@ -434,7 +434,7 @@ async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<Comman
     const issue = checkPrice(spec, px)
     if (issue)
       fail({ kind: 'invalid-order', detail: `${capitalized(EXIT_NAMES[kind])} ${px}: ${issue} on this network` })
-    notes.push(`${EXIT_NAMES[kind]} at ${px}`)
+    notes.push(`${EXIT_NAMES[kind]} at ${notePrice(edit.px, intent.spec.scale)}`)
     return [{ kind, px }]
   })
   const detail = exitDetail(notes)

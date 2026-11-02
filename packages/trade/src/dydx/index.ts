@@ -5,7 +5,7 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
 import { canceled, onMarket } from '../cancel-all'
 import { closeEach } from '../close-all'
-import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { EXIT_NAMES, capitalized, exitDetail, notePrice } from '../protect'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { lookupSummary } from '../scale-order'
 import { readReply, send } from '../send'
@@ -384,7 +384,7 @@ async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<Comman
     const issue = checkPrice(perp.spec, px)
     if (issue) fail({ kind: 'invalid-order', detail: `${capitalized(name)} ${px}: ${issue} on this network` })
     places.push({ tpsl, trigger: parsePx(px, perp.spec.scale), clientId: edit.clientId })
-    notes.push(`${name} at ${px}`)
+    notes.push(`${name} at ${notePrice(edit.px, intent.spec.scale)}`)
   }
   const detail = exitDetail(notes)
   if (cancels.length === 0 && places.length === 0) return { kind: 'done', detail }

@@ -675,7 +675,7 @@ describe('orderly take profit and stop loss', () => {
     const { ctx, sent } = orderlyWith([])
     expect(await orderly.execute(ctx, protect(takeProfit, set('70000')))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 95000.5, stop loss at 70000',
+      detail: 'Take profit at 95,000.5, stop loss at 70,000',
     })
     const clientId = takeProfit.kind === 'set' && takeProfit.clientId
     expect(writes(sent)).toEqual([
@@ -694,7 +694,7 @@ describe('orderly take profit and stop loss', () => {
     const { ctx, sent } = orderlyWith([both])
     expect(await orderly.execute(ctx, protect(set('96000'), { kind: 'remove', legs: [] }))).toEqual({
       kind: 'done',
-      detail: 'Take profit at 96000, stop loss removed',
+      detail: 'Take profit at 96,000, stop loss removed',
     })
     expect(writes(sent)).toEqual([
       [
