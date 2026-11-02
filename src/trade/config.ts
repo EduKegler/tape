@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isAddress } from 'viem'
 import { VENUE_IDS } from '@tape/core/ids'
+import type { VenueId } from '@tape/core/ids'
 import { isTradeVenue } from '@tape/trade/types'
 import type { TradeConfig } from '@tape/trade/types'
 import { NETWORK } from '#/site'
@@ -65,4 +66,5 @@ function toConfig(vars: z.infer<typeof env>): TradeConfig {
 
 export const TRADE_CONFIG = parseTradeConfig(import.meta.env)
 
-export const SITE_READ_ONLY = NETWORK === 'mainnet' && TRADE_CONFIG.mainnet.size === 0
+export const sendsOrders = (venue: VenueId): boolean =>
+  isTradeVenue(venue) && (NETWORK === 'testnet' || TRADE_CONFIG.mainnet.has(venue))

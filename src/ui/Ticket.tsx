@@ -37,7 +37,7 @@ import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
 import { isTif, toBps } from '@tape/trade/types'
-import type { Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
+import type { Capabilities, Side, Tif, TradeError, TradeVenueId } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import { useFrame, useFrameEffect } from '#/client/hooks'
@@ -134,7 +134,13 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
         onRetry={() => void specs.refetch()}
       />
       <span className="shrink-0 text-xs text-level3">
-        {session.status === 'read-only' ? 'Read only' : NETWORK === 'testnet' ? 'Testnet' : null}
+        {session.status === 'read-only'
+          ? 'Read only'
+          : session.status === 'unavailable'
+            ? null
+            : NETWORK === 'testnet'
+              ? 'Testnet'
+              : 'Mainnet'}
       </span>
     </span>
   )
@@ -875,7 +881,7 @@ function SubmitArea({
             {venue} is read only in Tape. It never signs or sends an order here.
           </p>
         ) : (
-          <SiteReadOnly />
+          <TestnetOnly venue={session.venue} />
         )
       case 'unavailable':
         return <p className="text-sm text-level3">{session.reason}.</p>
@@ -927,13 +933,20 @@ function MainnetWalletUsdc() {
   )
 }
 
-export function SiteReadOnly() {
+const MAINNET_APP: Partial<Record<TradeVenueId, { readonly href: string; readonly host: string }>> = {
+  hyperliquid: { href: 'https://app.hyperliquid.xyz', host: 'app.hyperliquid.xyz' },
+}
+
+export function TestnetOnly({ venue }: { venue: TradeVenueId }) {
+  const app = MAINNET_APP[venue]
   return (
     <p className="text-xs/snug text-level3">
-      Mainnet is read only in Tape.{' '}
-      {TESTNET_SITE && (
+      {VENUES[venue].label} trades only on {TESTNET_SITE ? <TextLink href={TESTNET_SITE}>testnet</TextLink> : 'testnet'}{' '}
+      in Tape.
+      {app && (
         <>
-          Trading runs on <TextLink href={TESTNET_SITE}>testnet</TextLink>.
+          {' '}
+          Manage mainnet positions on <TextLink href={app.href}>{app.host}</TextLink>.
         </>
       )}
     </p>

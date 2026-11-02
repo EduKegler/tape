@@ -1,7 +1,8 @@
+import type { VenueId } from '@tape/core/ids'
 import { useHubStats } from '#/client/hooks'
-import { SITE_READ_ONLY } from '#/trade/config'
+import { sendsOrders } from '#/trade/config'
 
-export function StatusBar() {
+export function StatusBar({ venue }: { venue: VenueId }) {
   const stats = useHubStats()
   const offline = stats?.sockets === 0
   return (
@@ -52,9 +53,9 @@ export function StatusBar() {
       <span aria-live="polite" className={`ml-auto min-w-0 truncate ${offline ? 'text-sm text-warn' : ''}`}>
         {offline
           ? 'Offline. No venue socket is open, so every price on screen is frozen. Tape keeps retrying.'
-          : SITE_READ_ONLY
-            ? 'Market data comes straight from the venues. Tape has no server in between.'
-            : 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'}
+          : sendsOrders(venue)
+            ? 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'
+            : 'Market data comes straight from the venues. Tape has no server in between.'}
       </span>
       <a className="hover:text-level1" href="https://github.com/EduKegler/tape">
         Source
