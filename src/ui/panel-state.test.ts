@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { panelState } from './panel-state'
+import { panelState, readState } from './panel-state'
 
 const NOW = 1_000_000
 const base = {
@@ -78,6 +78,38 @@ describe('panel state', () => {
       data: 'error',
       connection: 'reconnecting',
       text: 'Could not load history.',
+    })
+  })
+})
+
+describe('read state', () => {
+  const READ_AT = Date.UTC(2026, 10, 2, 14, 3, 12)
+
+  it('says it is loading before the first read', () => {
+    expect(readState({ readAt: null, reading: true, now: READ_AT })).toEqual({
+      data: 'empty',
+      connection: 'connected',
+      text: 'Loading…',
+    })
+  })
+
+  it('says nothing when there is nothing to read', () => {
+    expect(readState({ readAt: null, reading: false, now: READ_AT })).toMatchObject({ data: 'empty', text: null })
+  })
+
+  it('shows the UTC time of a settled read', () => {
+    expect(readState({ readAt: READ_AT, reading: false, now: READ_AT + 70_000 })).toEqual({
+      data: 'live',
+      connection: 'connected',
+      text: 'Read 14:03:12 UTC',
+    })
+  })
+
+  it('keeps the old read readable as stale, with its age, while it reads again', () => {
+    expect(readState({ readAt: READ_AT, reading: true, now: READ_AT + 70_000 })).toEqual({
+      data: 'stale',
+      connection: 'connected',
+      text: 'Reading… · 70 s old',
     })
   })
 })

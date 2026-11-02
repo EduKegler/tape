@@ -384,6 +384,8 @@ function sendErrorText(error: TradeError, venue: WithdrawVenue): string {
   switch (error.kind) {
     case 'wallet-rejected':
       return 'You declined in the wallet. Nothing was sent.'
+    case 'nondeterministic-wallet':
+      return 'Your wallet signed the same request two different ways. Nothing was sent.'
     case 'unreachable':
       return `Could not reach ${venue.source}. Nothing was sent.`
     case 'unexpected':

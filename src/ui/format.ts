@@ -9,6 +9,8 @@ export function groupThousands(decimal: string): string {
   return fraction === undefined ? grouped : `${grouped}.${fraction}`
 }
 
+export const groupedAmount = (value: string) => (/^\d+(?:\.\d+)?$/.test(value) ? groupThousands(value) : value)
+
 export const formatCompact = (value: number) => compact.format(value)
 
 const signed = (digits: number) =>

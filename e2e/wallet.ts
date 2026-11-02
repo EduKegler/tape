@@ -58,6 +58,10 @@ export interface Wallet {
   /** The next connect request is refused with EIP-1193's 4001, as when the trader says no in the popup. */
   rejectNextConnect: () => void
   holdNextConnect: () => () => void
+  /** Holds the nth signature request from now until the returned release is called. */
+  holdSign: (nth: number) => () => void
+  /** Answers every second signature request with the other valid signature of the pair, as a wallet with a random nonce does. */
+  signUnstably: () => void
 }
 
 type Emit = readonly ['accountsChanged', readonly Address[]] | readonly ['chainChanged', Hex]
@@ -77,6 +81,14 @@ const UNAUTHORIZED = 4100
 const UNSUPPORTED = 4200
 /** MetaMask's code for a switch to a chain the wallet has not added. */
 const UNRECOGNIZED_CHAIN = 4902
+/** The order of secp256k1 (SEC 2). (r, n - s) with the recovery bit flipped signs the same hash as (r, s). */
+const SECP256K1_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
+
+const otherSignature = (signature: Hex): Hex => {
+  const sValue = BigInt(`0x${signature.slice(66, 130)}`)
+  const recovery = Number.parseInt(signature.slice(130), 16)
+  return `${signature.slice(0, 66)}${(SECP256K1_N - sValue).toString(16).padStart(64, '0')}${(recovery === 27 ? 28 : 27).toString(16)}` as Hex
+}
 
 /** viem's hashTypedData without its name check, which refuses Hyperliquid's `HyperliquidTransaction:` types. */
 const typedDataHash = ({ domain, types, primaryType, message }: SignRequest) =>
@@ -104,6 +116,9 @@ export async function installWallet(context: BrowserContext, names: readonly str
     unanswered: [] as string[],
     reject: false,
     hold: null as Promise<void> | null,
+    signs: 0,
+    signHold: null as { readonly at: number; readonly until: Promise<void> } | null,
+    unstable: false,
   }
   const accounts = () => (state.connected ? [ACCOUNTS[state.selected]] : [])
   const emit = async (events: readonly Emit[]) => {
@@ -173,6 +188,9 @@ export async function installWallet(context: BrowserContext, names: readonly str
         if (!from) return { error: { code: UNAUTHORIZED, message: `The test wallet does not hold ${address}` } }
         const request = JSON.parse(json) as SignRequest
         const { domain, primaryType, message } = request
+        state.signs += 1
+        const signNumber = state.signs
+        if (state.signHold?.at === signNumber) await state.signHold.until
         state.asked.push({
           kind: 'sign',
           from,
@@ -180,7 +198,8 @@ export async function installWallet(context: BrowserContext, names: readonly str
           chainId: state.chainId,
           typedData: { domain, primaryType, message },
         })
-        return { result: await signers[from].sign({ hash: typedDataHash(request) }), emit: [] }
+        const signature = await signers[from].sign({ hash: typedDataHash(request) })
+        return { result: state.unstable && signNumber % 2 === 0 ? otherSignature(signature) : signature, emit: [] }
       }
       case 'eth_sendTransaction': {
         const tx = params[0] as { from: string; to: Address; data: Hex; chainId?: Hex }
@@ -227,6 +246,19 @@ export async function installWallet(context: BrowserContext, names: readonly str
         release = resolve
       })
       return () => release()
+    },
+    holdSign: (nth) => {
+      let release = () => {}
+      state.signHold = {
+        at: state.signs + nth,
+        until: new Promise((resolve) => {
+          release = resolve
+        }),
+      }
+      return () => release()
+    },
+    signUnstably: () => {
+      state.unstable = true
     },
   }
 }

@@ -264,7 +264,8 @@ export type AccountView =
   | { readonly kind: 'empty' }
   | { readonly kind: 'live'; readonly snapshot: AccountSnapshot }
 
-export type StepId = 'register-account' | 'approve-agent' | 'approve-builder' | 'derive-key' | 'add-key'
+/** confirm-key: the wallet signs the derive-key request a second time, to show it signs it the same way. */
+export type StepId = 'register-account' | 'approve-agent' | 'approve-builder' | 'derive-key' | 'confirm-key' | 'add-key'
 export interface SetupStep {
   readonly id: StepId
   readonly label: string
@@ -288,6 +289,8 @@ export interface Capabilities {
 
 export type TradeError =
   | { readonly kind: 'wallet-rejected' }
+  /** The wallet signed the same request two ways, so a key derived from its signature would differ per tab. */
+  | { readonly kind: 'nondeterministic-wallet' }
   | { readonly kind: 'needs-setup'; readonly detail: string }
   | { readonly kind: 'no-account'; readonly detail: string }
   | { readonly kind: 'insufficient-margin'; readonly detail: string }
