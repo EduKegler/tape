@@ -5,6 +5,7 @@ import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
+import { closeIntents } from '../close-all'
 import { recordedWrite } from '../fixtures'
 import { buildIntent, closeIntent, closeTif } from '../intent'
 import type { TakeProfitDraft } from '../intent'
@@ -638,6 +639,62 @@ describe('hyperliquid closes', () => {
       detail: 'The book on this network has no mid',
     })
     expect(oneSided.posts()).toEqual([])
+  })
+})
+
+describe('hyperliquid close all', () => {
+  it('sends one reduce-only order per position and reports the refused one apart from the filled one', async () => {
+    const sol: MarketSpec = {
+      ...btc,
+      key: marketKey('hyperliquid', 'SOL' as Base),
+      base: 'SOL' as Base,
+      venueSymbol: 'SOL',
+      scale: { px: 4, qty: 2 },
+    }
+    const held = (symbol: string, size: string) => ({
+      symbol,
+      side: 'long' as const,
+      size: toDecimal(size),
+      entry: toDecimal('1'),
+      unrealizedPnl: toDecimal('1'),
+      liquidation: null,
+      leverage: null,
+    })
+    const { intents } = closeIntents(
+      [held('BTC', '0.00027'), held('SOL', '1')],
+      (symbol) => (symbol === 'SOL' ? sol : btc),
+      'all',
+      { kind: 'market', slippage: 100 as Bps },
+    )
+    // Asset 3 is BTC and asset 0 is SOL in the testnet meta.
+    const assetOf = (post: Sent | undefined) => (post?.body.action as { orders: { a: number }[] }).orders[0]?.a
+    const { ctx, posts } = venue(() => json(recorded(assetOf(posts().at(-1)) === 3 ? 'close' : 'reduceOnly')))
+    const outcome = await hyperliquid.execute(ctx, { kind: 'close-all', intents })
+    expect(posts().map((post) => wiresOf(post).orders.map(([isBuy, , reduceOnly]) => [isBuy, reduceOnly]))).toEqual([
+      [[false, true]],
+      [[false, true]],
+    ])
+    const recordedClose = statusOf('close').filled!
+    expect(outcome).toEqual({
+      kind: 'closed',
+      detail: '1 of 2 close orders placed',
+      rows: [
+        {
+          symbol: 'BTC',
+          sent: { venueSymbol: 'BTC', clientIds: [intents[0]!.clientId] },
+          outcome: {
+            kind: 'placed',
+            status: 'filled',
+            detail: `Filled ${recordedClose.totalSz} at ${recordedClose.avgPx}`,
+          },
+        },
+        {
+          symbol: 'SOL',
+          sent: { venueSymbol: 'SOL', clientIds: [intents[1]!.clientId] },
+          error: { kind: 'rejected', detail: refusalOf('reduceOnly') },
+        },
+      ],
+    })
   })
 })
 

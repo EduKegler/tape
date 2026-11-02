@@ -6,6 +6,7 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
+import { closeEach } from '../close-all'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
@@ -296,51 +297,54 @@ async function placeScale(
   )
 }
 
+async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  if (intent.order.kind === 'trailing')
+    fail({ kind: 'unsupported', detail: 'Orderly takes no trailing stop from Tape' })
+  if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'unsupported', detail: 'Orderly takes no take profit or stop loss from Tape' })
+  const symbol = intent.spec.venueSymbol
+  const { spec, priceRange } = await networkRules(ctx, symbol)
+  if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
+  const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
+  const sizeIssue = checkSize(spec, quantity)
+  if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
+  let price: string
+  if (intent.order.kind === 'limit') {
+    price = wireDecimal(intent.order.px, intent.spec.scale.px)
+    const issue = checkPrice(spec, price)
+    if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
+  } else if (intent.order.kind === 'mid') {
+    price = wireDecimal(await midOf(ctx, spec, intent.side), spec.scale.px)
+  } else {
+    const range = priceRange ?? fail({ kind: 'unreachable', detail: `Orderly sent no price range for ${symbol}` })
+    const [far, mark] = await Promise.all([farTouch(ctx, spec, intent.side), markPrice(ctx, symbol)])
+    const worst = worstPrice(spec, intent.side, far, intent.order.slippage)
+    price = wireDecimal(insidePriceRange(spec, intent.side, worst, mark, range), spec.scale.px)
+  }
+  const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : intent.order.kind === 'mid' ? TYPE.gtc : 'IOC'
+  const body = orderBody({
+    symbol,
+    clientOrderId: intent.clientId,
+    type,
+    side: intent.side === 'buy' ? 'BUY' : 'SELL',
+    price,
+    quantity,
+    reduceOnly: intent.reduceOnly,
+  })
+  const data = await signed(ctx, 'POST', '/v1/order', z.object({ order_id: z.string() }), body)
+  return {
+    kind: 'placed',
+    status: type === 'IOC' ? 'accepted' : 'resting',
+    detail: `Order ${data.order_id}`,
+  }
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
-    case 'place': {
-      const intent = command.intent
-      if (intent.order.kind === 'trailing')
-        fail({ kind: 'unsupported', detail: 'Orderly takes no trailing stop from Tape' })
-      if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
-        fail({ kind: 'unsupported', detail: 'Orderly takes no take profit or stop loss from Tape' })
-      const symbol = intent.spec.venueSymbol
-      const { spec, priceRange } = await networkRules(ctx, symbol)
-      if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
-      const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
-      const sizeIssue = checkSize(spec, quantity)
-      if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
-      let price: string
-      if (intent.order.kind === 'limit') {
-        price = wireDecimal(intent.order.px, intent.spec.scale.px)
-        const issue = checkPrice(spec, price)
-        if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
-      } else if (intent.order.kind === 'mid') {
-        price = wireDecimal(await midOf(ctx, spec, intent.side), spec.scale.px)
-      } else {
-        const range = priceRange ?? fail({ kind: 'unreachable', detail: `Orderly sent no price range for ${symbol}` })
-        const [far, mark] = await Promise.all([farTouch(ctx, spec, intent.side), markPrice(ctx, symbol)])
-        const worst = worstPrice(spec, intent.side, far, intent.order.slippage)
-        price = wireDecimal(insidePriceRange(spec, intent.side, worst, mark, range), spec.scale.px)
-      }
-      const type =
-        intent.order.kind === 'limit' ? TYPE[intent.order.tif] : intent.order.kind === 'mid' ? TYPE.gtc : 'IOC'
-      const body = orderBody({
-        symbol,
-        clientOrderId: intent.clientId,
-        type,
-        side: intent.side === 'buy' ? 'BUY' : 'SELL',
-        price,
-        quantity,
-        reduceOnly: intent.reduceOnly,
-      })
-      const data = await signed(ctx, 'POST', '/v1/order', z.object({ order_id: z.string() }), body)
-      return {
-        kind: 'placed',
-        status: type === 'IOC' ? 'accepted' : 'resting',
-        detail: `Order ${data.order_id}`,
-      }
-    }
+    case 'place':
+      return place(ctx, command.intent)
+    case 'close-all':
+      return closeEach(command.intents, (intent) => place(ctx, intent))
     case 'cancel': {
       const [symbol, id] = command.order.split(':')
       try {

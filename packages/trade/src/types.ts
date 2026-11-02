@@ -126,6 +126,8 @@ export type Command =
   | { readonly kind: 'cancel'; readonly order: OrderRef }
   | { readonly kind: 'cancel-all'; readonly symbol: string }
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
+  /** One reduce-only order per position, each sent and reported on its own. */
+  | { readonly kind: 'close-all'; readonly intents: readonly OrderIntent[] }
 
 /** What a write sent that its venue can find again by client id, after a send that ended in unknown-outcome. */
 export interface SentOrders {
@@ -147,9 +149,15 @@ export function sentOrders(command: Command): SentOrders | null {
 export type OrderLookup =
   { readonly kind: 'found'; readonly detail: string } | { readonly kind: 'absent'; readonly detail: string }
 
+/** One close of a close-all. An unknown-outcome error is found afterwards through `sent`. */
+export type CloseRow = { readonly symbol: string; readonly sent: SentOrders } & (
+  { readonly outcome: CommandOutcome } | { readonly error: TradeError }
+)
+
 export type CommandOutcome =
   | { readonly kind: 'placed'; readonly status: 'resting' | 'filled' | 'accepted'; readonly detail: string }
   | { readonly kind: 'done'; readonly detail: string }
+  | { readonly kind: 'closed'; readonly rows: readonly CloseRow[]; readonly detail: string }
 
 export interface Position {
   readonly symbol: string

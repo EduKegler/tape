@@ -6,6 +6,7 @@ import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { checkExits, checkPrice, checkSize, midPrice, takeProfitField, worstPrice } from '../intent'
 import { lookupSummary, scaleOutcome } from '../scale-order'
+import { closeEach } from '../close-all'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, readReply, send } from '../send'
@@ -367,18 +368,23 @@ async function placeTrailing(ctx: VenueContext, intent: OrderIntent, order: Trai
     : fail({ kind: 'unknown-outcome', detail: `No order id in the reply: ${JSON.stringify(reply)}` })
 }
 
+async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  const { order } = intent
+  if (order.kind === 'trailing') return placeTrailing(ctx, intent, order)
+  const { wires, grouping } = await placeWires(ctx, intent)
+  const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
+  const statuses = reply.response.data?.statuses ?? []
+  if (statuses.length === 0)
+    fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
+  return order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
-    case 'place': {
-      const { order } = command.intent
-      if (order.kind === 'trailing') return placeTrailing(ctx, command.intent, order)
-      const { wires, grouping } = await placeWires(ctx, command.intent)
-      const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
-      const statuses = reply.response.data?.statuses ?? []
-      if (statuses.length === 0)
-        fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
-      return command.intent.order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
-    }
+    case 'place':
+      return place(ctx, command.intent)
+    case 'close-all':
+      return closeEach(command.intents, (intent) => place(ctx, intent))
     case 'cancel':
     case 'cancel-all': {
       const targets = command.kind === 'cancel' ? [refParts(command.order)] : await openOf(ctx, command.symbol)

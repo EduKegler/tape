@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
+import { closeEach } from '../close-all'
 import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { lookupSummary } from '../scale-order'
 import { readReply, send } from '../send'
@@ -357,6 +358,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
   switch (command.kind) {
     case 'place':
       return place(ctx, command.intent)
+    case 'close-all':
+      return closeEach(command.intents, (intent) => place(ctx, intent))
     case 'cancel':
       await cancel(ctx, command.order)
       return { kind: 'done', detail: 'Cancel broadcast' }
