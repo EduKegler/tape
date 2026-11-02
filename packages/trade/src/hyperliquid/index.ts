@@ -604,7 +604,7 @@ async function steps(ctx: VenueContext): Promise<readonly SetupStep[]> {
 }
 
 /** Signs `message` with the wallet on its active chain and sends it inside `action`. */
-async function userAction(
+export async function userAction(
   ctx: VenueContext,
   wallet: WalletSigner,
   primaryType: UserActionType,

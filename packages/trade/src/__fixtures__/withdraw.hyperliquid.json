@@ -1,0 +1,38 @@
+{
+  "note": "Hyperliquid replies recorded for the withdraw module tests.",
+  "ledger": {
+    "network": "mainnet",
+    "recordedAt": "2026-11-02T04:34:46Z",
+    "request": {
+      "type": "userNonFundingLedgerUpdates",
+      "startTime": 1789725814419
+    },
+    "response": [
+      {
+        "time": 1789726039773,
+        "hash": "0x43968ea34cebe624c1ec093f57a8743182afc51d87367e518a9393e68b9e3244",
+        "delta": {
+          "type": "withdraw",
+          "usdc": "9.0",
+          "nonce": 1789725814419000,
+          "fee": "1.0"
+        }
+      }
+    ]
+  },
+  "refused": {
+    "network": "testnet",
+    "recordedAt": "2026-11-02T04:30:20Z",
+    "request": {
+      "action": {
+        "type": "withdraw3",
+        "hyperliquidChain": "Testnet",
+        "amount": "2"
+      }
+    },
+    "response": {
+      "status": "err",
+      "response": "Error withdrawing from bridge"
+    }
+  }
+}

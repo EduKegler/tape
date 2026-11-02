@@ -102,6 +102,9 @@ export const AppEvent = z.discriminatedUnion('event', [
     chain,
     seconds: z.number().int().nonnegative(),
   }),
+  z.strictObject({ event: z.literal('withdraw_started'), venue }),
+  z.strictObject({ event: z.literal('withdraw_sent'), venue }),
+  z.strictObject({ event: z.literal('withdraw_failed'), venue, error }),
   /** PostHog error tracking reads frames oldest call first. */
   z.strictObject({
     event: z.literal('$exception'),
