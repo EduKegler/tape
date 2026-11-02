@@ -14,6 +14,7 @@ const ok = (data: unknown) => ({ success: true, data, timestamp: 0 })
 const EMPTY: Record<string, unknown> = {
   '/v1/positions': ok({ total_collateral_value: 0, free_collateral: 0, rows: [] }),
   '/v1/orders': ok({ rows: [] }),
+  '/v1/algo/orders': ok({ rows: [] }),
   '/v1/trades': ok({ rows: [] }),
 }
 
