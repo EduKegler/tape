@@ -97,7 +97,7 @@ function fail(error: TradeError): never {
 
 /** Hyperliquid answers 200 with `status: err` or with an error per order, in prose. */
 export function classifyText(text: string): TradeError {
-  if (/does not exist/i.test(text)) return { kind: 'needs-setup', detail: text }
+  if (/does not exist|builder fee has not been approved/i.test(text)) return { kind: 'needs-setup', detail: text }
   if (/must deposit/i.test(text)) return { kind: 'no-account', detail: text }
   if (/insufficient margin/i.test(text)) return { kind: 'insufficient-margin', detail: text }
   if (/price|tick|size|invalid|minimum value/i.test(text)) return { kind: 'invalid-order', detail: text }

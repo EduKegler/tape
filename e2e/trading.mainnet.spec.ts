@@ -5,7 +5,7 @@ import { actionHash } from '@tape/trade/hyperliquid/sign'
 import { TEST_BUILDER } from './builds'
 import { fakeChains } from './chain'
 import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
-import { fakeHyperliquid, resting } from './hyperliquid'
+import { fakeHyperliquid, replyOf, resting } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
 
 /** Circle's USDC on Ethereum. */
@@ -142,4 +142,43 @@ test('Hyperliquid on mainnet signs for Mainnet and sends the ticket limit to the
   expect((await signer('b')).toLowerCase()).not.toBe(agent)
   expect(exchangePosts).toEqual([MAINNET_EXCHANGE, MAINNET_EXCHANGE, MAINNET_EXCHANGE])
   expect(chains.unanswered()).toEqual([])
+})
+
+test('a Hyperliquid order refused for a builder fee above the approved one reopens the fee step alone', async ({
+  page,
+  wallet,
+}) => {
+  const hyperliquid = await fakeHyperliquid(page, 'mainnet')
+  await fakeChains(page, 'mainnet')
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const ticket = panel(page, 'Order ticket')
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
+  await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByText("Approve Tape's fee of 1 bp")).toHaveCount(0)
+  const [agentApproval] = wallet.askedFor('sign')
+  hyperliquid.account.extraAgents = [
+    {
+      name: 'tape',
+      address: agentApproval?.typedData.message.agentAddress,
+      validUntil: String(Date.now() + 86_400_000),
+    },
+  ]
+
+  hyperliquid.exchange = () => replyOf('builderFeeAboveApproved')
+  await ticket.getByRole('textbox', { name: 'Price (USDC)' }).fill('70000')
+  await ticket.getByRole('textbox', { name: 'Size (BTC)' }).fill('0.002')
+  await ticket.getByRole('button', { name: 'Buy / Long BTC' }).click()
+  await expect(ticket.getByRole('alert')).toContainText('The venue is missing a setup step. Enable trading again.')
+  await expect(ticket.getByRole('button', { name: 'Enable trading' })).toBeVisible()
+  await expect(ticket.getByText("Approve Tape's fee of 1 bp")).toBeVisible()
+  await expectAccessible(page)
+
+  hyperliquid.exchange = () => ({ json: { status: 'ok', response: { type: 'default' } } })
+  await ticket.getByRole('button', { name: 'Enable trading' }).click()
+  await expect(ticket.getByText("Approve Tape's fee of 1 bp")).toHaveCount(0)
+  expect(wallet.askedFor('sign').map((sign) => sign.typedData.primaryType)).toEqual([
+    'HyperliquidTransaction:ApproveAgent',
+    'HyperliquidTransaction:ApproveBuilderFee',
+    'HyperliquidTransaction:ApproveBuilderFee',
+  ])
 })

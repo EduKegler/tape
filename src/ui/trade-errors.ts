@@ -5,7 +5,7 @@ export function describeError(error: TradeError): { readonly title: string; read
     case 'wallet-rejected':
       return { title: 'You declined in the wallet.', detail: null }
     case 'needs-setup':
-      return { title: 'The venue does not know this trading key yet.', detail: error.detail }
+      return { title: 'The venue is missing a setup step. Enable trading again.', detail: error.detail }
     case 'no-account':
       return { title: 'The venue has no account for this wallet. Deposit first.', detail: error.detail }
     case 'insufficient-margin':

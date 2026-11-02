@@ -256,6 +256,14 @@ describe('hyperliquid refusals', () => {
     }
   })
 
+  it('asks for setup again when Hyperliquid refuses a builder fee above the approved one', async () => {
+    const { ctx } = venue(replied('builderFeeAboveApproved'))
+    expect(await failureOf(hyperliquid.execute(ctx, place({})))).toEqual({
+      kind: 'needs-setup',
+      detail: refusalOf('builderFeeAboveApproved'),
+    })
+  })
+
   it('refuses a scale order when Hyperliquid refuses every leg', async () => {
     const refused = statusOf('insufficientMargin')
     const { ctx } = venue(() => statuses([refused, refused, refused]))
