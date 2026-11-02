@@ -1,7 +1,7 @@
 import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import type { ReactNode, RefObject } from 'react'
 
-const widths = { narrow: 'w-72', wide: 'w-104' }
+const widths = { narrow: 'w-72', wide: 'w-104', split: 'w-200', slip: 'w-96' }
 
 // Base UI unmounts the popup when it closes, so state that must survive a close lives in the caller.
 export function Dialog({
