@@ -156,7 +156,7 @@ test('a market buy hides the price, offers slippage and prices the notional at t
 })
 
 const NETWORK_COPY: Record<Network, { aside: string; mainnetNotes: number; walletUsdc: number }> = {
-  mainnet: { aside: 'Read only', mainnetNotes: 1, walletUsdc: 1 },
+  mainnet: { aside: 'Mainnet', mainnetNotes: 0, walletUsdc: 1 },
   testnet: { aside: 'Testnet', mainnetNotes: 0, walletUsdc: 0 },
 }
 

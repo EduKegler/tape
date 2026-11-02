@@ -10,9 +10,14 @@ import {
   settled,
   test,
 } from './fixtures'
+import { fakeHyperliquid } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
 
 const ALICE = `${ACCOUNTS.alice.slice(0, 6)}…${ACCOUNTS.alice.slice(-4)}`
+
+test.beforeEach(async ({ page }) => {
+  await fakeHyperliquid(page, 'mainnet')
+})
 
 const EMAIL_HINT =
   "Signed in to Hyperliquid with email? Export it from Hyperliquid's settings with Export Email Wallet, import it into your wallet, then connect here."
@@ -85,7 +90,7 @@ test('a refused connection says the wallet said no, and Try again connects into 
   await expect(chip).toBeFocused()
   await expect(chip).toHaveText(ALICE)
   await expect(page.getByRole('banner').getByRole('button', { name: 'Connect', exact: true })).toHaveCount(0)
-  await expect(panel(page, 'Order ticket').getByText('Hyperliquid trades only on testnet in Tape.')).toBeVisible()
+  await expect(panel(page, 'Order ticket').getByText('Approve a trading key')).toBeVisible()
   expect(wallet.asked()).toEqual([{ kind: 'connect', account: 'alice' }])
 })
 
