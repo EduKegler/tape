@@ -36,7 +36,7 @@ for (const [venue, label] of Object.entries(OFF_ON_MAINNET))
     const testnetOnly = `${label} trades only on testnet in Tape.`
     await expect(ticket.getByText(testnetOnly)).toBeVisible()
     await expect(ticket.getByText('Read only', { exact: true })).toBeVisible()
-    await expect(ticket.getByText('25 · Ethereum')).toBeVisible()
+    await expect(ticket.getByRole('term')).toHaveText(['Notional'])
     await expect(panel(page, 'Account').getByText(testnetOnly)).toBeVisible()
     await expect(page.getByRole('contentinfo')).toContainText('Market data comes straight from the venues.')
     await ticket.getByRole('textbox', { name: /^Price/ }).fill('70000')
@@ -50,6 +50,34 @@ for (const [venue, label] of Object.entries(OFF_ON_MAINNET))
     expect(hyperliquid.sent).toEqual([])
     expect(chains.unanswered()).toEqual([])
   })
+
+test('a connected Hyperliquid ticket on mainnet shows what the venue has free, not the USDC in the wallet', async ({
+  page,
+  wallet,
+}) => {
+  const hyperliquid = await fakeHyperliquid(page, 'mainnet')
+  const chains = await fakeChains(page, 'mainnet')
+  chains.fund(1, ACCOUNTS.alice, { native: 0n, tokens: { [USDC]: 25_000_000n } })
+  // An account that holds 1234.56 USDC free, in the shape of Hyperliquid's clearinghouseState docs.
+  const summary = { accountValue: '1234.56', totalNtlPos: '0.0', totalRawUsd: '1234.56', totalMarginUsed: '0.0' }
+  hyperliquid.account.clearinghouseState = {
+    marginSummary: summary,
+    crossMarginSummary: summary,
+    crossMaintenanceMarginUsed: '0.0',
+    withdrawable: '1234.56',
+    assetPositions: [],
+    time: 0,
+  }
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const ticket = panel(page, 'Order ticket')
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
+
+  await expect(ticket.getByRole('term')).toHaveText(['Notional', 'Est. liquidation', 'Available'])
+  await expect(ticket.getByRole('definition').last()).toHaveText('1,234.56 USDC')
+  await expect(ticket.getByText('25 · Ethereum')).toHaveCount(0)
+  await expectAccessible(page)
+  expect(wallet.asked()).toEqual([{ kind: 'connect', account: 'alice' }])
+})
 
 test('Hyperliquid on mainnet signs for Mainnet and sends the ticket limit to the mainnet API with the builder', async ({
   page,

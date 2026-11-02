@@ -22,14 +22,12 @@ import { domainOf } from './ruler-layout'
 import { TestnetOnly } from './Ticket'
 import { OrderNote, ReadNote } from './TradeNote'
 import { ErrorMark } from './ErrorMark'
-import { formatAgo, formatPct, formatSigned, groupThousands } from './format'
+import { formatAgo, formatPct, formatSigned, groupedAmount } from './format'
 import { armedLeg, ordered, shownPrice, shownSize } from './manage'
 import { useChangedKeys } from './wash'
 import { WithdrawButton } from './Withdraw'
 
 type Tab = 'positions' | 'orders' | 'fills'
-
-const grouped = (value: string) => (/^\d+(?:\.\d+)?$/.test(value) ? groupThousands(value) : value)
 
 export function Account({ venue, base }: { venue: VenueId; base: Base }) {
   const session = useTradeSession(venue)
@@ -94,7 +92,7 @@ function AccountBody({
     [...(specs.data?.values() ?? [])].find((spec) => spec.venueSymbol === venueSymbol)
   const price = (venueSymbol: string, value: string) => {
     const spec = specOf(venueSymbol)
-    return spec ? shownPrice(spec, Number(value)) : grouped(value)
+    return spec ? shownPrice(spec, Number(value)) : groupedAmount(value)
   }
   const size = (venueSymbol: string, value: string) => {
     const spec = specOf(venueSymbol)
@@ -123,8 +121,8 @@ function AccountBody({
         <span className="ml-auto flex flex-wrap items-center gap-3">
           {snapshot && (
             <span className="text-level3">
-              Equity <span className="num font-medium text-level1">{grouped(snapshot.equity)}</span> · Available{' '}
-              <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
+              Equity <span className="num font-medium text-level1">{groupedAmount(snapshot.equity)}</span> · Available{' '}
+              <span className="num font-medium text-level1">{groupedAmount(snapshot.available)}</span>
             </span>
           )}
           {snapshot && caps && tab === 'positions' && (snapshot.positions.length > 0 || open?.kind === 'close-all') && (

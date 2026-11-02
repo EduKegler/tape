@@ -1,9 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useConnection, useReadContract, useSwitchChain } from 'wagmi'
-import { erc20Abi, formatUnits } from 'viem'
+import { useConnection, useSwitchChain } from 'wagmi'
 import { shortAddress } from '#/ui/format'
 import { Button, Select } from '#/ui/primitives'
-import { USDC, chains, isChainId } from './config'
+import { chains, isChainId } from './config'
 import { ConnectButton, useConnectFlow } from './Connect'
 import { Disconnect } from './Disconnect'
 import type { Held } from './Disconnect'
@@ -111,23 +110,4 @@ function AddressChip({
       </span>
     </Button>
   )
-}
-
-export function useUsdcBalance(): { readonly chain: string; readonly amount: string } | null {
-  const { address, chainId, chain } = useConnection()
-  const token = chainId ? USDC[chainId] : undefined
-  const { data } = useReadContract({
-    address: token,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    query: { enabled: Boolean(address && token) },
-  })
-  if (!address || !chain) return null
-  if (!token) return { chain: chain.name, amount: 'unsupported network' }
-  return {
-    chain: chain.name,
-    amount:
-      data === undefined ? '…' : Number(formatUnits(data, 6)).toLocaleString('en-US', { maximumFractionDigits: 2 }),
-  }
 }
