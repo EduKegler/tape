@@ -20,6 +20,7 @@ const HOSTS: Record<Venue, string> = {
 }
 
 async function openHistory(page: Page, { timeout = [], period = '' }: { timeout?: Venue[]; period?: string }) {
+  const later = new Map<string, unknown>()
   for (const venue of Object.keys(HOSTS) as Venue[])
     await page.route(HOSTS[venue], async (route) => {
       if (timeout.includes(venue)) return route.abort('timedout')
@@ -28,12 +29,21 @@ async function openHistory(page: Page, { timeout = [], period = '' }: { timeout?
       const hit = HISTORY[venue].exchanges.find(
         (exchange) => exchange.url === request.url() && (exchange.body?.type ?? null) === type,
       )
-      return hit
-        ? route.fulfill({ json: hit.response, headers: { 'access-control-allow-origin': '*' } })
-        : route.fallback()
+      if (!hit) return route.fallback()
+      const response = later.get(`${venue} ${type}`) ?? hit.response
+      return route.fulfill({ json: response, headers: { 'access-control-allow-origin': '*' } })
     })
   await page.goto(`/history?address=${HISTORY.hyperliquid.address}&dydx=${HISTORY.dydx.address}${period}`)
+  return {
+    answerLater: (venue: Venue, type: string, response: unknown) => later.set(`${venue} ${type}`, response),
+  }
 }
+
+const recordedFills = () =>
+  HISTORY.hyperliquid.exchanges.find((exchange) => exchange.body?.type === 'userFillsByTime')!.response as Record<
+    string,
+    unknown
+  >[]
 
 const totals = (page: Page) => panel(page, 'Totals')
 const rows = (page: Page) => panel(page, 'Fills and funding')
@@ -67,4 +77,50 @@ test('a period with nothing in it says so, with no read failure beside it', asyn
   await expect(totals(page).getByText('Nothing in this period.')).toBeVisible()
   await expect(rows(page).getByText('No fills or funding in this period.')).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
+test('History read again from the header shows a fill made after the first read, on screen and in the CSV', async ({
+  page,
+}) => {
+  const fills = recordedFills()
+  const last = fills.at(-1)!
+  const close = {
+    ...last,
+    px: '94.112',
+    sz: '0.7',
+    side: 'A',
+    time: Number(last.time) + 60_000,
+    startPosition: '0.7',
+    dir: 'Close Long',
+    closedPnl: '1.234',
+    tid: 900000000000001,
+    oid: 900000000001,
+    cloid: undefined,
+  }
+  const history = await openHistory(page, {})
+  const hyperliquid = panel(page, 'Accounts').locator('[data-history-venue="hyperliquid"]')
+  await expect(hyperliquid.getByText(`${fills.length} fills`, { exact: false })).toBeVisible()
+  await expect(totals(page).getByText(/^Read \d{2}:\d{2}:\d{2} UTC$/)).toBeVisible()
+
+  await page.getByRole('link', { name: 'Back to trading' }).click()
+  await expect(panel(page, 'Order book').getByText(/^Spread .* bps$/)).toBeVisible()
+  history.answerLater('hyperliquid', 'userFillsByTime', [...fills, close])
+  await page.getByRole('banner').getByRole('link', { name: 'History' }).click()
+
+  await expect(hyperliquid.getByText(`${fills.length + 1} fills`, { exact: false })).toBeVisible()
+  const fill = rows(page).getByRole('row').filter({ hasText: '94.112' })
+  await expect(fill).toContainText('2026-10-30 02:06:16')
+  await expect(fill).toContainText('Sell')
+  const read = await totals(page)
+    .getByText(/^Read /)
+    .textContent()
+  const stamp = read!.slice(5, 13).replaceAll(':', '')
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    rows(page).getByRole('button', { name: 'Export CSV' }).click(),
+  ])
+  expect(download.suggestedFilename()).toMatch(new RegExp(`-read-\\d{8}T${stamp}Z\\.csv$`))
+  const csv = readFileSync(await download.path(), 'utf8')
+  expect(csv).toContain(',sell,0.7,94.112,65.8784,0.130708,USDC,1.234,venue,,,false,900000000000001')
 })

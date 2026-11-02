@@ -15,6 +15,9 @@ import { lastHistorySearch } from './HistoryLink'
 import { PILL_GROUP, Panel, Segmented } from './Panel'
 import { Button, InlineInput, NoData, Select, Table } from './primitives'
 import type { Column } from './primitives'
+import { useNow } from './now'
+import { readState } from './panel-state'
+import { PanelStatus } from './PanelStatus'
 import { ReadNote } from './TradeNote'
 
 const WALLET = /^0x[0-9a-fA-F]{40}$/
@@ -47,6 +50,7 @@ const DAY_MS = 86_400_000
 const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 const utcTime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ')
 const money = (value: string) => format(amount(value), 2)
+const readStamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replaceAll(/[-:]/g, '') + 'Z'
 
 function presets(now: number): { label: string; from?: string; to?: string }[] {
   const year = new Date(now).getUTCFullYear()
@@ -69,8 +73,12 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   const dydx = search.dydx ?? derived
   const addressOf = (venue: TradeVenueId) => (venue === 'dydx' ? dydx : wallet)
   const results = useQueries({ queries: HISTORY_VENUES.map((venue) => historyQuery(venue, addressOf(venue))) })
+  const read = results.filter((result) => result.data && !result.error)
+  const readAt = read.length > 0 ? Math.min(...read.map((result) => result.dataUpdatedAt)) : null
+  const reading = results.some((result) => result.isFetching)
+  const clock = useNow(reading)
   const selected = selectHistory(
-    results.flatMap((result) => (result.data ? [result.data] : [])),
+    read.flatMap((result) => (result.data ? [result.data] : [])),
     {
       venue: search.venue === 'all' ? null : search.venue,
       market: search.market ?? null,
@@ -87,12 +95,17 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   const fills = search.kind === 'funding' ? [] : selected.fills
   const payments = search.kind === 'fills' ? [] : selected.funding
   const set = (patch: Partial<HistorySearch>) => onSearch({ ...search, ...patch })
+  const refreshAll = () =>
+    HISTORY_VENUES.forEach((venue, index) => {
+      if (addressOf(venue)) void results[index]!.refetch()
+    })
   const exportCsv = () => {
+    if (readAt === null) return
     const blob = new Blob([toCsv(fills, payments, NETWORK)], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `tape-history-${NETWORK}-${search.from ?? 'start'}-${search.to ?? utcDay(now)}.csv`
+    link.download = `tape-history-${NETWORK}-${search.from ?? 'start'}-${search.to ?? utcDay(now)}-read-${readStamp(readAt)}.csv`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -125,6 +138,16 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
       <div className="grid gap-2.5 lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]">
         <Panel
           title="Totals"
+          status={
+            <span className="flex items-baseline gap-2">
+              <PanelStatus state={readState({ readAt, reading, now: clock })} />
+              {readAt !== null && (
+                <Button look="link" onClick={refreshAll} disabled={reading}>
+                  Refresh
+                </Button>
+              )}
+            </span>
+          }
           aside={
             <Segmented
               label="Totals by"
@@ -152,7 +175,12 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
         <Panel
           title="Fills and funding"
           aside={
-            <Button look="secondary" size="sm" onClick={exportCsv} disabled={fills.length + payments.length === 0}>
+            <Button
+              look="secondary"
+              size="sm"
+              onClick={exportCsv}
+              disabled={reading || readAt === null || fills.length + payments.length === 0}
+            >
               Export CSV
             </Button>
           }
