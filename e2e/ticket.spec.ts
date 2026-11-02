@@ -155,9 +155,9 @@ test('a market buy hides the price, offers slippage and prices the notional at t
   await expectAccessible(page)
 })
 
-const NETWORK_COPY: Record<Network, { aside: string; mainnetNotes: number; walletUsdc: number }> = {
-  mainnet: { aside: 'Mainnet', mainnetNotes: 0, walletUsdc: 1 },
-  testnet: { aside: 'Testnet', mainnetNotes: 0, walletUsdc: 0 },
+const NETWORK_COPY: Record<Network, { aside: string; mainnetNotes: number }> = {
+  mainnet: { aside: 'Mainnet', mainnetNotes: 0 },
+  testnet: { aside: 'Testnet', mainnetNotes: 0 },
 }
 
 test('the ticket says which network the build is', async ({ page, network }) => {
@@ -166,6 +166,5 @@ test('the ticket says which network the build is', async ({ page, network }) => 
   const copy = NETWORK_COPY[network]
   await expect(ticket.getByText(copy.aside, { exact: true })).toBeVisible()
   await expect(ticket.getByText('Hyperliquid trades only on testnet in Tape.')).toHaveCount(copy.mainnetNotes)
-  await expect(ticket.getByRole('term').filter({ hasText: 'Wallet USDC' })).toHaveCount(copy.walletUsdc)
   await expectAccessible(page)
 })

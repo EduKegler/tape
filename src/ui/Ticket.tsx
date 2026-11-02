@@ -37,16 +37,15 @@ import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
 import { isTif, toBps } from '@tape/trade/types'
-import type { Capabilities, Side, Tif, TradeError, TradeVenueId } from '@tape/trade/types'
+import type { AccountRef, Capabilities, Side, Tif, TradeError, TradeVenueId } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
-import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
+import { useAccountView, useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import { useFrame, useFrameEffect } from '#/client/hooks'
 import { ConnectButton, useConnectFlow } from '#/wallet/Connect'
-import { useUsdcBalance } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { ErrorMark } from './ErrorMark'
 import { EnableTrading } from './EnableTrading'
-import { groupThousands } from './format'
+import { groupThousands, groupedAmount } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
@@ -654,7 +653,7 @@ function TicketForm({
                       <dd className="text-right text-level1">{liquidationText(spec, margin, entry)}</dd>
                     </>
                   )}
-                  {NETWORK === 'mainnet' && <MainnetWalletUsdc />}
+                  {ref && <VenueAvailable account={ref} />}
                 </dl>
                 {built && <TradeNote error={built} />}
                 {last.command?.kind === 'place' && (
@@ -923,12 +922,20 @@ function Arrival({ children }: { children: ReactNode }) {
   )
 }
 
-function MainnetWalletUsdc() {
-  const balance = useUsdcBalance()
+function VenueAvailable({ account }: { account: AccountRef }) {
+  const { view } = useAccountView(account)
   return (
     <>
-      <dt className="text-level3">Wallet USDC</dt>
-      <dd className="text-right text-level1">{balance ? `${balance.amount} · ${balance.chain}` : 'Not connected'}</dd>
+      <dt className="text-level3">Available</dt>
+      <dd className="text-right font-medium text-level1">
+        {view?.kind === 'live' ? (
+          <>
+            <span className="num">{groupedAmount(view.snapshot.available)}</span> USDC
+          </>
+        ) : (
+          '—'
+        )}
+      </dd>
     </>
   )
 }
