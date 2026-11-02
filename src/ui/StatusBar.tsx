@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import type { VenueId } from '@tape/core/ids'
 import { useHubStats } from '#/client/hooks'
 import { sendsOrders } from '#/trade/config'
@@ -57,6 +58,9 @@ export function StatusBar({ venue }: { venue: VenueId }) {
             ? 'Orders are signed in your browser and sent straight to the venue. Tape has no server in between.'
             : 'Market data comes straight from the venues. Tape has no server in between.'}
       </span>
+      <Link to="/terms" className="hover:text-level1">
+        Terms
+      </Link>
       <a className="hover:text-level1" href="https://github.com/EduKegler/tape">
         Source
       </a>
