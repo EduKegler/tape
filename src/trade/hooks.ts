@@ -6,7 +6,8 @@ import type { VenueId } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
-import { TradeFailure, accountKey, isTradeVenue, sentOrders } from '@tape/trade/types'
+import { TradeFailure, accountKey, sentOrders } from '@tape/trade/types'
+import { isTradeVenue } from '@tape/trade/venue-ids'
 import type {
   AccountRef,
   AccountView,

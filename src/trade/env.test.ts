@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { parseTradeConfig } from './config'
+import { parseTradeConfig } from './env'
 
 describe('VITE_TRADE_MAINNET', () => {
   it('turns no venue on when unset or empty', () => {
     expect(parseTradeConfig({}).mainnet).toEqual(new Set())
-    expect(parseTradeConfig({ VITE_TRADE_MAINNET: '' }).mainnet).toEqual(new Set())
+    for (const value of ['', ' ', ','])
+      expect(parseTradeConfig({ VITE_TRADE_MAINNET: value }).mainnet).toEqual(new Set())
   })
 
   it('turns on the venues it lists, and only those', () => {
-    expect(parseTradeConfig({ VITE_TRADE_MAINNET: 'hyperliquid' }).mainnet).toEqual(new Set(['hyperliquid']))
+    for (const value of ['hyperliquid', 'hyperliquid,', ' hyperliquid '])
+      expect(parseTradeConfig({ VITE_TRADE_MAINNET: value }).mainnet).toEqual(new Set(['hyperliquid']))
     expect(parseTradeConfig({ VITE_TRADE_MAINNET: 'hyperliquid, orderly' }).mainnet).toEqual(
       new Set(['hyperliquid', 'orderly']),
     )

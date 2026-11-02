@@ -1,17 +1,14 @@
 import { isHex } from 'viem'
 import type { Address, Hex } from 'viem'
-import type { Brand, Network, VenueId } from '@tape/core/ids'
+import type { Brand, Network } from '@tape/core/ids'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { VenueHistory } from './history'
 import type { MarginState } from './liquidation'
 
-export const READ_ONLY_VENUES = ['binance'] as const
-export type TradeVenueId = Exclude<VenueId, (typeof READ_ONLY_VENUES)[number]>
+import type { TradeVenueId } from './venue-ids'
 
-export function isTradeVenue(venue: VenueId): venue is TradeVenueId {
-  return !(READ_ONLY_VENUES as readonly VenueId[]).includes(venue)
-}
+export type { TradeVenueId } from './venue-ids'
 
 export interface AccountRef {
   readonly venue: TradeVenueId

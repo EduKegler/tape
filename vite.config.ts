@@ -9,6 +9,7 @@ import { redact } from '@tanstack/redact/vite'
 import posthog from '@posthog/rollup-plugin'
 import { workerSecurityPolicy } from './src/csp'
 import { env } from './src/env'
+import { parseTradeConfig } from './src/trade/env'
 
 const personalApiKey = process.env.POSTHOG_PERSONAL_API_KEY
 const projectId = process.env.POSTHOG_PROJECT_ID
@@ -55,7 +56,9 @@ function sourceMaps(): Plugin {
 
 export default defineConfig(({ command, mode }) => {
   const uploadMaps = command === 'build' && Boolean(personalApiKey && projectId)
-  const { VITE_NETWORK } = env.parse(loadEnv(mode, process.cwd(), 'VITE_'))
+  const vars = loadEnv(mode, process.cwd(), 'VITE_')
+  const { VITE_NETWORK } = env.parse(vars)
+  parseTradeConfig(vars)
   return {
     resolve: {
       tsconfigPaths: true,

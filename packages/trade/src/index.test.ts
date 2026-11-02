@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TradeConfig, TradeVenueId } from './types'
-import { isTradeVenue } from './types'
+import { isTradeVenue } from './venue-ids'
 import { TRADING } from './index'
 
 const OFF = 'Mainnet trading is off in this build'
