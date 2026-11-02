@@ -13,7 +13,7 @@ import { candlesQuery, marketQuery } from './queries'
 
 type Bar = { readonly open: number; readonly high: number; readonly low: number; readonly close: number }
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- lightweight-charts brands UTCTimestamp and has no constructor for it
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- lightweight-charts brands UTCTimestamp and has no constructor for it
 const chartTime = (seconds: number) => seconds as UTCTimestamp
 
 const MARKS = {

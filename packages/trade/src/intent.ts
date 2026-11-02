@@ -19,7 +19,7 @@ import type {
   Tif,
 } from './types'
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the one place an OrderIntent is made, from checked fields
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one place an OrderIntent is made, from checked fields
 const intentOf = (fields: IntentFields, clientId = newClientId()) => ({ ...fields, clientId }) as OrderIntent
 
 const atMost = (places: number) =>

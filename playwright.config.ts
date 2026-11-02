@@ -26,6 +26,7 @@ export default defineConfig({
   testDir: 'e2e',
   outputDir: 'e2e/results',
   forbidOnly: true,
+  fullyParallel: true,
   retries: 0,
   workers: process.env.CI ? '100%' : undefined,
   reporter: 'list',

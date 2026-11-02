@@ -730,11 +730,11 @@ async function recordDydx() {
           subaccount,
           clientIdOf(newClientId()),
           clob.clobPairId,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- Order_Side lives in @dydxprotocol/v4-proto, which trade does not depend on
+          // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- Order_Side lives in @dydxprotocol/v4-proto, which trade does not depend on
           1,
           Long.fromString(rawQuantums.toString(), true),
           Long.fromString(rawSubticks.toString(), true),
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- Order_TimeInForce lives in @dydxprotocol/v4-proto, which trade does not depend on
+          // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- Order_TimeInForce lives in @dydxprotocol/v4-proto, which trade does not depend on
           0,
           64,
           false,

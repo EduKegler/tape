@@ -3,9 +3,10 @@ import { appendFileSync, closeSync, mkdtempSync, openSync, readFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { changedFiles, changeKind } from './change-kind.mjs'
+import { changedFiles, changeKind } from './change-kind.ts'
 
-const [base = 'origin/main', head = 'HEAD'] = process.argv.slice(2)
+const listOnly = process.argv.includes('--list')
+const [base = 'origin/main', head = 'HEAD'] = process.argv.slice(2).filter((arg) => !arg.startsWith('--'))
 // Git sets GIT_DIR for hooks, and it wins over `git -C`, so a pre-push run would check out commits in the caller's worktree.
 const env = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !/^GIT_(?:DIR|WORK_TREE|INDEX_FILE)$/.test(key)),
@@ -17,6 +18,17 @@ const passedFile = join(git('rev-parse', '--path-format=absolute', '--git-common
 const passed = new Set(readFileSync(passedFile, { encoding: 'utf8', flag: 'a+' }).split('\n'))
 const treeOf = (sha) => git('rev-parse', `${sha}^{tree}`)
 const pending = commits.filter((sha) => !passed.has(treeOf(sha)))
+const describe = (sha) => ({
+  sha,
+  tree: treeOf(sha),
+  docsOnly: changeKind(changedFiles(`${sha}^..${sha}`, env)) === 'docs',
+  subject: git('log', '-1', '--format=%h %s', sha),
+})
+
+if (listOnly) {
+  console.log(JSON.stringify(pending.map(describe)))
+  process.exit(0)
+}
 
 if (pending.length === 0) {
   console.log(`verify ok: ${commits.length} commits since ${base}, each verified before`)
@@ -37,22 +49,20 @@ const failed = []
 let lockfile
 git('worktree', 'add', '--detach', dir, pending[0])
 try {
-  for (const sha of pending) {
-    const subject = git('log', '-1', '--format=%h %s', sha)
+  for (const { sha, tree, docsOnly, subject } of pending.map(describe)) {
     const logPath = join(logs, `${sha.slice(0, 7)}.log`)
     const log = openSync(logPath, 'w')
     git('-C', dir, 'checkout', '--quiet', '--detach', sha)
     const lock = git('rev-parse', `${sha}:pnpm-lock.yaml`)
     const installed = lock === lockfile || install(log, '--offline') || install(log)
     lockfile = installed ? lock : undefined
-    const docsOnly = changeKind(changedFiles(`${sha}^..${sha}`, env)) === 'docs'
     const verify = docsOnly ? ['verify', '--docs'] : ['verify']
     const ok = installed && spawnSync('pnpm', verify, { cwd: dir, env, stdio: ['ignore', log, log] }).status === 0
     closeSync(log)
     if (ok && docsOnly) {
       console.log(`ok    ${subject} (markdown only)`)
     } else if (ok) {
-      appendFileSync(passedFile, `${treeOf(sha)}\n`)
+      appendFileSync(passedFile, `${tree}\n`)
       console.log(`ok    ${subject}`)
     } else {
       failed.push(subject)

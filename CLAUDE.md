@@ -16,7 +16,7 @@ Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. N
 
 One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. Size a commit by the work, not by the edit: a feature with its tests, a fix with its test, a batch of new tests for one package. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits, because a reviewer can revert each fix alone. Split: #36 has 36 commits, one per test, and is two, one `test(trade)` for the dYdX gaps the mutation run found and one `test(core)` for the core ones. The same edit at many sites is also one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol.
 
-Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it, and a fix shares a commit with its Vitest test, because a red test fails `pnpm verify`. `pnpm verify:commits` runs it on each commit since `origin/main`, in the pre-push hook and in CI, so each commit adds a full `pnpm verify` to the PR's CI run. A commit that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run and the deploy. `scripts/change-kind.mjs` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
+Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it, and a fix shares a commit with its Vitest test, because a red test fails `pnpm verify`. `pnpm verify:commits` runs it on each commit since `origin/main` in the pre-push hook, and the PR's CI runs it on each commit and the merge in a job of its own, up to 8 at a time, skipping trees an earlier run of the PR verified. A commit that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run and the deploy. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
 
 ## Pull requests
 
@@ -68,7 +68,7 @@ Before a venue ships, its tests prove these:
 | --- | --- |
 | Conventional Commits | commitlint in the lefthook `commit-msg` hook |
 | No AI attribution in commits or PRs | the `commit-msg` hook, `attribution` in `.claude/settings.json` |
-| Every commit passes `pnpm verify` on its own, or `pnpm verify --docs` if it changes only `.md` files | `scripts/verify-commits.mjs` with `scripts/change-kind.mjs`, in the `pre-push` hook and `.github/workflows/verify.yml` |
+| Every commit passes `pnpm verify` on its own, or `pnpm verify --docs` if it changes only `.md` files | `scripts/verify-commits.mjs` with `scripts/change-kind.ts`, in the `pre-push` hook and `.github/workflows/verify.yml` |
 | No research, competitor notes or decision logs in the repo | `scripts/check-public.mjs` in `pnpm verify` |
 | Packages import no React, no `#/` and nothing undeclared | `scripts/check-packages.mjs` in `pnpm verify` |
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
@@ -78,12 +78,13 @@ Before a venue ships, its tests prove these:
 | A failed read says what it could not read, never what was sent | `src/ui/trade-errors.test.ts`, and the read failure tests in `e2e/history.mainnet.spec.ts` and `e2e/trading.testnet.spec.ts` |
 | The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |
 | Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
-| Every lint suppression gives its reason after `--` | `eslint-comments/require-description` |
+| Every lint suppression gives its reason after `--` | `eslint-comments/require-description`, and `oxlint-comments/directive` in `eslint.config.js` for Oxlint, which also takes only a one-line `oxlint-disable` that names its rule |
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | No one-letter names | `id-length` in `eslint.config.js` |
-| No casts that narrow a type outside the constructor that owns it | `@typescript-eslint/no-unsafe-type-assertion` in `eslint.config.js`, off in tests |
+| No casts that narrow a type outside the constructor that owns it | `typescript/no-unsafe-type-assertion` in `.oxlintrc.json`, off in tests |
+| A lint rule that needs types runs in Oxlint, or in `TYPED_RULES` when Oxlint lacks it, so ESLint builds the TypeScript program only for those | `eslint.config.js` turns `projectService` on only in `eslint.typed.config.js`, so a typed rule anywhere else fails `pnpm verify` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
-| UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
+| UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml`, green only when its three shards pass |
 | UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
 | The testnet build shows each venue's live book | the `smoke` job in `.github/workflows/nightly.yml` |

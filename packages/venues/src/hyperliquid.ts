@@ -90,7 +90,9 @@ function withFastTop(snapshot: WireBook, fast: WireBook | null): WireBook {
 }
 
 // Hyperliquid sends the plain l2Book, 20 levels a side, about every 5 s, and the fast one, 5 levels a side, about every 0.5 s.
-function subscriptions(target: StreamTarget) {
+type Subscription = { type: 'l2Book' | 'trades' | 'candle'; coin: string; fast?: true; interval?: string }
+
+function subscriptions(target: StreamTarget): Subscription[] {
   const coin = target.spec.venueSymbol
   if (target.channel === 'book')
     return [
