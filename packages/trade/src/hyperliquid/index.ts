@@ -21,6 +21,7 @@ import type {
   HistoryRequest,
   IntentFields,
   OrderIntent,
+  OrderExit,
   OrderLookup,
   OrderRules,
   OrderRef,
@@ -438,8 +439,15 @@ const HlOrders = z.array(
     reduceOnly: z.boolean(),
     isTrigger: z.boolean(),
     triggerPx: z.string(),
+    isPositionTpsl: z.boolean().optional(),
   }),
 )
+type HlOrder = z.infer<typeof HlOrders>[number]
+
+const exitOf = (order: HlOrder): OrderExit | null =>
+  order.isTrigger && order.reduceOnly
+    ? { kind: order.orderType.startsWith('Take Profit') ? 'tp' : 'sl', whole: order.isPositionTpsl === true }
+    : null
 
 async function openOf(ctx: VenueContext, symbol: string) {
   const [orders, markets] = await Promise.all([
@@ -537,6 +545,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         reduceOnly: order.reduceOnly,
         placedAt: Number(order.timestamp),
         cancelable: markets.has(order.coin),
+        exit: exitOf(order),
       })),
       fills: fills.slice(0, 20).map((fill) => ({
         id: fill.tid,

@@ -445,6 +445,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         reduceOnly: order.reduce_only,
         placedAt: Number(order.created_time),
         cancelable: true,
+        exit: null,
       })),
       fills: trades.rows.map((trade) => ({
         id: trade.id,

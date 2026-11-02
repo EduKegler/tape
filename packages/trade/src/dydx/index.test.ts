@@ -695,6 +695,7 @@ describe('dydx account', () => {
             reduceOnly: true,
             placedAt: Date.UTC(2026, 9, 30, 12),
             cancelable: true,
+            exit: null,
           },
           {
             ref: 'ETH-USD:12:0:1',
@@ -706,6 +707,7 @@ describe('dydx account', () => {
             reduceOnly: false,
             placedAt: 0,
             cancelable: true,
+            exit: null,
           },
         ],
         fills: [
@@ -734,6 +736,40 @@ describe('dydx account', () => {
       'https://indexer.v4testnet.dydx.exchange/v4/addresses/dydx1test/subaccountNumber/0',
       'https://indexer.v4testnet.dydx.exchange/v4/orders?address=dydx1test&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50',
       'https://indexer.v4testnet.dydx.exchange/v4/fills?address=dydx1test&subaccountNumber=0&limit=20',
+    ])
+  })
+
+  // docs.dydx.xyz/types/order_response_object: a conditional keeps its trigger in triggerPrice. The v4-chain
+  // indexer writes condition type 2 as TAKE_PROFIT and 1 as STOP_LIMIT, with clientMetadata 1 when at market.
+  it('reads a reduce-only conditional as a take profit or stop loss at its trigger, and a stop that opens as none', async () => {
+    const conditional = (clientId: string, type: string, reduceOnly: boolean, triggerPrice: string) => ({
+      clientMetadata: '1',
+      clientId,
+      clobPairId: '0',
+      ticker: 'BTC-USD',
+      side: 'BUY',
+      size: '0.002',
+      price: '84000',
+      type,
+      reduceOnly,
+      orderFlags: '32',
+      triggerPrice,
+    })
+    const { ctx: live } = indexer((url) =>
+      url.includes('/orders?')
+        ? [
+            conditional('21', 'TAKE_PROFIT', true, '76000'),
+            conditional('22', 'STOP_LIMIT', true, '83000'),
+            conditional('23', 'STOP_LIMIT', false, '83500'),
+          ]
+        : replies(url),
+    )
+    const view = await dydx.account(live)
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.orders.map((order) => [order.ref, order.px, order.exit])).toEqual([
+      ['BTC-USD:21:32:0', '76000', { kind: 'tp', whole: false }],
+      ['BTC-USD:22:32:0', '83000', { kind: 'sl', whole: false }],
+      ['BTC-USD:23:32:0', '83500', null],
     ])
   })
 

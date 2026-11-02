@@ -794,6 +794,7 @@ describe('orderly account', () => {
             reduceOnly: false,
             placedAt: 1653563963000,
             cancelable: true,
+            exit: null,
           },
           {
             ref: 'PERP_BTC_USDC:78152',
@@ -805,6 +806,7 @@ describe('orderly account', () => {
             reduceOnly: true,
             placedAt: 1653563964000,
             cancelable: true,
+            exit: null,
           },
         ],
         fills: [

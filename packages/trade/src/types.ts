@@ -169,6 +169,12 @@ export interface Position {
   readonly leverage: string | null
 }
 
+/** A take profit or a stop loss. `whole` when it closes the whole position at whatever size it has then. */
+export interface OrderExit {
+  readonly kind: 'tp' | 'sl'
+  readonly whole: boolean
+}
+
 export interface OpenOrder {
   readonly ref: OrderRef
   readonly symbol: string
@@ -180,6 +186,7 @@ export interface OpenOrder {
   readonly placedAt: number
   /** False for an order Tape lists but cannot cancel, such as a Hyperliquid spot order. */
   readonly cancelable: boolean
+  readonly exit: OrderExit | null
 }
 
 export interface Fill {

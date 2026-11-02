@@ -13,6 +13,7 @@ import type {
   Command,
   CommandOutcome,
   HistoryRequest,
+  OrderExit,
   OrderIntent,
   OrderLookup,
   OrderRules,
@@ -282,8 +283,16 @@ const IndexerOrder = z.object({
   reduceOnly: z.boolean(),
   orderFlags: z.string(),
   updatedAt: z.string().optional(),
+  triggerPrice: z.string().nullish(),
 })
 type IndexerOrder = z.infer<typeof IndexerOrder>
+
+/** The indexer stores every conditional as TAKE_PROFIT or STOP_LIMIT, market ones too (v4-chain protocol-translations.ts). */
+const EXIT_TYPES: Partial<Record<string, OrderExit['kind']>> = { TAKE_PROFIT: 'tp', STOP_LIMIT: 'sl' }
+const exitOf = (order: IndexerOrder): OrderExit | null => {
+  const kind = order.reduceOnly ? EXIT_TYPES[order.type] : undefined
+  return kind ? { kind, whole: false } : null
+}
 
 const refOf = (order: IndexerOrder) => orderRef(order.ticker, order.clientId, order.orderFlags, order.clobPairId)
 
@@ -437,11 +446,12 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         symbol: order.ticker,
         side: order.side === 'BUY' ? 'buy' : 'sell',
         kind: order.type,
-        px: toDecimal(order.price),
+        px: toDecimal(order.triggerPrice ?? order.price),
         size: toDecimal(order.size),
         reduceOnly: order.reduceOnly,
         placedAt: order.updatedAt ? Date.parse(order.updatedAt) : 0,
         cancelable: true,
+        exit: exitOf(order),
       })),
       fills: fills.fills.map((fill) => ({
         id: fill.id,

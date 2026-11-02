@@ -788,6 +788,41 @@ describe('hyperliquid account sides', () => {
   })
 })
 
+describe('hyperliquid take profit and stop loss legs', () => {
+  const noState = { marginSummary: { accountValue: '10.0' }, withdrawable: '10.0', assetPositions: [] }
+  const ordersOf = async (name: string) => {
+    const answers: Record<string, unknown> = {
+      meta: testnetMeta,
+      clearinghouseState: noState,
+      spotClearinghouseState: { balances: [] },
+      frontendOpenOrders: recorded(name),
+      userFills: [],
+    }
+    const view = await hyperliquid.account({
+      ...venue(() => statuses([])).ctx,
+      fetch: (async (_url: string, init?: RequestInit) =>
+        json(answers[(JSON.parse(init?.body as string) as { type: string }).type] ?? null)) as typeof globalThis.fetch,
+    })
+    if (view.kind !== 'live') throw new Error(view.kind)
+    return view.snapshot.orders.map((order) => [order.kind, order.px, order.size, order.exit])
+  }
+
+  // Recorded on testnet: two legs sent with a size, then three positionTpsl legs sent with size 0.
+  it('tells a leg for the whole position from one with a size, and prices each at its trigger', async () => {
+    expect(await ordersOf('openWithTpsl')).toEqual([
+      ['Stop Market', '46580.0', '0.00026', { kind: 'sl', whole: false }],
+      ['Take Profit Market', '116512.0', '0.00026', { kind: 'tp', whole: false }],
+      ['Take Profit Market', '112628.0', '0.0', { kind: 'tp', whole: true }],
+      ['Stop Market', '46580.0', '0.0', { kind: 'sl', whole: true }],
+      ['Take Profit Market', '116512.0', '0.0', { kind: 'tp', whole: true }],
+    ])
+  })
+
+  it('reads a resting limit as no leg', async () => {
+    expect(await ordersOf('openAfterModify')).toEqual([['Limit', '45648.0', '0.00052', null]])
+  })
+})
+
 describe('hyperliquid balances', () => {
   const noState = { marginSummary: { accountValue: '0.0' }, withdrawable: '0.0', assetPositions: [] }
   const accountOf = (answers: Record<string, unknown>) =>
