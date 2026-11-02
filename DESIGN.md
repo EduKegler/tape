@@ -23,6 +23,7 @@ colors:
   ask-volume: "rgb(247 84 102 / 0.28)"
   warn: "#e2a93b"
   err: "#ff8466"
+  live: "#2ebd85"
   selection: "rgb(239 235 226 / 0.2)"
   option: "rgb(236 235 232 / 0.06)"
   option-hover: "rgb(236 235 232 / 0.1)"
@@ -98,12 +99,12 @@ components:
   panel-title:
     textColor: "{colors.level1}"
     typography: "{typography.title}"
-    height: "2.625rem"
+    height: "2.75rem"
     padding: "0 0.75rem"
   venue-tab:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.level3}"
-    height: "3.6875rem"
+    height: "3.375rem"
     padding: "0 1rem"
   venue-tab-current:
     backgroundColor: "{colors.raised}"
@@ -168,9 +169,6 @@ components:
     textColor: "{colors.level2}"
     typography: "{typography.number-sm}"
     height: "1.875rem"
-  table-row-dense:
-    textColor: "{colors.level2}"
-    height: "1.5rem"
   table-row-current:
     backgroundColor: "{colors.raised}"
     textColor: "{colors.level1}"
@@ -239,14 +237,15 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 
 ### Tertiary
 - **Stale Amber** (warn): old data, its age, Reconnecting, Offline, price warnings under a field, the dialog lock note.
+- **Live Green** (live): a connected wallet in the address chip, each open socket and the hub in the status bar. It shares the bid hue, never sits next to a side, and never carries text.
 - **Failure Coral** (err): the drawn error mark, a field's error edge, the result word of a failed order, a panel's error line.
 
 ### Neutral
-- **Ground** (ground): the page between cards, and the 1px cuts between venue tabs.
+- **Ground** (ground): the page between cards, and the well under the book's last price.
 - **Graphite** (surface): cards, header, venue strip, status bar.
 - **Raised Graphite** (raised): the current venue tab, the current Venues row, the order outcome block, dialogs, popovers, secondary buttons, tab hover.
 - **Well** (inset): field and select fill, the side switch track.
-- **Rule** (rule): 1px lines inside a card, under the panel title and between table rows.
+- **Rule** (rule): 1px lines inside a card, under the panel title, between table rows and between venue tabs, and the outline button's border.
 - **Edge** (edge): field and select borders. Reaches 3:1 on every surface.
 - **Level 1** (level1): values, titles, the current item, error messages.
 - **Level 2** (level2): body text and table cells. The page default.
@@ -269,14 +268,14 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 **Character:** One face names things and counts them. Tabular figures make every column align without help.
 
 ### Hierarchy
-- **Display** (Inter, 600, 22px, line-height 1): the last price in the header and at the head of the book, with its side mark.
-- **Number** (Inter tabular, 400 or 500, 13px or 12px): strip mids, header stats and field values at 13px in 500; book, trades, tables, equity and notional at 12px.
+- **Display** (Inter, 600, 24px or 22px, line-height 1): the last price in the header at 24px, and at the head of the book at 22px with its side mark.
+- **Number** (Inter tabular, 400 or 500, 13px or 12px): strip quotes, header stats and field values at 13px in 500; book, trades, tables, equity and notional at 12px. Book prices take 500.
 - **Title** (Inter, 600, 13px, line-height 1): panel titles and venue names in the strip.
 - **Action** (Inter, 600, 18px or 13px): the submit names the side and the market at 18px; the side switch is 13px.
 - **Body** (Inter, 400 or 500, 12px, line-height 1.4): text, notes, labels next to values. 500 for the order outcome and primary buttons.
 - **Label** (Inter, 400, 11px): table headers, chain names, stat labels, field labels, panel state lines, the status bar. The status bar sets its labels in capitals.
 
-Sizes come only from the closed scale 11, 12, 13, 18 and 22px. Weights stop at 600.
+Sizes come only from the closed scale 11, 12, 13, 18, 22 and 24px. Weights stop at 600.
 
 ### Named Rules
 **The Tabular Figures Rule.** The `num` class sets tabular figures on the element that holds the number. A sentence that carries numbers, such as the order outcome, the order lookup and the liquidation note, takes `tabular-nums` on the sentence.
@@ -285,13 +284,13 @@ Sizes come only from the closed scale 11, 12, 13, 18 and 22px. Weights stop at 6
 
 ## Layout
 
-The trading screen fills the viewport from 1024px up. A header (48px) and the venue strip (48px, inset by the gutter) sit on top. Under them a grid holds the panels: the chart column takes the rest of the width beside the book (19rem), trades (16.25rem) and the ticket (22rem). Rows are the chart (flexible), Depth (13rem) and Account (up to 13rem). The ticket spans the top two rows; the Venues table sits under it beside Account. A 26px status bar closes the screen.
+The trading screen fills the viewport from 1024px up. A header (48px) and the venue strip (44px, 48px from the `wide` breakpoint at 85rem, inset by the gutter) sit on top. Under them a grid holds the panels: the chart column takes the rest of the width beside the book (18.25rem, 19.75rem from `wide`), trades (16.5rem) and the ticket (22rem). Rows are the chart (flexible), Depth (13rem) and Account (12rem, 13rem from `wide`). The ticket spans the top two rows; the Venues table sits under it beside Account. A 26px status bar closes the screen.
 
-Every gap and padding is a step of `SPACING_STEPS`. Gutters between cards and around the grid are 0.625rem (8.1px). Panel titles are 2.625rem (34px) tall with 0.75rem side padding. Table rows are 1.875rem, and 1.5rem when dense.
+Every gap and padding is a step of `SPACING_STEPS`. Gutters between cards and around the grid are 0.625rem (8.1px). Panel titles are 2.75rem (36px) tall with 0.75rem side padding. Table rows are 1.875rem. Book and trade rows are 26px, and the book shows as many levels a side as fit its height.
 
 Below 1024px the panels stack in one column with fixed heights. Below 640px the venue strip stacks its four tabs. The header lays out on one line from 1280px and wraps below.
 
-History uses the same cards and gutters under its own header, with Accounts in a narrow column beside Totals and Fills and funding.
+History uses the same cards and gutters under its own header, with Accounts in a narrow column beside Totals and Fills and funding. Accounts stacks the address form over one block per venue, each cut by a rule. The filter bar sets Venue, Type and the period presets as pills in a well, beside a Market select and the From and To fields.
 
 ## Elevation & Depth
 
@@ -309,7 +308,7 @@ Tape is flat. Depth is three graphite steps: ground under graphite cards, raised
 
 Three radii from the closed scale. Cards, the venue strip and the side switch track take the large radius (0.5rem, 6.5px). Buttons, fields, selects, search, popovers and the outcome block take the medium radius (0.375rem, 4.9px). Small inline fields and the Testnet chip take the small radius (0.25rem, 3.25px). Full rounding is refused by lint.
 
-Inside a card, structure is drawn with 1px rule lines, never with nested boxes. Between venue tabs the cut is a 1px line in the ground color, so the strip reads as four tabs cut from one piece.
+Inside a card, structure is drawn with 1px rule lines, never with nested boxes. Between venue tabs the cut is a 1px rule line.
 
 ## Components
 
@@ -350,15 +349,15 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - One 11px line beside the panel title. Empty is level3 (Loading…, Waiting for the venue). Stale is amber with its age (Reconnecting · 4 s old). Error is coral with the drawn mark and a Retry link. It fades in at 120ms when it changes.
 
 ### Venue strip (signature)
-- Four equal tabs on one graphite card under the header, 48px tall.
-- Left: the venue name in title type, level1, and under it the chain in 11px level3. When the venue holds the best bid or ask, the chain line goes on with a dot in the side color and "best bid" or "best ask".
-- Right: "Mid" in 11px level3 over the mid price in Inter tabular 13px 500.
-- A venue that lost its feed says Reconnecting in amber in place of "Mid", over its mid in level3. An unlisted market shows Not shown in level3.
+- Four equal tabs on one graphite card under the header, 44px tall and 48px from the `wide` breakpoint. From `wide` the card ends with a legend in 11px level3: a bid dot, an ask dot and "best across venues".
+- Left: the venue name in title type, level1, and under it the chain in 11px level3.
+- Right: Bid, Ask and Basis, each an 11px level3 label over its value in Inter tabular 13px 500. When the venue holds the best bid or ask across venues, that label starts with a dot in the side color.
+- A venue that lost its feed says Reconnecting in amber with an amber dot, over its last bid, ask and basis in level3. An unlisted market shows Not shown in level3.
 - The current tab is raised with the selected underline. Hover raises any tab.
-- When a venue newly takes the best bid or ask, its tab plays the wash, at most once per venue every 2s, never on the first frame or when the venue just came live. While it washes, the chain and the best or mid label turn level1 so they stay readable on the tint.
+- When a venue newly takes the best bid or ask, its tab plays the wash, at most once per venue every 2s, never on the first frame or when the venue just came live. While it washes, the chain and the quote labels turn level1 so they stay readable on the tint.
 
 ### Venues table
-- Dense table (12px, 1.5rem rows) of venue, bid, ask and basis in bps. Venue names are level1 500. The best bid and best ask carry the side color and the dot. The current venue's row is raised with the current bar and its name semibold in the accent. Rows are keyboard reachable and switch the venue.
+- Table (12px, 1.875rem rows) of venue, bid, ask and basis in bps. Venue names are level1 500. The best bid and best ask carry the side color and the dot. The current venue's row is raised with the current bar and its name semibold in the accent. Rows are keyboard reachable and switch the venue.
 
 ### Order outcome
 - A raised block with the medium radius under the notional, right above the submit, 12px Inter 500 in level1 with tabular figures. On a fill it plays the wash. A failed send shows the drawn mark, the result word in coral and the venue's words.
@@ -396,7 +395,7 @@ Connecting a wallet is the trader's own act, done about once a session, so it is
 - Escape, a click outside and Close shut it. Focus stays inside while it is open and goes back to the button that opened it, or to the address chip once connected.
 
 ### Navigation
-- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right. The wallet is Connect, or the network select and the address chip. The chip opens a small panel in the connect panel's style, 20rem wide, that asks Disconnect this wallet? over the wallet and its address, with Stay connected and Disconnect. While wagmi restores the last session after a reload, the slot holds Connect hidden, so a connected trader never sees it flash.
+- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search with a `/` hint that focuses it, the ticker with the last price at 24px, then History in 12px 500 level1 and the wallet on the right. The wallet is Connect, or the network select and the address chip, which starts with a `live` square. The chip opens a small panel in the connect panel's style, 20rem wide, that asks Disconnect this wallet? over the wallet and its address, with Stay connected and Disconnect. While wagmi restores the last session after a reload, the slot holds Connect hidden, so a connected trader never sees it flash.
 
 ## Do's and Don'ts
 

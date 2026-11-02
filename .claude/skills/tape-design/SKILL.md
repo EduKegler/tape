@@ -17,6 +17,7 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 
 ## Build with the system
 
+- **Connected is `live`.** A small `live` square marks a connected wallet in the address chip and each open socket and the hub in the status bar. It shares the bid hue but never means side, and the hub's square turns `warn` while it is offline.
 - **Graphite, one off-white.** The page is `ground`. Header, venue strip, panels and status bar are `surface` cards with an 8 px gutter (`gap-2.5` and `p-2.5`, since 1rem is 13 px). `raised` lifts one thing inside a card: the current venue tab, the current table row, the order outcome, a secondary button, a dialog. A field sits on `inset` inside an `edge` border.
 - **Off-white belongs to the trader.** `accent` marks the current venue, the selected item, focus as a 2 px ring with a 2 px offset, and the trader's own fill. It never decorates.
 - **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `err` (coral) with `ErrorMark` means something failed: a refused order, a rule error on a field, a failed read. `warn` (amber) means old data, a price warning or a venue reconnecting. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
@@ -24,7 +25,7 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 - **Corners.** Cards take `rounded-lg`, controls and blocks inside them `rounded-md`. No shadows, except three 2 px inset lines: `inset-shadow-selected` under the current venue tab and the checked option, `inset-shadow-current` at the left of the current Venues row, and `inset-shadow-newest` in `level3` at the left of the newest trade.
 - **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. A pressed side fills with its color and `ink-contrast` text. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
 - **Side reads without color.** A label like `Buy / Long`, a mark like `▲`, `▼` or `●` with its words, or position, as in the book.
-- **The venue strip quotes each venue.** Four equal tabs under the header: venue on the left with its chain under it, followed by `● best bid` or `● best ask` when the venue holds one, and `Mid` over the mid price on the right. A venue that went quiet says `Reconnecting` in `warn` in place of `Mid`. Bid, ask and basis stay in the Venues panel.
+- **The venue strip quotes each venue.** Four equal tabs under the header: venue on the left with its chain under it, and `Bid`, `Ask` and `Basis` over their values on the right. The label of the best bid or ask across venues carries `●` in the side color, and from the `wide` breakpoint the strip ends with a `● ● best across venues` legend. A venue that went quiet says `Reconnecting` in `warn` with a dot over its last quotes in `level3`.
 - **The submit names the order.** It reads `Buy / Long BTC` or `Sell / Short BTC`, and for a limit or market order with a valid size a second line states size, price and venue. The second line is hidden from the accessible name and read as its description.
 
 ## Panel state
@@ -33,7 +34,7 @@ Data and connection are two axes. Data is live, stale, empty or error. Connectio
 
 A panel fed by a hub topic passes `<TopicStatus topic={…} />` to `Panel`'s `status` slot, beside the title. Pass `ageLimit` where an old frame misleads, as in the book, the depth and the ticket's price hint. Pass `error` and `onRetry` for a failed read.
 
-The title bar is one line, 34 px high, in every state, so panels side by side keep their bodies aligned. A state text that does not fit beside the title stacks under it inside the same height, and its Retry is a link, never a boxed button. The aside never wraps. The chart puts its intervals and OHLC in the title's place with `lead`, and the ticket and Account pass `bare` and fold the title into their first row. Both keep the title as a hidden heading, because e2e finds a panel by it.
+The title bar is one line, 36 px high, in every state, so panels side by side keep their bodies aligned. A state text that does not fit beside the title stacks under it inside the same height, and its Retry is a link, never a boxed button. The aside never wraps. The chart puts its intervals and OHLC in the title's place with `lead`, and the ticket and Account pass `bare` and fold the title into their first row. Both keep the title as a hidden heading, because e2e finds a panel by it.
 
 - Old data stays readable, with its age beside the title.
 - A failed read says what failed and offers Retry. Its wording is about reading, never about sending, and it never sits beside an empty-result text. Outside a hub panel it goes through `ReadNote`, which takes its reason from `readFailure`.
@@ -111,14 +112,13 @@ Review catches the rest. A screen that shows one of these goes back:
 
 Screens of the graphite redesign, taken from the code. Each settles tokens, primitives, state and motion.
 
-- `reference/trading-live.png`: the whole screen live at 1440×900, matched to the quoted-tabs frame. The strip quotes each mid with the best-price mark under the chain, the chart heads with intervals and OHLC, the book opens on the last price, the ticket folds its title into the order types, 14 book levels a side.
-- `reference/trading-1280.png`: the same at 1280×800. The chart drops its source label, and the ticket, Account and Venues still fit.
+- `reference/trading-live.png`: the whole screen live on mainnet at 1440×900, matched to the quoted-tabs target frame. The strip quotes bid, ask and basis per venue with the best marks and the legend, the chart heads with intervals and OHLC, the book opens on the last price with 9 levels a side, the ticket folds its title into the order types, and the status bar shows its `live` squares.
+- `reference/trading-1280.png`: the same at 1280×800, with no legend in the strip and 7 book levels a side. The chart drops its source label, and the ticket, Account and Venues still fit.
 - `reference/fill-ticket.png`: a real Hyperliquid testnet market fill. The outcome sits on `raised` right above the submit, which names the order on two lines.
-- `reference/fill-position.png`: the same fill as a position in Account: tabs, equity, actions and Deposit on one row, figures grouped, size with its unit.
-- `reference/lift.png`: a venue tab during a live best-price lift on mainnet, with its chain and mark raised to `level1` on the tint.
+- `reference/fill-position.png`: the same fill as a position in Account: tabs on the left, then equity, leverage, the key and Deposit grouped on the right, size with its unit.
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
-- `reference/history.png`: `/history` in the graphite world. History itself is not redesigned yet.
+- `reference/history.png`: `/history` with a connected wallet that has no fills, matched to the history target frame. Accounts stacks the form over one block per venue, and the filters are pills in a well beside the Market select and the From and To fields.
 - `reference/close-confirm.png`: closing a position. Close stays in its cell, and the step with size, expected price and its own slippage takes a full-width row under the position.
 - `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in tabular figures.
 
-Not retaken yet: stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.
+Not retaken yet: a venue tab during a live best-price lift, stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.
