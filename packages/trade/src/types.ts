@@ -183,7 +183,13 @@ export type CloseRow = { readonly symbol: string; readonly sent: SentOrders } & 
 )
 
 export type CommandOutcome =
-  | { readonly kind: 'placed'; readonly status: 'resting' | 'filled' | 'accepted'; readonly detail: string }
+  | {
+      readonly kind: 'placed'
+      readonly status: 'resting' | 'filled' | 'accepted'
+      readonly detail: string
+      /** The size and average price of an order that filled at once, where the venue's reply says. */
+      readonly fill?: { readonly size: Decimal; readonly price: Decimal }
+    }
   | { readonly kind: 'done'; readonly detail: string }
   | { readonly kind: 'closed'; readonly rows: readonly CloseRow[]; readonly detail: string }
   | { readonly kind: 'canceled'; readonly orders: readonly OpenOrder[]; readonly detail: string }

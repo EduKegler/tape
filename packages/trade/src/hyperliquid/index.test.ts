@@ -665,6 +665,7 @@ describe('hyperliquid exits', () => {
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
+      fill: { size: recordedFill.totalSz, price: recordedFill.avgPx },
     })
 
     const noStop = venue(() => statuses([filled, 'waitingForTrigger', { error: 'Invalid TP/SL price.' }]))
@@ -672,6 +673,7 @@ describe('hyperliquid exits', () => {
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}. SL not placed: Invalid TP/SL price.`,
+      fill: { size: recordedFill.totalSz, price: recordedFill.avgPx },
     })
 
     const noTarget = venue(() => statuses([statusOf('rest'), { error: 'Invalid TP/SL price.' }, 'waitingForTrigger']))
@@ -754,6 +756,7 @@ describe('hyperliquid market orders without exits', () => {
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${recordedFill.totalSz} at ${recordedFill.avgPx}`,
+      fill: { size: recordedFill.totalSz, price: recordedFill.avgPx },
     })
     expect(sent.find((request) => request.body.type === 'l2Book')?.body).toEqual({ type: 'l2Book', coin: 'BTC' })
     expect(wiresOf(posts()[0])).toEqual({ grouping: 'na', orders: [[true, '80810', true, { limit: { tif: 'Ioc' } }]] })
@@ -864,6 +867,7 @@ describe('hyperliquid close all', () => {
             kind: 'placed',
             status: 'filled',
             detail: `Filled ${recordedClose.totalSz} at ${recordedClose.avgPx}`,
+            fill: { size: recordedClose.totalSz, price: recordedClose.avgPx },
           },
         },
         {

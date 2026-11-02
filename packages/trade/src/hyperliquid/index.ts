@@ -334,6 +334,7 @@ function orderOutcome(wires: readonly OrderWire[], statuses: readonly OrderStatu
       kind: 'placed',
       status: 'filled',
       detail: `Filled ${first.filled.totalSz} at ${first.filled.avgPx}${note}`,
+      fill: { size: toDecimal(first.filled.totalSz), price: toDecimal(first.filled.avgPx) },
     }
   if (typeof first === 'object' && first.resting)
     return { kind: 'placed', status: 'resting', detail: `Resting as order ${first.resting.oid}${note}` }
