@@ -6,7 +6,7 @@ import type { TradeConfig } from '../types'
 import { hyperliquidDeposit } from './deposit'
 
 const config: TradeConfig = {
-  mainnet: true,
+  mainnet: new Set(['hyperliquid', 'dydx', 'orderly']),
   hyperliquid: { builder: null },
   dydx: { builder: null },
   orderly: { brokerId: { mainnet: 'tape', testnet: 'demo' } },

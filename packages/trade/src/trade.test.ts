@@ -73,7 +73,7 @@ const trailing = {
 } as const
 
 const config: TradeConfig = {
-  mainnet: false,
+  mainnet: new Set(),
   hyperliquid: { builder: null },
   dydx: { builder: null },
   orderly: { brokerId: { mainnet: null, testnet: 'demo' } },

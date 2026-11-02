@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as R1RouteImport } from './routes/r1'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VenueBaseRouteImport } from './routes/$venue.$base'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const R1Route = R1RouteImport.update({
   path: '/r1',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VenueBaseRoute = VenueBaseRouteImport.update({
   id: '/$venue/$base',
   path: '/$venue/$base',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
   '/r1': typeof R1Route
+  '/terms': typeof TermsRoute
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
   '/r1': typeof R1Route
+  '/terms': typeof TermsRoute
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
   '/r1': typeof R1Route
+  '/terms': typeof TermsRoute
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/history' | '/r1' | '/$venue/$base'
+  fullPaths: '/' | '/history' | '/r1' | '/terms' | '/$venue/$base'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/history' | '/r1' | '/$venue/$base'
-  id: '__root__' | '/' | '/history' | '/r1' | '/$venue/$base'
+  to: '/' | '/history' | '/r1' | '/terms' | '/$venue/$base'
+  id: '__root__' | '/' | '/history' | '/r1' | '/terms' | '/$venue/$base'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRoute
   R1Route: typeof R1Route
+  TermsRoute: typeof TermsRoute
   VenueBaseRoute: typeof VenueBaseRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof R1RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$venue/$base': {
       id: '/$venue/$base'
       path: '/$venue/$base'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
   R1Route: R1Route,
+  TermsRoute: TermsRoute,
   VenueBaseRoute: VenueBaseRoute,
 }
 export const routeTree = rootRouteImport

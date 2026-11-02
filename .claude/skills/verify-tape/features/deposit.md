@@ -30,7 +30,7 @@ On Hyperliquid and Orderly the `Account` panel has a `Deposit` button. It opens 
 
 Preconditions:
 
-- `up` with `VITE_TRADE_MAINNET=1` for the CCTP and mainnet Orderly routes, plus `VITE_ORDERLY_BROKER_ID=<broker>` for Orderly, or `up --network testnet` for the Arbitrum Sepolia routes only.
+- `up` with `VITE_TRADE_MAINNET=hyperliquid` for the CCTP routes, or `VITE_TRADE_MAINNET=orderly` plus `VITE_ORDERLY_BROKER_ID=<broker>` for the mainnet Orderly routes, or `up --network testnet` for the Arbitrum Sepolia routes only.
 - `VERIFY_TAPE_WATCH=<address>` on `up` makes the test wallet a watch-only copy of a funded address. It refuses every signature and every `eth_sendTransaction`, and logs the transaction it refused in `wallet.jsonl`. Without it the fresh wallet has no USDC, and only the empty and insufficient states show.
 - Pick a watched address with USDC on the chains you test, and one whose USDC is not blacklisted. For Orderly past `deposit-no-account`, pick one with an Orderly account under that broker: `/v1/get_account?address=<address>&broker_id=<broker>` on Orderly's API answers `success: true`.
 

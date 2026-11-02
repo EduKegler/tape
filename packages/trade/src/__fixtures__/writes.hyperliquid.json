@@ -2102,6 +2102,166 @@
           }
         }
       ]
+    },
+    "fundBuilder": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "sendAsset",
+              "signatureChainId": "0x66eee",
+              "hyperliquidChain": "Testnet",
+              "destination": "0x86e353d0a819bf8067d58c8b98a8402f90d1a07f",
+              "sourceDex": "spot",
+              "destinationDex": "",
+              "token": "USDC:0xeb62eee3685fc4c43992febcd9e75443",
+              "amount": "103",
+              "fromSubAccount": "",
+              "nonce": 1793646141898
+            },
+            "nonce": 1793646141898
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "default"
+            }
+          }
+        }
+      ]
+    },
+    "approveBuilderFee": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "approveBuilderFee",
+              "signatureChainId": "0x66eee",
+              "hyperliquidChain": "Testnet",
+              "maxFeeRate": "0.01%",
+              "builder": "0x86e353d0a819bf8067d58c8b98a8402f90d1a07f",
+              "nonce": 1793646142874
+            },
+            "nonce": 1793646142874
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "default"
+            }
+          }
+        }
+      ]
+    },
+    "builderFeeAboveApproved": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "order",
+              "orders": [
+                {
+                  "a": 3,
+                  "b": true,
+                  "p": "45552",
+                  "s": "0.00027",
+                  "r": false,
+                  "t": {
+                    "limit": {
+                      "tif": "Gtc"
+                    }
+                  },
+                  "c": "0x2ac4a0081c4e23d7636b7f34666baca5"
+                }
+              ],
+              "grouping": "na",
+              "builder": {
+                "b": "0x86e353d0a819bf8067d58c8b98a8402f90d1a07f",
+                "f": 20
+              }
+            },
+            "nonce": 1793646143811
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "error": "Builder fee has not been approved."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "revokeBuilderFee": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "approveBuilderFee",
+              "signatureChainId": "0x66eee",
+              "hyperliquidChain": "Testnet",
+              "maxFeeRate": "0%",
+              "builder": "0x86e353d0a819bf8067d58c8b98a8402f90d1a07f",
+              "nonce": 1793646145071
+            },
+            "nonce": 1793646145071
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "default"
+            }
+          }
+        }
+      ]
+    },
+    "refundBuilder": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "sendAsset",
+              "signatureChainId": "0x66eee",
+              "hyperliquidChain": "Testnet",
+              "destination": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
+              "sourceDex": "",
+              "destinationDex": "spot",
+              "token": "USDC:0xeb62eee3685fc4c43992febcd9e75443",
+              "amount": "103",
+              "fromSubAccount": "",
+              "nonce": 1793646146351
+            },
+            "nonce": 1793646146351
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "default"
+            }
+          }
+        }
+      ]
     }
   }
 }

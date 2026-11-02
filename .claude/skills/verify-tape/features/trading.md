@@ -29,7 +29,7 @@ On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends order
 
 Preconditions:
 
-- `up --network testnet`. A mainnet build never shows `Enable trading`.
+- `up --network testnet`. A mainnet build shows `Enable trading` only on a venue named in `VITE_TRADE_MAINNET`, and the guard below still blocks its writes.
 - Baseline from `features/README.md`. `up` printed a `wallet` line, and `doctor` shows the wallet pid alive.
 - Each run gets a fresh wallet key, so nothing carries over between runs.
 

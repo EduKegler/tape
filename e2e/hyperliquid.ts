@@ -44,6 +44,7 @@ const EMPTY_ACCOUNT: Record<string, unknown> = {
   frontendOpenOrders: [],
   userFills: [],
   extraAgents: [],
+  maxBuilderFee: 0,
   activeAssetData: { leverage: { type: 'cross', value: 20 } },
   userNonFundingLedgerUpdates: [],
 }

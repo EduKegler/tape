@@ -60,7 +60,7 @@ Before a venue ships, its tests prove these:
 - A missing order is told apart from a missing key, and cancelling a filled order is not an error.
 - A cancel the venue says it already holds, such as dYdX's `already exists` codes 9 and 32, is a done cancel, not a refused one.
 - A 5xx, a timeout or an unreadable reply on a read means the venue is unreachable, never a missing order or account.
-- Trading stays off on mainnet unless the build turns it on.
+- Trading stays off on mainnet unless the build turns mainnet trading on for that venue.
 
 ## Rules and what enforces them
 
@@ -82,7 +82,7 @@ Before a venue ships, its tests prove these:
 | Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
 | No one-letter names | `id-length` in `eslint.config.js` |
 | No casts that narrow a type outside the constructor that owns it | `@typescript-eslint/no-unsafe-type-assertion` in `eslint.config.js`, off in tests |
-| Every trading venue reports mainnet unavailable unless the build turns mainnet trading on | `packages/trade/src/index.test.ts` |
+| Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml` |
 | UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |

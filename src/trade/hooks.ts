@@ -6,7 +6,8 @@ import type { VenueId } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
-import { TradeFailure, accountKey, isTradeVenue, sentOrders } from '@tape/trade/types'
+import { TradeFailure, accountKey, sentOrders } from '@tape/trade/types'
+import { isTradeVenue } from '@tape/trade/venue-ids'
 import type {
   AccountRef,
   AccountView,
@@ -27,10 +28,11 @@ import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
 import { switchOrAddChain } from '#/wallet/config'
 import { keySlot, subscribeVault } from './vault'
-import { SITE_READ_ONLY, TRADE_CONFIG } from './config'
+import { TRADE_CONFIG, sendsOrders } from './config'
 
 export type TradeSession =
-  | { readonly status: 'read-only'; readonly cause: 'venue-not-traded' | 'site-reads-only' }
+  | { readonly status: 'read-only'; readonly cause: 'venue-not-traded' }
+  | { readonly status: 'read-only'; readonly cause: 'testnet-only'; readonly venue: TradeVenueId }
   | { readonly status: 'unavailable'; readonly reason: string }
   | { readonly status: 'disconnected' }
   | {
@@ -88,7 +90,9 @@ export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Prom
 
 function useRef(venue: VenueId): AccountRef | null {
   const owner = useConnection().address?.toLowerCase()
-  return owner && isAddress(owner) && isTradeVenue(venue) && !SITE_READ_ONLY ? { venue, network: NETWORK, owner } : null
+  return owner && isAddress(owner) && isTradeVenue(venue) && sendsOrders(venue)
+    ? { venue, network: NETWORK, owner }
+    : null
 }
 
 function useSlot(ref: AccountRef | null): SlotState | null {
@@ -159,7 +163,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
     },
   })
   if (!module) return { status: 'read-only', cause: 'venue-not-traded' }
-  if (SITE_READ_ONLY) return { status: 'read-only', cause: 'site-reads-only' }
+  if (!sendsOrders(venue)) return { status: 'read-only', cause: 'testnet-only', venue: module.id }
   if (unavailable) return { status: 'unavailable', reason: unavailable }
   if (!ref) return { status: 'disconnected' }
   if (linked) {

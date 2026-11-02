@@ -44,7 +44,7 @@ function context(reply: () => Promise<Response>) {
   const ctx: VenueContext = {
     ref: { venue: 'hyperliquid', network: 'mainnet', owner },
     config: {
-      mainnet: true,
+      mainnet: new Set(['hyperliquid', 'dydx', 'orderly']),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: null, testnet: 'demo' } },

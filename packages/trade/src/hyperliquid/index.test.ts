@@ -105,7 +105,7 @@ function venue(
   const ctx: VenueContext = {
     ref: { venue: 'hyperliquid', network: 'testnet', owner },
     config: {
-      mainnet: false,
+      mainnet: new Set(),
       hyperliquid: { builder: null },
       dydx: { builder: null },
       orderly: { brokerId: { mainnet: null, testnet: 'demo' } },
@@ -254,6 +254,14 @@ describe('hyperliquid refusals', () => {
       const { ctx } = venue(replied(name))
       expect(await failureOf(hyperliquid.execute(ctx, place({})))).toEqual({ kind, detail: refusalOf(name) })
     }
+  })
+
+  it('asks for setup again when Hyperliquid refuses a builder fee above the approved one', async () => {
+    const { ctx } = venue(replied('builderFeeAboveApproved'))
+    expect(await failureOf(hyperliquid.execute(ctx, place({})))).toEqual({
+      kind: 'needs-setup',
+      detail: refusalOf('builderFeeAboveApproved'),
+    })
   })
 
   it('refuses a scale order when Hyperliquid refuses every leg', async () => {

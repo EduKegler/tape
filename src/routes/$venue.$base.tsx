@@ -90,7 +90,7 @@ function Market() {
           </div>
         </main>
       )}
-      <StatusBar />
+      <StatusBar venue={venue} />
     </div>
   )
 }

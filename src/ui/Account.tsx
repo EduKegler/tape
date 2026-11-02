@@ -19,7 +19,7 @@ import { Anchored, AnchoredHead, Button, InlineInput, NoData, Table } from './pr
 import type { Column } from './primitives'
 import { specsQuery } from './queries'
 import { domainOf } from './ruler-layout'
-import { SiteReadOnly } from './Ticket'
+import { TestnetOnly } from './Ticket'
 import { OrderNote, ReadNote } from './TradeNote'
 import { ErrorMark } from './ErrorMark'
 import { formatAgo, formatPct, formatSigned, groupThousands } from './format'
@@ -54,7 +54,7 @@ export function Account({ venue, base }: { venue: VenueId; base: Base }) {
 
 function message(session: TradeSession) {
   if (session.status === 'read-only')
-    return session.cause === 'site-reads-only' ? <SiteReadOnly /> : 'This venue is read only in Tape.'
+    return session.cause === 'testnet-only' ? <TestnetOnly venue={session.venue} /> : 'This venue is read only in Tape.'
   if (session.status === 'disconnected') return 'Connect a wallet to see positions and orders.'
   return 'Trading is not available here.'
 }
