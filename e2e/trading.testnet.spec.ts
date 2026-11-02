@@ -666,6 +666,12 @@ test('an order clicked offline fails at once and is not sent again when the netw
 
   await context.setOffline(false)
   await expect(alert).toContainText('The venue does not show this order.')
+  // WebKit logs an analytics beacon sent while offline as an internal error.
+  expect(
+    consoleErrors
+      .splice(0)
+      .filter((error) => !error.includes(hyperliquid.exchangeUrl) && !error.startsWith('Beacon API cannot load')),
+  ).toEqual([])
   hyperliquid.exchange = () => resting(8)
   await price.fill('70100')
   await buy.click()
