@@ -12,6 +12,10 @@ const settled = (page: Page) =>
 
 const ALICE = `${ACCOUNTS.alice.slice(0, 6)}…${ACCOUNTS.alice.slice(-4)}`
 
+const EMAIL_HINT =
+  "Signed in to Hyperliquid with email? Export it from Hyperliquid's settings with Export Email Wallet, import it into your wallet, then connect here."
+const EXPORT_DOCS = 'https://hyperliquid.gitbook.io/hyperliquid-docs/onboarding/export-your-email-wallet'
+
 test.describe('with two browser wallets', () => {
   test.use({ walletNames: ['Rabby Wallet', 'MetaMask'] })
 
@@ -30,6 +34,8 @@ test.describe('with two browser wallets', () => {
     await expect(
       dialog.getByText('Connecting shares your address. Nothing is signed until you enable trading on a venue.'),
     ).toBeVisible()
+    await expect(dialog.getByText(EMAIL_HINT)).toBeVisible()
+    await expect(dialog.getByRole('link', { name: 'Export Email Wallet' })).toHaveAttribute('href', EXPORT_DOCS)
     await expect(dialog.getByRole('button', { name: /^Rabby Wallet/ })).toBeFocused()
     await settled(page)
     await expectAccessible(page)
@@ -48,6 +54,7 @@ test('a browser with no wallet says so and points at two to install', async ({ p
   await expect(dialog.getByText('No wallet in this browser')).toBeVisible()
   await expect(dialog.getByRole('link', { name: 'Rabby' })).toHaveAttribute('href', 'https://rabby.io')
   await expect(dialog.getByRole('link', { name: 'MetaMask' })).toHaveAttribute('href', 'https://metamask.io')
+  await expect(dialog.getByText(EMAIL_HINT)).toBeVisible()
   await page.mouse.click(20, 600)
   await expect(dialog).toHaveCount(0)
 })

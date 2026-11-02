@@ -86,6 +86,7 @@ const PAIRS = [
   ['Connect panel wallet name, hover', 'level1', 'option-hover over raised', 'text'],
   ['Connect panel Detected tag, hover', 'level2', 'option-hover over raised', 'text'],
   ['Connect panel link, no wallet', 'level1', 'option over raised', 'text'],
+  ['Connect panel link, email wallet hint', 'level1', 'raised', 'text'],
   ['Button secondary on raised, hover', 'level1', 'option-hover over raised', 'text'],
   ['Connect panel feed, lit hole', 'accent', 'raised', 'graphic'],
   ['Connect panel QR module', 'ink-contrast', 'accent', 'graphic'],

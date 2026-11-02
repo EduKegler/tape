@@ -416,6 +416,13 @@ function WalletList({
           </div>
         </>
       )}
+      <p data-stagger data-leave className="text-xs text-level3">
+        Signed in to Hyperliquid with email? Export it from Hyperliquid&apos;s settings with{' '}
+        <TextLink href="https://hyperliquid.gitbook.io/hyperliquid-docs/onboarding/export-your-email-wallet" newTab>
+          Export Email Wallet
+        </TextLink>
+        , import it into your wallet, then connect here.
+      </p>
       <p data-stagger data-leave className="mt-5 border-t border-rule pt-4 text-xs text-level3">
         Connecting shares your address. Nothing is signed until you enable trading on a venue.
       </p>
