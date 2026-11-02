@@ -12,6 +12,9 @@ export const TEST_WALLET = 'Test Wallet'
 
 const fixtures = new URL('../packages/venues/src/__fixtures__/', import.meta.url)
 
+/** Firefox logs a cross-origin request that failed, such as one a route aborted, where Chromium logs `Failed to load resource`. */
+const FIREFOX_FAILED_REQUEST = /remote resource at (\S+)\. \(Reason: CORS request did not succeed\)/
+
 export const test = base.extend<{
   network: Network
   walletNames: readonly string[]
@@ -47,13 +50,18 @@ export const test = base.extend<{
   consoleErrors: [
     async ({ page }, use) => {
       const errors: string[] = []
+      const failed = new Set<string>()
+      page.on('requestfailed', (request) => failed.add(request.url()))
       page.on('pageerror', (error) => errors.push(error.message))
       page.on('console', (message) => {
         if (message.type() === 'error' && !message.text().startsWith('Failed to load resource'))
           errors.push(message.text())
       })
       await use(errors)
-      expect(errors, 'console errors').toEqual([])
+      expect(
+        errors.filter((error) => !failed.has(FIREFOX_FAILED_REQUEST.exec(error)?.[1] ?? '')),
+        'console errors',
+      ).toEqual([])
     },
     { auto: true },
   ],
