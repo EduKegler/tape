@@ -22,6 +22,7 @@ import { OrderNote, ReadNote, TradeNote } from './TradeNote'
 import { ErrorMark } from './ErrorMark'
 import { groupThousands } from './format'
 import { useChangedKeys } from './wash'
+import { WithdrawButton } from './Withdraw'
 
 type Tab = 'positions' | 'orders' | 'fills'
 
@@ -142,6 +143,7 @@ function AccountBody({
             />
           )}
           <DepositButton account={account} />
+          {snapshot && <WithdrawButton account={account} available={snapshot.available} />}
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">

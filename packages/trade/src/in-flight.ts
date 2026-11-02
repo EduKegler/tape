@@ -7,7 +7,7 @@ import type { AccountRef, Command } from './types'
  */
 const sending = new Set<string>()
 
-type Write = Command | { readonly kind: 'deposit' }
+type Write = Command | { readonly kind: 'deposit' } | { readonly kind: 'withdraw' }
 
 const lane = (write: Write) => (write.kind === 'place' ? 'every order' : JSON.stringify(write))
 

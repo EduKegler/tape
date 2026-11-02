@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { splitMarketKey } from '@tape/core/ids'
 import { useFrame, useFrameEffect, useHubStats } from '#/client/hooks'
 import { topicKey } from '#/core/topics'
 import type { Topic } from '#/core/topics'
 import { VENUES } from '#/site'
 import { ErrorMark } from './ErrorMark'
+import { useNow } from './now'
 import { STALE_AFTER_MS, panelState } from './panel-state'
 import type { PanelState } from './panel-state'
 import { Button } from './primitives'
@@ -35,16 +36,6 @@ function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => vo
       )}
     </span>
   )
-}
-
-function useNow(ticking: boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!ticking) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [ticking])
-  return now
 }
 
 export function TopicStatus({

@@ -55,7 +55,7 @@ const LOOKUP_DELAY_MS = 2_000
 
 type SlotState = 'none' | `${StoredKey['status']}:${'keyed' | 'unkeyed'}`
 
-function tradeKeys(ref: AccountRef) {
+export function tradeKeys(ref: AccountRef) {
   const all = ['trade', ref.venue, ref.network, ref.owner] as const
   return {
     all,
@@ -65,7 +65,7 @@ function tradeKeys(ref: AccountRef) {
   }
 }
 
-function contextFor(ref: AccountRef): VenueContext {
+export function contextFor(ref: AccountRef): VenueContext {
   return {
     ref,
     config: TRADE_CONFIG,
