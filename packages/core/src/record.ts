@@ -12,3 +12,5 @@ export const fromKeys = <TKey extends PropertyKey, TValue>(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TypeScript's lib types Object.fromEntries with a string index
   return Object.fromEntries(entries) as Record<TKey, TValue>
 }
+
+export const broken: number = 'not a number'
