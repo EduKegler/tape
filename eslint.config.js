@@ -70,6 +70,8 @@ const SIDE_FILES = [
   'src/ui/Header.tsx',
   'src/ui/History.tsx',
   'src/ui/OrderBook.tsx',
+  'src/ui/PositionPanel.tsx',
+  'src/ui/Ruler.tsx',
   'src/ui/Trades.tsx',
   'src/ui/VenueStrip.tsx',
   'src/ui/primitives/Button.tsx',

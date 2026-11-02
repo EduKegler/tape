@@ -1,14 +1,16 @@
-import type { Page } from '@playwright/test'
 import { fakeChains } from './chain'
-import { TEST_WALLET, connectPanel, connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import {
+  TEST_WALLET,
+  connectPanel,
+  connectWallet,
+  expect,
+  expectAccessible,
+  openMarket,
+  panel,
+  settled,
+  test,
+} from './fixtures'
 import { ACCOUNTS } from './wallet'
-
-const settled = (page: Page) =>
-  page.waitForFunction(() =>
-    document
-      .getAnimations()
-      .every((animation) => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity),
-  )
 
 const ALICE = `${ACCOUNTS.alice.slice(0, 6)}…${ACCOUNTS.alice.slice(-4)}`
 
