@@ -54,6 +54,8 @@ const PAIRS = [
   ['Search placeholder', 'level3', 'inset', 'text'],
   ['Search edge, in the header', 'edge', 'surface', 'graphic'],
   ['Search shortcut hint', 'level3', 'inset', 'text'],
+  ['Button outline', 'level2', 'surface', 'text'],
+  ['Button outline, hover', 'level1', 'surface', 'text'],
   ['Connected dot, header and status bar', 'live', 'surface', 'graphic'],
   ['Hub offline dot, status bar', 'warn', 'surface', 'graphic'],
   ['Search item', 'level1', 'raised', 'text'],

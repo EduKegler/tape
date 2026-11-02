@@ -5,6 +5,7 @@ const classes = {
   primary:
     'rounded-md bg-ink font-medium text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   secondary: 'rounded-md bg-raised font-medium text-level1 hover:bg-level1/12 disabled:opacity-40',
+  outline: 'rounded-md border border-rule font-medium text-level2 hover:text-level1 disabled:opacity-40',
   'secondary-raised': 'rounded-md bg-option font-medium text-level1 hover:bg-option-hover disabled:opacity-40',
   buy: 'min-h-11 rounded-md bg-bid py-1.5 text-lg font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   sell: 'min-h-11 rounded-md bg-ask py-1.5 text-lg font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
@@ -28,7 +29,7 @@ const sizes = {
   lg: 'h-10 px-3 text-base',
 }
 
-type SizedLook = 'primary' | 'secondary' | 'secondary-raised'
+type SizedLook = 'primary' | 'secondary' | 'secondary-raised' | 'outline'
 type Look =
   { look: SizedLook; size: keyof typeof sizes } | { look: Exclude<keyof typeof classes, SizedLook>; size?: never }
 

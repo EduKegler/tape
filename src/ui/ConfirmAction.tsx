@@ -71,6 +71,7 @@ export function ConfirmAction({
   disabled,
   onConfirm,
   children,
+  look = 'secondary',
 }: {
   label: string
   question: string
@@ -79,6 +80,7 @@ export function ConfirmAction({
   disabled?: boolean
   onConfirm: () => void
   children?: ReactNode
+  look?: 'secondary' | 'outline'
 }) {
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -91,7 +93,7 @@ export function ConfirmAction({
 
   if (!open)
     return (
-      <Button ref={trigger} look="secondary" size="sm" disabled={disabled} onClick={() => setOpen(true)}>
+      <Button ref={trigger} look={look} size="sm" disabled={disabled} onClick={() => setOpen(true)}>
         {label}
       </Button>
     )
