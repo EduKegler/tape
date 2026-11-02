@@ -48,7 +48,7 @@ The title bar is one line, 36 px high, in every state, so panels side by side ke
 - A price warning is its own level, apart from an error, and never blocks.
 - While sending, the button says `Sending…` and the form locks.
 - After an unknown outcome, resend stays locked until the venue answers or the trader resends on purpose.
-- A plain order goes out with no dialog. TP/SL, Close and Move on a row, and Close all in the account bar, open an `Anchored` popover with the price ruler, and its submit is the confirmation: nothing goes out on the first click. Cancelling all orders, forgetting the trading key and disconnecting the wallet confirm in two steps: the address chip opens a small `Popover` that grows from it like the connect panel, and the others swap their button for the step in place.
+- A plain order goes out with no dialog. TP/SL, Close and Move on a row, and Close all and Cancel all in the account bar, open an `Anchored` popover with the price ruler, and its submit is the confirmation: nothing goes out on the first click. Forgetting the trading key and disconnecting the wallet confirm in two steps: the address chip opens a small `Popover` that grows from it like the connect panel, and Forget swaps its button for the step in place.
 
 ## Motion
 

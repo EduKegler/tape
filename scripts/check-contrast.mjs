@@ -69,6 +69,7 @@ const PAIRS = [
   ['Ruler order dot, sell', 'ask', 'raised', 'graphic'],
   ['Position panel PnL, gain', 'bid', 'raised', 'text'],
   ['Position panel PnL, loss', 'ask', 'raised', 'text'],
+  ['Cancel all warning', 'warn', 'raised', 'text'],
   ['Connected dot, header and status bar', 'live', 'surface', 'graphic'],
   ['Hub offline dot, status bar', 'warn', 'surface', 'graphic'],
   ['Search item', 'level1', 'raised', 'text'],

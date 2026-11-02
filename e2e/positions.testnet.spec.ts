@@ -213,6 +213,42 @@ test('close all reports each close and retries only the refused one', async ({ p
   expect(writes(hyperliquid.sent).map((body) => body.action.orders?.[0]?.a)).toEqual([BTC, ETH, ETH])
 })
 
+test('cancel all names the TP/SL legs it would take off', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page, [BTC_LONG], [RESTING, TAKE_PROFIT])
+  hyperliquid.exchange = () => replyOf('cancel')
+  await account.getByRole('radio', { name: 'Orders 2' }).click()
+  await account.getByRole('button', { name: 'Cancel all' }).click()
+  const batch = page.getByRole('dialog', { name: 'Cancel orders on Hyperliquid' })
+  await expect(batch.getByRole('radio', { name: 'BTC 2' })).toHaveAttribute('aria-checked', 'true')
+  await expect(
+    batch.getByText('1 of these is a TP/SL leg. Canceling leaves those positions unprotected.'),
+  ).toBeVisible()
+  await settled(page)
+  await expectAccessible(page)
+  await batch.getByRole('button', { name: 'Cancel 2 orders' }).click()
+  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
+  expect(writes(hyperliquid.sent)[0]?.action).toEqual({
+    type: 'cancel',
+    cancels: [
+      { a: BTC, o: 41 },
+      { a: BTC, o: 42 },
+    ],
+  })
+})
+
+test('cancel all keeps its answer after the last order goes', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page, [BTC_LONG], [RESTING])
+  hyperliquid.exchange = () => replyOf('cancel')
+  await account.getByRole('radio', { name: 'Orders 1' }).click()
+  await account.getByRole('button', { name: 'Cancel all' }).click()
+  const cancel = page.getByRole('dialog', { name: 'Cancel orders on Hyperliquid' })
+  hyperliquid.account = { ...hyperliquid.account, frontendOpenOrders: [] }
+  await cancel.getByRole('button', { name: 'Cancel 1 order' }).click()
+
+  await expect(account.getByText('No open orders.')).toBeVisible()
+  await expect(cancel.getByRole('button', { name: 'Done' })).toBeVisible()
+})
+
 test('the positions table shows mark, return on margin and the legs', async ({ page, wallet: _wallet }) => {
   const { account } = await holding(page, [position('BTC', '0.01', '80000.0', '810.0', '10.0')], [TAKE_PROFIT])
   // A mark of 810 / 0.01 = 81,000, and 10 USDC on 40 of margin is 25%.

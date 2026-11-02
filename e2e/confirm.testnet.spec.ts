@@ -118,20 +118,6 @@ test('positions and orders spell their side out', async ({ page, wallet: _wallet
   await expect(account.getByRole('row', { name: /^BTC Buy / })).toBeVisible()
 })
 
-test('Cancel all BTC asks first, then sends one cancel for the BTC orders', async ({ page, wallet: _wallet }) => {
-  const { hyperliquid, account } = await holding(page)
-  await account.getByRole('button', { name: 'Cancel all BTC' }).click()
-  const step = account.getByRole('group', { name: 'Cancel 1 BTC order on Hyperliquid?' })
-  await expect(step).toBeVisible()
-  expect(writes(hyperliquid.sent)).toEqual([])
-
-  await step.getByRole('button', { name: 'Confirm' }).click()
-  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
-  expect(writes(hyperliquid.sent).map((body) => body.action)).toEqual([
-    { type: 'cancel', cancels: [{ a: BTC, o: 41 }] },
-  ])
-})
-
 test('forgetting the trading key sits in the account bar and asks first', async ({ page, wallet: _wallet }) => {
   const { account } = await holding(page)
   const ticket = panel(page, 'Order ticket')

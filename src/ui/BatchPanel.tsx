@@ -5,20 +5,20 @@ import type { MarketSpec } from '@tape/core/market'
 import { closeIntents } from '@tape/trade/close-all'
 import type { CloseScope } from '@tape/trade/close-all'
 import type { CloseExit } from '@tape/trade/intent'
-import { pnlAt } from '@tape/trade/position'
-import type { AccountRef, Capabilities, CloseRow, Position } from '@tape/trade/types'
+import { orderKindLabel, pnlAt } from '@tape/trade/position'
+import type { AccountRef, Capabilities, CloseRow, OpenOrder, Position } from '@tape/trade/types'
 import { useTradeCommands } from '#/trade/hooks'
 import { Segmented } from './Panel'
 import { AnchoredHead, Button } from './primitives'
 import { ErrorMark } from './ErrorMark'
 import { OrderNote } from './TradeNote'
-import { formatSigned } from './format'
+import { formatSigned, groupThousands } from './format'
 import { shownPrice, shownSize } from './manage'
 import { closeSlippageBps } from './ticket-store'
 
-const SIDE_WORD = { long: 'Long', short: 'Short' } as const
+const SIDE_WORD = { long: 'Long', short: 'Short', buy: 'Buy', sell: 'Sell' } as const
 const side = (direction: keyof typeof SIDE_WORD) => (
-  <span className={direction === 'long' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[direction]}</span>
+  <span className={direction === 'long' || direction === 'buy' ? 'text-bid' : 'text-ask'}>{SIDE_WORD[direction]}</span>
 )
 const tone = (value: number) => (value >= 0 ? 'text-bid' : 'text-ask')
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
@@ -245,6 +245,91 @@ function ReportLine({
         at <span className="num">{shownPrice(spec, Number(fill.price))}</span>
       </span>
       {realized !== null && <span className={`num text-sm ${tone(realized)}`}>{formatSigned(realized)}</span>}
+    </>
+  )
+}
+
+export function CancelAllPanel({
+  account,
+  venue,
+  orders,
+  symbol,
+  base,
+  specOf,
+  onDone,
+}: {
+  account: AccountRef
+  venue: string
+  orders: readonly OpenOrder[]
+  symbol: string | undefined
+  base: string
+  specOf: (symbol: string) => MarketSpec | undefined
+  onDone: () => void
+}) {
+  const { run, last, inFlight } = useTradeCommands(account)
+  const here = orders.filter((order) => order.symbol === symbol)
+  const [scope, setScope] = useState<'market' | 'all'>(here.length > 0 ? 'market' : 'all')
+  const busy = last.pending || inFlight.length > 0
+  const chosen = scope === 'all' ? orders : here
+  const legs = chosen.filter((order) => order.exit !== null).length
+  const done = last.command?.kind === 'cancel-all' && last.outcome !== null
+  return (
+    <>
+      <AnchoredHead>Cancel orders on {venue}</AnchoredHead>
+      <div className="flex flex-col gap-2.5 px-3 pt-2.5 pb-3">
+        <div className="flex">
+          <Segmented
+            pills="small"
+            label="Which orders"
+            value={scope}
+            onChange={setScope}
+            options={[
+              ...(symbol ? [{ value: 'market' as const, label: `${base} ${here.length}` }] : []),
+              { value: 'all', label: `All markets ${orders.length}` },
+            ]}
+          />
+        </div>
+        <ul>
+          {orders.map((order) => {
+            const spec = specOf(order.symbol)
+            return (
+              <Row key={order.ref} market={spec?.base ?? order.symbol} dim={!chosen.includes(order)}>
+                <span className="flex-1 text-sm text-level2">
+                  {side(order.side)} {orderKindLabel(order.kind)}
+                </span>
+                <span className="num text-sm text-level1">
+                  {order.px === null ? 'market' : spec ? shownPrice(spec, Number(order.px)) : groupThousands(order.px)}
+                  {order.exit !== null && <span className="text-level3"> trigger</span>}
+                </span>
+              </Row>
+            )
+          })}
+        </ul>
+        {legs > 0 && (
+          <span className="text-sm text-warn">
+            {legs === 1 ? '1 of these is a TP/SL leg.' : `${legs} of these are TP/SL legs.`} Canceling leaves those
+            positions unprotected.
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-2 px-3 pb-3">
+        <OrderNote error={last.error} outcome={last.outcome} />
+        {done ? (
+          <Button look="secondary-raised" size="tall" className="w-full" onClick={onDone}>
+            Done
+          </Button>
+        ) : (
+          <Button
+            look="primary"
+            size="tall"
+            className="w-full"
+            disabled={chosen.length === 0 || busy}
+            onClick={() => run({ kind: 'cancel-all', symbol: scope === 'all' ? null : (symbol ?? null) })}
+          >
+            {busy ? 'Canceling…' : `Cancel ${plural(chosen.length, 'order')}`}
+          </Button>
+        )}
+      </div>
     </>
   )
 }

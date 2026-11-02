@@ -7,7 +7,7 @@ import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Posi
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
-import { CloseAllPanel } from './BatchPanel'
+import { CancelAllPanel, CloseAllPanel } from './BatchPanel'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
 import { MovePanel } from './MovePanel'
@@ -63,6 +63,7 @@ type Open =
   | { readonly kind: 'position'; readonly symbol: string; readonly tab: PositionTab; readonly from: 'tpsl' | 'close' }
   | { readonly kind: 'order'; readonly ref: OrderRef }
   | { readonly kind: 'close-all' }
+  | { readonly kind: 'cancel-all' }
   | null
 
 function AccountBody({
@@ -146,19 +147,26 @@ function AccountBody({
               />
             </Anchored>
           )}
-          {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
-            <ConfirmAction
-              label={`Cancel all ${base}`}
-              confirm="Confirm cancel all"
-              keep="Keep orders"
-              question={cancelAllQuestion(
-                snapshot.orders.filter((order) => order.symbol === symbol).length,
-                base,
-                venue,
-              )}
-              onConfirm={() => run({ kind: 'cancel-all', symbol })}
-              look="outline"
-            />
+          {snapshot && tab === 'orders' && (snapshot.orders.length > 0 || open?.kind === 'cancel-all') && (
+            <Anchored
+              open={open?.kind === 'cancel-all'}
+              onOpenChange={toggle({ kind: 'cancel-all' })}
+              trigger={
+                <Button look="action" className="h-6 px-2">
+                  Cancel all
+                </Button>
+              }
+            >
+              <CancelAllPanel
+                account={account}
+                venue={venue}
+                orders={snapshot.orders}
+                symbol={symbol}
+                base={base}
+                specOf={specOf}
+                onDone={() => setOpen(null)}
+              />
+            </Anchored>
           )}
           {leverage && symbol && (
             <LeverageControl
@@ -275,10 +283,6 @@ function AccountBody({
       )}
     </div>
   )
-}
-
-function cancelAllQuestion(count: number, base: Base, venue: string) {
-  return `Cancel ${count === 1 ? `1 ${base} order` : `all ${count} ${base} orders`} on ${venue}?`
 }
 
 const LEVERAGE_RANGE = { min: 1, max: 50 }
