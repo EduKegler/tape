@@ -15,7 +15,7 @@ The order ticket builds a buy or sell, limit, market, scale or trailing stop ord
 - `ticket-tif` offers `Good til canceled`, `Immediate or cancel` and `Post only` for limit orders.
 - `ticket-tpsl` shows `Take profit` and `Stop loss` behind the `Take profit and stop loss` checkbox, on limit and market orders, on venues that offer them (Hyperliquid). `Add take profit` adds a row while the take profits plus a filled `Stop loss` stay under 2, the most Hyperliquid takes on one order. Two take profits with a stop loss stop on submit with `Take profits: At most 1 with a stop loss on this venue`. With more than one, each row is `Take profit <n>` with `Size <n> (%)` and `Remove`, the shares start even, and `Take profit sizes` lists the size each one closes. Shares that miss 100% show `Sizes add up to <n>%, not 100%`. A market order's take profit must clear the far touch and its stop the near touch, and a limit that crosses the book keeps its stop below the bid (above the ask for a sell).
 - `ticket-read-only` says `Binance is read only in Tape.` on Binance.
-- `ticket-network` says which network the build is. A mainnet build shows `Read only` and `Mainnet is read only in Tape.`, with a `testnet` link when the build sets `VITE_TESTNET_SITE`. A testnet build shows `Testnet` and hides `Wallet USDC`, which is a mainnet balance.
+- `ticket-network` says which network the build is. On a mainnet build a venue named in `VITE_TRADE_MAINNET` shows `Mainnet`. Any other trading venue shows `Read only` and `<Venue> trades only on testnet in Tape.`, with a `testnet` link when the build sets `VITE_TESTNET_SITE`, and Hyperliquid adds `Manage mainnet positions on app.hyperliquid.xyz.` A testnet build shows `Testnet` and hides `Wallet USDC`, which is a mainnet balance.
 
 ## How to get to it (user POV)
 
@@ -40,7 +40,7 @@ Preconditions:
 - **Propose from trades.** Switch back to `Limit`, then run `vt click --panel Trades --css "button"` and read the price input. It equals the first trade row's price without separators.
 - **Off tick on a coarse market.** On `/hyperliquid/BTC?interval=1m`, read the tick from a book price, then fill a price between two ticks. The panel shows `Price must be a multiple of <tick>`. Hyperliquid's tick depends on the price (5 significant figures).
 - **Scale.** On a trading venue with a connected wallet, run `vt click --panel "Order ticket" --role radio --name Scale --exact`, fill `Start price`, `End price`, `Size skew` and `Total size (BTC)`, then `vt wait --panel "Order ticket" --role list --name "Scale orders"`. The list has `Orders` rows whose sizes sum to the total. `Orders` above the venue limit shows `From 2 to <limit>`. `Time in force` has no `Immediate or cancel`.
-- **Network.** On a mainnet build at `/hyperliquid/BTC?interval=1m`, the ticket and the `Account` panel say `Mainnet is read only in Tape.` Build with `VITE_TESTNET_SITE=https://tape.testnet.kegler.dev vt up` to check the link with `vt attr --panel "Order ticket" --role link --name testnet --attr href`. On `vt up --network testnet` the ticket header says `Testnet`.
+- **Network.** On a mainnet build at `/hyperliquid/BTC?interval=1m`, the ticket and the `Account` panel say `Hyperliquid trades only on testnet in Tape.` With `VITE_TRADE_MAINNET=hyperliquid vt up` the Hyperliquid ticket shows `Mainnet` and `/dydx/BTC?interval=1m` still says `dYdX trades only on testnet in Tape.` Build with `VITE_TESTNET_SITE=https://tape.testnet.kegler.dev vt up` to check the link with `vt attr --panel "Order ticket" --role link --name testnet --attr href`. On `vt up --network testnet` the ticket header says `Testnet`.
 - **Proof.** Run `vt aria --panel "Order ticket" --path ticket/02-after.aria.txt` and `vt shot --panel "Order ticket" --path ticket/02-after.png`.
 
 ## Gotchas
@@ -50,7 +50,7 @@ Preconditions:
 - Errors only show after the field is touched. Pass `--blur` to `fill`, or click submit.
 - With a `group` in the URL, the book rows are grouped but the `Bid` and `Ask` hints stay on the exact touch.
 - Quote currency depends on venue: `USDT` on Binance, `USDC` on Hyperliquid and Orderly, `USD` on dYdX.
-- Mainnet trading needs the venue in `VITE_TRADE_MAINNET`, a comma list of venue ids such as `hyperliquid`, at build time. The harness build has it off, so mainnet is never sendable here.
+- Mainnet trading needs the venue in `VITE_TRADE_MAINNET`, a comma list of venue ids such as `hyperliquid`, at build time. The harness build has it off. With it on, the guard in [Trading](./trading.md) still blocks every mainnet write.
 - The ticket resets when the market or the wallet changes, because it remounts on each.
 - `Scale` and `Trailing stop` only show once the wallet is connected, because the venue's capabilities come with the session.
 - With TP/SL open the ticket is taller than the panel. The panel scrolls, and `vt click` scrolls to its target.
