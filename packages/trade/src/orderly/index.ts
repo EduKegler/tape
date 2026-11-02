@@ -6,7 +6,10 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { canceled, onMarket } from '../cancel-all'
+import { closeEach } from '../close-all'
+import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure, orderRef, secretHex, toDecimal } from '../types'
@@ -15,9 +18,14 @@ import type {
   Command,
   CommandOutcome,
   HistoryRequest,
+  OpenOrder,
+  OrderExit,
   OrderIntent,
   OrderLookup,
+  OrderRef,
   OrderRules,
+  ProtectIntent,
+  SentOrders,
   SetupStep,
   Side,
   StepId,
@@ -29,11 +37,11 @@ import type {
 } from '../types'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { amount, negate, plain } from '../money'
-import { clientIdsOf, lookupSummary, scaleOutcome, toTick } from '../scale-order'
+import { lookupSummary, scaleOutcome, toTick } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
-import { batchBody, cancelPath, orderBody } from './wire'
-import type { OrderType } from './wire'
+import { algoEditBody, batchBody, cancelPath, editBody, orderBody, positionalBody, raw } from './wire'
+import type { OrderType, Raw } from './wire'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
 /** Orderly signs EIP-712 against a chain it supports, and wallets sign only for the active chain. */
@@ -116,7 +124,7 @@ function brokerFor(ctx: VenueContext): string {
 
 async function signed<T>(
   ctx: VenueContext,
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   data: z.ZodType<T>,
   body = '',
@@ -125,7 +133,7 @@ async function signed<T>(
   const key = keyOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
   const headers = {
     ...signRequest(key, accountId(ctx.ref.owner, brokerFor(ctx)), Date.now(), method, path, body),
-    'content-type': method === 'POST' ? 'application/json' : 'application/x-www-form-urlencoded',
+    'content-type': method === 'POST' || method === 'PUT' ? 'application/json' : 'application/x-www-form-urlencoded',
   }
   const mutates = method !== 'GET'
   const reply = await send(
@@ -207,7 +215,7 @@ function insidePriceRange(
 const Level = z.object({ price: z.string() })
 const Touch = z.object({ data: z.object({ asks: z.array(Level), bids: z.array(Level) }) })
 
-async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>, side: Side): Promise<Px> {
+async function touchOf(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>) {
   const reply = await send(
     'orderly',
     ctx.fetch,
@@ -216,33 +224,47 @@ async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' 
     unsuccessful,
   )
   const { data } = readReply('orderly', Touch, reply, false)
-  const far = (side === 'buy' ? data.asks : data.bids)[0]
-  return far
-    ? parsePx(plainDecimal(far.price), spec.scale)
-    : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+  const [bid, ask] = [data.bids[0], data.asks[0]].map(
+    (level) => level && parsePx(plainDecimal(level.price), spec.scale),
+  )
+  return { bid, ask }
 }
 
-async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
+async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>, side: Side): Promise<Px> {
+  const { bid, ask } = await touchOf(ctx, spec)
+  return (side === 'buy' ? ask : bid) ?? fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+}
+
+async function midOf(ctx: VenueContext, spec: OrderRules, side: Side): Promise<Px> {
+  const { bid, ask } = await touchOf(ctx, spec)
+  return bid !== undefined && ask !== undefined
+    ? midPrice(spec, side, bid, ask)
+    : fail({ kind: 'invalid-order', detail: 'The book on this network has no mid' })
+}
+
+async function statusOf(ctx: VenueContext, path: string, field: 'status' | 'algo_status'): Promise<string | null> {
   try {
-    const order = await signed(
-      ctx,
-      'GET',
-      `/v1/client/order/${clientId}`,
-      z.object({ status: z.string() }),
-      '',
-      classifyOrder,
-    )
-    return { kind: 'found', detail: `Order ${order.status.toLowerCase()}` }
+    const order = await signed(ctx, 'GET', path, z.object({ [field]: z.string() }), '', classifyOrder)
+    return String(order[field])
   } catch (error) {
-    if (error instanceof TradeFailure && error.error === notFound)
-      return { kind: 'absent', detail: 'Orderly has no order with this client id' }
+    if (error instanceof TradeFailure && error.error === notFound) return null
     throw error
   }
 }
 
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+/** A take profit or stop loss is an algo order, which Orderly keeps apart from orders, client ids included. */
+async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
+  const status =
+    (await statusOf(ctx, `/v1/client/order/${clientId}`, 'status'))
+    ?? (await statusOf(ctx, `/v1/algo/client/order/${clientId}`, 'algo_status'))
+  return status === null
+    ? { kind: 'absent', detail: 'Orderly has no order with this client id' }
+    : { kind: 'found', detail: `Order ${status.toLowerCase()}` }
+}
+
+async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
   const results: OrderLookup[] = []
-  for (const id of clientIdsOf(intent)) results.push(await lookupOne(ctx, id))
+  for (const id of sent.clientIds) results.push(await lookupOne(ctx, id))
   return lookupSummary(results)
 }
 
@@ -283,60 +305,201 @@ async function placeScale(
   )
 }
 
+async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  if (intent.order.kind === 'trailing')
+    fail({ kind: 'unsupported', detail: 'Orderly takes no trailing stop from Tape' })
+  if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'unsupported', detail: 'Orderly takes no take profit or stop loss from Tape' })
+  const symbol = intent.spec.venueSymbol
+  const { spec, priceRange } = await networkRules(ctx, symbol)
+  if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
+  const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
+  const sizeIssue = checkSize(spec, quantity)
+  if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
+  let price: string
+  if (intent.order.kind === 'limit') {
+    price = wireDecimal(intent.order.px, intent.spec.scale.px)
+    const issue = checkPrice(spec, price)
+    if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
+  } else if (intent.order.kind === 'mid') {
+    price = wireDecimal(await midOf(ctx, spec, intent.side), spec.scale.px)
+  } else {
+    const range = priceRange ?? fail({ kind: 'unreachable', detail: `Orderly sent no price range for ${symbol}` })
+    const [far, mark] = await Promise.all([farTouch(ctx, spec, intent.side), markPrice(ctx, symbol)])
+    const worst = worstPrice(spec, intent.side, far, intent.order.slippage)
+    price = wireDecimal(insidePriceRange(spec, intent.side, worst, mark, range), spec.scale.px)
+  }
+  const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : intent.order.kind === 'mid' ? TYPE.gtc : 'IOC'
+  const body = orderBody({
+    symbol,
+    clientOrderId: intent.clientId,
+    type,
+    side: intent.side === 'buy' ? 'BUY' : 'SELL',
+    price,
+    quantity,
+    reduceOnly: intent.reduceOnly,
+  })
+  const data = await signed(ctx, 'POST', '/v1/order', z.object({ order_id: z.string() }), body)
+  return {
+    kind: 'placed',
+    status: type === 'IOC' ? 'accepted' : 'resting',
+    detail: `Order ${data.order_id}`,
+  }
+}
+
+async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Promise<CommandOutcome> {
+  const order = intent.order
+  if (order.kind !== 'limit' || intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'invalid-order', detail: 'An edit is a limit with no take profit or stop loss' })
+  const { spec } = await networkRules(ctx, intent.spec.venueSymbol)
+  const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
+  const price = wireDecimal(order.px, intent.spec.scale.px)
+  const issue =
+    (checkSize(spec, quantity) && `Size ${quantity}: ${checkSize(spec, quantity)}`)
+    || (checkPrice(spec, price) && `Price ${price}: ${checkPrice(spec, price)}`)
+  if (issue) fail({ kind: 'invalid-order', detail: `${issue} on this network` })
+  const [symbol, orderId] = ref.split(':')
+  const body = editBody(orderId!, {
+    symbol: symbol!,
+    clientOrderId: intent.clientId,
+    type: TYPE[order.tif],
+    side: intent.side === 'buy' ? 'BUY' : 'SELL',
+    price,
+    quantity,
+    reduceOnly: intent.reduceOnly,
+  })
+  const data = await signed(ctx, 'PUT', '/v1/order', z.object({ status: z.string() }), body, classifyOrder)
+  return { kind: 'placed', status: 'accepted', detail: `Edit of order ${orderId}: ${data.status}` }
+}
+
+async function ignoringGone(work: Promise<unknown>): Promise<void> {
+  try {
+    await work
+  } catch (error) {
+    if (!(error instanceof TradeFailure && error.error === notFound)) throw error
+  }
+}
+
+/** A leg of a TP/SL root is turned off rather than canceled, as Orderly's SDK does, so the other leg stays. */
+async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
+  const [symbol, id, root] = ref.split(':')
+  if (root === undefined)
+    return ignoringGone(signed(ctx, 'DELETE', cancelPath(symbol!, Number(id)), SOME_DATA, '', classifyOrder))
+  if (root === id)
+    return ignoringGone(
+      signed(ctx, 'DELETE', `/v1/algo/order?order_id=${id}&symbol=${symbol}`, SOME_DATA, '', classifyOrder),
+    )
+  return ignoringGone(
+    signed(
+      ctx,
+      'PUT',
+      '/v1/algo/order',
+      SOME_DATA,
+      algoEditBody(root, [{ order_id: raw(id!), is_activated: false }]),
+      classifyOrder,
+    ),
+  )
+}
+
+const LEG_TYPES = { tp: 'TAKE_PROFIT', sl: 'STOP_LOSS' } as const
+
+/**
+ * Orderly holds one positional TP/SL per symbol and side, and its SDK refuses to add a missing leg to
+ * one, so a leg it lacks means canceling the root and creating it again with both.
+ */
+async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<CommandOutcome> {
+  const symbol = intent.spec.venueSymbol
+  const closing = intent.position === 'long' ? 'SELL' : 'BUY'
+  const [{ spec }, algo] = await Promise.all([networkRules(ctx, symbol), algoOrders(ctx)])
+  const root = algo.rows.find(
+    (row) =>
+      row.symbol === symbol
+      && row.algo_type === POSITIONAL
+      && (row.child_orders ?? []).some((leg) => leg.side === closing),
+  )
+  const current = (kind: 'tp' | 'sl') =>
+    root?.child_orders?.find((leg) => leg.algo_type === LEG_TYPES[kind] && isActive(leg))
+  const notes: string[] = []
+  const wanted = (['tp', 'sl'] as const).flatMap((kind) => {
+    const edit = kind === 'tp' ? intent.takeProfit : intent.stopLoss
+    if (edit.kind === 'keep') {
+      const leg = current(kind)
+      return leg?.trigger_price ? [{ kind, px: plainDecimal(leg.trigger_price) }] : []
+    }
+    if (edit.kind === 'remove') {
+      notes.push(`${EXIT_NAMES[kind]} removed`)
+      return []
+    }
+    const px = wireDecimal(edit.px, intent.spec.scale.px)
+    const issue = checkPrice(spec, px)
+    if (issue)
+      fail({ kind: 'invalid-order', detail: `${capitalized(EXIT_NAMES[kind])} ${px}: ${issue} on this network` })
+    notes.push(`${EXIT_NAMES[kind]} at ${px}`)
+    return [{ kind, px }]
+  })
+  const detail = exitDetail(notes)
+  if (notes.length === 0) return { kind: 'done', detail }
+  const clientId = [intent.takeProfit, intent.stopLoss].flatMap((edit) =>
+    edit.kind === 'set' ? [edit.clientId] : [],
+  )[0]
+  if (root && wanted.length === 0) {
+    await cancel(ctx, algoRef(root))
+  } else if (root && wanted.every((leg) => current(leg.kind))) {
+    const changes = (['tp', 'sl'] as const).flatMap((kind): Record<string, Raw | boolean>[] => {
+      const leg = current(kind)
+      const next = wanted.find((each) => each.kind === kind)
+      if (!leg) return []
+      if (!next) return [{ order_id: raw(leg.algo_order_id), is_activated: false }]
+      return next.px === plainDecimal(leg.trigger_price ?? '')
+        ? []
+        : [{ order_id: raw(leg.algo_order_id), trigger_price: raw(next.px) }]
+    })
+    if (changes.length > 0)
+      await signed(ctx, 'PUT', '/v1/algo/order', SOME_DATA, algoEditBody(root.algo_order_id, changes), classifyOrder)
+  } else {
+    if (root) await cancel(ctx, algoRef(root))
+    await signed(
+      ctx,
+      'POST',
+      '/v1/algo/order',
+      SOME_DATA,
+      positionalBody(
+        symbol,
+        clientId,
+        wanted.map((leg) => ({ type: LEG_TYPES[leg.kind], side: closing, triggerPrice: leg.px })),
+      ),
+    )
+  }
+  return { kind: 'done', detail }
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
-    case 'place': {
-      const intent = command.intent
-      if (intent.order.kind === 'trailing')
-        fail({ kind: 'unsupported', detail: 'Orderly takes no trailing stop from Tape' })
-      if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
-        fail({ kind: 'unsupported', detail: 'Orderly takes no take profit or stop loss from Tape' })
-      const symbol = intent.spec.venueSymbol
-      const { spec, priceRange } = await networkRules(ctx, symbol)
-      if (intent.order.kind === 'scale') return placeScale(ctx, intent, intent.order, spec)
-      const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
-      const sizeIssue = checkSize(spec, quantity)
-      if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${quantity}: ${sizeIssue} on this network` })
-      let price: string
-      if (intent.order.kind === 'limit') {
-        price = wireDecimal(intent.order.px, intent.spec.scale.px)
-        const issue = checkPrice(spec, price)
-        if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
-      } else {
-        const range = priceRange ?? fail({ kind: 'unreachable', detail: `Orderly sent no price range for ${symbol}` })
-        const [far, mark] = await Promise.all([farTouch(ctx, spec, intent.side), markPrice(ctx, symbol)])
-        const worst = worstPrice(spec, intent.side, far, intent.order.slippage)
-        price = wireDecimal(insidePriceRange(spec, intent.side, worst, mark, range), spec.scale.px)
-      }
-      const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : 'IOC'
-      const body = orderBody({
-        symbol,
-        clientOrderId: intent.clientId,
-        type,
-        side: intent.side === 'buy' ? 'BUY' : 'SELL',
-        price,
-        quantity,
-        reduceOnly: intent.reduceOnly,
-      })
-      const data = await signed(ctx, 'POST', '/v1/order', z.object({ order_id: z.string() }), body)
-      return {
-        kind: 'placed',
-        status: type === 'IOC' ? 'accepted' : 'resting',
-        detail: `Order ${data.order_id}`,
-      }
-    }
-    case 'cancel': {
-      const [symbol, id] = command.order.split(':')
-      try {
-        await signed(ctx, 'DELETE', cancelPath(symbol!, Number(id)), SOME_DATA, '', classifyOrder)
-      } catch (error) {
-        if (!(error instanceof TradeFailure && error.error === notFound)) throw error
-      }
+    case 'place':
+      return place(ctx, command.intent)
+    case 'close-all':
+      return closeEach(command.intents, (intent) => place(ctx, intent))
+    case 'modify':
+      return modify(ctx, command.order, command.intent)
+    case 'protect':
+      return protect(ctx, command.intent)
+    case 'cancel':
+      await cancel(ctx, command.order)
       return { kind: 'done', detail: 'Canceled' }
+    case 'cancel-all': {
+      const [listed, algo] = await Promise.all([
+        signed(ctx, 'GET', '/v1/orders?status=INCOMPLETE', Orders),
+        algoOrders(ctx),
+      ])
+      const orders = onMarket(listed.rows.map(openOrderOf), command.symbol)
+      const legs = onMarket(algoOpenOrders(algo.rows), command.symbol)
+      const filter = command.symbol ? `symbol=${command.symbol}` : ''
+      if (orders.length > 0) await signed(ctx, 'DELETE', filter ? `/v1/orders?${filter}` : '/v1/orders', SOME_DATA)
+      // Orderly's docs: algo_type STOP cancels the take profit and stop loss legs too.
+      if (legs.length > 0)
+        await signed(ctx, 'DELETE', `/v1/algo/orders?${filter ? `${filter}&` : ''}algo_type=STOP`, SOME_DATA)
+      return canceled([...orders, ...legs])
     }
-    case 'cancel-all':
-      await signed(ctx, 'DELETE', `/v1/orders?symbol=${command.symbol}`, SOME_DATA)
-      return { kind: 'done', detail: `Canceled open ${command.symbol} orders` }
     case 'leverage':
       await signed(ctx, 'POST', '/v1/client/leverage', SOME_DATA, JSON.stringify({ leverage: command.leverage }))
       return { kind: 'done', detail: `Account leverage ${command.leverage}x` }
@@ -372,6 +535,84 @@ const Orders = z.object({
     }),
   ),
 })
+
+const openOrderOf = (order: z.infer<typeof Orders>['rows'][number]): OpenOrder => ({
+  ref: orderRef(order.symbol, order.order_id),
+  symbol: order.symbol,
+  side: order.side === 'BUY' ? 'buy' : 'sell',
+  kind: order.type,
+  px: order.price === null ? null : venueDecimal(order.price),
+  size: venueDecimal(order.quantity),
+  reduceOnly: order.reduce_only,
+  placedAt: Number(order.created_time),
+  cancelable: true,
+  exit: null,
+})
+
+interface AlgoRow {
+  readonly algo_order_id: string
+  readonly root_algo_order_id: string
+  readonly symbol: string
+  readonly algo_type: string
+  readonly side?: string | null | undefined
+  readonly quantity?: string | null | undefined
+  readonly trigger_price?: string | null | undefined
+  readonly type?: string | undefined
+  readonly reduce_only?: boolean | undefined
+  readonly is_activated?: unknown
+  readonly created_time: string
+  readonly child_orders?: readonly AlgoRow[] | undefined
+}
+const AlgoRow: z.ZodType<AlgoRow> = z.lazy(() =>
+  z.object({
+    algo_order_id: z.string(),
+    root_algo_order_id: z.string(),
+    symbol: z.string(),
+    algo_type: z.string(),
+    side: z.string().nullish(),
+    quantity: z.string().nullish(),
+    trigger_price: z.string().nullish(),
+    type: z.string().optional(),
+    reduce_only: z.boolean().optional(),
+    is_activated: z.unknown().optional(),
+    created_time: z.string(),
+    child_orders: z.array(AlgoRow).optional(),
+  }),
+)
+const AlgoOrders = z.object({ rows: z.array(AlgoRow) })
+const EXIT_LEGS: Partial<Record<string, OrderExit['kind']>> = { TAKE_PROFIT: 'tp', STOP_LOSS: 'sl' }
+const POSITIONAL = 'POSITIONAL_TP_SL'
+
+/** Orderly's docs type is_activated as a string and its SDK as a boolean, so both spellings of false count. */
+const isActive = (leg: AlgoRow) => leg.is_activated !== false && leg.is_activated !== 'false'
+
+const algoRef = (leg: AlgoRow) => orderRef(leg.symbol, leg.algo_order_id, leg.root_algo_order_id)
+
+const algoOrderOf = (leg: AlgoRow, exit: OrderExit | null): OpenOrder => ({
+  ref: algoRef(leg),
+  symbol: leg.symbol,
+  side: leg.side === 'BUY' ? 'buy' : 'sell',
+  kind: leg.algo_type,
+  px: leg.trigger_price ? venueDecimal(leg.trigger_price) : null,
+  size: venueDecimal(leg.quantity ?? '0'),
+  reduceOnly: leg.reduce_only ?? false,
+  placedAt: Number(leg.created_time),
+  cancelable: true,
+  exit,
+})
+
+function algoOpenOrders(rows: readonly AlgoRow[]): OpenOrder[] {
+  return rows.flatMap((row) => {
+    if (row.algo_type === 'STOP') return [algoOrderOf(row, row.reduce_only ? { kind: 'sl', whole: false } : null)]
+    return (row.child_orders ?? []).flatMap((leg) => {
+      const kind = EXIT_LEGS[leg.algo_type]
+      return kind && isActive(leg) ? [algoOrderOf(leg, { kind, whole: row.algo_type === POSITIONAL })] : []
+    })
+  })
+}
+
+const algoOrders = (ctx: VenueContext) => signed(ctx, 'GET', '/v1/algo/orders?status=INCOMPLETE', AlgoOrders)
+
 const Trades = z.object({
   rows: z.array(
     z.object({
@@ -388,9 +629,10 @@ const Trades = z.object({
 
 async function account(ctx: VenueContext): Promise<AccountView> {
   if (!keyOf(ctx) || ctx.keys.read()?.status !== 'linked') return { kind: 'unknown' }
-  const [positions, orders, trades] = await Promise.all([
+  const [positions, orders, algo, trades] = await Promise.all([
     signed(ctx, 'GET', '/v1/positions', Positions),
     signed(ctx, 'GET', '/v1/orders?status=INCOMPLETE', Orders),
+    algoOrders(ctx),
     signed(ctx, 'GET', '/v1/trades?size=20', Trades),
   ])
   const live = positions.rows.filter((position) => Number(position.position_qty) !== 0)
@@ -398,6 +640,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
     Number(positions.total_collateral_value) === 0
     && live.length === 0
     && orders.rows.length === 0
+    && algo.rows.length === 0
     && trades.rows.length === 0
   )
     return { kind: 'empty' }
@@ -415,17 +658,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         liquidation: Number(position.est_liq_price) > 0 ? venueDecimal(position.est_liq_price) : null,
         leverage: null,
       })),
-      orders: orders.rows.map((order) => ({
-        ref: orderRef(order.symbol, order.order_id),
-        symbol: order.symbol,
-        side: order.side === 'BUY' ? 'buy' : 'sell',
-        kind: order.type,
-        px: order.price === null ? null : venueDecimal(order.price),
-        size: venueDecimal(order.quantity),
-        reduceOnly: order.reduce_only,
-        placedAt: Number(order.created_time),
-        cancelable: true,
-      })),
+      orders: [...orders.rows.map(openOrderOf), ...algoOpenOrders(algo.rows)],
       fills: trades.rows.map((trade) => ({
         id: trade.id,
         symbol: trade.symbol,
@@ -644,6 +877,8 @@ export const orderly = {
     leverage: true,
     scaleOrders: BATCH_ORDERS,
     trailingStop: false,
+    restingReduceOnly: true,
+    wholeExits: true,
   },
   walletChain: CHAIN_ID,
   unavailable: (network, config) => {

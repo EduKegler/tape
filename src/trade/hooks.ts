@@ -6,7 +6,7 @@ import type { VenueId } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { claim, release } from '@tape/trade/in-flight'
 import { TRADING } from '@tape/trade'
-import { TradeFailure, accountKey, isTradeVenue } from '@tape/trade/types'
+import { TradeFailure, accountKey, isTradeVenue, sentOrders } from '@tape/trade/types'
 import type {
   AccountRef,
   AccountView,
@@ -252,17 +252,12 @@ export function useTradeCommands(ref: AccountRef | null) {
     filters: { mutationKey: commandKey, status: 'pending' },
     select: (pending) => pending.state.variables,
   })
-  // Hyperliquid's trailingStop action takes no client id, so no lookup can find a trailing stop by one.
   const unknown =
-    mutation.error?.error.kind === 'unknown-outcome'
-    && mutation.variables?.kind === 'place'
-    && mutation.variables.intent.order.kind !== 'trailing'
-      ? mutation.variables.intent
-      : null
+    mutation.error?.error.kind === 'unknown-outcome' && mutation.variables ? sentOrders(mutation.variables) : null
   const lookup = useQuery(
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client id names the intent
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the client ids name the write
     queryOptions<OrderLookup, TradeFailure>({
-      queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientId ?? null],
+      queryKey: [...(ref ? tradeKeys(ref).all : ['trade', 'none']), 'lookup', unknown?.clientIds.join() ?? null],
       queryFn:
         ref && unknown
           ? async () => {

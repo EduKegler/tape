@@ -28,10 +28,15 @@ const ERRORS = {
   unexpected: true,
 } satisfies Record<TradeError['kind'], true>
 
-const COMMANDS = { place: true, cancel: true, 'cancel-all': true, leverage: true } satisfies Record<
-  Command['kind'],
-  true
->
+const COMMANDS = {
+  place: true,
+  cancel: true,
+  'cancel-all': true,
+  leverage: true,
+  modify: true,
+  protect: true,
+  'close-all': true,
+} satisfies Record<Command['kind'], true>
 
 const TIFS = { gtc: true, ioc: true, 'post-only': true } satisfies Record<Tif, true>
 
@@ -75,7 +80,7 @@ export const AppEvent = z.discriminatedUnion('event', [
     venue,
     command,
     side: z.enum(['buy', 'sell']).optional(),
-    order: z.enum(['limit', 'market', 'scale', 'trailing']).optional(),
+    order: z.enum(['limit', 'market', 'mid', 'scale', 'trailing']).optional(),
     tif: z.enum(keysOf(TIFS)).optional(),
     reduce_only: z.boolean().optional(),
   }),

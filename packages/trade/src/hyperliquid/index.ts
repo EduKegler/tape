@@ -4,8 +4,11 @@ import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
 import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
-import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
-import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
+import { checkExits, checkPrice, checkSize, midPrice, takeProfitField, worstPrice } from '../intent'
+import { lookupSummary, scaleOutcome } from '../scale-order'
+import { canceled, onMarket } from '../cancel-all'
+import { closeEach } from '../close-all'
+import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, readReply, send } from '../send'
@@ -15,14 +18,20 @@ import { TradeFailure, orderRef, secretHex, toDecimal } from '../types'
 import type {
   AccountView,
   Bps,
+  ClientOrderId,
   Command,
   CommandOutcome,
   HistoryRequest,
   IntentFields,
   OrderIntent,
+  OpenOrder,
+  OrderExit,
   OrderLookup,
   OrderRules,
+  ProtectIntent,
   OrderRef,
+  SentOrders,
+  Side,
   SetupStep,
   StepId,
   TradeError,
@@ -34,7 +43,7 @@ import { walkByTime } from '../history'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
 import type { UserActionType } from './sign'
-import { cancelAction, leverageAction, orderAction, orderWire, trailingStopAction } from './wire'
+import { cancelAction, leverageAction, modifyAction, orderAction, orderWire, trailingStopAction } from './wire'
 import type { OrderWire, Tif } from './wire'
 
 const API: Record<Network, string> = {
@@ -165,6 +174,21 @@ async function touch(ctx: VenueContext, market: Asset): Promise<{ bid: Px | null
   return { bid: bid ?? null, ask: ask ?? null }
 }
 
+/** A reduce-only trigger that closes at market, bounded by the trigger slippage. Size 0 closes the whole position. */
+function exitWire(market: Asset, closing: Side, tpsl: 'tp' | 'sl', px: Px, sz: string, cloid?: ClientOrderId) {
+  const triggerPx = wireDecimal(px, market.spec.scale.px)
+  const bound = wireDecimal(worstPrice(market.spec, closing, px, TRIGGER_SLIPPAGE_BPS), market.spec.scale.px)
+  return orderWire(
+    market.index,
+    closing === 'buy',
+    bound,
+    sz,
+    true,
+    { trigger: { isMarket: true, triggerPx, tpsl } },
+    cloid,
+  )
+}
+
 async function placeWires(
   ctx: VenueContext,
   intent: OrderIntent,
@@ -199,10 +223,20 @@ async function placeWires(
     stopLoss: stopLoss === null ? null : parsePx(recheckPx(market, intent, stopLoss, 'Stop loss'), market.spec.scale),
   }
   const order = intent.order
-  const limit =
+  const fixed =
     order.kind === 'limit' ? { px: recheckPx(market, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
   const book =
-    limit === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, market) : null
+    fixed === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, market) : null
+  const limit =
+    fixed
+    ?? (order.kind === 'mid'
+      ? book?.bid != null && book.ask != null
+        ? {
+            px: wireDecimal(midPrice(market.spec, intent.side, book.bid, book.ask), market.spec.scale.px),
+            tif: TIF.gtc,
+          }
+        : fail({ kind: 'invalid-order', detail: 'The book on this network has no mid' })
+      : null)
   if (book) {
     const issues = checkExits(
       intent.side,
@@ -228,14 +262,8 @@ async function placeWires(
   const wires = [
     orderWire(market.index, isBuy, sent.px, size, intent.reduceOnly, { limit: { tif: sent.tif } }, intent.clientId),
   ]
-  const closing = isBuy ? 'sell' : 'buy'
-  const trigger = (tpsl: 'tp' | 'sl', px: Px, sz: string) => {
-    const triggerPx = wireDecimal(px, market.spec.scale.px)
-    const bound = wireDecimal(worstPrice(market.spec, closing, px, TRIGGER_SLIPPAGE_BPS), market.spec.scale.px)
-    return orderWire(market.index, !isBuy, bound, sz, true, { trigger: { isMarket: true, triggerPx, tpsl } })
-  }
-  for (const tp of exits.takeProfits) wires.push(trigger('tp', tp.px, tp.size))
-  if (exits.stopLoss !== null) wires.push(trigger('sl', exits.stopLoss, size))
+  for (const tp of exits.takeProfits) wires.push(exitWire(market, isBuy ? 'sell' : 'buy', 'tp', tp.px, tp.size))
+  if (exits.stopLoss !== null) wires.push(exitWire(market, isBuy ? 'sell' : 'buy', 'sl', exits.stopLoss, size))
   return { wires, grouping: wires.length > 1 ? 'normalTpsl' : 'na' }
 }
 
@@ -356,28 +384,101 @@ async function placeTrailing(ctx: VenueContext, intent: OrderIntent, order: Trai
     : fail({ kind: 'unknown-outcome', detail: `No order id in the reply: ${JSON.stringify(reply)}` })
 }
 
+async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  const { order } = intent
+  if (order.kind === 'trailing') return placeTrailing(ctx, intent, order)
+  const { wires, grouping } = await placeWires(ctx, intent)
+  const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
+  const statuses = reply.response.data?.statuses ?? []
+  if (statuses.length === 0)
+    fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
+  return order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
+}
+
+/** Without `a`, Hyperliquid rests the new order as Alo when it would not cross, and the old oid is canceled. */
+async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Promise<CommandOutcome> {
+  if (intent.order.kind !== 'limit' || intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'invalid-order', detail: 'An edit is a limit with no take profit or stop loss' })
+  const { wires } = await placeWires(ctx, intent)
+  const reply = await exchange(ctx, modifyAction(wires.map((order) => ({ oid: refParts(ref).oid, order }))))
+  const statuses = reply.response.data?.statuses ?? []
+  if (statuses.length === 0)
+    fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
+  return orderOutcome(wires, statuses)
+}
+
+/**
+ * A set moves the leg that stands for the position with batchModify, at size 0 so it stays a
+ * whole-position leg, or adds one with a positionTpsl order. Removed and extra legs are canceled
+ * last, so the position is never left without the exit asked for.
+ */
+async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<CommandOutcome> {
+  const market = await asset(ctx, intent.spec.venueSymbol)
+  const closing: Side = intent.position === 'long' ? 'sell' : 'buy'
+  const moves: { oid: number; order: OrderWire }[] = []
+  const adds: OrderWire[] = []
+  const cancels: OrderRef[] = []
+  const notes: string[] = []
+  for (const [tpsl, edit, name] of [
+    ['tp', intent.takeProfit, EXIT_NAMES.tp],
+    ['sl', intent.stopLoss, EXIT_NAMES.sl],
+  ] as const) {
+    if (edit.kind === 'keep') continue
+    if (edit.kind === 'remove') {
+      cancels.push(...edit.legs)
+      notes.push(`${name} removed`)
+      continue
+    }
+    const px = wireDecimal(edit.px, intent.spec.scale.px)
+    const issue = checkPrice(market.spec, px)
+    if (issue) fail({ kind: 'invalid-order', detail: `${capitalized(name)} ${px}: ${issue} on this network` })
+    const wire = exitWire(market, closing, tpsl, edit.px, '0', edit.clientId)
+    const [moved, ...extra] = edit.legs
+    if (moved) moves.push({ oid: refParts(moved).oid, order: wire })
+    else adds.push(wire)
+    cancels.push(...extra)
+    notes.push(`${name} at ${px}`)
+  }
+  const refusals = async (action: unknown) =>
+    ((await exchange(ctx, action)).response.data?.statuses ?? []).flatMap((status) => errorOf(status) ?? [])
+  const refused = [
+    ...(moves.length > 0 ? await refusals(modifyAction(moves)) : []),
+    ...(adds.length > 0 ? await refusals(orderAction(adds, 'positionTpsl', null)) : []),
+  ]
+  if (refused.length > 0) fail(classifyText(refused.join('; ')))
+  if (cancels.length > 0) await cancel(ctx, cancels)
+  return { kind: 'done', detail: exitDetail(notes) }
+}
+
+async function cancel(ctx: VenueContext, refs: readonly OrderRef[]): Promise<void> {
+  const reply = await exchange(ctx, cancelAction(refs.map(refParts)))
+  const errors = (reply.response.data?.statuses ?? []).flatMap((status) =>
+    typeof status === 'object' && status.error && !GONE.test(status.error) ? [status.error] : [],
+  )
+  if (errors.length > 0) fail(classifyText(errors.join('; ')))
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
-    case 'place': {
-      const { order } = command.intent
-      if (order.kind === 'trailing') return placeTrailing(ctx, command.intent, order)
-      const { wires, grouping } = await placeWires(ctx, command.intent)
-      const reply = await exchange(ctx, orderAction(wires, grouping, ctx.config.hyperliquid.builder))
-      const statuses = reply.response.data?.statuses ?? []
-      if (statuses.length === 0)
-        fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
-      return command.intent.order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
-    }
+    case 'place':
+      return place(ctx, command.intent)
+    case 'close-all':
+      return closeEach(command.intents, (intent) => place(ctx, intent))
+    case 'modify':
+      return modify(ctx, command.order, command.intent)
+    case 'protect':
+      return protect(ctx, command.intent)
     case 'cancel':
+      await cancel(ctx, [command.order])
+      return { kind: 'done', detail: 'Canceled 1' }
     case 'cancel-all': {
-      const targets = command.kind === 'cancel' ? [refParts(command.order)] : await openOf(ctx, command.symbol)
-      if (targets.length === 0) return { kind: 'done', detail: 'Nothing to cancel' }
-      const reply = await exchange(ctx, cancelAction(targets))
-      const errors = (reply.response.data?.statuses ?? []).flatMap((status) =>
-        typeof status === 'object' && status.error && !GONE.test(status.error) ? [status.error] : [],
-      )
-      if (errors.length > 0) fail(classifyText(errors.join('; ')))
-      return { kind: 'done', detail: `Canceled ${targets.length}` }
+      const orders = onMarket(await openOrders(ctx), command.symbol).filter((order) => order.cancelable)
+      if (orders.length > 0)
+        await cancel(
+          ctx,
+          orders.map((order) => order.ref),
+        )
+      return canceled(orders)
     }
     case 'leverage': {
       const market = await asset(ctx, command.symbol)
@@ -390,14 +491,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 const OrderLookupReply = z.object({ status: z.string(), order: z.object({ status: z.string() }).nullish() })
 
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
-  if (intent.order.kind === 'trailing')
-    fail({
-      kind: 'unsupported',
-      detail: 'Hyperliquid takes no client id on a trailing stop, so it cannot be found by one',
-    })
+async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
   const replies = await Promise.all(
-    clientIdsOf(intent).map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
+    sent.clientIds.map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
   )
   return lookupSummary(
     replies.map((reply) =>
@@ -426,21 +522,35 @@ const HlOrders = z.array(
     reduceOnly: z.boolean(),
     isTrigger: z.boolean(),
     triggerPx: z.string(),
+    isPositionTpsl: z.boolean().optional(),
   }),
 )
+type HlOrder = z.infer<typeof HlOrders>[number]
 
-async function openOf(ctx: VenueContext, symbol: string) {
+const exitOf = (order: HlOrder): OrderExit | null =>
+  order.isTrigger && order.reduceOnly
+    ? { kind: order.orderType.startsWith('Take Profit') ? 'tp' : 'sl', whole: order.isPositionTpsl === true }
+    : null
+
+const openOrderOf = (order: HlOrder, markets: Meta): OpenOrder => ({
+  ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
+  symbol: order.coin,
+  side: order.side === 'B' ? 'buy' : 'sell',
+  kind: order.orderType,
+  px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
+  size: toDecimal(order.sz),
+  reduceOnly: order.reduceOnly,
+  placedAt: Number(order.timestamp),
+  cancelable: markets.has(order.coin),
+  exit: exitOf(order),
+})
+
+async function openOrders(ctx: VenueContext): Promise<OpenOrder[]> {
   const [orders, markets] = await Promise.all([
-    info(
-      ctx,
-      { type: 'frontendOpenOrders', user: ctx.ref.owner },
-      z.array(z.object({ coin: z.string(), oid: z.string() })),
-    ),
+    info(ctx, { type: 'frontendOpenOrders', user: ctx.ref.owner }, HlOrders),
     meta(ctx),
   ])
-  return orders
-    .filter((order) => order.coin === symbol)
-    .map((order) => ({ asset: markets.get(order.coin)?.index ?? -1, oid: Number(order.oid) }))
+  return orders.map((order) => openOrderOf(order, markets))
 }
 
 const UNIFIED = new Set(['unifiedAccount', 'portfolioMargin'])
@@ -515,17 +625,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
           : null,
         leverage: `${position.leverage.value}x ${position.leverage.type}`,
       })),
-      orders: orders.map((order) => ({
-        ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
-        symbol: order.coin,
-        side: order.side === 'B' ? 'buy' : 'sell',
-        kind: order.orderType,
-        px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
-        size: toDecimal(order.sz),
-        reduceOnly: order.reduceOnly,
-        placedAt: Number(order.timestamp),
-        cancelable: markets.has(order.coin),
-      })),
+      orders: orders.map((order) => openOrderOf(order, markets)),
       fills: fills.slice(0, 20).map((fill) => ({
         id: fill.tid,
         symbol: fill.coin,
@@ -777,6 +877,8 @@ export const hyperliquid = {
     leverage: true,
     scaleOrders: SCALE_ORDERS,
     trailingStop: true,
+    restingReduceOnly: true,
+    wholeExits: true,
   },
   unavailable: (network, config) =>
     network === 'mainnet' && !config.mainnet ? 'Mainnet trading is off in this build' : null,

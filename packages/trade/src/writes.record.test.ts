@@ -17,13 +17,13 @@ import { deriveKey, onboarding, sdk, validatorOf, walletOf } from './dydx/client
 import { clientIdOf, quantums, subticks } from './dydx/wire'
 import { hyperliquid } from './hyperliquid'
 import { signL1Action } from './hyperliquid/sign'
-import { orderAction, orderWire } from './hyperliquid/wire'
+import { cancelAction, modifyAction, orderAction, orderWire } from './hyperliquid/wire'
 import { orderly } from './orderly'
 import { accountId, orderlyKey, signRequest } from './orderly/sign'
 import { orderBody } from './orderly/wire'
 import { localSigner } from './typed-data'
 import type { TypedData } from './typed-data'
-import { TradeFailure } from './types'
+import { TradeFailure, sentOrders } from './types'
 import type {
   Bps,
   Command,
@@ -35,6 +35,8 @@ import type {
   VenueContext,
   WalletSigner,
 } from './types'
+
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 interface Exchange {
   readonly method: string
@@ -164,8 +166,11 @@ async function recordHyperliquid(keyFile: string) {
       orders: orders.map((order) => `${order.coin} ${order.oid}`),
     }))
   const before = await state()
+  process.stdout.write(`hyperliquid account before ${JSON.stringify(before)}\n`)
   if (before.positions.some((position) => position.startsWith(`${coin} `)))
     throw new Error(`${coin} already has a position; pick another coin with RECORD_WRITES_HL_COIN`)
+  if (before.orders.some((order) => order.startsWith(`${coin} `)))
+    throw new Error(`${coin} already has open orders; pick another coin with RECORD_WRITES_HL_COIN`)
 
   const meta = await hlInfo<Meta>({ type: 'meta' })
   const index = meta.universe.findIndex((asset) => asset.name === coin)
@@ -190,7 +195,9 @@ async function recordHyperliquid(keyFile: string) {
   const touch = { bid: String(bid), ask: String(ask) }
 
   const { fetch, take } = recorder(
-    (url, body) => url.endsWith('/exchange') || (body as { type?: string } | null)?.type === 'orderStatus',
+    (url, body) =>
+      url.endsWith('/exchange')
+      || ['orderStatus', 'frontendOpenOrders'].includes(String((body as { type?: string } | null)?.type)),
   )
   const ctx = (key: Hex, user: Address): VenueContext => ({
     ref: { venue: 'hyperliquid', network: 'testnet', owner: user },
@@ -226,18 +233,168 @@ async function recordHyperliquid(keyFile: string) {
 
   const rest = intentOf(hyperliquid, spec, { price: far, size, ...touch })
   await run('rest', hyperliquid.execute(funded, place(rest)))
-  await run('lookupResting', hyperliquid.lookup(funded, rest))
+  await run('lookupResting', hyperliquid.lookup(funded, sentOf(rest)))
   await run('cancel', hyperliquid.execute(funded, cancel(oidOf('rest'))))
   await run('cancelCanceled', hyperliquid.execute(funded, cancel(oidOf('rest'))))
-  await run('lookupCanceled', hyperliquid.lookup(funded, rest))
-  await run('lookupUnknown', hyperliquid.lookup(funded, intentOf(hyperliquid, spec, { price: far, size, ...touch })))
+  await run('lookupCanceled', hyperliquid.lookup(funded, sentOf(rest)))
+  await run(
+    'lookupUnknown',
+    hyperliquid.lookup(funded, sentOf(intentOf(hyperliquid, spec, { price: far, size, ...touch }))),
+  )
 
   const buy = intentOf(hyperliquid, spec, { kind: 'market', size, ...touch })
   await run('fill', hyperliquid.execute(funded, place(buy)))
-  await run('lookupFilled', hyperliquid.lookup(funded, buy))
+  await run('lookupFilled', hyperliquid.lookup(funded, sentOf(buy)))
   await run('cancelFilled', hyperliquid.execute(funded, cancel(oidOf('fill'))))
+  // Position TP/SL on the open long, then moved, then canceled. The probes send raw actions, so the
+  // frames show what Hyperliquid answers before the module reads it.
+  const exchangeRaw = async (action: unknown) => {
+    const nonce = Date.now()
+    const signature = await signL1Action(localSigner(privateKeyToAccount(secret)), action, nonce, 'Testnet')
+    const response = await fetch(`${HL}/exchange`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, nonce, signature }),
+    })
+    return (await response.json()) as { response?: { data?: { statuses?: unknown[] } } }
+  }
+  const openOrders = () =>
+    fetch(`${HL}/info`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'frontendOpenOrders', user: owner }),
+    }).then((response) => response.json() as Promise<{ coin: string; oid: number; isPositionTpsl?: boolean }[]>)
+  const takeProfitPx = sigfig(ask * 1.5, spec.scale.px)
+  const stopLossPx = sigfig(bid * 0.6, spec.scale.px)
+  const exitWire = (tpsl: 'tp' | 'sl', triggerPx: string, sz: string, cloid?: Hex) =>
+    orderWire(
+      index,
+      false,
+      sigfig(Number(triggerPx) * 0.9, spec.scale.px),
+      sz,
+      true,
+      { trigger: { isMarket: true, triggerPx, tpsl } },
+      cloid,
+    )
+  await run(
+    'positionTpslZero',
+    exchangeRaw(
+      orderAction([exitWire('tp', takeProfitPx, '0'), exitWire('sl', stopLossPx, '0')], 'positionTpsl', null),
+    ),
+  )
+  await run('openAfterZero', openOrders())
+  await run(
+    'positionTpslSecond',
+    exchangeRaw(orderAction([exitWire('tp', sigfig(ask * 1.4, spec.scale.px), '0')], 'positionTpsl', null)),
+  )
+  await run('openAfterSecond', openOrders())
+  const wholeTakeProfit = (await openOrders()).find(
+    (order) =>
+      order.coin === coin
+      && order.isPositionTpsl
+      && /take profit/i.test((order as { orderType?: string }).orderType ?? ''),
+  )
+  take()
+  if (wholeTakeProfit)
+    await run(
+      'modifyWhole',
+      exchangeRaw(
+        modifyAction([{ oid: wholeTakeProfit.oid, order: exitWire('tp', sigfig(ask * 1.45, spec.scale.px), '0') }]),
+      ),
+    )
+  await run('openAfterModifyWhole', openOrders())
+  await run(
+    'positionTpsl',
+    exchangeRaw(
+      orderAction(
+        [exitWire('tp', takeProfitPx, size, newClientId()), exitWire('sl', stopLossPx, size, newClientId())],
+        'positionTpsl',
+        null,
+      ),
+    ),
+  )
+  await run('openWithTpsl', openOrders())
+  const movedTakeProfit = sigfig(ask * 1.6, spec.scale.px)
+  await run(
+    'positionTpslAgain',
+    exchangeRaw(orderAction([exitWire('tp', movedTakeProfit, size)], 'positionTpsl', null)),
+  )
+  await run('openAfterAgain', openOrders())
+  const takeProfitOid = async () => {
+    const orders = (await openOrders()) as { coin: string; oid: number; isPositionTpsl?: boolean; orderType?: string }[]
+    take()
+    return orders.find(
+      (order) => order.coin === coin && order.isPositionTpsl && /take profit/i.test(order.orderType ?? ''),
+    )?.oid
+  }
+  const tpOid = await takeProfitOid()
+  if (tpOid !== undefined) {
+    const raised = sigfig(ask * 1.7, spec.scale.px)
+    await run('modifyTrigger', exchangeRaw(modifyAction([{ oid: tpOid, order: exitWire('tp', raised, size) }])))
+    await run('openAfterModifyTrigger', openOrders())
+    const stillOid = (await takeProfitOid()) ?? tpOid
+    await run(
+      'modifyTriggerPlace',
+      exchangeRaw(
+        modifyAction([{ oid: stillOid, order: exitWire('tp', sigfig(ask * 1.8, spec.scale.px), size) }], true),
+      ),
+    )
+    await run('openAfterModifyTriggerPlace', openOrders())
+  }
+  await run(
+    'modifyFilled',
+    exchangeRaw(
+      modifyAction([
+        { oid: Number(oidOf('fill')), order: orderWire(index, true, far, size, false, { limit: { tif: 'Gtc' } }) },
+      ]),
+    ),
+  )
+  const legs = (await openOrders()).filter((order) => order.coin === coin && order.isPositionTpsl)
+  take()
+  await run('cancelTpsl', exchangeRaw(cancelAction(legs.map((leg) => ({ asset: index, oid: leg.oid })))))
   const close = intentOf(hyperliquid, spec, { kind: 'market', side: 'sell', size, reduceOnly: true, ...touch })
   await run('close', hyperliquid.execute(funded, place(close)))
+  await run('openAfterClose', openOrders())
+
+  // A resting order moved in price and size, found again by its new cloid, then moved after its cancel.
+  const parked = intentOf(hyperliquid, spec, { price: far, size, ...touch })
+  await run('restForModify', hyperliquid.execute(funded, place(parked)))
+  const movedCloid = newClientId()
+  const lower = sigfig(Number(far) * 0.98, spec.scale.px)
+  const bigger = (Number(size) * 2).toFixed(qty)
+  await run(
+    'modifyResting',
+    exchangeRaw(
+      modifyAction([
+        {
+          oid: Number(oidOf('restForModify')),
+          order: orderWire(index, true, lower, bigger, false, { limit: { tif: 'Gtc' } }, movedCloid),
+        },
+      ]),
+    ),
+  )
+  await run('openAfterModify', openOrders())
+  await run('lookupModifiedNew', hyperliquid.lookup(funded, { venueSymbol: coin, clientIds: [movedCloid] }))
+  await run('lookupModifiedOld', hyperliquid.lookup(funded, { venueSymbol: coin, clientIds: [parked.clientId] }))
+  await run(
+    'modifyByCloid',
+    exchangeRaw(
+      modifyAction([
+        { oid: movedCloid, order: orderWire(index, true, far, size, false, { limit: { tif: 'Gtc' } }, movedCloid) },
+      ]),
+    ),
+  )
+  const parkedNow = (await openOrders()).filter((order) => order.coin === coin)
+  take()
+  await run('cancelModified', exchangeRaw(cancelAction(parkedNow.map((order) => ({ asset: index, oid: order.oid })))))
+  await run(
+    'modifyCanceled',
+    exchangeRaw(
+      modifyAction([
+        { oid: movedCloid, order: orderWire(index, true, far, size, false, { limit: { tif: 'Gtc' } }, movedCloid) },
+      ]),
+    ),
+  )
 
   await run(
     'minimumValue',
@@ -303,9 +460,9 @@ async function recordHyperliquid(keyFile: string) {
 
   write('hyperliquid', { network: 'testnet', recordedAt: new Date().toISOString(), owner, coin, asset: index, cases })
   const after = await state()
-  const ours = ['rest', 'fill'].map(oidOf)
+  process.stdout.write(`hyperliquid account after ${JSON.stringify(after)}\n`)
   return {
-    orders: after.orders.filter((order) => ours.some((oid) => order.endsWith(` ${oid}`))),
+    orders: after.orders.filter((order) => order.startsWith(`${coin} `)),
     positions: after.positions.filter((position) => position.startsWith(`${coin} `)),
   }
 }
@@ -427,7 +584,7 @@ async function recordDydx() {
   /** The indexer trails the chain by a few blocks, so a lookup waits until it shows the status asked for. */
   const lookupUntil = (intent: OrderIntent, detail: string) => async () => {
     for (let attempt = 0; ; attempt++) {
-      const found = await dydx.lookup(account, intent)
+      const found = await dydx.lookup(account, sentOf(intent))
       if (found.detail === detail || attempt === 20) return found
       take()
       await sleep(2000)
@@ -440,7 +597,7 @@ async function recordDydx() {
   const stranger = await deriveKey(await privateKeyToAccount(generatePrivateKey()).signTypedData(onboarding('testnet')))
   const strangerCtx = ctx(stranger.mnemonic, stranger.address)
   await run('unknownAddress', () => dydx.account(strangerCtx))
-  await run('lookupUnknown', () => dydx.lookup(account, intentOf(dydx, spec, { price: far, size })))
+  await run('lookupUnknown', () => dydx.lookup(account, sentOf(intentOf(dydx, spec, { price: far, size }))))
   await run('unknownAccount', () => dydx.execute(strangerCtx, place(intentOf(dydx, spec, { price: far, size }))))
 
   if (holdsUsdc) {

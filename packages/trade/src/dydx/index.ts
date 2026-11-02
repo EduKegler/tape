@@ -3,18 +3,28 @@ import { z } from 'zod'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { canceled, onMarket } from '../cancel-all'
+import { closeEach } from '../close-all'
+import { EXIT_NAMES, capitalized, exitDetail } from '../protect'
+import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
+import { lookupSummary } from '../scale-order'
 import { readReply, send } from '../send'
 import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
   AccountView,
+  ClientOrderId,
   Command,
   CommandOutcome,
   HistoryRequest,
+  OpenOrder,
+  OrderExit,
   OrderIntent,
   OrderLookup,
   OrderRules,
+  ProtectIntent,
   OrderRef,
+  SentOrders,
+  Side,
   SetupStep,
   StepId,
   TradeError,
@@ -35,7 +45,14 @@ const INDEXER: Record<Network, string> = {
 const CANCEL_SECONDS = 60
 const SIDE = { buy: 1, sell: 2 } as const
 const TIF = { gtc: 0, ioc: 1, 'post-only': 2 } as const
-const FLAGS = { short: 0, long: 64 } as const
+const FLAGS = { short: 0, conditional: 32, long: 64 } as const
+/** Order_ConditionType in dydxprotocol/v4-chain proto/dydxprotocol/clob/order.proto. */
+const CONDITION = { sl: 1, tp: 2 } as const
+/** v4-client-js calculateClientMetadata marks a market order 1, which is how the indexer and v4-web tell one. */
+const MARKET_METADATA = 1
+/** v4-web bounds a market take profit or stop loss 5% past the trigger on these markets and 10% on the rest. */
+const MAJOR_MARKETS = new Set(['BTC-USD', 'ETH-USD', 'SOL-USD'])
+const exitSlippageBps = (ticker: string) => (MAJOR_MARKETS.has(ticker) ? 500 : 1000)
 
 interface Market extends ClobMarket {
   readonly spec: OrderRules
@@ -177,7 +194,10 @@ function recheckPx(perp: Market, intent: OrderIntent, px: Px): Px {
 const Level = z.object({ price: z.string() })
 const Orderbook = z.object({ bids: z.array(Level), asks: z.array(Level) })
 
-async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+async function priced(
+  ctx: VenueContext,
+  intent: OrderIntent,
+): Promise<{ perp: Market; size: string; px: Px; tif: 0 | 1 | 2 }> {
   if (intent.order.kind === 'trailing') fail({ kind: 'unsupported', detail: 'dYdX has no trailing stop' })
   if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
     fail({ kind: 'unsupported', detail: 'dYdX takes no take profit or stop loss from Tape' })
@@ -186,27 +206,46 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const sizeIssue = checkSize(perp.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   if (intent.order.kind === 'scale') fail({ kind: 'unsupported', detail: 'dYdX takes no scale order from Tape' })
+  const order = intent.order
+  if (intent.reduceOnly && (order.kind === 'mid' || (order.kind === 'limit' && order.tif !== 'ioc')))
+    fail({ kind: 'invalid-order', detail: 'dYdX takes a reduce-only order only as IOC' })
   let px: Px
   let tif: 0 | 1 | 2
-  if (intent.order.kind === 'limit') {
-    px = recheckPx(perp, intent, intent.order.px)
-    tif = TIF[intent.order.tif]
+  if (order.kind === 'limit') {
+    px = recheckPx(perp, intent, order.px)
+    tif = TIF[order.tif]
   } else {
     const book = await indexer(ctx, `/orderbooks/perpetualMarket/${intent.spec.venueSymbol}`, Orderbook)
-    const far = intent.side === 'buy' ? book.asks[0] : book.bids[0]
-    if (!far) fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
-    px = worstPrice(perp.spec, intent.side, parsePx(far.price, perp.spec.scale), intent.order.slippage)
-    tif = TIF.ioc
+    const [bid, ask] = [book.bids[0], book.asks[0]].map((level) => level && parsePx(level.price, perp.spec.scale))
+    if (order.kind === 'mid') {
+      if (bid === undefined || ask === undefined)
+        fail({ kind: 'invalid-order', detail: 'The book on this network has no mid' })
+      px = midPrice(perp.spec, intent.side, bid, ask)
+      tif = TIF.gtc
+    } else {
+      const far = intent.side === 'buy' ? ask : bid
+      if (far === undefined) fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+      px = worstPrice(perp.spec, intent.side, far, order.slippage)
+      tif = TIF.ioc
+    }
   }
+  return { perp, size, px, tif }
+}
+
+async function chainNumbers(perp: Market, size: string, px: Px) {
   const { default: Long } = await import('long')
+  return {
+    baseQuantums: Long.fromString(quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(), true),
+    orderSubticks: Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true),
+  }
+}
+
+async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  const { perp, size, px, tif } = await priced(ctx, intent)
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const wallet = await walletOf(mnemonicOf(ctx))
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
-  const baseQuantums = Long.fromString(
-    quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(),
-    true,
-  )
-  const orderSubticks = Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true)
+  const { baseQuantums, orderSubticks } = await chainNumbers(perp, size, px)
   const builder = ctx.config.dydx.builder ?? undefined
   const clientId = clientIdOf(intent.clientId)
   const short = tif === TIF.ioc
@@ -257,6 +296,159 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   return { kind: 'placed', status: short ? 'accepted' : 'resting', detail: `Broadcast ${hash}` }
 }
 
+/**
+ * dYdX has no amend. The cancel and the new order go in one transaction, which the chain runs whole
+ * or not at all (v4-client-js bulkCancelAndTransferAndPlaceStatefulOrders), so a refused new order
+ * leaves the old one open.
+ */
+async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Promise<CommandOutcome> {
+  const [, oldClientId, oldFlags, oldClobPairId] = ref.split(':')
+  if (Number(oldFlags) === FLAGS.short)
+    fail({ kind: 'invalid-order', detail: 'A short-term dYdX order cannot be edited' })
+  if (intent.order.kind !== 'limit' || intent.order.tif === 'ioc')
+    fail({ kind: 'invalid-order', detail: 'An edit rests on the book, so it is a GTC or post-only limit' })
+  const { perp, size, px, tif } = await priced(ctx, intent)
+  const { baseQuantums, orderSubticks } = await chainNumbers(perp, size, px)
+  const { SubaccountInfo } = await sdk()
+  const wallet = await walletOf(mnemonicOf(ctx))
+  const address = wallet.address ?? ''
+  const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
+  const now = Math.floor(Date.now() / 1000)
+  const hash = await sequenced(address, () =>
+    broadcast(ctx.ref.network, (client) =>
+      client.post.send(
+        subaccount,
+        async () => [
+          await client.post.cancelOrderMsg(
+            address,
+            0,
+            Number(oldClientId),
+            Number(oldFlags),
+            Number(oldClobPairId),
+            0,
+            now + CANCEL_SECONDS,
+          ),
+          await client.post.placeOrderMsg(
+            address,
+            0,
+            clientIdOf(intent.clientId),
+            perp.clobPairId,
+            SIDE[intent.side],
+            baseQuantums,
+            orderSubticks,
+            tif,
+            FLAGS.long,
+            intent.reduceOnly,
+            0,
+            now + LONG_TERM_SECONDS,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            ctx.config.dydx.builder ?? undefined,
+          ),
+        ],
+        false,
+      ),
+    ),
+  )
+  return { kind: 'placed', status: 'resting', detail: `Broadcast ${hash}` }
+}
+
+/**
+ * dYdX has no whole-position exit, so each leg is a reduce-only conditional market order for the
+ * position's size. The cancels of the legs it replaces and the new legs go in one transaction, which
+ * the chain runs whole or not at all.
+ */
+async function protect(ctx: VenueContext, intent: ProtectIntent): Promise<CommandOutcome> {
+  const ticker = intent.spec.venueSymbol
+  const perp = await market(ctx, ticker)
+  const size = wireDecimal(intent.size, intent.spec.scale.qty)
+  const sizeIssue = checkSize(perp.spec, size)
+  if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
+  const closing: Side = intent.position === 'long' ? 'sell' : 'buy'
+  const cancels: OrderRef[] = []
+  const places: { tpsl: 'tp' | 'sl'; trigger: Px; clientId: ClientOrderId }[] = []
+  const notes: string[] = []
+  for (const [tpsl, edit, name] of [
+    ['tp', intent.takeProfit, EXIT_NAMES.tp],
+    ['sl', intent.stopLoss, EXIT_NAMES.sl],
+  ] as const) {
+    if (edit.kind === 'keep') continue
+    cancels.push(...edit.legs)
+    if (edit.kind === 'remove') {
+      notes.push(`${name} removed`)
+      continue
+    }
+    const px = wireDecimal(edit.px, intent.spec.scale.px)
+    const issue = checkPrice(perp.spec, px)
+    if (issue) fail({ kind: 'invalid-order', detail: `${capitalized(name)} ${px}: ${issue} on this network` })
+    places.push({ tpsl, trigger: parsePx(px, perp.spec.scale), clientId: edit.clientId })
+    notes.push(`${name} at ${px}`)
+  }
+  const detail = exitDetail(notes)
+  if (cancels.length === 0 && places.length === 0) return { kind: 'done', detail }
+  const { default: Long } = await import('long')
+  const baseQuantums = Long.fromString(
+    quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(),
+    true,
+  )
+  const { SubaccountInfo } = await sdk()
+  const wallet = await walletOf(mnemonicOf(ctx))
+  const address = wallet.address ?? ''
+  const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
+  const now = Math.floor(Date.now() / 1000)
+  const units = (px: Px) => Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true)
+  const hash = await sequenced(address, () =>
+    broadcast(ctx.ref.network, (client) =>
+      client.post.send(
+        subaccount,
+        async () => [
+          ...(await Promise.all(
+            cancels.map((ref) => {
+              const [, clientId, flags, clobPairId] = ref.split(':')
+              return client.post.cancelOrderMsg(
+                address,
+                0,
+                Number(clientId),
+                Number(flags),
+                Number(clobPairId),
+                0,
+                now + CANCEL_SECONDS,
+              )
+            }),
+          )),
+          ...(await Promise.all(
+            places.map((leg) =>
+              client.post.placeOrderMsg(
+                address,
+                0,
+                clientIdOf(leg.clientId),
+                perp.clobPairId,
+                SIDE[closing],
+                baseQuantums,
+                units(worstPrice(perp.spec, closing, leg.trigger, exitSlippageBps(ticker))),
+                TIF.ioc,
+                FLAGS.conditional,
+                true,
+                0,
+                now + LONG_TERM_SECONDS,
+                MARKET_METADATA,
+                CONDITION[leg.tpsl],
+                units(leg.trigger),
+                undefined,
+                ctx.config.dydx.builder ?? undefined,
+              ),
+            ),
+          )),
+        ],
+        false,
+      ),
+    ),
+  )
+  return { kind: 'done', detail: `${detail}. Broadcast ${hash}` }
+}
+
 const IndexerOrder = z.object({
   clientId: z.string(),
   clobPairId: z.string(),
@@ -268,8 +460,16 @@ const IndexerOrder = z.object({
   reduceOnly: z.boolean(),
   orderFlags: z.string(),
   updatedAt: z.string().optional(),
+  triggerPrice: z.string().nullish(),
 })
 type IndexerOrder = z.infer<typeof IndexerOrder>
+
+/** The indexer stores every conditional as TAKE_PROFIT or STOP_LIMIT, market ones too (v4-chain protocol-translations.ts). */
+const EXIT_TYPES: Partial<Record<string, OrderExit['kind']>> = { TAKE_PROFIT: 'tp', STOP_LIMIT: 'sl' }
+const exitOf = (order: IndexerOrder): OrderExit | null => {
+  const kind = order.reduceOnly ? EXIT_TYPES[order.type] : undefined
+  return kind ? { kind, whole: false } : null
+}
 
 const refOf = (order: IndexerOrder) => orderRef(order.ticker, order.clientId, order.orderFlags, order.clobPairId)
 
@@ -307,23 +507,36 @@ async function cancel(ctx: VenueContext, ref: OrderRef): Promise<void> {
 
 const addressOf = (ctx: VenueContext) => ctx.keys.read()?.public.address ?? null
 
-async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOrder[]> {
-  return indexer(
+const openOrderOf = (order: IndexerOrder): OpenOrder => ({
+  ref: refOf(order),
+  symbol: order.ticker,
+  side: order.side === 'BUY' ? 'buy' : 'sell',
+  kind: order.type,
+  px: toDecimal(order.triggerPrice ?? order.price),
+  size: toDecimal(order.size),
+  reduceOnly: order.reduceOnly,
+  placedAt: order.updatedAt ? Date.parse(order.updatedAt) : 0,
+  cancelable: true,
+  exit: exitOf(order),
+})
+
+async function openOrders(ctx: VenueContext, address: string): Promise<OpenOrder[]> {
+  const orders = await indexer(
     ctx,
     `/orders?address=${address}&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50`,
     z.array(IndexerOrder),
   )
+  return orders.map(openOrderOf)
 }
 
 /** The indexer has no clientId filter, so the latest orders on the market are searched. */
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
   const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
-  const clientId = String(clientIdOf(intent.clientId))
   let orders: { clientId: string; status: string }[]
   try {
     orders = await indexer(
       ctx,
-      `/orders?address=${address}&subaccountNumber=0&ticker=${intent.spec.venueSymbol}&limit=100&returnLatestOrders=true`,
+      `/orders?address=${address}&subaccountNumber=0&ticker=${sent.venueSymbol}&limit=100&returnLatestOrders=true`,
       z.array(z.object({ clientId: z.string(), status: z.string() })),
     )
   } catch (error) {
@@ -331,24 +544,34 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
       return { kind: 'absent', detail: 'The dYdX indexer has no account for this address' }
     throw error
   }
-  const hit = orders.find((order) => order.clientId === clientId)
-  return hit
-    ? { kind: 'found', detail: `Order ${hit.status.toLowerCase()}` }
-    : { kind: 'absent', detail: 'Not in the dYdX indexer yet. It can lag the chain by a few blocks.' }
+  return lookupSummary(
+    sent.clientIds.map((cloid) => {
+      const hit = orders.find((order) => order.clientId === String(clientIdOf(cloid)))
+      return hit
+        ? { kind: 'found', detail: `Order ${hit.status.toLowerCase()}` }
+        : { kind: 'absent', detail: 'Not in the dYdX indexer yet. It can lag the chain by a few blocks.' }
+    }),
+  )
 }
 
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place':
       return place(ctx, command.intent)
+    case 'close-all':
+      return closeEach(command.intents, (intent) => place(ctx, intent))
+    case 'modify':
+      return modify(ctx, command.order, command.intent)
+    case 'protect':
+      return protect(ctx, command.intent)
     case 'cancel':
       await cancel(ctx, command.order)
       return { kind: 'done', detail: 'Cancel broadcast' }
     case 'cancel-all': {
       const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
-      const orders = (await openOrders(ctx, address)).filter((order) => order.ticker === command.symbol)
-      for (const order of orders) await cancel(ctx, refOf(order))
-      return { kind: 'done', detail: `Canceled ${orders.length}` }
+      const orders = onMarket(await openOrders(ctx, address), command.symbol)
+      for (const order of orders) await cancel(ctx, order.ref)
+      return canceled(orders)
     }
     case 'leverage':
       return fail({ kind: 'unsupported', detail: 'dYdX sets leverage by margin, not by a setting' })
@@ -413,17 +636,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         liquidation: null,
         leverage: null,
       })),
-      orders: orders.map((order) => ({
-        ref: refOf(order),
-        symbol: order.ticker,
-        side: order.side === 'BUY' ? 'buy' : 'sell',
-        kind: order.type,
-        px: toDecimal(order.price),
-        size: toDecimal(order.size),
-        reduceOnly: order.reduceOnly,
-        placedAt: order.updatedAt ? Date.parse(order.updatedAt) : 0,
-        cancelable: true,
-      })),
+      orders,
       fills: fills.fills.map((fill) => ({
         id: fill.id,
         symbol: fill.market,
@@ -558,6 +771,8 @@ export const dydx = {
     leverage: false,
     scaleOrders: 0,
     trailingStop: false,
+    restingReduceOnly: false,
+    wholeExits: false,
   },
   walletChain: ONBOARDING_CHAIN,
   unavailable: (network, config) =>

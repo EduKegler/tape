@@ -55,6 +55,22 @@ export function orderAction(
   }
 }
 
+/**
+ * Keys in the order of the Python SDK's bulk_modify_orders_new, which sends batchModify even for one
+ * order. The docs refuse an action hashed with `a: false`, so `a` is there only when true: place the
+ * new order even when the cancel of the old one fails.
+ */
+export function modifyAction(
+  modifies: readonly { readonly oid: number | Hex; readonly order: OrderWire }[],
+  alwaysPlace = false,
+) {
+  return {
+    type: 'batchModify',
+    modifies: modifies.map((modify) => ({ oid: modify.oid, order: modify.order })),
+    ...(alwaysPlace ? { a: true } : {}),
+  }
+}
+
 export function cancelAction(cancels: readonly { readonly asset: number; readonly oid: number }[]) {
   return { type: 'cancel', cancels: cancels.map((cancel) => ({ a: cancel.asset, o: cancel.oid })) }
 }

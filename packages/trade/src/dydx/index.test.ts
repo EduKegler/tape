@@ -1,23 +1,41 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parsePx } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
-import { buildIntent } from '../intent'
+import { buildIntent, closeIntent, closeTif, newClientId } from '../intent'
 import type { IntentDraft } from '../intent'
-import { TradeFailure } from '../types'
-import type { Bps, Eip712, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import { TradeFailure, sentOrders, toDecimal } from '../types'
+import type { Bps, Command, Eip712, ExitEdit, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import { clientIdOf } from './wire'
 import { dydx } from '.'
 
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
+
 const chain = vi.hoisted(() => {
-  const state: { reply: unknown } = { reply: undefined }
+  const state: { reply: unknown; sent: unknown[] } = { reply: undefined, sent: [] }
   const answer = async (..._args: unknown[]) => {
     if (state.reply instanceof Error) throw state.reply
     return state.reply
   }
   const deriveKey = vi.fn(async (signature: string) => ({ mnemonic: `words of ${signature}`, address: 'dydx1derived' }))
-  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer), deriveKey })
+  const message =
+    (typeUrl: string) =>
+    async (...args: unknown[]) => ({ typeUrl, value: args })
+  const send = vi.fn(async (_subaccount: unknown, messaging: () => Promise<unknown[]>) => {
+    state.sent = await messaging()
+    return answer()
+  })
+  return Object.assign(state, {
+    placeOrder: vi.fn(answer),
+    cancelOrder: vi.fn(answer),
+    placeOrderMsg: vi.fn(message('place')),
+    cancelOrderMsg: vi.fn(message('cancel')),
+    send,
+    deriveKey,
+  })
 })
 
 vi.mock('./client', async (importOriginal) => ({
@@ -28,7 +46,13 @@ vi.mock('./client', async (importOriginal) => ({
   walletOf: async () => ({ address: 'dydx1test' }),
   validatorOf: async () => ({
     get: { latestBlockHeight: async () => 1 },
-    post: { placeOrder: chain.placeOrder, cancelOrder: chain.cancelOrder },
+    post: {
+      placeOrder: chain.placeOrder,
+      cancelOrder: chain.cancelOrder,
+      placeOrderMsg: chain.placeOrderMsg,
+      cancelOrderMsg: chain.cancelOrderMsg,
+      send: chain.send,
+    },
   }),
 }))
 
@@ -244,25 +268,27 @@ describe('dydx key and lookup', () => {
     chain.reply = { code: 0, hash: 'A1' }
     for (const command of [place, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef } as const])
       expect(await failure(dydx.execute(locked, command))).toMatchObject({ kind: 'needs-setup' })
-    expect(await failure(dydx.lookup(locked, place.intent))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failure(dydx.lookup(locked, sentOf(place.intent)))).toMatchObject({ kind: 'needs-setup' })
     expect(chain.placeOrder).not.toHaveBeenCalled()
 
     const at = (status: number, body: unknown) => indexer(() => new Response(JSON.stringify(body), { status })).ctx
-    expect(await dydx.lookup(at(404, {}), place.intent)).toEqual({
+    expect(await dydx.lookup(at(404, {}), sentOf(place.intent))).toEqual({
       kind: 'absent',
       detail: 'The dYdX indexer has no account for this address',
     })
-    expect(await dydx.lookup(at(200, [{ clientId: '1', status: 'OPEN' }]), place.intent)).toMatchObject({
+    expect(await dydx.lookup(at(200, [{ clientId: '1', status: 'OPEN' }]), sentOf(place.intent))).toMatchObject({
       kind: 'absent',
     })
     const never = recordedWrite('dydx', 'lookupUnknown').exchanges[0]!
-    expect(await dydx.lookup(at(never.status, never.response), place.intent)).toMatchObject({ kind: 'absent' })
-    expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), place.intent))).toMatchObject({ kind: 'unreachable' })
+    expect(await dydx.lookup(at(never.status, never.response), sentOf(place.intent))).toMatchObject({ kind: 'absent' })
+    expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), sentOf(place.intent)))).toMatchObject({
+      kind: 'unreachable',
+    })
   })
 
   it('asks the dYdX testnet indexer about a testnet order', async () => {
     const { urls, ctx: testnet } = indexer(() => [])
-    await dydx.lookup(testnet, place.intent)
+    await dydx.lookup(testnet, sentOf(place.intent))
     // IndexerApiHost.TESTNET in v4-client-js.
     expect(urls[0]?.startsWith('https://indexer.v4testnet.dydx.exchange/v4/orders?')).toBe(true)
   })
@@ -377,6 +403,57 @@ describe('dydx short-term orders', () => {
   })
 })
 
+describe('dydx closes', () => {
+  const long = {
+    symbol: 'BTC-USD',
+    side: 'long',
+    size: toDecimal('0.002'),
+    entry: toDecimal('79000'),
+    unrealizedPnl: toDecimal('2'),
+    liquidation: null,
+    leverage: null,
+  } as const
+
+  it('sends a limit close as a reduce-only short-term IOC, and refuses a close resting at the mid before any read', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const limit = closeIntent(
+      btc,
+      long,
+      { kind: 'limit', px: 80_500 as Px, tif: closeTif(dydx.capabilities) },
+      10 as Qty,
+    )!
+    expect(await dydx.execute(ctx, { kind: 'place', intent: limit })).toMatchObject({ status: 'accepted' })
+    expect(wire(chain.placeOrder.mock.calls[0])).toMatchObject({ side: 2, tif: 1, flags: 0, quantums: '10000000' })
+    expect(chain.placeOrder.mock.calls[0]?.[8]).toBe(true)
+
+    const { urls, ctx: watched } = indexer(() => markets)
+    expect(
+      await failure(dydx.execute(watched, { kind: 'place', intent: closeIntent(btc, long, { kind: 'mid' })! })),
+    ).toEqual({
+      kind: 'invalid-order',
+      detail: 'dYdX takes a reduce-only order only as IOC',
+    })
+    expect(urls.some((url) => url.includes('/orderbooks/'))).toBe(false)
+  })
+
+  // A touch of 80000 and 80201 has its mid at 80100.5, between the market's 1 USD ticks.
+  it('rests an order at the mid as a long-term order on the tick on the passive side', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const { ctx: booked } = indexer((url) =>
+      url.includes('/orderbooks/') ? { bids: [{ price: '80000' }], asks: [{ price: '80201' }] } : markets,
+    )
+    const opening = { ...intentOf(btc), order: { kind: 'mid' } } as const
+    for (const side of ['buy', 'sell'] as const)
+      expect(await dydx.execute(booked, { kind: 'place', intent: { ...opening, side } })).toMatchObject({
+        status: 'resting',
+      })
+    expect(chain.placeOrder.mock.calls.map(wire)).toEqual([
+      expect.objectContaining({ side: 1, subticks: '8010000000', tif: 0, flags: 64 }),
+      expect.objectContaining({ side: 2, subticks: '8010100000', tif: 0, flags: 64 }),
+    ])
+  })
+})
+
 describe('dydx contract', () => {
   it('refuses a stop loss on a dYdX ticket, since place sends no trigger orders', () => {
     expect(buildIntent(btc, { ...draft, stopLoss: '79000' }, dydx.capabilities)).toMatchObject({
@@ -400,6 +477,23 @@ describe('dydx contract', () => {
       })
     expect(chain.placeOrder).not.toHaveBeenCalled()
     expect(urls).toEqual([])
+  })
+
+  // MsgPlaceOrder.ValidateBasic in v4-chain refuses reduce-only on anything but a short-term IOC with code 9003.
+  it('refuses a resting reduce-only limit before signing, and sends a reduce-only IOC', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const resting = { ...dydx.capabilities, restingReduceOnly: true }
+    for (const tif of ['gtc', 'post-only'] as const) {
+      const built = buildIntent(btc, { ...draft, tif, reduceOnly: true }, resting)
+      if (!built.ok) throw new Error('intent')
+      expect(await failure(dydx.execute(ctx, { kind: 'place', intent: built.intent }))).toEqual({
+        kind: 'invalid-order',
+        detail: 'dYdX takes a reduce-only order only as IOC',
+      })
+    }
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+    await dydx.execute(ctx, { kind: 'place', intent: intentOf(btc, { tif: 'ioc', reduceOnly: true }) })
+    expect(chain.placeOrder.mock.calls[0]?.[8]).toBe(true)
   })
 
   it('keeps the dYdX mnemonic in the tab, out of storage', () => {
@@ -479,8 +573,8 @@ describe('dydx cancel all', () => {
       { ...order, id: 'c', clientId: '13', clobPairId: '0', ticker: 'BTC-USD', orderFlags: '0', goodTilBlock: '30' },
     ])
     chain.reply = { code: 0, hash: 'A1' }
-    expect(await dydx.execute(open, { kind: 'cancel-all', symbol: 'BTC-USD' })).toEqual({
-      kind: 'done',
+    expect(await dydx.execute(open, { kind: 'cancel-all', symbol: 'BTC-USD' })).toMatchObject({
+      kind: 'canceled',
       detail: 'Canceled 2',
     })
     expect(chain.cancelOrder.mock.calls.map((call) => call.slice(1, 4))).toEqual([
@@ -491,6 +585,125 @@ describe('dydx cancel all', () => {
     expect(await failure(dydx.execute(locked, { kind: 'cancel-all', symbol: 'BTC-USD' }))).toMatchObject({
       kind: 'needs-setup',
     })
+  })
+})
+
+describe('dydx order edits', () => {
+  const resting = 'BTC-USD:11:64:0' as OrderRef
+
+  it('cancels the old order and places the new one in one transaction, cancel first', async () => {
+    chain.reply = { height: 1, hash: 'E1', code: 0, rawLog: '' }
+    const intent = intentOf(btc, { price: '79000', size: '0.002' })
+    expect(await dydx.execute(ctx, { kind: 'modify', order: resting, intent })).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Broadcast E1',
+    })
+    expect(chain.send).toHaveBeenCalledTimes(1)
+    expect(chain.sent.map((sent) => (sent as { typeUrl: string }).typeUrl)).toEqual(['cancel', 'place'])
+    expect(chain.cancelOrderMsg.mock.calls[0]?.slice(0, 6)).toEqual(['dydx1test', 0, 11, 64, 0, 0])
+    const placed = chain.placeOrderMsg.mock.calls[0]!
+    expect([placed[2], placed[4], String(placed[5]), String(placed[6]), placed[7], placed[8]]).toEqual([
+      clientIdOf(intent.clientId),
+      1,
+      '20000000',
+      '7900000000',
+      0,
+      64,
+    ])
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+    expect(chain.cancelOrder).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused transaction as refused, so the old order still stands', async () => {
+    // ErrStatefulOrderDoesNotExist, code 3006 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = { height: 1, hash: 'E2', code: 3006, log: 'Stateful order does not exist' }
+    expect(
+      await failure(dydx.execute(ctx, { kind: 'modify', order: resting, intent: intentOf(btc, { price: '79000' }) })),
+    ).toEqual({ kind: 'rejected', detail: 'Stateful order does not exist' })
+  })
+
+  it('edits only a resting limit, before signing anything', async () => {
+    const edits = [
+      { kind: 'modify', order: 'BTC-USD:12:0:0' as OrderRef, intent: intentOf(btc) },
+      { kind: 'modify', order: resting, intent: intentOf(btc, { tif: 'ioc' }) },
+      { kind: 'modify', order: resting, intent: intentOf(btc, { kind: 'market' }) },
+    ] as const
+    for (const edit of edits) expect(await failure(dydx.execute(ctx, edit))).toMatchObject({ kind: 'invalid-order' })
+    expect(chain.send).not.toHaveBeenCalled()
+  })
+})
+
+describe('dydx position take profit and stop loss', () => {
+  const protect = (takeProfit: ExitEdit, stopLoss: ExitEdit): Command => ({
+    kind: 'protect',
+    intent: { spec: btc, position: 'long', size: 20 as Qty, takeProfit, stopLoss },
+  })
+  const set = (trigger: string, legs: OrderRef[] = []): ExitEdit => ({
+    kind: 'set',
+    px: parsePx(trigger, btc.scale),
+    clientId: newClientId(),
+    legs,
+  })
+  const placed = (call: unknown[] | undefined) => ({
+    side: call?.[4],
+    quantums: String(call?.[5]),
+    subticks: String(call?.[6]),
+    tif: call?.[7],
+    flags: call?.[8],
+    reduceOnly: call?.[9],
+    clientMetadata: call?.[12],
+    conditionType: call?.[13],
+    triggerSubticks: String(call?.[14]),
+  })
+  const typesSent = () => chain.sent.map((sent) => (sent as { typeUrl: string }).typeUrl)
+
+  // A conditional market order as v4-client-js builds one: flags 32, IOC, clientMetadata 1, condition type
+  // 2 for a take profit and 1 for a stop loss, the trigger in subticks. v4-web bounds a BTC-USD one 5% past
+  // the trigger: 95000 less 5% is 90250, and 70000 less 5% is 66500. BTC-USD has 1e5 subticks per dollar
+  // and 1e10 quantums per BTC.
+  it('places each leg as a reduce-only conditional market order for the position size, in one transaction', async () => {
+    chain.reply = { height: 1, hash: 'P1', code: 0, rawLog: '' }
+    expect(await dydx.execute(ctx, protect(set('95000'), set('70000')))).toEqual({
+      kind: 'done',
+      detail: 'Take profit at 95000, stop loss at 70000. Broadcast P1',
+    })
+    expect(chain.send).toHaveBeenCalledTimes(1)
+    expect(typesSent()).toEqual(['place', 'place'])
+    const leg = { side: 2, quantums: '20000000', tif: 1, flags: 32, reduceOnly: true, clientMetadata: 1 }
+    expect(chain.placeOrderMsg.mock.calls.map(placed)).toEqual([
+      { ...leg, subticks: '9025000000', conditionType: 2, triggerSubticks: '9500000000' },
+      { ...leg, subticks: '6650000000', conditionType: 1, triggerSubticks: '7000000000' },
+    ])
+  })
+
+  it('cancels the legs it replaces or removes in the same transaction, before the new leg', async () => {
+    chain.reply = { height: 1, hash: 'P2', code: 0, rawLog: '' }
+    const replaced = set('96000', ['BTC-USD:21:32:0' as OrderRef])
+    expect(
+      await dydx.execute(ctx, protect(replaced, { kind: 'remove', legs: ['BTC-USD:22:32:0' as OrderRef] })),
+    ).toMatchObject({ kind: 'done', detail: 'Take profit at 96000, stop loss removed. Broadcast P2' })
+    expect(typesSent()).toEqual(['cancel', 'cancel', 'place'])
+    expect(chain.cancelOrderMsg.mock.calls.map((call) => call.slice(2, 6))).toEqual([
+      [21, 32, 0, 0],
+      [22, 32, 0, 0],
+    ])
+  })
+
+  it('reports a refused transaction as refused, so the legs there still stand', async () => {
+    // ErrStatefulOrderDoesNotExist, code 3006 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = { height: 1, hash: 'P3', code: 3006, log: 'Stateful order does not exist' }
+    expect(
+      await failure(dydx.execute(ctx, protect(set('96000', ['BTC-USD:21:32:0' as OrderRef]), { kind: 'keep' }))),
+    ).toEqual({ kind: 'rejected', detail: 'Stateful order does not exist' })
+  })
+
+  it('sends nothing when both kinds stay as they are', async () => {
+    expect(await dydx.execute(ctx, protect({ kind: 'keep' }, { kind: 'keep' }))).toEqual({
+      kind: 'done',
+      detail: 'Nothing to change',
+    })
+    expect(chain.send).not.toHaveBeenCalled()
   })
 })
 
@@ -623,6 +836,7 @@ describe('dydx account', () => {
             reduceOnly: true,
             placedAt: Date.UTC(2026, 9, 30, 12),
             cancelable: true,
+            exit: null,
           },
           {
             ref: 'ETH-USD:12:0:1',
@@ -634,6 +848,7 @@ describe('dydx account', () => {
             reduceOnly: false,
             placedAt: 0,
             cancelable: true,
+            exit: null,
           },
         ],
         fills: [
@@ -662,6 +877,40 @@ describe('dydx account', () => {
       'https://indexer.v4testnet.dydx.exchange/v4/addresses/dydx1test/subaccountNumber/0',
       'https://indexer.v4testnet.dydx.exchange/v4/orders?address=dydx1test&subaccountNumber=0&status=OPEN,BEST_EFFORT_OPENED,UNTRIGGERED&limit=50',
       'https://indexer.v4testnet.dydx.exchange/v4/fills?address=dydx1test&subaccountNumber=0&limit=20',
+    ])
+  })
+
+  // docs.dydx.xyz/types/order_response_object: a conditional keeps its trigger in triggerPrice. The v4-chain
+  // indexer writes condition type 2 as TAKE_PROFIT and 1 as STOP_LIMIT, with clientMetadata 1 when at market.
+  it('reads a reduce-only conditional as a take profit or stop loss at its trigger, and a stop that opens as none', async () => {
+    const conditional = (clientId: string, type: string, reduceOnly: boolean, triggerPrice: string) => ({
+      clientMetadata: '1',
+      clientId,
+      clobPairId: '0',
+      ticker: 'BTC-USD',
+      side: 'BUY',
+      size: '0.002',
+      price: '84000',
+      type,
+      reduceOnly,
+      orderFlags: '32',
+      triggerPrice,
+    })
+    const { ctx: live } = indexer((url) =>
+      url.includes('/orders?')
+        ? [
+            conditional('21', 'TAKE_PROFIT', true, '76000'),
+            conditional('22', 'STOP_LIMIT', true, '83000'),
+            conditional('23', 'STOP_LIMIT', false, '83500'),
+          ]
+        : replies(url),
+    )
+    const view = await dydx.account(live)
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.orders.map((order) => [order.ref, order.px, order.exit])).toEqual([
+      ['BTC-USD:21:32:0', '76000', { kind: 'tp', whole: false }],
+      ['BTC-USD:22:32:0', '83000', { kind: 'sl', whole: false }],
+      ['BTC-USD:23:32:0', '83500', null],
     ])
   })
 

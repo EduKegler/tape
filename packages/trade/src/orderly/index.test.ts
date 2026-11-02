@@ -4,16 +4,30 @@ import fc from 'fast-check'
 import { base58, base64url } from '@scure/base'
 import { hexToBytes, stringToBytes } from 'viem'
 import type { Hex } from 'viem'
+import { parsePx } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
-import { buildIntent } from '../intent'
+import { buildIntent, closeIntent, newClientId } from '../intent'
 import type { IntentDraft } from '../intent'
-import { TradeFailure } from '../types'
-import type { Bps, Eip712, KeySlot, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import { TradeFailure, sentOrders, toDecimal } from '../types'
+import type {
+  Bps,
+  Command,
+  Eip712,
+  ExitEdit,
+  KeySlot,
+  OrderIntent,
+  OrderRef,
+  StepId,
+  StoredKey,
+  VenueContext,
+} from '../types'
 import { orderly } from '.'
+
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 const perp: MarketSpec = {
   key: marketKey('orderly', 'BTC' as Base),
@@ -193,6 +207,59 @@ describe('orderly orders', () => {
         },
       ])
     }
+  })
+
+  it('rests a close at the mid as a reduce-only limit on the tick on the passive side', async () => {
+    // The documented book's mid_price is 77338.35, between the 0.1 ticks 77338.3 and 77338.4.
+    const position = {
+      symbol: 'PERP_BTC_USDC',
+      entry: toDecimal('70000'),
+      unrealizedPnl: toDecimal('1'),
+      liquidation: null,
+      leverage: null,
+    }
+    const cases = [
+      ['long', 'SELL', '77338.4'],
+      ['short', 'BUY', '77338.3'],
+    ] as const
+    for (const [side, wire, price] of cases) {
+      const { ctx, sent } = marketAt('77338.3')
+      const intent = closeIntent(perp, { ...position, side, size: toDecimal('0.002') }, { kind: 'mid' }, 100 as Qty)!
+      expect(await orderly.execute(ctx, { kind: 'place', intent })).toEqual({
+        kind: 'placed',
+        status: 'resting',
+        detail: 'Order 13',
+      })
+      expect(sent).toEqual([
+        MARKET_READS[0],
+        {
+          method: 'POST',
+          url: 'https://testnet-api.orderly.org/v1/order',
+          body: `{"symbol":"PERP_BTC_USDC","client_order_id":"${intent.clientId}","order_type":"LIMIT","order_price":${price},"order_quantity":0.001,"side":"${wire}","reduce_only":true}`,
+        },
+      ])
+    }
+  })
+
+  it('refuses a close at the mid against a book with one side', async () => {
+    const { ctx, sent } = orderlyAt(() => ({
+      body: '{"success":true,"data":{"asks":[],"bids":[{"price":"77337.50","quantity":"0.32"}]}}',
+    }))
+    const long = {
+      symbol: 'PERP_BTC_USDC',
+      side: 'long',
+      size: toDecimal('0.001'),
+      entry: toDecimal('70000'),
+      unrealizedPnl: toDecimal('1'),
+      liquidation: null,
+      leverage: null,
+    } as const
+    const intent = closeIntent(perp, long, { kind: 'mid' })!
+    expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent }))).toEqual({
+      kind: 'invalid-order',
+      detail: 'The book on this network has no mid',
+    })
+    expect(sent).toEqual([MARKET_READS[0]])
   })
 
   it('keeps a market order inside the price range Orderly allows around the mark', async () => {
@@ -437,17 +504,249 @@ describe('orderly lookup', () => {
       status: 401,
       body: '{"success":false,"code":-1002,"message":"Orderly key not found"}',
     }))
-    expect(await failureOf(orderly.lookup(ctx, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failureOf(orderly.lookup(ctx, sentOf(intentOf({}))))).toMatchObject({ kind: 'needs-setup' })
   })
 
   it('asks Orderly for each leg by client order id', async () => {
     const { ctx, sent } = orderlyAt(() => ({ body: '{"success":true,"data":{"status":"NEW"}}' }))
     const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
     if (intent.order.kind !== 'scale') throw new Error('scale')
-    await orderly.lookup(ctx, intent)
+    await orderly.lookup(ctx, sentOf(intent))
     expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual(
       intent.order.legs.map((leg) => `GET https://testnet-api.orderly.org/v1/client/order/${leg.clientId}`),
     )
+  })
+})
+
+describe('orderly order edits', () => {
+  const ref = 'PERP_BTC_USDC:13' as OrderRef
+  // The example reply on Orderly's PUT /v1/order page.
+  const EDIT_SENT = '{"success":true,"timestamp":1702989203989,"data":{"status":"EDIT_SENT"}}'
+
+  it('edits an order in place with every field Orderly requires and the new client id', async () => {
+    const intent = intentOf({ price: '79000.5', size: '0.002' })
+    const { ctx, sent } = orderlyAt(() => ({ body: EDIT_SENT }))
+    expect(await orderly.execute(ctx, { kind: 'modify', order: ref, intent })).toEqual({
+      kind: 'placed',
+      status: 'accepted',
+      detail: 'Edit of order 13: EDIT_SENT',
+    })
+    expect(sent).toEqual([
+      {
+        method: 'PUT',
+        url: 'https://testnet-api.orderly.org/v1/order',
+        body: `{"order_id":13,"symbol":"PERP_BTC_USDC","client_order_id":"${intent.clientId}","order_type":"LIMIT","order_price":79000.5,"order_quantity":0.002,"side":"BUY","reduce_only":false}`,
+      },
+    ])
+  })
+
+  it('refuses an edit of an order Orderly no longer holds, and calls a 5xx an unknown outcome', async () => {
+    const intent = intentOf({})
+    // Error code -1006 on Orderly's error codes page.
+    const gone = orderlyAt(() => ({ status: 400, body: '{"success":false,"code":-1006,"message":"order not found"}' }))
+    expect(await failureOf(orderly.execute(gone.ctx, { kind: 'modify', order: ref, intent }))).toEqual({
+      kind: 'rejected',
+      detail: 'Orderly holds no such order',
+    })
+    const down = orderlyAt(() => ({ status: 502, body: 'Bad Gateway' }))
+    expect(await failureOf(orderly.execute(down.ctx, { kind: 'modify', order: ref, intent }))).toMatchObject({
+      kind: 'unknown-outcome',
+    })
+  })
+
+  it('takes only a limit as an edit, before signing anything', async () => {
+    const { ctx, sent } = orderlyAt(() => ({ body: EDIT_SENT }))
+    expect(
+      await failureOf(orderly.execute(ctx, { kind: 'modify', order: ref, intent: intentOf({ kind: 'market' }) })),
+    ).toEqual({ kind: 'invalid-order', detail: 'An edit is a limit with no take profit or stop loss' })
+    expect(sent).toEqual([])
+  })
+})
+
+describe('orderly take profit and stop loss', () => {
+  // Rows in the AlgoOrder shape of GET /v1/algo/orders, with legs nested under their root in child_orders as
+  // Orderly's SDK reads them (useOrderStream.ts), and is_activated false on a leg turned off.
+  const leg = (id: number, root: number, type: string, trigger: number, more: object = {}) => ({
+    algo_order_id: id,
+    root_algo_order_id: root,
+    parent_algo_order_id: root,
+    symbol: 'PERP_BTC_USDC',
+    algo_type: type,
+    side: 'SELL',
+    type: 'CLOSE_POSITION',
+    quantity: 0,
+    trigger_price: trigger,
+    reduce_only: true,
+    is_activated: true,
+    created_time: 1702871974317,
+    ...more,
+  })
+  const positional = (...legs: object[]) => ({
+    algo_order_id: 200,
+    root_algo_order_id: 200,
+    parent_algo_order_id: 0,
+    symbol: 'PERP_BTC_USDC',
+    algo_type: 'POSITIONAL_TP_SL',
+    created_time: 1702871974317,
+    child_orders: legs,
+  })
+  const both = positional(leg(201, 200, 'TAKE_PROFIT', 95000), leg(202, 200, 'STOP_LOSS', 70000))
+  const ok = (data: unknown) => ({ body: JSON.stringify({ success: true, timestamp: 1702989203989, data }) })
+  const orderlyWith = (algoRows: unknown[]) =>
+    orderlyAt((request) => {
+      if (request.method !== 'GET') return ok({ status: 'SENT', order_id: 300 })
+      return ok({ rows: request.url.includes('/algo/') ? algoRows : [] })
+    })
+
+  it('lists the active legs of each TP/SL root and each stop, telling whole-position legs apart', async () => {
+    const stop = { ...leg(400, 400, 'STOP', 60000), child_orders: [] }
+    const sized = {
+      ...positional(leg(301, 300, 'TAKE_PROFIT', 99000, { quantity: 0.01 })),
+      algo_order_id: 300,
+      root_algo_order_id: 300,
+      algo_type: 'TP_SL',
+    }
+    const off = positional(
+      leg(201, 200, 'TAKE_PROFIT', 95000),
+      leg(202, 200, 'STOP_LOSS', 70000, { is_activated: 'false' }),
+    )
+    const { ctx } = orderlyAt((request) => {
+      const { pathname } = new URL(request.url)
+      if (pathname === '/v1/algo/orders') return ok({ rows: [off, sized, stop] })
+      if (pathname === '/v1/positions') return ok({ total_collateral_value: 10, free_collateral: 10, rows: [] })
+      return ok({ rows: [] })
+    })
+    const view = await orderly.account(ctx)
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.orders.map((order) => [order.ref, order.px, order.size, order.exit])).toEqual([
+      ['PERP_BTC_USDC:201:200', '95000', '0', { kind: 'tp', whole: true }],
+      ['PERP_BTC_USDC:301:300', '99000', '0.01', { kind: 'tp', whole: false }],
+      ['PERP_BTC_USDC:400:400', '60000', '0', { kind: 'sl', whole: false }],
+    ])
+  })
+
+  // PUT /v1/algo/order turns one leg off with is_activated false, as the SDK's tpslOrderUpdates.ts does.
+  // DELETE /v1/algo/order takes the order id and the symbol.
+  it('turns one leg off and cancels a stop or a root whole', async () => {
+    const { ctx, sent } = orderlyWith([])
+    await orderly.execute(ctx, { kind: 'cancel', order: 'PERP_BTC_USDC:202:200' as OrderRef })
+    await orderly.execute(ctx, { kind: 'cancel', order: 'PERP_BTC_USDC:400:400' as OrderRef })
+    expect(sent.map((request) => [request.method, request.url, request.body])).toEqual([
+      [
+        'PUT',
+        'https://testnet-api.orderly.org/v1/algo/order',
+        '{"order_id":200,"child_orders":[{"order_id":202,"is_activated":false}]}',
+      ],
+      ['DELETE', 'https://testnet-api.orderly.org/v1/algo/order?order_id=400&symbol=PERP_BTC_USDC', undefined],
+    ])
+  })
+
+  // Orderly's docs for DELETE /v1/algo/orders: algo_type STOP cancels the take profit and stop loss legs too.
+  it('cancels the legs with the orders on a cancel-all, and reports them as take profit and stop loss', async () => {
+    const { ctx, sent } = orderlyWith([both])
+    const outcome = await orderly.execute(ctx, { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' })
+    expect(outcome.kind === 'canceled' && outcome.orders.map((order) => order.exit)).toEqual([
+      { kind: 'tp', whole: true },
+      { kind: 'sl', whole: true },
+    ])
+    expect(sent.filter((request) => request.method === 'DELETE').map((request) => request.url)).toEqual([
+      'https://testnet-api.orderly.org/v1/algo/orders?symbol=PERP_BTC_USDC&algo_type=STOP',
+    ])
+  })
+
+  const protect = (takeProfit: ExitEdit, stopLoss: ExitEdit): Command => ({
+    kind: 'protect',
+    intent: { spec: perp, position: 'long', size: 100 as Qty, takeProfit, stopLoss },
+  })
+  const set = (trigger: string): ExitEdit => ({
+    kind: 'set',
+    px: parsePx(trigger, perp.scale),
+    clientId: newClientId(),
+    legs: [],
+  })
+  const writes = (sent: readonly Sent[]) =>
+    sent.filter((request) => request.method !== 'GET').map((request) => [request.method, request.url, request.body])
+
+  // The POSITIONAL_TP_SL example on Orderly's POST /v1/algo/order page: no quantity, CLOSE_POSITION legs.
+  it('creates a positional TP/SL with both legs when the position has none', async () => {
+    const takeProfit = set('95000.5')
+    const { ctx, sent } = orderlyWith([])
+    expect(await orderly.execute(ctx, protect(takeProfit, set('70000')))).toEqual({
+      kind: 'done',
+      detail: 'Take profit at 95000.5, stop loss at 70000',
+    })
+    const clientId = takeProfit.kind === 'set' && takeProfit.clientId
+    expect(writes(sent)).toEqual([
+      [
+        'POST',
+        'https://testnet-api.orderly.org/v1/algo/order',
+        `{"symbol":"PERP_BTC_USDC","client_order_id":"${clientId}","algo_type":"POSITIONAL_TP_SL","trigger_price_type":"MARK_PRICE","child_orders":[`
+          + '{"symbol":"PERP_BTC_USDC","algo_type":"TAKE_PROFIT","side":"SELL","type":"CLOSE_POSITION","trigger_price":95000.5,"trigger_price_type":"MARK_PRICE","reduce_only":true},'
+          + '{"symbol":"PERP_BTC_USDC","algo_type":"STOP_LOSS","side":"SELL","type":"CLOSE_POSITION","trigger_price":70000,"trigger_price_type":"MARK_PRICE","reduce_only":true}]}',
+      ],
+    ])
+  })
+
+  // PUT /v1/algo/order with the root id and the leg ids, as the SDK's useOrderStream.ts edits a leg.
+  it('moves one leg and turns the other off in one edit of the root', async () => {
+    const { ctx, sent } = orderlyWith([both])
+    expect(await orderly.execute(ctx, protect(set('96000'), { kind: 'remove', legs: [] }))).toEqual({
+      kind: 'done',
+      detail: 'Take profit at 96000, stop loss removed',
+    })
+    expect(writes(sent)).toEqual([
+      [
+        'PUT',
+        'https://testnet-api.orderly.org/v1/algo/order',
+        '{"order_id":200,"child_orders":[{"order_id":201,"trigger_price":96000},{"order_id":202,"is_activated":false}]}',
+      ],
+    ])
+  })
+
+  it('cancels the root when both legs go, and sends nothing when a leg is set where it already is', async () => {
+    const gone = orderlyWith([both])
+    await orderly.execute(gone.ctx, protect({ kind: 'remove', legs: [] }, { kind: 'remove', legs: [] }))
+    expect(writes(gone.sent)).toEqual([
+      ['DELETE', 'https://testnet-api.orderly.org/v1/algo/order?order_id=200&symbol=PERP_BTC_USDC', undefined],
+    ])
+    const same = orderlyWith([both])
+    await orderly.execute(same.ctx, protect(set('95000'), { kind: 'keep' }))
+    expect(writes(same.sent)).toEqual([])
+  })
+
+  it('cancels and creates the root again to add the leg it lacks, keeping the other leg where it was', async () => {
+    const { ctx, sent } = orderlyWith([positional(leg(201, 200, 'TAKE_PROFIT', 95000))])
+    await orderly.execute(ctx, protect({ kind: 'keep' }, set('70000')))
+    const [cancel, create] = writes(sent)
+    expect(cancel).toEqual([
+      'DELETE',
+      'https://testnet-api.orderly.org/v1/algo/order?order_id=200&symbol=PERP_BTC_USDC',
+      undefined,
+    ])
+    expect(create?.[2]).toContain(
+      '"algo_type":"TAKE_PROFIT","side":"SELL","type":"CLOSE_POSITION","trigger_price":95000,',
+    )
+    expect(create?.[2]).toContain(
+      '"algo_type":"STOP_LOSS","side":"SELL","type":"CLOSE_POSITION","trigger_price":70000,',
+    )
+  })
+
+  // GET /v1/algo/client/order/{client_order_id} on Orderly's docs.
+  it('finds a take profit by its client id among algo orders after an unknown outcome', async () => {
+    const { ctx, sent } = orderlyAt((request) =>
+      request.url.includes('/algo/')
+        ? ok({ algo_status: 'NEW' })
+        : { status: 400, body: '{"success":false,"code":-1006,"message":"order not found"}' },
+    )
+    const takeProfit = set('95000')
+    expect(await orderly.lookup(ctx, sentOrders(protect(takeProfit, { kind: 'keep' }))!)).toEqual({
+      kind: 'found',
+      detail: 'Order new',
+    })
+    expect(sent.map((request) => new URL(request.url).pathname)).toEqual([
+      `/v1/client/order/${takeProfit.kind === 'set' && takeProfit.clientId}`,
+      `/v1/algo/client/order/${takeProfit.kind === 'set' && takeProfit.clientId}`,
+    ])
   })
 })
 
@@ -466,7 +765,7 @@ describe('orderly key', () => {
         kind: 'needs-setup',
         detail: 'Enable trading on this device first',
       })
-    expect(await failureOf(orderly.lookup(bare, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failureOf(orderly.lookup(bare, sentOf(intentOf({}))))).toMatchObject({ kind: 'needs-setup' })
     expect(sent).toEqual([])
   })
 })
@@ -521,16 +820,57 @@ describe('orderly cancels', () => {
         body: undefined,
       },
     ])
-    const all = orderlyAt(() => ({
-      body: '{"success":true,"timestamp":1702989203989,"data":{"status":"CANCEL_ALL_SENT"}}',
+  })
+
+  // The rows are the example reply of GET /v1/orders, and CANCEL_ALL_SENT the one of DELETE /v1/orders.
+  const listed = {
+    rows: [
+      { order_id: 78151, symbol: 'PERP_WOO_USDC', side: 'BUY', type: 'LIMIT', price: 0.67772, quantity: 20 },
+      { order_id: 78152, symbol: 'PERP_BTC_USDC', side: 'SELL', type: 'LIMIT', price: 90000, quantity: 0.01 },
+    ].map((row) => ({ ...row, reduce_only: false, created_time: 1653563963000 })),
+  }
+  const cancelAll = (rows: unknown) =>
+    orderlyAt((request) => ({
+      body: JSON.stringify({
+        success: true,
+        timestamp: 1702989203989,
+        data:
+          request.method !== 'GET'
+            ? { status: 'CANCEL_ALL_SENT' }
+            : request.url.includes('/algo/')
+              ? { rows: [] }
+              : rows,
+      }),
     }))
-    expect(await orderly.execute(all.ctx, { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' })).toEqual({
-      kind: 'done',
-      detail: 'Canceled open PERP_BTC_USDC orders',
-    })
-    expect(all.sent).toEqual([
-      { method: 'DELETE', url: 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC', body: undefined },
+
+  it('cancels every open order of one market or of all, and reports which it canceled', async () => {
+    const one = cancelAll(listed)
+    const outcome = await orderly.execute(one.ctx, { kind: 'cancel-all', symbol: 'PERP_BTC_USDC' })
+    expect(outcome).toMatchObject({ kind: 'canceled', detail: 'Canceled 1' })
+    expect(outcome.kind === 'canceled' && outcome.orders.map((order) => [order.ref, order.exit])).toEqual([
+      ['PERP_BTC_USDC:78152', null],
     ])
+    expect(one.sent.map((request) => [request.method, request.url])).toEqual([
+      ['GET', 'https://testnet-api.orderly.org/v1/orders?status=INCOMPLETE'],
+      ['GET', 'https://testnet-api.orderly.org/v1/algo/orders?status=INCOMPLETE'],
+      ['DELETE', 'https://testnet-api.orderly.org/v1/orders?symbol=PERP_BTC_USDC'],
+    ])
+
+    const every = cancelAll(listed)
+    expect(await orderly.execute(every.ctx, { kind: 'cancel-all', symbol: null })).toMatchObject({
+      kind: 'canceled',
+      detail: 'Canceled 2',
+    })
+    expect(every.sent.at(-1)?.url).toBe('https://testnet-api.orderly.org/v1/orders')
+  })
+
+  it('sends no cancel when nothing is open on the market', async () => {
+    const none = cancelAll(listed)
+    expect(await orderly.execute(none.ctx, { kind: 'cancel-all', symbol: 'PERP_ETH_USDC' })).toEqual({
+      kind: 'done',
+      detail: 'Nothing to cancel',
+    })
+    expect(none.sent.map((request) => request.method)).toEqual(['GET', 'GET'])
   })
 
   it('sets the leverage of the whole account with the request Orderly documents', async () => {
@@ -695,11 +1035,20 @@ describe('orderly account', () => {
       },
     ],
   }
-  const replies = (positionsReply: unknown, ordersReply: unknown, tradesReply: unknown) => (sent: Sent) => {
-    const { pathname } = new URL(sent.url)
-    const data = pathname === '/v1/positions' ? positionsReply : pathname === '/v1/orders' ? ordersReply : tradesReply
-    return { body: JSON.stringify({ success: true, timestamp: 1702989203989, data }) }
-  }
+  const replies =
+    (positionsReply: unknown, ordersReply: unknown, tradesReply: unknown, algoReply: unknown = { rows: [] }) =>
+    (sent: Sent) => {
+      const { pathname } = new URL(sent.url)
+      const data =
+        pathname === '/v1/positions'
+          ? positionsReply
+          : pathname === '/v1/orders'
+            ? ordersReply
+            : pathname === '/v1/algo/orders'
+              ? algoReply
+              : tradesReply
+      return { body: JSON.stringify({ success: true, timestamp: 1702989203989, data }) }
+    }
 
   it('reads positions, open orders and recent fills from the replies Orderly documents', async () => {
     const { ctx, sent } = orderlyAt(replies(positions, orders, trades))
@@ -739,6 +1088,7 @@ describe('orderly account', () => {
             reduceOnly: false,
             placedAt: 1653563963000,
             cancelable: true,
+            exit: null,
           },
           {
             ref: 'PERP_BTC_USDC:78152',
@@ -750,6 +1100,7 @@ describe('orderly account', () => {
             reduceOnly: true,
             placedAt: 1653563964000,
             cancelable: true,
+            exit: null,
           },
         ],
         fills: [
@@ -777,6 +1128,7 @@ describe('orderly account', () => {
     expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual([
       'GET https://testnet-api.orderly.org/v1/positions',
       'GET https://testnet-api.orderly.org/v1/orders?status=INCOMPLETE',
+      'GET https://testnet-api.orderly.org/v1/algo/orders?status=INCOMPLETE',
       'GET https://testnet-api.orderly.org/v1/trades?size=20',
     ])
   })

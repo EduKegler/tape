@@ -82,10 +82,14 @@ export type IntentFields = {
   readonly side: Side
   readonly size: Qty
   readonly reduceOnly: boolean
-  /** Market carries no price: the module reads the touch from the network it sends to. */
+  /**
+   * Market and mid carry no price: the module reads the touch from the network it sends to. Mid
+   * rests at the middle of the touch, on the tick on the passive side.
+   */
   readonly order:
     | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
     | { readonly kind: 'market'; readonly slippage: Bps }
+    | { readonly kind: 'mid' }
     | { readonly kind: 'scale'; readonly tif: Exclude<Tif, 'ioc'>; readonly legs: readonly ScaleLeg[] }
     | { readonly kind: 'trailing'; readonly retracement: Retracement; readonly activation: Px | null }
   readonly triggers: { readonly takeProfits: readonly TakeProfit[]; readonly stopLoss: Px | null }
@@ -120,16 +124,69 @@ export const orderRef = (...parts: readonly (string | number)[]) => parts.join('
 export type Command =
   | { readonly kind: 'place'; readonly intent: OrderIntent }
   | { readonly kind: 'cancel'; readonly order: OrderRef }
-  | { readonly kind: 'cancel-all'; readonly symbol: string }
+  /** Every open order on one market, or on every market when the symbol is null. */
+  | { readonly kind: 'cancel-all'; readonly symbol: string | null }
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
+  /** Replaces a resting limit with the intent's price and size. The intent carries a new client id. */
+  | { readonly kind: 'modify'; readonly order: OrderRef; readonly intent: OrderIntent }
+  | { readonly kind: 'protect'; readonly intent: ProtectIntent }
+  /** One reduce-only order per position, each sent and reported on its own. */
+  | { readonly kind: 'close-all'; readonly intents: readonly OrderIntent[] }
+
+/**
+ * One kind of exit on a position: left alone, removed, or set to a trigger price. `legs` are the
+ * orders that stand for it now, which a set replaces and a remove cancels.
+ */
+export type ExitEdit =
+  | { readonly kind: 'keep' }
+  | { readonly kind: 'remove'; readonly legs: readonly OrderRef[] }
+  | { readonly kind: 'set'; readonly px: Px; readonly clientId: ClientOrderId; readonly legs: readonly OrderRef[] }
+
+/** A take profit and a stop loss that close the whole position at market once the trigger trades. */
+export interface ProtectIntent {
+  readonly spec: MarketSpec
+  readonly position: 'long' | 'short'
+  /** The position's size, for a venue whose exits carry one. */
+  readonly size: Qty
+  readonly takeProfit: ExitEdit
+  readonly stopLoss: ExitEdit
+}
+
+/** What a write sent that its venue can find again by client id, after a send that ended in unknown-outcome. */
+export interface SentOrders {
+  readonly venueSymbol: string
+  readonly clientIds: readonly ClientOrderId[]
+}
+
+/** Null for a write that carries no client id: a cancel, a leverage change, or a Hyperliquid trailing stop. */
+export function sentOrders(command: Command): SentOrders | null {
+  if (command.kind === 'protect') {
+    const { spec, takeProfit, stopLoss } = command.intent
+    const clientIds = [takeProfit, stopLoss].flatMap((edit) => (edit.kind === 'set' ? [edit.clientId] : []))
+    return clientIds.length > 0 ? { venueSymbol: spec.venueSymbol, clientIds } : null
+  }
+  if ((command.kind !== 'place' && command.kind !== 'modify') || command.intent.order.kind === 'trailing') return null
+  const { intent } = command
+  return {
+    venueSymbol: intent.spec.venueSymbol,
+    clientIds: intent.order.kind === 'scale' ? intent.order.legs.map((leg) => leg.clientId) : [intent.clientId],
+  }
+}
 
 /** What the venue says about an order whose send had no answer. `absent` is the venue's own reply, not a timeout. */
 export type OrderLookup =
   { readonly kind: 'found'; readonly detail: string } | { readonly kind: 'absent'; readonly detail: string }
 
+/** One close of a close-all. An unknown-outcome error is found afterwards through `sent`. */
+export type CloseRow = { readonly symbol: string; readonly sent: SentOrders } & (
+  { readonly outcome: CommandOutcome } | { readonly error: TradeError }
+)
+
 export type CommandOutcome =
   | { readonly kind: 'placed'; readonly status: 'resting' | 'filled' | 'accepted'; readonly detail: string }
   | { readonly kind: 'done'; readonly detail: string }
+  | { readonly kind: 'closed'; readonly rows: readonly CloseRow[]; readonly detail: string }
+  | { readonly kind: 'canceled'; readonly orders: readonly OpenOrder[]; readonly detail: string }
 
 export interface Position {
   readonly symbol: string
@@ -139,6 +196,12 @@ export interface Position {
   readonly unrealizedPnl: Decimal
   readonly liquidation: Decimal | null
   readonly leverage: string | null
+}
+
+/** A take profit or a stop loss. `whole` when it closes the whole position at whatever size it has then. */
+export interface OrderExit {
+  readonly kind: 'tp' | 'sl'
+  readonly whole: boolean
 }
 
 export interface OpenOrder {
@@ -152,6 +215,7 @@ export interface OpenOrder {
   readonly placedAt: number
   /** False for an order Tape lists but cannot cancel, such as a Hyperliquid spot order. */
   readonly cancelable: boolean
+  readonly exit: OrderExit | null
 }
 
 export interface Fill {
@@ -194,6 +258,10 @@ export interface Capabilities {
   readonly scaleOrders: number
   /** The venue keeps a stop that trails the price, so it fires with the browser closed. */
   readonly trailingStop: boolean
+  /** A reduce-only limit can rest on the book. False where the venue takes reduce-only only as IOC. */
+  readonly restingReduceOnly: boolean
+  /** A take profit or stop loss can close the whole position at whatever size it reaches. False where each carries a size. */
+  readonly wholeExits: boolean
 }
 
 export type TradeError =
@@ -296,8 +364,8 @@ export interface TradingVenue {
   margin?: (ctx: VenueContext, symbol: string) => Promise<MarginState>
   /** Signs with the slot's key, draft or linked, and lets the venue judge. */
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
-  /** Asks the venue for the order by its clientId, after a send that ended in unknown-outcome. */
-  lookup: (ctx: VenueContext, intent: OrderIntent) => Promise<OrderLookup>
+  /** Asks the venue for each order by its clientId, after a send that ended in unknown-outcome. */
+  lookup: (ctx: VenueContext, sent: SentOrders) => Promise<OrderLookup>
   /** Every fill and funding payment the venue still serves, read without a key. */
   history: (request: HistoryRequest) => Promise<VenueHistory>
 }

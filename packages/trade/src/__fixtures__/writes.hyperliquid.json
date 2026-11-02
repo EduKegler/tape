@@ -1,6 +1,6 @@
 {
   "network": "testnet",
-  "recordedAt": "2026-10-31T19:47:06.567Z",
+  "recordedAt": "2026-11-02T14:59:04.223Z",
   "owner": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
   "coin": "BTC",
   "asset": 3,
@@ -17,20 +17,20 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "46099",
-                  "s": "0.00027",
+                  "p": "46580",
+                  "s": "0.00026",
                   "r": false,
                   "t": {
                     "limit": {
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0x99e04bf897b343559429f5cc97e1b383"
+                  "c": "0xd562395503d38a656c5609595ec97968"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476012026
+            "nonce": 1793631510881
           },
           "status": 200,
           "response": {
@@ -41,8 +41,8 @@
                 "statuses": [
                   {
                     "resting": {
-                      "oid": 64190764851,
-                      "cloid": "0x99e04bf897b343559429f5cc97e1b383"
+                      "oid": 64334756829,
+                      "cloid": "0xd562395503d38a656c5609595ec97968"
                     }
                   }
                 ]
@@ -60,7 +60,7 @@
           "request": {
             "type": "orderStatus",
             "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
-            "oid": "0x99e04bf897b343559429f5cc97e1b383"
+            "oid": "0xd562395503d38a656c5609595ec97968"
           },
           "status": 200,
           "response": {
@@ -69,10 +69,10 @@
               "order": {
                 "coin": "BTC",
                 "side": "B",
-                "limitPx": "46099.0",
-                "sz": "0.00027",
-                "oid": 64190764851,
-                "timestamp": 1793476012615,
+                "limitPx": "46580.0",
+                "sz": "0.00026",
+                "oid": 64334756829,
+                "timestamp": 1793631511491,
                 "triggerCondition": "N/A",
                 "isTrigger": false,
                 "triggerPx": "0.0",
@@ -80,12 +80,12 @@
                 "isPositionTpsl": false,
                 "reduceOnly": false,
                 "orderType": "Limit",
-                "origSz": "0.00027",
+                "origSz": "0.00026",
                 "tif": "Gtc",
-                "cloid": "0x99e04bf897b343559429f5cc97e1b383"
+                "cloid": "0xd562395503d38a656c5609595ec97968"
               },
               "status": "open",
-              "statusTimestamp": 1793476012615
+              "statusTimestamp": 1793631511491
             }
           }
         }
@@ -102,11 +102,11 @@
               "cancels": [
                 {
                   "a": 3,
-                  "o": 64190764851
+                  "o": 64334756829
                 }
               ]
             },
-            "nonce": 1793476013301
+            "nonce": 1793631512158
           },
           "status": 200,
           "response": {
@@ -134,11 +134,11 @@
               "cancels": [
                 {
                   "a": 3,
-                  "o": 64190764851
+                  "o": 64334756829
                 }
               ]
             },
-            "nonce": 1793476014263
+            "nonce": 1793631513197
           },
           "status": 200,
           "response": {
@@ -165,7 +165,7 @@
           "request": {
             "type": "orderStatus",
             "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
-            "oid": "0x99e04bf897b343559429f5cc97e1b383"
+            "oid": "0xd562395503d38a656c5609595ec97968"
           },
           "status": 200,
           "response": {
@@ -174,10 +174,10 @@
               "order": {
                 "coin": "BTC",
                 "side": "B",
-                "limitPx": "46099.0",
-                "sz": "0.00027",
-                "oid": 64190764851,
-                "timestamp": 1793476012615,
+                "limitPx": "46580.0",
+                "sz": "0.00026",
+                "oid": 64334756829,
+                "timestamp": 1793631511491,
                 "triggerCondition": "N/A",
                 "isTrigger": false,
                 "triggerPx": "0.0",
@@ -185,12 +185,12 @@
                 "isPositionTpsl": false,
                 "reduceOnly": false,
                 "orderType": "Limit",
-                "origSz": "0.00027",
+                "origSz": "0.00026",
                 "tif": "Gtc",
-                "cloid": "0x99e04bf897b343559429f5cc97e1b383"
+                "cloid": "0xd562395503d38a656c5609595ec97968"
               },
               "status": "canceled",
-              "statusTimestamp": 1793476013895
+              "statusTimestamp": 1793631512759
             }
           }
         }
@@ -204,7 +204,7 @@
           "request": {
             "type": "orderStatus",
             "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
-            "oid": "0xe7bf13ddee2413513deffbd4a42213fa"
+            "oid": "0x3a3f8f0699ff1884f70efcf995fb9720"
           },
           "status": 200,
           "response": {
@@ -225,20 +225,20 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "80684",
-                  "s": "0.00027",
+                  "p": "81569",
+                  "s": "0.00026",
                   "r": false,
                   "t": {
                     "limit": {
                       "tif": "Ioc"
                     }
                   },
-                  "c": "0x3f310b85aebacbbbb14016516d8aca98"
+                  "c": "0x02df57d1849cac4a6bcd38d91d0140c7"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476016076
+            "nonce": 1793631515041
           },
           "status": 200,
           "response": {
@@ -249,10 +249,10 @@
                 "statuses": [
                   {
                     "filled": {
-                      "totalSz": "0.00027",
-                      "avgPx": "76842.0",
-                      "oid": 64190768713,
-                      "cloid": "0x3f310b85aebacbbbb14016516d8aca98"
+                      "totalSz": "0.00026",
+                      "avgPx": "77677.4",
+                      "oid": 64334760748,
+                      "cloid": "0x02df57d1849cac4a6bcd38d91d0140c7"
                     }
                   }
                 ]
@@ -270,7 +270,7 @@
           "request": {
             "type": "orderStatus",
             "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
-            "oid": "0x3f310b85aebacbbbb14016516d8aca98"
+            "oid": "0x02df57d1849cac4a6bcd38d91d0140c7"
           },
           "status": 200,
           "response": {
@@ -279,10 +279,10 @@
               "order": {
                 "coin": "BTC",
                 "side": "B",
-                "limitPx": "80684.0",
+                "limitPx": "81569.0",
                 "sz": "0.0",
-                "oid": 64190768713,
-                "timestamp": 1793476016758,
+                "oid": 64334760748,
+                "timestamp": 1793631515593,
                 "triggerCondition": "N/A",
                 "isTrigger": false,
                 "triggerPx": "0.0",
@@ -290,12 +290,12 @@
                 "isPositionTpsl": false,
                 "reduceOnly": false,
                 "orderType": "Limit",
-                "origSz": "0.00027",
+                "origSz": "0.00026",
                 "tif": "Ioc",
-                "cloid": "0x3f310b85aebacbbbb14016516d8aca98"
+                "cloid": "0x02df57d1849cac4a6bcd38d91d0140c7"
               },
               "status": "filled",
-              "statusTimestamp": 1793476016758
+              "statusTimestamp": 1793631515593
             }
           }
         }
@@ -312,11 +312,11 @@
               "cancels": [
                 {
                   "a": 3,
-                  "o": 64190768713
+                  "o": 64334760748
                 }
               ]
             },
-            "nonce": 1793476017404
+            "nonce": 1793631516291
           },
           "status": 200,
           "response": {
@@ -328,6 +328,1098 @@
                   {
                     "error": "Order was never placed, already canceled, or filled. asset=3"
                   }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "positionTpslZero": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "order",
+              "orders": [
+                {
+                  "a": 3,
+                  "b": false,
+                  "p": "104860",
+                  "s": "0",
+                  "r": true,
+                  "t": {
+                    "trigger": {
+                      "isMarket": true,
+                      "triggerPx": "116512",
+                      "tpsl": "tp"
+                    }
+                  }
+                },
+                {
+                  "a": 3,
+                  "b": false,
+                  "p": "41922",
+                  "s": "0",
+                  "r": true,
+                  "t": {
+                    "trigger": {
+                      "isMarket": true,
+                      "triggerPx": "46580",
+                      "tpsl": "sl"
+                    }
+                  }
+                }
+              ],
+              "grouping": "positionTpsl"
+            },
+            "nonce": 1793631517246
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  "waitingForTrigger",
+                  "waitingForTrigger"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterZero": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.0",
+              "oid": 64334763007,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "positionTpslSecond": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "order",
+              "orders": [
+                {
+                  "a": 3,
+                  "b": false,
+                  "p": "97870",
+                  "s": "0",
+                  "r": true,
+                  "t": {
+                    "trigger": {
+                      "isMarket": true,
+                      "triggerPx": "108745",
+                      "tpsl": "tp"
+                    }
+                  }
+                }
+              ],
+              "grouping": "positionTpsl"
+            },
+            "nonce": 1793631518555
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  "waitingForTrigger"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterSecond": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "97870.0",
+              "sz": "0.0",
+              "oid": 64334764485,
+              "timestamp": 1793631519169,
+              "triggerCondition": "Price above 108745",
+              "isTrigger": true,
+              "triggerPx": "108745.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.0",
+              "oid": 64334763007,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "modifyWhole": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": 64334764485,
+                  "order": {
+                    "a": 3,
+                    "b": false,
+                    "p": "101365",
+                    "s": "0",
+                    "r": true,
+                    "t": {
+                      "trigger": {
+                        "isMarket": true,
+                        "triggerPx": "112628",
+                        "tpsl": "tp"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "nonce": 1793631520175
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "resting": {
+                      "oid": 64334765660
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterModifyWhole": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "101365.0",
+              "sz": "0.0",
+              "oid": 64334765660,
+              "timestamp": 1793631520805,
+              "triggerCondition": "Price above 112628",
+              "isTrigger": true,
+              "triggerPx": "112628.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.0",
+              "oid": 64334763007,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "positionTpsl": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "order",
+              "orders": [
+                {
+                  "a": 3,
+                  "b": false,
+                  "p": "104860",
+                  "s": "0.00026",
+                  "r": true,
+                  "t": {
+                    "trigger": {
+                      "isMarket": true,
+                      "triggerPx": "116512",
+                      "tpsl": "tp"
+                    }
+                  },
+                  "c": "0xc6ad71b940d8b1a9ad332117e554aa50"
+                },
+                {
+                  "a": 3,
+                  "b": false,
+                  "p": "41922",
+                  "s": "0.00026",
+                  "r": true,
+                  "t": {
+                    "trigger": {
+                      "isMarket": true,
+                      "triggerPx": "46580",
+                      "tpsl": "sl"
+                    }
+                  },
+                  "c": "0x5e72e117e42e1d4f84ec4a49ce9f77d6"
+                }
+              ],
+              "grouping": "positionTpsl"
+            },
+            "nonce": 1793631521467
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  "waitingForTrigger",
+                  "waitingForTrigger"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openWithTpsl": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.00026",
+              "oid": 64334767007,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0x5e72e117e42e1d4f84ec4a49ce9f77d6"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.00026",
+              "oid": 64334767006,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0xc6ad71b940d8b1a9ad332117e554aa50"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "101365.0",
+              "sz": "0.0",
+              "oid": 64334765660,
+              "timestamp": 1793631520805,
+              "triggerCondition": "Price above 112628",
+              "isTrigger": true,
+              "triggerPx": "112628.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.0",
+              "oid": 64334763007,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "positionTpslAgain": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "order",
+              "orders": [
+                {
+                  "a": 3,
+                  "b": false,
+                  "p": "111852",
+                  "s": "0.00026",
+                  "r": true,
+                  "t": {
+                    "trigger": {
+                      "isMarket": true,
+                      "triggerPx": "124280",
+                      "tpsl": "tp"
+                    }
+                  }
+                }
+              ],
+              "grouping": "positionTpsl"
+            },
+            "nonce": 1793631522781
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  "waitingForTrigger"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterAgain": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "111852.0",
+              "sz": "0.00026",
+              "oid": 64334768433,
+              "timestamp": 1793631523366,
+              "triggerCondition": "Price above 124280",
+              "isTrigger": true,
+              "triggerPx": "124280.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.00026",
+              "oid": 64334767007,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0x5e72e117e42e1d4f84ec4a49ce9f77d6"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.00026",
+              "oid": 64334767006,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0xc6ad71b940d8b1a9ad332117e554aa50"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "101365.0",
+              "sz": "0.0",
+              "oid": 64334765660,
+              "timestamp": 1793631520805,
+              "triggerCondition": "Price above 112628",
+              "isTrigger": true,
+              "triggerPx": "112628.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.0",
+              "oid": 64334763007,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "modifyTrigger": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": 64334765660,
+                  "order": {
+                    "a": 3,
+                    "b": false,
+                    "p": "118842",
+                    "s": "0.00026",
+                    "r": true,
+                    "t": {
+                      "trigger": {
+                        "isMarket": true,
+                        "triggerPx": "132047",
+                        "tpsl": "tp"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "nonce": 1793631524315
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "resting": {
+                      "oid": 64334769824
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterModifyTrigger": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "118842.0",
+              "sz": "0.00026",
+              "oid": 64334769824,
+              "timestamp": 1793631524975,
+              "triggerCondition": "Price above 132047",
+              "isTrigger": true,
+              "triggerPx": "132047.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "111852.0",
+              "sz": "0.00026",
+              "oid": 64334768433,
+              "timestamp": 1793631523366,
+              "triggerCondition": "Price above 124280",
+              "isTrigger": true,
+              "triggerPx": "124280.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.00026",
+              "oid": 64334767007,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0x5e72e117e42e1d4f84ec4a49ce9f77d6"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.00026",
+              "oid": 64334767006,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0xc6ad71b940d8b1a9ad332117e554aa50"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.0",
+              "oid": 64334763007,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "modifyTriggerPlace": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": 64334763007,
+                  "order": {
+                    "a": 3,
+                    "b": false,
+                    "p": "125833",
+                    "s": "0.00026",
+                    "r": true,
+                    "t": {
+                      "trigger": {
+                        "isMarket": true,
+                        "triggerPx": "139815",
+                        "tpsl": "tp"
+                      }
+                    }
+                  }
+                }
+              ],
+              "a": true
+            },
+            "nonce": 1793631525959
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "resting": {
+                      "oid": 64334770965
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterModifyTriggerPlace": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "125833.0",
+              "sz": "0.00026",
+              "oid": 64334770965,
+              "timestamp": 1793631526598,
+              "triggerCondition": "Price above 139815",
+              "isTrigger": true,
+              "triggerPx": "139815.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "118842.0",
+              "sz": "0.00026",
+              "oid": 64334769824,
+              "timestamp": 1793631524975,
+              "triggerCondition": "Price above 132047",
+              "isTrigger": true,
+              "triggerPx": "132047.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "111852.0",
+              "sz": "0.00026",
+              "oid": 64334768433,
+              "timestamp": 1793631523366,
+              "triggerCondition": "Price above 124280",
+              "isTrigger": true,
+              "triggerPx": "124280.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": null
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.00026",
+              "oid": 64334767007,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0x5e72e117e42e1d4f84ec4a49ce9f77d6"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "104860.0",
+              "sz": "0.00026",
+              "oid": 64334767006,
+              "timestamp": 1793631522038,
+              "triggerCondition": "Price above 116512",
+              "isTrigger": true,
+              "triggerPx": "116512.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": true,
+              "orderType": "Take Profit Market",
+              "origSz": "0.00026",
+              "tif": null,
+              "cloid": "0xc6ad71b940d8b1a9ad332117e554aa50"
+            },
+            {
+              "coin": "BTC",
+              "side": "A",
+              "limitPx": "41922.0",
+              "sz": "0.0",
+              "oid": 64334763008,
+              "timestamp": 1793631517894,
+              "triggerCondition": "Price below 46580",
+              "isTrigger": true,
+              "triggerPx": "46580.0",
+              "children": [],
+              "isPositionTpsl": true,
+              "reduceOnly": true,
+              "orderType": "Stop Market",
+              "origSz": "0.0",
+              "tif": null,
+              "cloid": null
+            }
+          ]
+        }
+      ]
+    },
+    "modifyFilled": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": 64334760748,
+                  "order": {
+                    "a": 3,
+                    "b": true,
+                    "p": "46580",
+                    "s": "0.00026",
+                    "r": false,
+                    "t": {
+                      "limit": {
+                        "tif": "Gtc"
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "nonce": 1793631527259
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "error": "Cannot modify canceled or filled order"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "cancelTpsl": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "cancel",
+              "cancels": [
+                {
+                  "a": 3,
+                  "o": 64334763008
+                }
+              ]
+            },
+            "nonce": 1793631528582
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "cancel",
+              "data": {
+                "statuses": [
+                  "success"
                 ]
               }
             }
@@ -347,20 +1439,20 @@
                 {
                   "a": 3,
                   "b": false,
-                  "p": "72999",
-                  "s": "0.00027",
+                  "p": "73766",
+                  "s": "0.00026",
                   "r": true,
                   "t": {
                     "limit": {
                       "tif": "Ioc"
                     }
                   },
-                  "c": "0xd82ff652015418cba30b56a16b2e5e97"
+                  "c": "0x8fa7ac9bc581ca62983450e6f20b3b0e"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476018746
+            "nonce": 1793631529872
           },
           "status": 200,
           "response": {
@@ -371,11 +1463,359 @@
                 "statuses": [
                   {
                     "filled": {
-                      "totalSz": "0.00027",
-                      "avgPx": "76841.0",
-                      "oid": 64190771763,
-                      "cloid": "0xd82ff652015418cba30b56a16b2e5e97"
+                      "totalSz": "0.00026",
+                      "avgPx": "77648.0",
+                      "oid": 64334775036,
+                      "cloid": "0x8fa7ac9bc581ca62983450e6f20b3b0e"
                     }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterClose": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": []
+        }
+      ]
+    },
+    "restForModify": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "order",
+              "orders": [
+                {
+                  "a": 3,
+                  "b": true,
+                  "p": "46580",
+                  "s": "0.00026",
+                  "r": false,
+                  "t": {
+                    "limit": {
+                      "tif": "Gtc"
+                    }
+                  },
+                  "c": "0x8548113f74e83926d2696b6c520e5098"
+                }
+              ],
+              "grouping": "na"
+            },
+            "nonce": 1793631531164
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "resting": {
+                      "oid": 64334775994,
+                      "cloid": "0x8548113f74e83926d2696b6c520e5098"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "modifyResting": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": 64334775994,
+                  "order": {
+                    "a": 3,
+                    "b": true,
+                    "p": "45648",
+                    "s": "0.00052",
+                    "r": false,
+                    "t": {
+                      "limit": {
+                        "tif": "Gtc"
+                      }
+                    },
+                    "c": "0xa410c823f159a790100bf01d6d628b01"
+                  }
+                }
+              ]
+            },
+            "nonce": 1793631532150
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "resting": {
+                      "oid": 64334777346,
+                      "cloid": "0xa410c823f159a790100bf01d6d628b01"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "openAfterModify": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "frontendOpenOrders",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b"
+          },
+          "status": 200,
+          "response": [
+            {
+              "coin": "BTC",
+              "side": "B",
+              "limitPx": "45648.0",
+              "sz": "0.00052",
+              "oid": 64334777346,
+              "timestamp": 1793631532753,
+              "triggerCondition": "N/A",
+              "isTrigger": false,
+              "triggerPx": "0.0",
+              "children": [],
+              "isPositionTpsl": false,
+              "reduceOnly": false,
+              "orderType": "Limit",
+              "origSz": "0.00052",
+              "tif": "Alo",
+              "cloid": "0xa410c823f159a790100bf01d6d628b01"
+            }
+          ]
+        }
+      ]
+    },
+    "lookupModifiedNew": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "orderStatus",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
+            "oid": "0xa410c823f159a790100bf01d6d628b01"
+          },
+          "status": 200,
+          "response": {
+            "status": "order",
+            "order": {
+              "order": {
+                "coin": "BTC",
+                "side": "B",
+                "limitPx": "45648.0",
+                "sz": "0.00052",
+                "oid": 64334777346,
+                "timestamp": 1793631532753,
+                "triggerCondition": "N/A",
+                "isTrigger": false,
+                "triggerPx": "0.0",
+                "children": [],
+                "isPositionTpsl": false,
+                "reduceOnly": false,
+                "orderType": "Limit",
+                "origSz": "0.00052",
+                "tif": "Alo",
+                "cloid": "0xa410c823f159a790100bf01d6d628b01"
+              },
+              "status": "open",
+              "statusTimestamp": 1793631532753
+            }
+          }
+        }
+      ]
+    },
+    "lookupModifiedOld": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/info",
+          "request": {
+            "type": "orderStatus",
+            "user": "0xf6e78664e9e473bf7d4f5a502cae39f84e99d03b",
+            "oid": "0x8548113f74e83926d2696b6c520e5098"
+          },
+          "status": 200,
+          "response": {
+            "status": "order",
+            "order": {
+              "order": {
+                "coin": "BTC",
+                "side": "B",
+                "limitPx": "46580.0",
+                "sz": "0.00026",
+                "oid": 64334775994,
+                "timestamp": 1793631531780,
+                "triggerCondition": "N/A",
+                "isTrigger": false,
+                "triggerPx": "0.0",
+                "children": [],
+                "isPositionTpsl": false,
+                "reduceOnly": false,
+                "orderType": "Limit",
+                "origSz": "0.00026",
+                "tif": "Gtc",
+                "cloid": "0x8548113f74e83926d2696b6c520e5098"
+              },
+              "status": "canceled",
+              "statusTimestamp": 1793631532753
+            }
+          }
+        }
+      ]
+    },
+    "modifyByCloid": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": "0xa410c823f159a790100bf01d6d628b01",
+                  "order": {
+                    "a": 3,
+                    "b": true,
+                    "p": "46580",
+                    "s": "0.00026",
+                    "r": false,
+                    "t": {
+                      "limit": {
+                        "tif": "Gtc"
+                      }
+                    },
+                    "c": "0xa410c823f159a790100bf01d6d628b01"
+                  }
+                }
+              ]
+            },
+            "nonce": 1793631534098
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "resting": {
+                      "oid": 64334779469,
+                      "cloid": "0xa410c823f159a790100bf01d6d628b01"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "cancelModified": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "cancel",
+              "cancels": [
+                {
+                  "a": 3,
+                  "o": 64334779469
+                }
+              ]
+            },
+            "nonce": 1793631535453
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "cancel",
+              "data": {
+                "statuses": [
+                  "success"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "modifyCanceled": {
+      "exchanges": [
+        {
+          "method": "POST",
+          "url": "https://api.hyperliquid-testnet.xyz/exchange",
+          "request": {
+            "action": {
+              "type": "batchModify",
+              "modifies": [
+                {
+                  "oid": "0xa410c823f159a790100bf01d6d628b01",
+                  "order": {
+                    "a": 3,
+                    "b": true,
+                    "p": "46580",
+                    "s": "0.00026",
+                    "r": false,
+                    "t": {
+                      "limit": {
+                        "tif": "Gtc"
+                      }
+                    },
+                    "c": "0xa410c823f159a790100bf01d6d628b01"
+                  }
+                }
+              ]
+            },
+            "nonce": 1793631536401
+          },
+          "status": 200,
+          "response": {
+            "status": "ok",
+            "response": {
+              "type": "order",
+              "data": {
+                "statuses": [
+                  {
+                    "error": "Cannot modify canceled or filled order"
                   }
                 ]
               }
@@ -396,7 +1836,7 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "46099",
+                  "p": "46580",
                   "s": "0.00001",
                   "r": false,
                   "t": {
@@ -404,12 +1844,12 @@
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0x7c846e3dea63b97e070a733fad98e6c8"
+                  "c": "0xab84e449495649eb75f15e357619269b"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476019794
+            "nonce": 1793631537483
           },
           "status": 200,
           "response": {
@@ -440,20 +1880,20 @@
                 {
                   "a": 3,
                   "b": false,
-                  "p": "107577",
-                  "s": "0.00027",
+                  "p": "108745",
+                  "s": "0.00026",
                   "r": true,
                   "t": {
                     "limit": {
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0x4956ce3257729b093ade85bfa3404ada"
+                  "c": "0x64e780d727ef666830056a678f9e4ed4"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476021231
+            "nonce": 1793631538450
           },
           "status": 200,
           "response": {
@@ -484,20 +1924,20 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "46099",
-                  "s": "21.69244",
+                  "p": "46580",
+                  "s": "21.46844",
                   "r": false,
                   "t": {
                     "limit": {
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0x46e4e9607fb74748cf2441ee571dd28d"
+                  "c": "0x3a944b1ff7ee3abc90e63affe481df5a"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476022181
+            "nonce": 1793631539425
           },
           "status": 200,
           "response": {
@@ -528,25 +1968,25 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "46099",
-                  "s": "0.00027",
+                  "p": "46580",
+                  "s": "0.00026",
                   "r": false,
                   "t": {
                     "limit": {
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0xed51b4cd2352a716b92ebef7928b6b78"
+                  "c": "0x7fd1d7543e26d9b20131cb07422f1af4"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476023217
+            "nonce": 1793631541378
           },
           "status": 200,
           "response": {
             "status": "err",
-            "response": "User or API Wallet 0xf684c62507d82bf379daeeecc98ed3337b77545d does not exist."
+            "response": "User or API Wallet 0x84bec92773e001eeec07a8395cffae257ce5c0a1 does not exist."
           }
         }
       ]
@@ -561,16 +2001,16 @@
               "type": "approveAgent",
               "signatureChainId": "0x66eee",
               "hyperliquidChain": "Testnet",
-              "agentAddress": "0xc0E4A85b199d8cE0Aa325cd9EF3B9d68d65D0e7e",
+              "agentAddress": "0x8B7B4D10533a9dDBf7fc18eda6c839Eb9bfD1eAB",
               "agentName": "tape",
-              "nonce": 1793476023793
+              "nonce": 1793631541961
             },
-            "nonce": 1793476023793
+            "nonce": 1793631541961
           },
           "status": 200,
           "response": {
             "status": "err",
-            "response": "Must deposit before performing actions. User: 0x4c5f29fd52e689db2e8fe9a9dc361e8466422578"
+            "response": "Must deposit before performing actions. User: 0xc92a4302c41a60459dc7559e8c0b48bc289f9690"
           }
         }
       ]
@@ -587,20 +2027,20 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "46099.5",
-                  "s": "0.00027",
+                  "p": "46580.5",
+                  "s": "0.00026",
                   "r": false,
                   "t": {
                     "limit": {
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0x0f0faf1c52e635a587c8445332aab03c"
+                  "c": "0xe0510a138c79cd6a645981da69e39fc8"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476024084
+            "nonce": 1793631542255
           },
           "status": 200,
           "response": {
@@ -631,20 +2071,20 @@
                 {
                   "a": 3,
                   "b": true,
-                  "p": "46099",
-                  "s": "0.000275",
+                  "p": "46580",
+                  "s": "0.000265",
                   "r": false,
                   "t": {
                     "limit": {
                       "tif": "Gtc"
                     }
                   },
-                  "c": "0x9083c690506c6b84f93fc993f4b646d3"
+                  "c": "0x8bed47e8451e209298bc6762ff3f37f6"
                 }
               ],
               "grouping": "na"
             },
-            "nonce": 1793476025057
+            "nonce": 1793631543200
           },
           "status": 200,
           "response": {
