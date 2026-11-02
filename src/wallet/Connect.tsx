@@ -9,8 +9,9 @@ import { Button, Popover, TextLink } from '#/ui/primitives'
 import { TapeMark } from '#/ui/TapeMark'
 import { INJECTED_ID, browserWallets, connectFailure, waitClock } from './flow'
 import type { ConnectFailure } from './flow'
-import { fade, flip, morph, nextFrame, play, reducedMotion, rise, sleep } from './motion'
+import { fade, flip, foldInto, growFrom, morph, nextFrame, play, reducedMotion, rise, sleep } from './motion'
 import { PairingQr } from './PairingQr'
+import { useWalletSettled } from './settled'
 
 export type Landing = 'idle' | 'holding' | 'landing' | 'landed'
 
@@ -216,35 +217,26 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
     busy.current = true
     settle()
     setLanding('idle')
-    const reduced = reducedMotion()
     const source = opener.current?.isConnected ? opener.current.getBoundingClientRect() : null
-    const own = layer.current?.getBoundingClientRect()
-    void fade(backdrop.current, 0, reduced ? 100 : 220)
-    if (!reduced && source && source.width > 0 && own) {
-      void fade(body.current, 0, 90)
-      await morph(layer.current, source, own, { duration: 300, back: true, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' })
-    } else await fade(layer.current?.parentElement ?? null, 0, 100)
+    await foldInto({ layer: layer.current, backdrop: backdrop.current, body: body.current }, source)
     setOpen(false)
     setOpenerId(null)
     busy.current = false
   }
 
-  const enter = () => {
+  const enter = (retry = true) => {
+    const root = body.current
+    // React attaches the Popover's refs after the panel's layout effect on mount, so the open reads them a microtask later.
+    if (!root && retry) {
+      queueMicrotask(() => enter(false))
+      return
+    }
     const pending = entry.current
     entry.current = null
-    const root = body.current
     if (!pending || !root) return
     const reduced = reducedMotion()
     if (pending.kind === 'open') {
-      if (reduced) {
-        void fade(backdrop.current, 1, 120)
-        void fade(layer.current?.parentElement ?? null, 1, 140)
-        return
-      }
-      void fade(backdrop.current, 1, 240)
-      void rise(root.querySelectorAll('[data-stagger]'), { from: 90, step: 28 })
-      const own = layer.current?.getBoundingClientRect()
-      if (own) void morph(layer.current, pending.from, own, { duration: 440 })
+      void growFrom({ layer: layer.current, backdrop: backdrop.current, body: root }, pending.from)
       return
     }
     root.querySelector<HTMLElement>('[data-focus]')?.focus({ preventScroll: true })
@@ -324,7 +316,7 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
         initialFocus={() => body.current?.querySelector<HTMLElement>('[data-focus]') ?? null}
         finalFocus={() => chip.current ?? (opener.current?.isConnected ? opener.current : null)}
       >
-        <Panel view={view} wallets={wallets} onEnter={enter} onChoose={choose} onBack={back} />
+        <Panel view={view} wallets={wallets} onEnter={() => enter()} onChoose={choose} onBack={back} />
       </Popover>
     </FlowContext>
   )
@@ -479,7 +471,7 @@ function WalletRow({
   )
 }
 
-function WalletTile({ connector, className }: { connector: Connector; className: string }) {
+export function WalletTile({ connector, className }: { connector: Connector; className: string }) {
   if (connector.icon) return <img data-tile src={connector.icon} alt="" className={`shrink-0 ${className}`} />
   if (isPhone(connector))
     return (
@@ -650,7 +642,8 @@ function Rejected({
 export function ConnectButton({ wide = false }: { wide?: boolean }) {
   const flow = useConnectFlow()
   const id = useId()
-  const hidden = flow.openerId === id ? 'invisible' : ''
+  const settled = useWalletSettled()
+  const hidden = flow.openerId === id || !settled ? 'invisible' : ''
   return (
     <Button
       look="primary"

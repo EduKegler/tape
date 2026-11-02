@@ -86,3 +86,29 @@ export function rise(
 
 export const fade = (element: Element | null, to: 0 | 1, duration: number) =>
   play(element, [{ opacity: to === 1 ? 0 : 1 }, { opacity: to }], { duration, easing: 'linear' })
+
+interface PopoverParts {
+  readonly layer: HTMLElement | null
+  readonly backdrop: HTMLElement | null
+  readonly body: HTMLElement | null
+}
+
+export function growFrom({ layer, backdrop, body }: PopoverParts, from: DOMRect) {
+  if (reducedMotion()) {
+    void fade(backdrop, 1, 120)
+    return fade(layer?.parentElement ?? null, 1, 140)
+  }
+  void fade(backdrop, 1, 240)
+  if (body) void rise(body.querySelectorAll('[data-stagger]'), { from: 90, step: 28 })
+  const own = layer?.getBoundingClientRect()
+  return own ? morph(layer, from, own, { duration: 440 }) : Promise.resolve()
+}
+
+export function foldInto({ layer, backdrop, body }: PopoverParts, into: DOMRect | null) {
+  const reduced = reducedMotion()
+  void fade(backdrop, 0, reduced ? 100 : 220)
+  const own = layer?.getBoundingClientRect()
+  if (reduced || !into || into.width === 0 || !own) return fade(layer?.parentElement ?? null, 0, 100)
+  void fade(body, 0, 90)
+  return morph(layer, into, own, { duration: 300, back: true, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' })
+}

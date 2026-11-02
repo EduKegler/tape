@@ -373,7 +373,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - The only other animations are a 120ms fade-in for dialogs and panel state, behind `motion-safe:`, and the connect flow.
 
 ### The connect flow (motion exception)
-Connecting a wallet is the trader's own act, done about once a session, so it is the one place besides the wash where the screen moves. It plays only in the connect panel, the address chip and the ticket's submit slot, eased with `cubic-bezier(0.16, 1, 0.3, 1)`.
+Connecting a wallet is the trader's own act, done about once a session, so it is the one place besides the wash where the screen moves. It plays only in the connect panel, the address chip, the disconnect panel the chip opens and the ticket's submit slot, eased with `cubic-bezier(0.16, 1, 0.3, 1)`.
 - **Open:** the panel's surface grows from the button that was clicked, by transform and radius, in 440ms, and its rows rise 6px into place 28ms apart.
 - **Hover:** a faint light crosses a wallet row in 620ms, and its arrow steps right.
 - **Choose:** the other rows step out, the chosen wallet's icon moves from its row into the handshake, and the panel's height follows the view.
@@ -399,7 +399,7 @@ Connecting a wallet is the trader's own act, done about once a session, so it is
 - Escape, a click outside and Close shut it. Focus stays inside while it is open and goes back to the button that opened it, or to the address chip once connected.
 
 ### Navigation
-- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right. The wallet is Connect, or the network select and the address chip.
+- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right. The wallet is Connect, or the network select and the address chip. The chip opens a small panel in the connect panel's style, 20rem wide, that asks Disconnect this wallet? over the wallet and its address, with Stay connected and Disconnect. While wagmi restores the last session after a reload, the slot holds Connect hidden, so a connected trader never sees it flash.
 
 ## Do's and Don'ts
 

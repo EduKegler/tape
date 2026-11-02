@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { fakeChains } from './chain'
-import { TEST_WALLET, connectPanel, expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { TEST_WALLET, connectPanel, connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { ACCOUNTS } from './wallet'
 
 const settled = (page: Page) =>
@@ -107,4 +107,58 @@ test('the wait names the wallet and counts up, and Cancel goes back to the list'
   release()
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('banner').getByRole('button', { name: ALICE })).toBeVisible()
+})
+
+test('a reload restores the wallet without showing Connect first', async ({ page, wallet: _wallet }) => {
+  await fakeChains(page, 'mainnet')
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const banner = page.getByRole('banner')
+  await connectWallet(page, banner.getByRole('button', { name: 'Connect', exact: true }))
+
+  await page.addInitScript(() => {
+    const look = () => {
+      const root = document.documentElement as Element | null
+      const styled = root !== null && getComputedStyle(root).getPropertyValue('--option') !== ''
+      const shown =
+        styled
+        && [...document.querySelectorAll('header button')].some(
+          (button) => button.textContent === 'Connect' && button.checkVisibility({ visibilityProperty: true }),
+        )
+      if (shown) Reflect.set(window, 'connectShown', true)
+      requestAnimationFrame(look)
+    }
+    requestAnimationFrame(look)
+  })
+  await page.reload()
+  await expect(banner.getByRole('button', { name: ALICE })).toBeVisible()
+  expect(await page.evaluate(() => Reflect.get(window, 'connectShown') === true)).toBe(false)
+})
+
+test('the address chip opens a small panel that asks before it disconnects', async ({ page, wallet: _wallet }) => {
+  await fakeChains(page, 'mainnet')
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const banner = page.getByRole('banner')
+  await connectWallet(page, banner.getByRole('button', { name: 'Connect', exact: true }))
+  const chip = banner.getByRole('button', { name: ALICE })
+
+  await chip.click()
+  const dialog = page.getByRole('dialog', { name: 'Disconnect this wallet?' })
+  await expect(dialog).toContainText(`${TEST_WALLET}${ALICE}`)
+  await expect(dialog.getByRole('button', { name: 'Disconnect' })).toBeFocused()
+  await settled(page)
+  await expectAccessible(page)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(chip).toBeFocused()
+
+  await chip.click()
+  await dialog.getByRole('button', { name: 'Stay connected' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(chip).toBeFocused()
+
+  await chip.click()
+  await dialog.getByRole('button', { name: 'Disconnect' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(banner.getByRole('button', { name: 'Connect', exact: true })).toBeFocused()
+  await expect(chip).toHaveCount(0)
 })
