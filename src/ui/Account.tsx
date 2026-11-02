@@ -92,7 +92,7 @@ function AccountBody({
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-10.5 shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 text-sm">
+      <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-5 border-b border-rule px-3 text-sm">
         <Segmented
           tabs="roomy"
           label="Account view"
@@ -105,29 +105,34 @@ function AccountBody({
           ]}
         />
         {tab === 'fills' && <HistoryLink className="text-level3 hover:text-level1">Full history</HistoryLink>}
-        {snapshot && (
-          <span className="text-level3">
-            Equity <span className="num font-medium text-level1">{grouped(snapshot.equity)}</span> · Available{' '}
-            <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
-          </span>
-        )}
-        {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
-          <ConfirmAction
-            label={`Cancel all ${base}`}
-            confirm="Confirm cancel all"
-            keep="Keep orders"
-            question={cancelAllQuestion(snapshot.orders.filter((order) => order.symbol === symbol).length, base, venue)}
-            onConfirm={() => run({ kind: 'cancel-all', symbol })}
-          />
-        )}
-        {leverage && symbol && (
-          <LeverageControl
-            key={held ?? ''}
-            current={held ?? ''}
-            onSet={(multiplier) => run({ kind: 'leverage', symbol, leverage: multiplier })}
-          />
-        )}
-        <span className="ml-auto flex items-center gap-2">
+        <span className="ml-auto flex flex-wrap items-center gap-3">
+          {snapshot && (
+            <span className="text-level3">
+              Equity <span className="num font-medium text-level1">{grouped(snapshot.equity)}</span> · Available{' '}
+              <span className="num font-medium text-level1">{grouped(snapshot.available)}</span>
+            </span>
+          )}
+          {symbol && snapshot && snapshot.orders.some((order) => order.symbol === symbol) && (
+            <ConfirmAction
+              label={`Cancel all ${base}`}
+              confirm="Confirm cancel all"
+              keep="Keep orders"
+              question={cancelAllQuestion(
+                snapshot.orders.filter((order) => order.symbol === symbol).length,
+                base,
+                venue,
+              )}
+              onConfirm={() => run({ kind: 'cancel-all', symbol })}
+              look="outline"
+            />
+          )}
+          {leverage && symbol && (
+            <LeverageControl
+              key={held ?? ''}
+              current={held ?? ''}
+              onSet={(multiplier) => run({ kind: 'leverage', symbol, leverage: multiplier })}
+            />
+          )}
           {forget && (
             <ConfirmAction
               label="Forget trading key"
@@ -139,7 +144,6 @@ function AccountBody({
           )}
           <DepositButton account={account} />
           {snapshot && <WithdrawButton account={account} available={snapshot.available} />}
-          <span className="text-xs text-level3">{account.network}</span>
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">

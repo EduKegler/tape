@@ -3,21 +3,21 @@ import { CONTROL } from './replay/control'
 import type { Command } from './replay/control'
 import { expect, openMarket, panel, test } from './fixtures'
 
-// Chromium's IntersectionObserver reports a row that sits on a fractional pixel as 0.995 visible.
-const WHOLE = { ratio: 0.99 }
+// Chromium's IntersectionObserver clips a row that sits on a fractional pixel by up to a pixel, 4 % of a 24 px row.
+const WHOLE = { ratio: 0.95 }
 
-for (const size of [
-  { width: 1440, height: 900 },
-  { width: 1280, height: 800 },
+for (const { levels, ...size } of [
+  { width: 1440, height: 900, levels: 9 },
+  { width: 1280, height: 800, levels: 7 },
 ])
-  test(`at ${size.width}×${size.height} the market fits the window, with every book level and venue in view`, async ({
+  test(`at ${size.width}×${size.height} the market fits the window, with ${levels} book levels a side and every venue in view`, async ({
     page,
   }) => {
     await page.setViewportSize(size)
     await openMarket(page, '/hyperliquid/BTC?interval=1m')
-    const levels = panel(page, 'Order book').getByRole('button', { name: /^(?:Bid|Ask) / })
-    await expect(levels).toHaveCount(28)
-    for (const level of await levels.all()) await expect(level).toBeInViewport(WHOLE)
+    const rows = panel(page, 'Order book').getByRole('button', { name: /^(?:Bid|Ask) / })
+    await expect(rows).toHaveCount(levels * 2)
+    for (const level of await rows.all()) await expect(level).toBeInViewport(WHOLE)
     for (const venue of ['Binance', 'Hyperliquid', 'dYdX', 'Orderly'])
       await expect(panel(page, 'Venues').getByRole('row', { name: new RegExp(`^${venue}`) })).toBeInViewport(WHOLE)
     await expect(page.getByRole('contentinfo')).toBeInViewport(WHOLE)

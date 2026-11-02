@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 
 const looks = {
   sm: 'h-6 rounded-md bg-raised pr-6 pl-2 text-sm font-medium',
-  md: 'h-8 rounded-md border border-edge bg-surface pr-7 pl-3 text-sm',
+  md: 'h-9 rounded-md border border-edge bg-surface pr-7 pl-3 text-sm font-medium',
+  filter: 'h-9 rounded-md border border-edge bg-inset pr-7 pl-3 text-sm',
   field: 'h-11 w-full rounded-md border border-edge bg-inset pr-8 pl-3 text-base',
 }
 

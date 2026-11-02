@@ -101,10 +101,11 @@ function AddressChip({
       aria-label={short}
       aria-haspopup="dialog"
       title="Disconnect"
-      className={`relative ${landing === 'landing' || hidden ? 'invisible' : ''}`}
+      className={`relative flex h-9 items-center gap-2 ${landing === 'landing' || hidden ? 'invisible' : ''}`}
       onClick={(event) => onOpen(event.currentTarget)}
     >
       {landing === 'landed' && <span aria-hidden className="pointer-events-none absolute inset-0 wash rounded-md" />}
+      <span aria-hidden className="relative size-1.5 rounded-sm bg-live" />
       <span key={short} ref={text} className="num relative">
         {short}
       </span>

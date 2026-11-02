@@ -12,7 +12,7 @@ import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { ErrorMark } from './ErrorMark'
 import { lastHistorySearch } from './HistoryLink'
-import { Panel, Segmented } from './Panel'
+import { PILL_GROUP, Panel, Segmented } from './Panel'
 import { Button, InlineInput, NoData, Select, Table } from './primitives'
 import type { Column } from './primitives'
 import { ReadNote } from './TradeNote'
@@ -41,7 +41,7 @@ type Row =
   | { readonly kind: 'fill'; readonly time: number; readonly fill: RealizedFill }
   | { readonly kind: 'funding'; readonly time: number; readonly payment: FundingPayment }
 
-const ROW = 24
+const ROW = 27.625
 const DAY_MS = 86_400_000
 
 const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
@@ -99,13 +99,13 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
   return (
     <main className="grid flex-1 gap-2.5 p-2.5 lg:min-h-0 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <Panel title="Accounts">
-        <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-sm">
+        <div className="flex h-full flex-col overflow-y-auto text-sm">
           <Addresses
             typed={{ wallet: search.address ?? '', dydx: search.dydx ?? '' }}
             fallback={{ wallet: connected?.toLowerCase() ?? null, dydx: derived }}
             onSubmit={(next) => set({ address: next.wallet || undefined, dydx: next.dydx || undefined })}
           />
-          <ul className="flex flex-col gap-2" aria-label="Venues">
+          <ul className="flex flex-col" aria-label="Venues">
             {HISTORY_VENUES.map((venue, index) => (
               <VenueStatus
                 key={venue}
@@ -116,7 +116,7 @@ export function History({ search, onSearch }: { search: HistorySearch; onSearch:
               />
             ))}
           </ul>
-          <p className="text-xs/snug text-level3">
+          <p className="p-3 text-xs/snug text-level3">
             History is read from each venue&apos;s public API with no key. Realized PnL is before fees and funding, and
             net is realized minus fees plus funding. Days are UTC.
           </p>
@@ -185,15 +185,16 @@ function Addresses({
   const dydxOk = draft.dydx === '' || DYDX_ADDRESS.test(draft.dydx)
   return (
     <form
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2.5 border-b border-rule p-3"
       onSubmit={(event) => {
         event.preventDefault()
         if (walletOk && dydxOk) onSubmit(draft)
       }}
     >
-      <label className="flex flex-col gap-1 text-level3">
+      <label className="flex flex-col gap-2.5 text-xs text-level3">
         Wallet, for Hyperliquid and Orderly
         <InlineInput
+          size="lg"
           value={draft.wallet}
           onChange={(event) => setDraft({ ...draft, wallet: event.target.value.trim() })}
           placeholder={fallback.wallet ?? '0x…'}
@@ -201,9 +202,10 @@ function Addresses({
           aria-invalid={!walletOk}
         />
       </label>
-      <label className="flex flex-col gap-1 text-level3">
+      <label className="flex flex-col gap-2.5 text-xs text-level3">
         dYdX address
         <InlineInput
+          size="lg"
           value={draft.dydx}
           onChange={(event) => setDraft({ ...draft, dydx: event.target.value.trim() })}
           placeholder={fallback.dydx ?? 'dydx1…'}
@@ -211,7 +213,7 @@ function Addresses({
           aria-invalid={!dydxOk}
         />
       </label>
-      <Button look="primary" size="sm" type="submit" disabled={!walletOk || !dydxOk} className="self-start">
+      <Button look="primary" size="lg" type="submit" disabled={!walletOk || !dydxOk} className="mt-1 font-semibold">
         Read history
       </Button>
     </form>
@@ -232,11 +234,11 @@ function VenueStatus({
   const label = VENUES[venue].label
   const history = result.data
   return (
-    <li className="flex flex-col gap-1 border-t border-rule pt-2" data-history-venue={venue}>
+    <li className="flex flex-col gap-2 border-b border-rule p-3" data-history-venue={venue}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-level1">{label}</span>
+        <span className="text-base font-semibold text-level1">{label}</span>
         {address && (
-          <Button look="quiet" onClick={onRefresh} disabled={result.isFetching}>
+          <Button look="action" onClick={onRefresh} disabled={result.isFetching}>
             {result.isFetching ? 'Reading…' : 'Refresh'}
           </Button>
         )}
@@ -248,7 +250,11 @@ function VenueStatus({
             : 'Connect a wallet or paste an address.'}
         </p>
       )}
-      {address && <p className="num text-xs break-all text-level3">{address}</p>}
+      {address && (
+        <p title={address} className="num truncate text-xs text-level3">
+          {address}
+        </p>
+      )}
       {result.error && (
         <ReadNote what={`${label} history`} error={result.error.error} onRetry={onRefresh} busy={result.isFetching} />
       )}
@@ -278,8 +284,9 @@ function Filters({
   set: (patch: Partial<HistorySearch>) => void
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-rule px-3 py-1.5 text-sm">
+    <div className="flex min-h-13.5 shrink-0 flex-wrap items-center gap-5 border-b border-rule px-3 py-1.5 text-sm">
       <Segmented
+        pills
         label="Venue"
         value={search.venue}
         onChange={(venue) => set({ venue, market: undefined })}
@@ -289,6 +296,7 @@ function Filters({
         ]}
       />
       <Segmented
+        pills
         label="Type"
         value={search.kind}
         onChange={(kind) => set({ kind })}
@@ -298,10 +306,10 @@ function Filters({
           { value: 'funding', label: 'Funding' },
         ]}
       />
-      <label className="flex items-center gap-1 text-level3">
-        Market
-        <Select size="sm" value={search.market ?? ''} onChange={(value) => set({ market: value || undefined })}>
-          <option value="">All</option>
+      <label className="flex items-center">
+        <span className="sr-only">Market</span>
+        <Select size="filter" value={search.market ?? ''} onChange={(value) => set({ market: value || undefined })}>
+          <option value="">All markets</option>
           {markets.map((market) => (
             <option key={market} value={market}>
               {market}
@@ -309,31 +317,48 @@ function Filters({
           ))}
         </Select>
       </label>
-      <div role="group" aria-label="Period" className="flex items-center gap-1 text-level3">
-        {presets(now).map((preset) => (
-          <Button
-            key={preset.label}
-            look="toggle"
-            aria-pressed={search.from === preset.from && search.to === preset.to}
-            onClick={() => set({ from: preset.from, to: preset.to })}
-          >
-            {preset.label}
-          </Button>
-        ))}
-        <InlineInput
-          type="date"
-          aria-label="From"
-          value={search.from ?? ''}
-          onChange={(event) => set({ from: event.target.value || undefined })}
-        />
-        <InlineInput
-          type="date"
-          aria-label="To"
-          value={search.to ?? ''}
-          onChange={(event) => set({ to: event.target.value || undefined })}
-        />
+      <div role="group" aria-label="Period" className="flex items-center gap-5">
+        <div className={PILL_GROUP}>
+          {presets(now).map((preset) => (
+            <Button
+              key={preset.label}
+              look="pill"
+              aria-pressed={search.from === preset.from && search.to === preset.to}
+              onClick={() => set({ from: preset.from, to: preset.to })}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+        <DateField label="From" value={search.from} onChange={(from) => set({ from })} />
+        <DateField label="To" value={search.to} onChange={(to) => set({ to })} />
       </div>
     </div>
+  )
+}
+
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string | undefined
+  onChange: (day: string | undefined) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  return (
+    <InlineInput
+      size="md"
+      type={editing || value ? 'date' : 'text'}
+      aria-label={label}
+      placeholder={label}
+      className="w-30"
+      value={value ?? ''}
+      onFocus={() => setEditing(true)}
+      onBlur={() => setEditing(false)}
+      onChange={(event) => onChange(event.target.value || undefined)}
+    />
   )
 }
 
@@ -366,7 +391,8 @@ function TotalsTable({ rows, first, empty }: { rows: Totals[]; first: string; em
 
 function Signed({ value, exact = false }: { value: string; exact?: boolean }) {
   const shown = exact ? value : money(value)
-  return <span className={Number(value) === 0 ? 'text-level3' : 'text-level1'}>{shown}</span>
+  const signed = Number(value)
+  return <span className={signed < 0 ? 'text-ask' : signed === 0 ? 'text-level3' : 'text-level1'}>{shown}</span>
 }
 
 const COLUMNS = 'grid-cols-[11rem_6rem_minmax(6rem,1fr)_4rem_4rem_1fr_1fr_1fr_1fr_1fr]'
@@ -393,7 +419,7 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
       <div
         role="row"
         aria-rowindex={1}
-        className={`grid h-6 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-xs text-level3`}
+        className={`grid h-8 min-w-240 shrink-0 ${COLUMNS} items-center gap-2 px-3 text-xs text-level3`}
       >
         <span role="columnheader">Time (UTC)</span>
         <span role="columnheader">Venue</span>
@@ -441,7 +467,7 @@ function Rows({ fills, payments, empty }: { fills: RealizedFill[]; payments: Fun
                 key={item.key}
                 role="row"
                 aria-rowindex={item.index + 2}
-                className={`absolute inset-x-0 grid h-6 ${COLUMNS} items-center gap-2 border-t border-rule px-3 text-level2`}
+                className={`absolute inset-x-0 grid h-8.5 ${COLUMNS} items-center gap-2 border-t border-rule px-3 text-level2`}
                 style={{ transform: `translateY(${item.start}px)` }}
               >
                 <span role="cell" className="num whitespace-nowrap">
