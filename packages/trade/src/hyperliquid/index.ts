@@ -35,6 +35,7 @@ import type {
   SetupStep,
   StepId,
   TradeError,
+  Trail,
   TradingVenue,
   VenueContext,
   WalletSigner,
@@ -565,27 +566,51 @@ const HlOrders = z.array(
     isTrigger: z.boolean(),
     triggerPx: z.string(),
     isPositionTpsl: z.boolean().optional(),
+    triggerCondition: z.string().optional(),
   }),
 )
 type HlOrder = z.infer<typeof HlOrders>[number]
+
+/** Hyperliquid states a trailing stop's terms only in prose, as `Activation above 90000, retracement 10%, best waiting`. */
+const TRAIL_TERMS = /^Activation (?:immediate|(?:above|below) (\d+(?:\.\d+)?)), retracement (\d+(?:\.\d+)?)(%?),/
+
+function trailOf(order: HlOrder): Trail | undefined {
+  const terms = order.orderType === 'Trailing Stop Market' ? TRAIL_TERMS.exec(order.triggerCondition ?? '') : null
+  if (!terms) return undefined
+  const [, activation, distance = '', inPercent] = terms
+  return {
+    activation: activation === undefined ? null : toDecimal(activation),
+    retracement: inPercent ? { pct: toDecimal(distance) } : { px: toDecimal(distance) },
+  }
+}
+
+/** A trailing stop that has not activated yet comes with a trigger price of 0. */
+function shownPx(order: HlOrder, trail: Trail | undefined) {
+  if (!order.isTrigger) return toDecimal(order.limitPx)
+  return trail && Number(order.triggerPx) === 0 ? null : toDecimal(order.triggerPx)
+}
 
 const exitOf = (order: HlOrder): OrderExit | null =>
   order.isTrigger && order.reduceOnly
     ? { kind: order.orderType.startsWith('Take Profit') ? 'tp' : 'sl', whole: order.isPositionTpsl === true }
     : null
 
-const openOrderOf = (order: HlOrder, markets: Meta): OpenOrder => ({
-  ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
-  symbol: order.coin,
-  side: order.side === 'B' ? 'buy' : 'sell',
-  kind: order.orderType,
-  px: toDecimal(order.isTrigger ? order.triggerPx : order.limitPx),
-  size: toDecimal(order.sz),
-  reduceOnly: order.reduceOnly,
-  placedAt: Number(order.timestamp),
-  cancelable: markets.has(order.coin),
-  exit: exitOf(order),
-})
+function openOrderOf(order: HlOrder, markets: Meta): OpenOrder {
+  const trail = trailOf(order)
+  return {
+    ref: refOf(markets.get(order.coin)?.index ?? -1, order.oid),
+    symbol: order.coin,
+    side: order.side === 'B' ? 'buy' : 'sell',
+    kind: order.orderType,
+    px: shownPx(order, trail),
+    size: toDecimal(order.sz),
+    reduceOnly: order.reduceOnly,
+    placedAt: Number(order.timestamp),
+    cancelable: markets.has(order.coin),
+    exit: exitOf(order),
+    ...(trail ? { trail } : {}),
+  }
+}
 
 async function openOrders(ctx: VenueContext): Promise<OpenOrder[]> {
   const [orders, markets] = await Promise.all([

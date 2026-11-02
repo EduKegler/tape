@@ -218,6 +218,12 @@ export interface OrderExit {
   readonly whole: boolean
 }
 
+/** How a trailing stop trails: from its activation price, or at once when that is null, by a share or a price distance. */
+export interface Trail {
+  readonly activation: Decimal | null
+  readonly retracement: { readonly pct: Decimal } | { readonly px: Decimal }
+}
+
 export interface OpenOrder {
   readonly ref: OrderRef
   readonly symbol: string
@@ -230,6 +236,8 @@ export interface OpenOrder {
   /** False for an order Tape lists but cannot cancel, such as a Hyperliquid spot order. */
   readonly cancelable: boolean
   readonly exit: OrderExit | null
+  /** Set on a trailing stop. Its `px` is the stop it trails at, null until it activates. */
+  readonly trail?: Trail
 }
 
 export interface Fill {

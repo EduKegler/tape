@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Base, VenueId } from '@tape/core/ids'
 import { isMovable, leverageOf, orderKindLabel, pnlAt, roeOf } from '@tape/trade/position'
-import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Position } from '@tape/trade/types'
+import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Position, Trail } from '@tape/trade/types'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
@@ -242,6 +242,7 @@ function AccountBody({
           <Orders
             rows={snapshot.orders}
             price={price}
+            quote={(venueSymbol) => specOf(venueSymbol)?.quote}
             size={(order) => size(order.symbol, ordered(order, snapshot.positions))}
             current={open?.kind === 'order' ? open.ref : null}
             busy={(order) => busy({ kind: 'cancel', order: order.ref })}
@@ -470,9 +471,44 @@ function MiniRuler({ position, tp, sl }: { position: Position; tp: string | null
   )
 }
 
+function TrailTerms({
+  order,
+  trail,
+  price,
+  quote,
+}: {
+  order: OpenOrder
+  trail: Trail
+  price: (symbol: string, value: string) => string
+  quote: string | undefined
+}) {
+  const distance =
+    'pct' in trail.retracement
+      ? `${trail.retracement.pct}%`
+      : [grouped(trail.retracement.px), quote].filter(Boolean).join(' ')
+  const [lead, at] =
+    order.px !== null
+      ? ['Stops at', price(order.symbol, order.px)]
+      : trail.activation !== null
+        ? ['Activates', price(order.symbol, trail.activation)]
+        : [null, null]
+  return (
+    <span className="tabular-nums">
+      {lead && (
+        <>
+          <span className="text-level3">{lead}</span> {at}
+          <span className="text-level3"> · trails</span>
+        </>
+      )}
+      {!lead && <span className="text-level3">Trails</span>} {distance}
+    </span>
+  )
+}
+
 function Orders({
   rows,
   price,
+  quote,
   size,
   current,
   busy,
@@ -481,6 +517,7 @@ function Orders({
 }: {
   rows: readonly OpenOrder[]
   price: (symbol: string, value: string) => string
+  quote: (symbol: string) => string | undefined
   size: (o: OpenOrder) => string
   current: OrderRef | null
   busy: (o: OpenOrder) => boolean
@@ -495,7 +532,9 @@ function Orders({
     {
       header: 'Price',
       cell: (order) =>
-        order.px === null ? (
+        order.trail ? (
+          <TrailTerms order={order} trail={order.trail} price={price} quote={quote(order.symbol)} />
+        ) : order.px === null ? (
           'market'
         ) : (
           <>

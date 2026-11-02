@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Address } from 'viem'
@@ -978,6 +979,34 @@ describe('hyperliquid account sides', () => {
       ['BTC', true],
       ['@107', false],
       ['PURR/USDC', false],
+    ])
+  })
+})
+
+describe('hyperliquid trailing stops in the account', () => {
+  // Recorded on testnet: a sell trailing 800 USDC that activated at once and trails at 75,563, and one
+  // trailing 10% that waits for 90,000 with a trigger price of 0.0.
+  const recording = JSON.parse(
+    readFileSync(new URL('../__fixtures__/trailing.hyperliquid.json', import.meta.url), 'utf8'),
+  ) as { frontendOpenOrders: unknown[] }
+
+  it('reads the activation and the retracement out of the trigger condition', async () => {
+    const answers: Record<string, unknown> = {
+      meta: testnetMeta,
+      clearinghouseState: { marginSummary: { accountValue: '10.0' }, withdrawable: '10.0', assetPositions: [] },
+      frontendOpenOrders: recording.frontendOpenOrders,
+      userFills: [],
+    }
+    const { ctx } = venue(() => statuses([]))
+    const view = await hyperliquid.account({
+      ...ctx,
+      fetch: (async (_url: string, init?: RequestInit) =>
+        json(answers[(JSON.parse(init?.body as string) as { type: string }).type] ?? null)) as typeof globalThis.fetch,
+    })
+    if (view.kind !== 'live') throw new Error(view.kind)
+    expect(view.snapshot.orders.map((order) => [order.kind, order.px, order.trail])).toEqual([
+      ['Trailing Stop Market', '75563.0', { activation: null, retracement: { px: '800' } }],
+      ['Trailing Stop Market', null, { activation: '90000', retracement: { pct: '10' } }],
     ])
   })
 })
