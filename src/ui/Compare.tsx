@@ -31,7 +31,7 @@ const columns: Column<CompareRow>[] = [
       listed(row) ? (
         <Quote value={row.bid} best={row.bestBid} side="bid" />
       ) : (
-        <span className="font-sans text-level3">Not shown</span>
+        <span className="text-level3">Not shown</span>
       ),
   },
   { header: 'Ask', cell: (row) => listed(row) && <Quote value={row.ask} best={row.bestAsk} side="ask" /> },

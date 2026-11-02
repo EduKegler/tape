@@ -20,7 +20,7 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 - **Graphite, one off-white.** The page is `ground`. Header, venue strip, panels and status bar are `surface` cards with an 8 px gutter (`gap-2.5` and `p-2.5`, since 1rem is 13 px). `raised` lifts one thing inside a card: the current venue tab, the current table row, the order outcome, a secondary button, a dialog. A field sits on `inset` inside an `edge` border.
 - **Off-white belongs to the trader.** `accent` marks the current venue, the selected item, focus as a 2 px ring with a 2 px offset, and the trader's own fill. It never decorates.
 - **Color carries meaning.** `bid` and `ask` mean side, and nothing else. `err` (coral) with `ErrorMark` means something failed: a refused order, a rule error on a field, a failed read. `warn` (amber) means old data, a price warning or a venue reconnecting. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
-- **Numbers are Martian Mono.** `num` sets them at 75 % width, tabular, with a slashed zero. Put it on the number element, never on a container, so words stay in Inter. Align numbers right in columns and keep the same decimals down a column. A sentence that carries numbers, such as an order outcome, stays in Inter with `tabular-nums`. Canvas text in the chart stays in Inter, because canvas cannot set `font-stretch`.
+- **Numbers are Inter with tabular figures.** `num` sets them on the number element. Align numbers right in columns and keep the same decimals down a column. A sentence that carries numbers, such as an order outcome, takes `tabular-nums`. Canvas text in the chart is Inter too.
 - **Corners.** Cards take `rounded-lg`, controls and blocks inside them `rounded-md`. No shadows, except three 2 px inset lines: `inset-shadow-selected` under the current venue tab and the checked option, `inset-shadow-current` at the left of the current Venues row, and `inset-shadow-newest` in `level3` at the left of the newest trade.
 - **Controls come from primitives.** `Button` takes a `look`, and only `primary` and `secondary` take a `size`. A pressed side fills with its color and `ink-contrast` text. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`.
 - **Side reads without color.** A label like `Buy / Long`, a mark like `▲`, `▼` or `●` with its words, or position, as in the book.
@@ -91,7 +91,7 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 Review catches the rest. A screen that shows one of these goes back:
 
 - a warm light background, a blue or tinted shell, a gradient, glass, blur, a texture or a decorative grid;
-- an italic or third font, a serif, words in Martian Mono, or letter-spaced capitals above a panel;
+- an italic or second font, a serif, a monospace, or letter-spaced capitals above a panel;
 - numbered labels such as 01, 02, 03, or a decorative icon beside each title;
 - a shadow on a card, a side stripe on a row or a note, or a colored pill on every state;
 - weight above 600, or 600 outside a key number;
@@ -119,6 +119,6 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
 - `reference/history.png`: `/history` in the graphite world. History itself is not redesigned yet.
 - `reference/close-confirm.png`: closing a position. Close stays in its cell, and the step with size, expected price and its own slippage takes a full-width row under the position.
-- `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in Martian Mono.
+- `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in tabular figures.
 
 Not retaken yet: stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.

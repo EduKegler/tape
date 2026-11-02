@@ -30,7 +30,7 @@ A why about our own design is a rename, an extracted function or a type instead.
 
 ## Design
 
-Load the `tape-design` skill before changing how a screen looks or reads. `DESIGN.md` describes the system it builds: graphite cards on a darker ground, off-white only for what belongs to the trader, numbers in Martian Mono, coral for failures and amber for old data, and the wash on a fill or a best-price lift as the one signature motion. The skill's tokens and primitives win over any other design skill.
+Load the `tape-design` skill before changing how a screen looks or reads. `DESIGN.md` describes the system it builds: graphite cards on a darker ground, off-white only for what belongs to the trader, numbers in Inter with tabular figures, coral for failures and amber for old data, and the wash on a fill or a best-price lift as the one signature motion. The skill's tokens and primitives win over any other design skill.
 
 ## Tests
 

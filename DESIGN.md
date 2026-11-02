@@ -28,26 +28,23 @@ colors:
   option-hover: "rgb(236 235 232 / 0.1)"
 typography:
   display:
-    fontFamily: "Martian Mono Variable, ui-monospace, monospace"
+    fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "22px"
     fontWeight: 600
     lineHeight: 1
-    fontFeature: "\"tnum\", \"zero\""
-    fontVariation: "\"wdth\" 75"
+    fontFeature: "\"tnum\""
   number:
-    fontFamily: "Martian Mono Variable, ui-monospace, monospace"
+    fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 500
     lineHeight: 1.4
-    fontFeature: "\"tnum\", \"zero\""
-    fontVariation: "\"wdth\" 75"
+    fontFeature: "\"tnum\""
   number-sm:
-    fontFamily: "Martian Mono Variable, ui-monospace, monospace"
+    fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "12px"
     fontWeight: 400
     lineHeight: 1.4
-    fontFeature: "\"tnum\", \"zero\""
-    fontVariation: "\"wdth\" 75"
+    fontFeature: "\"tnum\""
   title:
     fontFamily: "Inter Variable, system-ui, sans-serif"
     fontSize: "13px"
@@ -218,14 +215,14 @@ components:
 
 The market sits on graphite. Four venues, a chart, a book, a tape and a ticket share one dark field of cards that stay quiet so the numbers can be read. Warm off-white is the light the trader brings: it marks the venue they chose, where their keyboard is, and their fill. The market only gets green, red and a small mark.
 
-The screen is dense and built for hours of glances. The root type size is 13px, so every rem in the code is 13px: a 1rem gap is 13px and the 0.625rem gutter is 8.1px. Words are Inter. Numbers are Martian Mono pressed to 75% width with a slashed zero, so a column of prices lines up and reads as one block. Depth comes from three graphite steps, never from shadows.
+The screen is dense and built for hours of glances. The root type size is 13px, so every rem in the code is 13px: a 1rem gap is 13px and the 0.625rem gutter is 8.1px. Words and numbers are Inter. Numbers take tabular figures, so a column of prices lines up and reads as one block. Depth comes from three graphite steps, never from shadows.
 
 Movement is rare and means something. One animation, the wash, plays when the trader's own order fills and when a venue newly takes the best bid or ask. Connecting a wallet is the one exception: the button grows into a panel, the wait runs a feed from Tape to the wallet, and the panel lands in the address chip. Prices, sizes, book rows and trades never move.
 
 **Key Characteristics:**
 - Graphite cards (rounded 0.5rem) on a darker ground, with 8.1px gutters.
 - Off-white accent only for what is the trader's: current choice, focus, fill.
-- Every number in narrow Martian Mono, every word in Inter.
+- One face, Inter, with tabular figures for every number.
 - Green and red for side and direction only. Amber for age. Coral with a drawn mark for failure.
 - No shadows. Current things are raised one graphite step.
 - One signature motion, the 900ms wash, and one exception, the connect flow. Nothing else draws the eye.
@@ -267,13 +264,13 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 ## Typography
 
 **Body Font:** Inter Variable (with system-ui, sans-serif)
-**Number Font:** Martian Mono Variable at font-stretch 75%, tabular and slashed zero (with ui-monospace)
+**Number Font:** Inter Variable with tabular figures
 
-**Character:** Inter names things and Martian Mono counts them. The narrow mono keeps long prices compact and makes every column align without help.
+**Character:** One face names things and counts them. Tabular figures make every column align without help.
 
 ### Hierarchy
-- **Display** (Martian Mono, 600, 22px, line-height 1): the last price in the header and at the head of the book, with its side mark.
-- **Number** (Martian Mono, 400 or 500, 13px or 12px): strip mids, header stats and field values at 13px in 500; book, trades, tables, equity and notional at 12px.
+- **Display** (Inter, 600, 22px, line-height 1): the last price in the header and at the head of the book, with its side mark.
+- **Number** (Inter tabular, 400 or 500, 13px or 12px): strip mids, header stats and field values at 13px in 500; book, trades, tables, equity and notional at 12px.
 - **Title** (Inter, 600, 13px, line-height 1): panel titles and venue names in the strip.
 - **Action** (Inter, 600, 18px or 13px): the submit names the side and the market at 18px; the side switch is 13px.
 - **Body** (Inter, 400 or 500, 12px, line-height 1.4): text, notes, labels next to values. 500 for the order outcome and primary buttons.
@@ -282,9 +279,9 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 Sizes come only from the closed scale 11, 12, 13, 18 and 22px. Weights stop at 600.
 
 ### Named Rules
-**The Narrow Figures Rule.** The `num` class goes on the element that holds the number and nothing wider. Words stay Inter. A sentence that carries numbers, such as the order outcome, the order lookup and the liquidation note, stays Inter with tabular figures.
+**The Tabular Figures Rule.** The `num` class sets tabular figures on the element that holds the number. A sentence that carries numbers, such as the order outcome, the order lookup and the liquidation note, takes `tabular-nums` on the sentence.
 
-**The Canvas Exception.** Chart and depth axes are drawn on canvas, which cannot set font-stretch, so they use Inter at 11px.
+**The Canvas Exception.** Chart and depth axes are drawn on canvas, in Inter at 11px.
 
 ## Layout
 
@@ -343,7 +340,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Title row:** title in level1 semibold, the panel state line beside it, controls on the right. The chart shows its intervals and the latest candle's OHLC in place of the title. The ticket and Account fold their title into their first row, the order types and the account tabs, and keep it as a hidden heading.
 
 ### Inputs / Fields
-- **Style:** well fill, 1px edge border, medium radius, 2.75rem tall in the ticket, value in Martian Mono 13px 500 level1, and the unit at the right edge in 12px level3. The label sits above in 11px level3 with a hint or a button on the right.
+- **Style:** well fill, 1px edge border, medium radius, 2.75rem tall in the ticket, value in Inter tabular 13px 500 level1, and the unit at the right edge in 12px level3. The label sits above in 11px level3 with a hint or a button on the right.
 - **Focus:** the global off-white ring outside the border.
 - **Error:** coral border, then the drawn mark and the message in level1 below. A price warning shows in amber with no mark.
 - **Selects and search:** the same well, edge and radius. A select draws its own chevron in level3, never the native one.
@@ -355,7 +352,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 ### Venue strip (signature)
 - Four equal tabs on one graphite card under the header, 48px tall.
 - Left: the venue name in title type, level1, and under it the chain in 11px level3. When the venue holds the best bid or ask, the chain line goes on with a dot in the side color and "best bid" or "best ask".
-- Right: "Mid" in 11px level3 over the mid price in Martian Mono 13px 500.
+- Right: "Mid" in 11px level3 over the mid price in Inter tabular 13px 500.
 - A venue that lost its feed says Reconnecting in amber in place of "Mid", over its mid in level3. An unlisted market shows Not shown in level3.
 - The current tab is raised with the selected underline. Hover raises any tab.
 - When a venue newly takes the best bid or ask, its tab plays the wash, at most once per venue every 2s, never on the first frame or when the venue just came live. While it washes, the chain and the best or mid label turn level1 so they stay readable on the tint.
@@ -392,7 +389,7 @@ Connecting a wallet is the trader's own act, done about once a session, so it is
 - Under "In this browser", one row per wallet the browser announces through EIP-6963, with the wallet's own icon, its name in title type and a Detected tag in level2. Under "On your phone", a WalletConnect row, only in builds with a project id. A footer over a rule says that connecting shares the address and that nothing is signed until the trader enables trading on a venue.
 - With no wallet in the browser, an option block says No wallet in this browser and links Rabby and MetaMask. WalletConnect stays.
 - Above the footer, one level3 line at 11px tells a trader who signed in to Hyperliquid with email to export that wallet with Export Email Wallet, linked to Hyperliquid's docs, and import it into their wallet. It shows with or without a browser wallet.
-- The wait is a handshake: the Tape mark, a feed of 16 holes, and the wallet's icon, with "Waiting for" the wallet, where to approve, and a wait clock in Martian Mono 22px 600 over "since the request". Cancel goes back to the list.
+- The wait is a handshake: the Tape mark, a feed of 16 holes, and the wallet's icon, with "Waiting for" the wallet, where to approve, and a wait clock in Inter tabular 22px 600 over "since the request". Cancel goes back to the list.
 - A refusal says Connection rejected, then the drawn mark and that the wallet said no and nothing was shared. Any other error says Connection failed with the first line of the error. Other wallet and Try again sit under it.
 - The WalletConnect QR shows in the same panel, dark modules on the accent inside a graphite frame, with Back and Copy link. Once the phone approves, the panel goes to the handshake.
 - Connected, it says Connected over the address in display type, then shrinks into the address chip in the header.
@@ -420,5 +417,4 @@ Connecting a wallet is the trader's own act, done about once a session, so it is
 - **Don't** add a second animation outside the connect flow, or play the wash for anything but the trader's fill, a venue taking the best price, or a wallet that just connected.
 - **Don't** add drop shadows, glows or blur. Depth is the graphite steps.
 - **Don't** use full rounding or radii outside sm, md and lg.
-- **Don't** set words in Martian Mono, or numbers in Inter outside sentences and canvas.
 - **Don't** tint the screen by PnL or add confetti, streaks, badges or trade counters.
