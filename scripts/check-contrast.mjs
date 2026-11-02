@@ -56,6 +56,8 @@ const PAIRS = [
   ['Search shortcut hint', 'level3', 'inset', 'text'],
   ['Button outline', 'level2', 'surface', 'text'],
   ['Button outline, hover', 'level1', 'surface', 'text'],
+  ['Button pill', 'level3', 'inset', 'text'],
+  ['Button pill, selected', 'level1', 'raised', 'text'],
   ['Connected dot, header and status bar', 'live', 'surface', 'graphic'],
   ['Hub offline dot, status bar', 'warn', 'surface', 'graphic'],
   ['Search item', 'level1', 'raised', 'text'],

@@ -89,29 +89,35 @@ export function Panel({
 
 const TAB_GAP = { roomy: 'gap-5', snug: 'gap-3' } as const
 
+export const PILL_GROUP = 'flex items-center gap-0.5 rounded-md bg-inset p-0.5'
+
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
   label,
   tabs,
+  pills = false,
 }: {
   value: T
   options: readonly { value: T; label: string }[]
   onChange: (v: T) => void
   label: string
   tabs?: keyof typeof TAB_GAP
+  pills?: boolean
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className={tabs ? `flex items-stretch self-stretch ${TAB_GAP[tabs]}` : 'flex items-center gap-3'}
+      className={
+        tabs ? `flex items-stretch self-stretch ${TAB_GAP[tabs]}` : pills ? PILL_GROUP : 'flex items-center gap-3'
+      }
     >
       {options.map((option) => (
         <Button
           key={option.value}
-          look={tabs ? 'tab' : 'toggle'}
+          look={tabs ? 'tab' : pills ? 'pill' : 'toggle'}
           role="radio"
           aria-checked={option.value === value}
           onClick={() => onChange(option.value)}

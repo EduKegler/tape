@@ -10,9 +10,11 @@ const classes = {
   buy: 'min-h-11 rounded-md bg-bid py-1.5 text-lg font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   sell: 'min-h-11 rounded-md bg-ask py-1.5 text-lg font-semibold text-ink-contrast disabled:bg-raised disabled:text-level2 disabled:inset-ring disabled:inset-ring-rule',
   quiet: 'text-level3 hover:text-level1 disabled:opacity-40',
+  action: 'text-sm font-medium text-level1 hover:text-level2 disabled:opacity-40',
   link: 'text-level1 underline underline-offset-2 disabled:opacity-40',
   toggle:
     'h-6 px-1 text-base font-medium whitespace-nowrap text-level3 hover:text-level1 aria-checked:text-level1 aria-checked:inset-shadow-selected aria-pressed:text-level1 aria-pressed:inset-shadow-selected',
+  pill: 'h-8 rounded-sm px-3 text-sm font-medium whitespace-nowrap text-level3 hover:text-level1 aria-checked:bg-raised aria-checked:text-level1 aria-pressed:bg-raised aria-pressed:text-level1',
   tab: 'text-base font-medium whitespace-nowrap text-level3 hover:text-level1 aria-checked:text-level1 aria-checked:inset-shadow-selected aria-pressed:text-level1 aria-pressed:inset-shadow-selected',
   'side-buy':
     'h-8 rounded-md text-base font-semibold capitalize not-aria-pressed:text-level2 not-aria-pressed:hover:text-level1 aria-pressed:bg-bid aria-pressed:text-ink-contrast',
