@@ -11,6 +11,7 @@ import { INJECTED_ID, browserWallets, connectFailure, waitClock } from './flow'
 import type { ConnectFailure } from './flow'
 import { fade, flip, morph, nextFrame, play, reducedMotion, rise, sleep } from './motion'
 import { PairingQr } from './PairingQr'
+import { useWalletSettled } from './settled'
 
 export type Landing = 'idle' | 'holding' | 'landing' | 'landed'
 
@@ -655,7 +656,8 @@ function Rejected({
 export function ConnectButton({ wide = false }: { wide?: boolean }) {
   const flow = useConnectFlow()
   const id = useId()
-  const hidden = flow.openerId === id ? 'invisible' : ''
+  const settled = useWalletSettled()
+  const hidden = flow.openerId === id || !settled ? 'invisible' : ''
   return (
     <Button
       look="primary"

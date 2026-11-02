@@ -399,7 +399,7 @@ Connecting a wallet is the trader's own act, done about once a session, so it is
 - Escape, a click outside and Close shut it. Focus stays inside while it is open and goes back to the button that opened it, or to the address chip once connected.
 
 ### Navigation
-- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right. The wallet is Connect, or the network select and the address chip.
+- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right. The wallet is Connect, or the network select and the address chip. While wagmi restores the last session after a reload, the slot holds Connect hidden, so a connected trader never sees it flash.
 
 ## Do's and Don'ts
 
