@@ -127,6 +127,8 @@ export type Command =
   /** Every open order on one market, or on every market when the symbol is null. */
   | { readonly kind: 'cancel-all'; readonly symbol: string | null }
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
+  /** Replaces a resting limit with the intent's price and size. The intent carries a new client id. */
+  | { readonly kind: 'modify'; readonly order: OrderRef; readonly intent: OrderIntent }
   /** One reduce-only order per position, each sent and reported on its own. */
   | { readonly kind: 'close-all'; readonly intents: readonly OrderIntent[] }
 
@@ -138,7 +140,7 @@ export interface SentOrders {
 
 /** Null for a write that carries no client id: a cancel, a leverage change, or a Hyperliquid trailing stop. */
 export function sentOrders(command: Command): SentOrders | null {
-  if (command.kind !== 'place' || command.intent.order.kind === 'trailing') return null
+  if ((command.kind !== 'place' && command.kind !== 'modify') || command.intent.order.kind === 'trailing') return null
   const { intent } = command
   return {
     venueSymbol: intent.spec.venueSymbol,

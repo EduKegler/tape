@@ -28,10 +28,14 @@ const ERRORS = {
   unexpected: true,
 } satisfies Record<TradeError['kind'], true>
 
-const COMMANDS = { place: true, cancel: true, 'cancel-all': true, leverage: true, 'close-all': true } satisfies Record<
-  Command['kind'],
-  true
->
+const COMMANDS = {
+  place: true,
+  cancel: true,
+  'cancel-all': true,
+  leverage: true,
+  modify: true,
+  'close-all': true,
+} satisfies Record<Command['kind'], true>
 
 const TIFS = { gtc: true, ioc: true, 'post-only': true } satisfies Record<Tif, true>
 

@@ -506,6 +506,51 @@ describe('orderly lookup', () => {
   })
 })
 
+describe('orderly order edits', () => {
+  const ref = 'PERP_BTC_USDC:13' as OrderRef
+  // The example reply on Orderly's PUT /v1/order page.
+  const EDIT_SENT = '{"success":true,"timestamp":1702989203989,"data":{"status":"EDIT_SENT"}}'
+
+  it('edits an order in place with every field Orderly requires and the new client id', async () => {
+    const intent = intentOf({ price: '79000.5', size: '0.002' })
+    const { ctx, sent } = orderlyAt(() => ({ body: EDIT_SENT }))
+    expect(await orderly.execute(ctx, { kind: 'modify', order: ref, intent })).toEqual({
+      kind: 'placed',
+      status: 'accepted',
+      detail: 'Edit of order 13: EDIT_SENT',
+    })
+    expect(sent).toEqual([
+      {
+        method: 'PUT',
+        url: 'https://testnet-api.orderly.org/v1/order',
+        body: `{"order_id":13,"symbol":"PERP_BTC_USDC","client_order_id":"${intent.clientId}","order_type":"LIMIT","order_price":79000.5,"order_quantity":0.002,"side":"BUY","reduce_only":false}`,
+      },
+    ])
+  })
+
+  it('refuses an edit of an order Orderly no longer holds, and calls a 5xx an unknown outcome', async () => {
+    const intent = intentOf({})
+    // Error code -1006 on Orderly's error codes page.
+    const gone = orderlyAt(() => ({ status: 400, body: '{"success":false,"code":-1006,"message":"order not found"}' }))
+    expect(await failureOf(orderly.execute(gone.ctx, { kind: 'modify', order: ref, intent }))).toEqual({
+      kind: 'rejected',
+      detail: 'Orderly holds no such order',
+    })
+    const down = orderlyAt(() => ({ status: 502, body: 'Bad Gateway' }))
+    expect(await failureOf(orderly.execute(down.ctx, { kind: 'modify', order: ref, intent }))).toMatchObject({
+      kind: 'unknown-outcome',
+    })
+  })
+
+  it('takes only a limit as an edit, before signing anything', async () => {
+    const { ctx, sent } = orderlyAt(() => ({ body: EDIT_SENT }))
+    expect(
+      await failureOf(orderly.execute(ctx, { kind: 'modify', order: ref, intent: intentOf({ kind: 'market' }) })),
+    ).toEqual({ kind: 'invalid-order', detail: 'An edit is a limit with no take profit or stop loss' })
+    expect(sent).toEqual([])
+  })
+})
+
 describe('orderly key', () => {
   it('asks for setup before signing when this device holds no Orderly key', async () => {
     const { ctx, sent } = orderlyAt(() => ({ body: PLACED }))

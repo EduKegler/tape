@@ -9,7 +9,7 @@ import { closeIntents } from '../close-all'
 import { recordedWrite } from '../fixtures'
 import { buildIntent, closeIntent, closeTif } from '../intent'
 import type { TakeProfitDraft } from '../intent'
-import { TradeFailure, toDecimal } from '../types'
+import { TradeFailure, sentOrders, toDecimal } from '../types'
 import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext, WalletSigner } from '../types'
 import { hyperliquid } from '.'
 
@@ -489,6 +489,55 @@ describe('hyperliquid cancels', () => {
       detail: 'Nothing to cancel',
     })
     expect(none.posts()).toEqual([])
+  })
+})
+
+describe('hyperliquid order edits', () => {
+  // restForModify rested oid 64334775994 on testnet, and modifyResting moved it to 45648 for 0.00052.
+  it('moves a resting order with batchModify, which rests it under a new oid and the new client id', async () => {
+    const edit = place({ price: '45648', size: '0.00052' })
+    if (edit.kind !== 'place') throw new Error(edit.kind)
+    const command: Command = { kind: 'modify', order: '3:64334775994' as OrderRef, intent: edit.intent }
+    const { ctx, posts } = venue(replied('modifyResting'))
+    expect(await hyperliquid.execute(ctx, command)).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Resting as order 64334777346',
+    })
+    const sentAction = recordedWrite('hyperliquid', 'modifyResting').exchanges[0]!
+    const { modifies } = (sentAction.request as { action: { modifies: { order: object }[] } }).action
+    expect(posts()[0]?.body.action).toEqual({
+      type: 'batchModify',
+      modifies: [{ oid: 64334775994, order: { ...modifies[0]!.order, c: edit.intent.clientId } }],
+    })
+    expect(sentOrders(command)?.clientIds).toEqual([edit.intent.clientId])
+  })
+
+  it('refuses an edit of an order that already filled or was canceled, as Hyperliquid does', async () => {
+    const edit = place({})
+    if (edit.kind !== 'place') throw new Error(edit.kind)
+    for (const name of ['modifyFilled', 'modifyCanceled']) {
+      const { ctx } = venue(replied(name))
+      expect(
+        await failureOf(hyperliquid.execute(ctx, { kind: 'modify', order: '3:1' as OrderRef, intent: edit.intent })),
+      ).toEqual({
+        kind: 'rejected',
+        detail: 'Cannot modify canceled or filled order',
+      })
+    }
+  })
+
+  it('takes only a limit as an edit, before signing anything', async () => {
+    const edit = place({ kind: 'market' })
+    if (edit.kind !== 'place') throw new Error(edit.kind)
+    const { ctx, posts } = venue(() => statuses([]))
+    expect(
+      await failureOf(hyperliquid.execute(ctx, { kind: 'modify', order: '3:1' as OrderRef, intent: edit.intent })),
+    ).toEqual({
+      kind: 'invalid-order',
+      detail: 'An edit is a limit with no take profit or stop loss',
+    })
+    expect(posts()).toEqual([])
   })
 })
 

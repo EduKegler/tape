@@ -8,18 +8,33 @@ import { buildIntent, closeIntent, closeTif } from '../intent'
 import type { IntentDraft } from '../intent'
 import { TradeFailure, sentOrders, toDecimal } from '../types'
 import type { Bps, Eip712, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import { clientIdOf } from './wire'
 import { dydx } from '.'
 
 const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 const chain = vi.hoisted(() => {
-  const state: { reply: unknown } = { reply: undefined }
+  const state: { reply: unknown; sent: unknown[] } = { reply: undefined, sent: [] }
   const answer = async (..._args: unknown[]) => {
     if (state.reply instanceof Error) throw state.reply
     return state.reply
   }
   const deriveKey = vi.fn(async (signature: string) => ({ mnemonic: `words of ${signature}`, address: 'dydx1derived' }))
-  return Object.assign(state, { placeOrder: vi.fn(answer), cancelOrder: vi.fn(answer), deriveKey })
+  const message =
+    (typeUrl: string) =>
+    async (...args: unknown[]) => ({ typeUrl, value: args })
+  const send = vi.fn(async (_subaccount: unknown, messaging: () => Promise<unknown[]>) => {
+    state.sent = await messaging()
+    return answer()
+  })
+  return Object.assign(state, {
+    placeOrder: vi.fn(answer),
+    cancelOrder: vi.fn(answer),
+    placeOrderMsg: vi.fn(message('place')),
+    cancelOrderMsg: vi.fn(message('cancel')),
+    send,
+    deriveKey,
+  })
 })
 
 vi.mock('./client', async (importOriginal) => ({
@@ -30,7 +45,13 @@ vi.mock('./client', async (importOriginal) => ({
   walletOf: async () => ({ address: 'dydx1test' }),
   validatorOf: async () => ({
     get: { latestBlockHeight: async () => 1 },
-    post: { placeOrder: chain.placeOrder, cancelOrder: chain.cancelOrder },
+    post: {
+      placeOrder: chain.placeOrder,
+      cancelOrder: chain.cancelOrder,
+      placeOrderMsg: chain.placeOrderMsg,
+      cancelOrderMsg: chain.cancelOrderMsg,
+      send: chain.send,
+    },
   }),
 }))
 
@@ -563,6 +584,52 @@ describe('dydx cancel all', () => {
     expect(await failure(dydx.execute(locked, { kind: 'cancel-all', symbol: 'BTC-USD' }))).toMatchObject({
       kind: 'needs-setup',
     })
+  })
+})
+
+describe('dydx order edits', () => {
+  const resting = 'BTC-USD:11:64:0' as OrderRef
+
+  it('cancels the old order and places the new one in one transaction, cancel first', async () => {
+    chain.reply = { height: 1, hash: 'E1', code: 0, rawLog: '' }
+    const intent = intentOf(btc, { price: '79000', size: '0.002' })
+    expect(await dydx.execute(ctx, { kind: 'modify', order: resting, intent })).toEqual({
+      kind: 'placed',
+      status: 'resting',
+      detail: 'Broadcast E1',
+    })
+    expect(chain.send).toHaveBeenCalledTimes(1)
+    expect(chain.sent.map((sent) => (sent as { typeUrl: string }).typeUrl)).toEqual(['cancel', 'place'])
+    expect(chain.cancelOrderMsg.mock.calls[0]?.slice(0, 6)).toEqual(['dydx1test', 0, 11, 64, 0, 0])
+    const placed = chain.placeOrderMsg.mock.calls[0]!
+    expect([placed[2], placed[4], String(placed[5]), String(placed[6]), placed[7], placed[8]]).toEqual([
+      clientIdOf(intent.clientId),
+      1,
+      '20000000',
+      '7900000000',
+      0,
+      64,
+    ])
+    expect(chain.placeOrder).not.toHaveBeenCalled()
+    expect(chain.cancelOrder).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused transaction as refused, so the old order still stands', async () => {
+    // ErrStatefulOrderDoesNotExist, code 3006 in x/clob/types/errors.go of dydxprotocol/v4-chain.
+    chain.reply = { height: 1, hash: 'E2', code: 3006, log: 'Stateful order does not exist' }
+    expect(
+      await failure(dydx.execute(ctx, { kind: 'modify', order: resting, intent: intentOf(btc, { price: '79000' }) })),
+    ).toEqual({ kind: 'rejected', detail: 'Stateful order does not exist' })
+  })
+
+  it('edits only a resting limit, before signing anything', async () => {
+    const edits = [
+      { kind: 'modify', order: 'BTC-USD:12:0:0' as OrderRef, intent: intentOf(btc) },
+      { kind: 'modify', order: resting, intent: intentOf(btc, { tif: 'ioc' }) },
+      { kind: 'modify', order: resting, intent: intentOf(btc, { kind: 'market' }) },
+    ] as const
+    for (const edit of edits) expect(await failure(dydx.execute(ctx, edit))).toMatchObject({ kind: 'invalid-order' })
+    expect(chain.send).not.toHaveBeenCalled()
   })
 })
 

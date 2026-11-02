@@ -39,7 +39,7 @@ import { walkByTime } from '../history'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { signL1Action, signUserAction, signatureChainIdHex } from './sign'
 import type { UserActionType } from './sign'
-import { cancelAction, leverageAction, orderAction, orderWire, trailingStopAction } from './wire'
+import { cancelAction, leverageAction, modifyAction, orderAction, orderWire, trailingStopAction } from './wire'
 import type { OrderWire, Tif } from './wire'
 
 const API: Record<Network, string> = {
@@ -382,6 +382,18 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   return order.kind === 'scale' ? legsOutcome(statuses) : orderOutcome(wires, statuses)
 }
 
+/** Without `a`, Hyperliquid rests the new order as Alo when it would not cross, and the old oid is canceled. */
+async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Promise<CommandOutcome> {
+  if (intent.order.kind !== 'limit' || intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'invalid-order', detail: 'An edit is a limit with no take profit or stop loss' })
+  const { wires } = await placeWires(ctx, intent)
+  const reply = await exchange(ctx, modifyAction(wires.map((order) => ({ oid: refParts(ref).oid, order }))))
+  const statuses = reply.response.data?.statuses ?? []
+  if (statuses.length === 0)
+    fail({ kind: 'unknown-outcome', detail: `No order status in the reply: ${JSON.stringify(reply)}` })
+  return orderOutcome(wires, statuses)
+}
+
 async function cancel(ctx: VenueContext, refs: readonly OrderRef[]): Promise<void> {
   const reply = await exchange(ctx, cancelAction(refs.map(refParts)))
   const errors = (reply.response.data?.statuses ?? []).flatMap((status) =>
@@ -396,6 +408,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       return place(ctx, command.intent)
     case 'close-all':
       return closeEach(command.intents, (intent) => place(ctx, intent))
+    case 'modify':
+      return modify(ctx, command.order, command.intent)
     case 'cancel':
       await cancel(ctx, [command.order])
       return { kind: 'done', detail: 'Canceled 1' }

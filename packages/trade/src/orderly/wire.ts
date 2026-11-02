@@ -45,6 +45,20 @@ export function orderBody(order: OrderFields): string {
   })
 }
 
+/** PUT /v1/order: the order to edit by its id, with every field of the order it becomes. */
+export function editBody(orderId: string, order: OrderFields): string {
+  return body({
+    order_id: raw(orderId),
+    symbol: order.symbol,
+    client_order_id: order.clientOrderId,
+    order_type: order.type,
+    order_price: raw(order.price),
+    order_quantity: raw(order.quantity),
+    side: order.side,
+    reduce_only: order.reduceOnly,
+  })
+}
+
 export function batchBody(orders: readonly OrderFields[]): string {
   return `{"orders":[${orders.map(orderBody).join(',')}]}`
 }

@@ -183,7 +183,10 @@ function recheckPx(perp: Market, intent: OrderIntent, px: Px): Px {
 const Level = z.object({ price: z.string() })
 const Orderbook = z.object({ bids: z.array(Level), asks: z.array(Level) })
 
-async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+async function priced(
+  ctx: VenueContext,
+  intent: OrderIntent,
+): Promise<{ perp: Market; size: string; px: Px; tif: 0 | 1 | 2 }> {
   if (intent.order.kind === 'trailing') fail({ kind: 'unsupported', detail: 'dYdX has no trailing stop' })
   if (intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
     fail({ kind: 'unsupported', detail: 'dYdX takes no take profit or stop loss from Tape' })
@@ -215,15 +218,23 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
       tif = TIF.ioc
     }
   }
+  return { perp, size, px, tif }
+}
+
+async function chainNumbers(perp: Market, size: string, px: Px) {
   const { default: Long } = await import('long')
+  return {
+    baseQuantums: Long.fromString(quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(), true),
+    orderSubticks: Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true),
+  }
+}
+
+async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOutcome> {
+  const { perp, size, px, tif } = await priced(ctx, intent)
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()
   const wallet = await walletOf(mnemonicOf(ctx))
   const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
-  const baseQuantums = Long.fromString(
-    quantums(parseQty(size, perp.spec.scale), perp.spec.scale, perp).toString(),
-    true,
-  )
-  const orderSubticks = Long.fromString(subticks(px, perp.spec.scale, perp).toString(), true)
+  const { baseQuantums, orderSubticks } = await chainNumbers(perp, size, px)
   const builder = ctx.config.dydx.builder ?? undefined
   const clientId = clientIdOf(intent.clientId)
   const short = tif === TIF.ioc
@@ -272,6 +283,65 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
         ),
       )
   return { kind: 'placed', status: short ? 'accepted' : 'resting', detail: `Broadcast ${hash}` }
+}
+
+/**
+ * dYdX has no amend. The cancel and the new order go in one transaction, which the chain runs whole
+ * or not at all (v4-client-js bulkCancelAndTransferAndPlaceStatefulOrders), so a refused new order
+ * leaves the old one open.
+ */
+async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Promise<CommandOutcome> {
+  const [, oldClientId, oldFlags, oldClobPairId] = ref.split(':')
+  if (Number(oldFlags) === FLAGS.short)
+    fail({ kind: 'invalid-order', detail: 'A short-term dYdX order cannot be edited' })
+  if (intent.order.kind !== 'limit' || intent.order.tif === 'ioc')
+    fail({ kind: 'invalid-order', detail: 'An edit rests on the book, so it is a GTC or post-only limit' })
+  const { perp, size, px, tif } = await priced(ctx, intent)
+  const { baseQuantums, orderSubticks } = await chainNumbers(perp, size, px)
+  const { SubaccountInfo } = await sdk()
+  const wallet = await walletOf(mnemonicOf(ctx))
+  const address = wallet.address ?? ''
+  const subaccount = SubaccountInfo.forLocalWallet(wallet, 0)
+  const now = Math.floor(Date.now() / 1000)
+  const hash = await sequenced(address, () =>
+    broadcast(ctx.ref.network, (client) =>
+      client.post.send(
+        subaccount,
+        async () => [
+          await client.post.cancelOrderMsg(
+            address,
+            0,
+            Number(oldClientId),
+            Number(oldFlags),
+            Number(oldClobPairId),
+            0,
+            now + CANCEL_SECONDS,
+          ),
+          await client.post.placeOrderMsg(
+            address,
+            0,
+            clientIdOf(intent.clientId),
+            perp.clobPairId,
+            SIDE[intent.side],
+            baseQuantums,
+            orderSubticks,
+            tif,
+            FLAGS.long,
+            intent.reduceOnly,
+            0,
+            now + LONG_TERM_SECONDS,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            ctx.config.dydx.builder ?? undefined,
+          ),
+        ],
+        false,
+      ),
+    ),
+  )
+  return { kind: 'placed', status: 'resting', detail: `Broadcast ${hash}` }
 }
 
 const IndexerOrder = z.object({
@@ -385,6 +455,8 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
       return place(ctx, command.intent)
     case 'close-all':
       return closeEach(command.intents, (intent) => place(ctx, intent))
+    case 'modify':
+      return modify(ctx, command.order, command.intent)
     case 'cancel':
       await cancel(ctx, command.order)
       return { kind: 'done', detail: 'Cancel broadcast' }

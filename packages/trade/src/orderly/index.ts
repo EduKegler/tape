@@ -20,6 +20,7 @@ import type {
   OpenOrder,
   OrderIntent,
   OrderLookup,
+  OrderRef,
   OrderRules,
   SentOrders,
   SetupStep,
@@ -36,7 +37,7 @@ import { amount, negate, plain } from '../money'
 import { lookupSummary, scaleOutcome, toTick } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
-import { batchBody, cancelPath, orderBody } from './wire'
+import { batchBody, cancelPath, editBody, orderBody } from './wire'
 import type { OrderType } from './wire'
 
 const API: Record<Network, string> = { mainnet: 'https://api.orderly.org', testnet: 'https://testnet-api.orderly.org' }
@@ -120,7 +121,7 @@ function brokerFor(ctx: VenueContext): string {
 
 async function signed<T>(
   ctx: VenueContext,
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   data: z.ZodType<T>,
   body = '',
@@ -129,7 +130,7 @@ async function signed<T>(
   const key = keyOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Enable trading on this device first' })
   const headers = {
     ...signRequest(key, accountId(ctx.ref.owner, brokerFor(ctx)), Date.now(), method, path, body),
-    'content-type': method === 'POST' ? 'application/json' : 'application/x-www-form-urlencoded',
+    'content-type': method === 'POST' || method === 'PUT' ? 'application/json' : 'application/x-www-form-urlencoded',
   }
   const mutates = method !== 'GET'
   const reply = await send(
@@ -341,12 +342,39 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   }
 }
 
+async function modify(ctx: VenueContext, ref: OrderRef, intent: OrderIntent): Promise<CommandOutcome> {
+  const order = intent.order
+  if (order.kind !== 'limit' || intent.triggers.takeProfits.length > 0 || intent.triggers.stopLoss !== null)
+    fail({ kind: 'invalid-order', detail: 'An edit is a limit with no take profit or stop loss' })
+  const { spec } = await networkRules(ctx, intent.spec.venueSymbol)
+  const quantity = wireDecimal(intent.size, intent.spec.scale.qty)
+  const price = wireDecimal(order.px, intent.spec.scale.px)
+  const issue =
+    (checkSize(spec, quantity) && `Size ${quantity}: ${checkSize(spec, quantity)}`)
+    || (checkPrice(spec, price) && `Price ${price}: ${checkPrice(spec, price)}`)
+  if (issue) fail({ kind: 'invalid-order', detail: `${issue} on this network` })
+  const [symbol, orderId] = ref.split(':')
+  const body = editBody(orderId!, {
+    symbol: symbol!,
+    clientOrderId: intent.clientId,
+    type: TYPE[order.tif],
+    side: intent.side === 'buy' ? 'BUY' : 'SELL',
+    price,
+    quantity,
+    reduceOnly: intent.reduceOnly,
+  })
+  const data = await signed(ctx, 'PUT', '/v1/order', z.object({ status: z.string() }), body, classifyOrder)
+  return { kind: 'placed', status: 'accepted', detail: `Edit of order ${orderId}: ${data.status}` }
+}
+
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {
   switch (command.kind) {
     case 'place':
       return place(ctx, command.intent)
     case 'close-all':
       return closeEach(command.intents, (intent) => place(ctx, intent))
+    case 'modify':
+      return modify(ctx, command.order, command.intent)
     case 'cancel': {
       const [symbol, id] = command.order.split(':')
       try {
