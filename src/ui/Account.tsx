@@ -2,13 +2,14 @@ import { useId, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Base, VenueId } from '@tape/core/ids'
-import { leverageOf, orderKindLabel, pnlAt, roeOf } from '@tape/trade/position'
-import type { AccountRef, Capabilities, Command, Fill, OpenOrder, Position } from '@tape/trade/types'
+import { isMovable, leverageOf, orderKindLabel, pnlAt, roeOf } from '@tape/trade/position'
+import type { AccountRef, Capabilities, Command, Fill, OpenOrder, OrderRef, Position } from '@tape/trade/types'
 import { VENUES } from '#/site'
 import { useAccountView, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import type { TradeSession } from '#/trade/hooks'
 import { DepositButton } from './Deposit'
 import { HistoryLink } from './HistoryLink'
+import { MovePanel } from './MovePanel'
 import { Panel, Segmented } from './Panel'
 import { ConfirmAction } from './ConfirmAction'
 import { PositionPanel } from './PositionPanel'
@@ -57,12 +58,10 @@ function message(session: TradeSession) {
   return 'Trading is not available here.'
 }
 
-type Open = {
-  readonly kind: 'position'
-  readonly symbol: string
-  readonly tab: PositionTab
-  readonly from: 'tpsl' | 'close'
-} | null
+type Open =
+  | { readonly kind: 'position'; readonly symbol: string; readonly tab: PositionTab; readonly from: 'tpsl' | 'close' }
+  | { readonly kind: 'order'; readonly ref: OrderRef }
+  | null
 
 function AccountBody({
   account,
@@ -98,6 +97,7 @@ function AccountBody({
     const spec = specOf(venueSymbol)
     return spec ? shownSize(spec, value) : value.replace(/^-/, '')
   }
+  const toggle = (next: Exclude<Open, null>) => (opening: boolean) => setOpen(opening ? next : null)
   const caps = capabilities
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -213,8 +213,35 @@ function AccountBody({
             rows={snapshot.orders}
             price={price}
             size={(order) => size(order.symbol, ordered(order, snapshot.positions))}
+            current={open?.kind === 'order' ? open.ref : null}
             busy={(order) => busy({ kind: 'cancel', order: order.ref })}
             onCancel={(order) => run({ kind: 'cancel', order: order.ref })}
+            move={(order) => {
+              const spec = specOf(order.symbol)
+              const position = snapshot.positions.find((other) => other.symbol === order.symbol) ?? null
+              return {
+                open: open?.kind === 'order' && open.ref === order.ref,
+                onOpenChange: toggle({ kind: 'order', ref: order.ref }),
+                panel:
+                  spec && caps ? (
+                    <>
+                      <AnchoredHead>
+                        Move {spec.base} {side(order.side)}{' '}
+                        <span className="font-normal text-level3">{orderKindLabel(order.kind).toLowerCase()}</span>
+                      </AnchoredHead>
+                      <MovePanel
+                        account={account}
+                        venue={venue}
+                        order={order}
+                        position={position}
+                        spec={spec}
+                        caps={caps}
+                        orders={snapshot.orders}
+                      />
+                    </>
+                  ) : null,
+              }
+            }}
           />
         )}
         {snapshot && tab === 'fills' && <Fills rows={snapshot.fills} />}
@@ -421,14 +448,18 @@ function Orders({
   rows,
   price,
   size,
+  current,
   busy,
   onCancel,
+  move,
 }: {
   rows: readonly OpenOrder[]
   price: (symbol: string, value: string) => string
   size: (o: OpenOrder) => string
+  current: OrderRef | null
   busy: (o: OpenOrder) => boolean
   onCancel: (o: OpenOrder) => void
+  move: (o: OpenOrder) => Managed
 }) {
   const [now] = useState(() => Date.now())
   const columns: Column<OpenOrder>[] = [
@@ -457,8 +488,19 @@ function Orders({
       header: '',
       words: true,
       cell: (order) => {
+        const managed = move(order)
+        const moveButton = (
+          <Button look="secondary" size="sm">
+            Move
+          </Button>
+        )
         return (
           <span className="inline-flex items-center gap-2.5">
+            {isMovable(order) && managed.panel ? (
+              <Anchored open={managed.open} onOpenChange={managed.onOpenChange} trigger={moveButton}>
+                {managed.panel}
+              </Anchored>
+            ) : null}
             {order.cancelable && (
               <Button look="quiet" disabled={busy(order)} onClick={() => onCancel(order)}>
                 Cancel
@@ -469,7 +511,15 @@ function Orders({
       },
     },
   ]
-  return <Table rows={rows} rowKey={(order) => order.ref} columns={columns} empty="No open orders." />
+  return (
+    <Table
+      rows={rows}
+      rowKey={(order) => order.ref}
+      columns={columns}
+      empty="No open orders."
+      rowClass={(order) => (current === order.ref ? 'bg-raised text-level1' : '')}
+    />
+  )
 }
 
 function Fills({ rows }: { rows: readonly Fill[] }) {

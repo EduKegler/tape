@@ -48,6 +48,7 @@ const state = (positions: readonly unknown[]) => ({
 })
 
 const BTC_LONG = position('BTC', '0.01', '80000.0', '800.0', '0.0')
+const RESTING = order('BTC', 41, {})
 const TAKE_PROFIT = order('BTC', 42, {
   side: 'A',
   limitPx: '75600.0',
@@ -153,6 +154,22 @@ test('closing half at a limit rests one reduce-only order', async ({ page, walle
   expect(writes(hyperliquid.sent)[0]?.action.orders).toEqual([
     { a: BTC, b: false, p: '81000', s: '0.005', r: true, t: { limit: { tif: 'Gtc' } }, c: expect.any(String) },
   ])
+})
+
+test('a resting order moves to a typed price in place', async ({ page, wallet: _wallet }) => {
+  const { hyperliquid, account } = await holding(page, [BTC_LONG], [RESTING])
+  await account.getByRole('radio', { name: 'Orders 1' }).click()
+  await account.getByRole('button', { name: 'Move', exact: true }).click()
+  const move = page.getByRole('dialog', { name: 'Move BTC Buy limit' })
+  await expect(move.getByText('Hyperliquid moves it in place')).toBeVisible()
+  await expect(move.getByRole('button', { name: 'Move order' })).toBeDisabled()
+  await move.getByRole('textbox', { name: 'Price', exact: true }).fill('70500')
+  await move.getByRole('button', { name: 'Move to 70,500' }).click()
+  await expect.poll(() => writes(hyperliquid.sent).length).toBe(1)
+  expect(writes(hyperliquid.sent)[0]?.action).toMatchObject({
+    type: 'batchModify',
+    modifies: [{ oid: 41, order: { a: BTC, b: true, p: '70500', s: '0.002', r: false, t: { limit: { tif: 'Gtc' } } } }],
+  })
 })
 
 test('the positions table shows mark, return on margin and the legs', async ({ page, wallet: _wallet }) => {
