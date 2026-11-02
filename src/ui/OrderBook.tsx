@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { shallow } from '@tanstack/store'
 import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
@@ -12,8 +12,23 @@ import { proposePrice } from './ticket-store'
 
 type BookTopic = { kind: 'book'; market: MarketKey; group: string }
 
-const BID_SLOTS = Array.from({ length: BOOK_ROWS }, (_, slot) => slot)
-const ASK_SLOTS = [...BID_SLOTS].reverse()
+const LEVEL = 26
+const SLOTS = Array.from({ length: BOOK_ROWS }, (_, slot) => slot)
+
+function useLevelsThatFit() {
+  const side = useRef<HTMLDivElement>(null)
+  const [count, setCount] = useState(BOOK_ROWS)
+  useEffect(() => {
+    const element = side.current
+    if (!element) return
+    const observer = new ResizeObserver(() =>
+      setCount(Math.min(BOOK_ROWS, Math.max(1, Math.floor(element.clientHeight / LEVEL)))),
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  return { side, slots: SLOTS.slice(0, count) }
+}
 
 export function OrderBook({
   market,
@@ -35,6 +50,7 @@ export function OrderBook({
     shallow,
   )
   const keys = useRowKeys()
+  const { side, slots } = useLevelsThatFit()
   return (
     <Panel
       title="Order book"
@@ -59,14 +75,14 @@ export function OrderBook({
           <span className="text-right">Total</span>
         </div>
         <div role="group" aria-label="Price levels" {...keys} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col">
-            {ASK_SLOTS.map((slot) => (
+          <div ref={side} className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden">
+            {slots.toReversed().map((slot) => (
               <Row key={`a${slot}`} topic={topic} side="asks" index={slot} />
             ))}
           </div>
           <Spread topic={topic} />
-          <div className="flex min-h-0 flex-1 flex-col">
-            {BID_SLOTS.map((slot) => (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {slots.map((slot) => (
               <Row key={`b${slot}`} topic={topic} side="bids" index={slot} />
             ))}
           </div>
@@ -86,18 +102,18 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
       tabIndex={-1}
       aria-hidden={!row.px}
       onClick={() => row.px && proposePrice(row.px)}
-      className="num relative grid min-h-0 w-full flex-1 grid-cols-3 items-center px-3"
+      className="num relative grid h-8 w-full shrink-0 grid-cols-3 items-center px-3"
     >
       <span
         aria-hidden
-        className={`absolute inset-y-0 right-0 w-full origin-right ${ask ? 'bg-ask-wash' : 'bg-bid-wash'}`}
+        className={`absolute inset-y-px right-0 w-full origin-right ${ask ? 'bg-ask-wash' : 'bg-bid-wash'}`}
         style={{ transform: `scaleX(${row.fill})` }}
       />
-      <span className={`relative ${ask ? 'text-ask' : 'text-bid'}`}>
+      <span className={`relative font-medium ${ask ? 'text-ask' : 'text-bid'}`}>
         <span className="sr-only">{ask ? 'Ask' : 'Bid'} </span>
         {row.px}
       </span>
-      <span className="relative text-right text-level1">
+      <span className="relative text-right text-level2">
         <span className="sr-only">size </span>
         {row.qty}
       </span>
@@ -126,7 +142,7 @@ function Spread({ topic }: { topic: BookTopic }) {
     shallow,
   )
   return (
-    <div className="mx-1 my-0.5 flex shrink-0 flex-col justify-center gap-1.5 rounded-md bg-inset p-2">
+    <div className="mx-1.5 flex shrink-0 flex-col justify-center gap-2 rounded-md bg-ground px-2.5 py-1">
       <span
         className={`num flex items-center gap-1.5 text-xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
       >
@@ -138,7 +154,7 @@ function Spread({ topic }: { topic: BookTopic }) {
         )}
         {last.px || summary.mid || '—'}
       </span>
-      <span className="text-xs whitespace-nowrap text-level3">
+      <span className="text-xs leading-none whitespace-nowrap text-level3">
         <span>
           Mid <span className="num">{summary.mid || '—'}</span>
         </span>

@@ -73,7 +73,7 @@ export function Panel({
     >
       {bare && <h2 className="sr-only top-0 left-1">{title}</h2>}
       {!bare && (
-        <header className="flex h-10.5 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
+        <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-rule px-3">
           <div className={`flex min-w-0 gap-x-2 ${lead ? 'items-center self-stretch' : 'flex-wrap items-baseline'}`}>
             <h2 className={lead ? 'sr-only' : 'text-base/none font-semibold whitespace-nowrap text-level1'}>{title}</h2>
             {lead}

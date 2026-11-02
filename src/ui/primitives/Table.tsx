@@ -20,7 +20,6 @@ export function Table<T>({
   onRowClick,
   rowClass,
   detail,
-  dense = false,
 }: {
   rows: readonly T[]
   rowKey: (row: T) => Key
@@ -28,11 +27,10 @@ export function Table<T>({
   empty?: string
   rowClass?: (row: T) => string
   detail?: (row: T) => ReactNode
-  dense?: boolean
 } & RowAction<T>) {
   if (empty !== undefined && rows.length === 0) return <NoData>{empty}</NoData>
   return (
-    <table className={`w-full ${dense ? 'text-xs' : 'text-sm'}`}>
+    <table className="w-full text-sm">
       <thead>
         <tr className="h-6 text-xs text-level3">
           {columns.map((column, index) => (
@@ -56,8 +54,8 @@ export function Table<T>({
                 onKeyDown={onRowClick && ((event) => event.key === 'Enter' && onRowClick(row))}
                 className={`${
                   isCurrent
-                    ? `${dense ? 'h-6' : 'h-7.5'} cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1 aria-current:inset-shadow-current`
-                    : `${dense ? 'h-6' : 'h-7.5'} border-t border-rule text-level2`
+                    ? `h-7.5 cursor-pointer border-t border-rule text-level2 hover:bg-level1/5 aria-current:bg-raised aria-current:text-level1 aria-current:inset-shadow-current`
+                    : `h-7.5 border-t border-rule text-level2`
                 } ${rowClass?.(row) ?? ''}`}
               >
                 {columns.map((column, index) => (
