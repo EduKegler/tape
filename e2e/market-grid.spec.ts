@@ -42,7 +42,7 @@ const centerY = (box: { y: number; height: number } | null) => (box ? box.y + bo
 async function expectOneLine(page: Page) {
   const header = page.getByRole('banner')
   const brand = centerY(await header.getByRole('img', { name: 'Tape' }).boundingBox())
-  const wallet = centerY(await header.getByRole('button', { name: 'Connect wallet' }).boundingBox())
+  const wallet = centerY(await header.getByRole('button', { name: 'Connect', exact: true }).boundingBox())
   expect(Math.abs(brand! - wallet!)).toBeLessThan(1)
 }
 

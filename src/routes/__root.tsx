@@ -6,6 +6,7 @@ import { WagmiProvider } from 'wagmi'
 import type { QueryClient } from '@tanstack/react-query'
 import { HubProvider } from '#/client/hooks'
 import { wagmiConfig } from '#/wallet/config'
+import { ConnectProvider } from '#/wallet/Connect'
 import { useErrorReports, usePageViews } from '#/analytics/track'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
@@ -55,7 +56,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <WagmiProvider config={wagmiConfig}>
-          <HubProvider>{children}</HubProvider>
+          <ConnectProvider>
+            <HubProvider>{children}</HubProvider>
+          </ConnectProvider>
         </WagmiProvider>
         <TanStackDevtools
           config={{

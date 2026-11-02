@@ -50,7 +50,6 @@ export const wagmiConfig = createConfig({
         ]
       : []),
   ],
-  multiInjectedProviderDiscovery: false,
   ssr: true,
   transports: fromKeys(
     chains.map((chain) => chain.id),

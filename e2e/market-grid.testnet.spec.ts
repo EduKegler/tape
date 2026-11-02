@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, openMarket, panel, test } from './fixtures'
 import { fakeHyperliquid } from './hyperliquid'
 
 const PANELS = ['Order ticket', 'Account', 'Chart', 'Order book', 'Trades', 'Depth', 'Venues']
@@ -28,7 +28,7 @@ test('Tab walks the header, the venue strip, the ticket, the account, the market
 }) => {
   await fakeHyperliquid(page, 'testnet')
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }))
   await expect(panel(page, 'Account').getByRole('button', { name: 'Deposit', exact: true })).toBeVisible()
   const stops = await regionsFromHeaderToStatusBar(page)
   expect(stops.filter((region, index) => region !== stops[index - 1])).toEqual([

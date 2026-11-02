@@ -55,6 +55,9 @@ export interface Wallet {
   switchAccount: (to: TestAccount) => Promise<void>
   switchChain: (chainId: number) => Promise<void>
   unanswered: () => readonly string[]
+  /** The next connect request is refused with EIP-1193's 4001, as when the trader says no in the popup. */
+  rejectNextConnect: () => void
+  holdNextConnect: () => () => void
 }
 
 type Emit = readonly ['accountsChanged', readonly Address[]] | readonly ['chainChanged', Hex]
@@ -79,13 +82,19 @@ const UNRECOGNIZED_CHAIN = 4902
 const typedDataHash = ({ domain, types, primaryType, message }: SignRequest) =>
   keccak256(concat(['0x1901', hashDomain({ domain, types }), hashStruct({ data: message, primaryType, types })]))
 
+/** EIP-6963 asks for the icon as a data URI. */
+const ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><rect width="28" height="28" fill="#7084ff"/></svg>')}`
+
 const accountOf = (address: unknown) =>
   (Object.keys(signers) as TestAccount[]).find(
     (name) => typeof address === 'string' && signers[name].address.toLowerCase() === address.toLowerCase(),
   )
 
-/** Starts on Ethereum and knows only the chains a fresh MetaMask ships with, so Arbitrum Sepolia has to be added. */
-export async function installWallet(context: BrowserContext): Promise<Wallet> {
+/**
+ * Starts on Ethereum and knows only the chains a fresh MetaMask ships with, so Arbitrum Sepolia has to be added.
+ * It sits on `window.ethereum` and announces itself through EIP-6963 once under each of `names`.
+ */
+export async function installWallet(context: BrowserContext, names: readonly string[]): Promise<Wallet> {
   const state = {
     selected: 'alice' as TestAccount,
     chainId: 1,
@@ -93,6 +102,8 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
     connected: false,
     asked: [] as Asked[],
     unanswered: [] as string[],
+    reject: false,
+    hold: null as Promise<void> | null,
   }
   const accounts = () => (state.connected ? [ACCOUNTS[state.selected]] : [])
   const emit = async (events: readonly Emit[]) => {
@@ -111,6 +122,15 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
         return { result: numberToHex(state.chainId), emit: [] }
       case 'eth_requestAccounts':
       case 'wallet_requestPermissions': {
+        if (state.hold) {
+          const hold = state.hold
+          state.hold = null
+          await hold
+        }
+        if (state.reject) {
+          state.reject = false
+          return { error: { code: USER_REJECTED, message: 'User rejected the request.' } }
+        }
         state.connected = true
         state.asked.push({ kind: 'connect', account: state.selected })
         const result =
@@ -181,7 +201,7 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
   }
 
   await context.exposeBinding(BINDING, (_source, request: Request) => answer(request))
-  await context.addInitScript(provider, { binding: BINDING, event: EVENT })
+  await context.addInitScript(provider, { binding: BINDING, event: EVENT, names, icon: ICON })
 
   return {
     asked: () => [...state.asked],
@@ -198,11 +218,31 @@ export async function installWallet(context: BrowserContext): Promise<Wallet> {
       await emit([['chainChanged', numberToHex(chainId)]])
     },
     unanswered: () => [...state.unanswered],
+    rejectNextConnect: () => {
+      state.reject = true
+    },
+    holdNextConnect: () => {
+      let release = () => {}
+      state.hold = new Promise((resolve) => {
+        release = resolve
+      })
+      return () => release()
+    },
   }
 }
 
 /** Playwright's addInitScript sends this function as source, so it closes over nothing. */
-function provider({ binding, event }: { binding: string; event: string }) {
+function provider({
+  binding,
+  event,
+  names,
+  icon,
+}: {
+  binding: string
+  event: string
+  names: readonly string[]
+  icon: string
+}) {
   type Listener = (value: unknown) => void
   const listeners = new Map<string, Set<Listener>>()
   const dispatch = (events: readonly (readonly [string, unknown])[]) => {
@@ -227,4 +267,23 @@ function provider({ binding, event }: { binding: string; event: string }) {
     },
   }
   Object.assign(window, { ethereum })
+  const announce = () => {
+    names.forEach((name, index) =>
+      window.dispatchEvent(
+        new CustomEvent('eip6963:announceProvider', {
+          detail: Object.freeze({
+            info: {
+              uuid: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+              name,
+              icon,
+              rdns: `dev.tape.test${index}`,
+            },
+            provider: ethereum,
+          }),
+        }),
+      ),
+    )
+  }
+  window.addEventListener('eip6963:requestProvider', announce)
+  announce()
 }

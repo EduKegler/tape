@@ -1,5 +1,5 @@
 import { fakeDydx } from './dydx'
-import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 const SEPOLIA = 11155111
 
@@ -7,7 +7,7 @@ test('enabling dYdX asks the wallet for the onboarding signature on Sepolia', as
   const dydx = await fakeDydx(page, 'testnet')
   await openMarket(page, '/dydx/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
-  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
   await expect(ticket.getByText('Unlock your dYdX key in this tab')).toBeVisible()
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Enable trading' })).toHaveCount(0)

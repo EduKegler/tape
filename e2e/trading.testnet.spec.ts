@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { Locator, Page, Route } from '@playwright/test'
-import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { ACCEPTED, UNKNOWN_OID, fakeHyperliquid, resting } from './hyperliquid'
 import type { Answer, ExchangeBody } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
@@ -19,7 +19,7 @@ async function connect(page: Page) {
   const hyperliquid = await fakeHyperliquid(page, 'testnet')
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
-  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
   await expect(ticket.getByText('Approve a trading key')).toBeVisible()
   return { hyperliquid, ticket }
 }
@@ -719,7 +719,7 @@ test('a Hyperliquid spot order lists with no cancel, while a perp order keeps it
   })
   hyperliquid.account.frontendOpenOrders = [order('BTC', 11), order('@107', 12)]
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }))
   const account = panel(page, 'Account')
   await account.getByRole('radio', { name: 'Orders 2' }).click()
   const row = (coin: string) => account.getByRole('row').filter({ hasText: coin })
@@ -741,7 +741,7 @@ test('a failed account read says what it could not read, never what it sent, and
   await fakeHyperliquid(page, 'testnet')
   await page.route('https://api.hyperliquid-testnet.xyz/info', noAccountAnswer)
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }))
   const account = panel(page, 'Account')
   await expect(account.getByRole('alert')).toHaveText('Could not read the account. The venue did not answer. Retry', {
     timeout: 15_000,
