@@ -75,7 +75,7 @@ export const AppEvent = z.discriminatedUnion('event', [
     venue,
     command,
     side: z.enum(['buy', 'sell']).optional(),
-    order: z.enum(['limit', 'market', 'scale', 'trailing']).optional(),
+    order: z.enum(['limit', 'market', 'mid', 'scale', 'trailing']).optional(),
     tif: z.enum(keysOf(TIFS)).optional(),
     reduce_only: z.boolean().optional(),
   }),

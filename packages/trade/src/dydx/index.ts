@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { lookupSummary } from '../scale-order'
 import { readReply, send } from '../send'
 import { TradeFailure, orderRef, toDecimal } from '../types'
@@ -188,19 +188,28 @@ async function place(ctx: VenueContext, intent: OrderIntent): Promise<CommandOut
   const sizeIssue = checkSize(perp.spec, size)
   if (sizeIssue) fail({ kind: 'invalid-order', detail: `Size ${size}: ${sizeIssue} on this network` })
   if (intent.order.kind === 'scale') fail({ kind: 'unsupported', detail: 'dYdX takes no scale order from Tape' })
+  const order = intent.order
+  if (intent.reduceOnly && (order.kind === 'mid' || (order.kind === 'limit' && order.tif !== 'ioc')))
+    fail({ kind: 'invalid-order', detail: 'dYdX takes a reduce-only order only as IOC' })
   let px: Px
   let tif: 0 | 1 | 2
-  if (intent.order.kind === 'limit') {
-    px = recheckPx(perp, intent, intent.order.px)
-    tif = TIF[intent.order.tif]
-    if (intent.reduceOnly && tif !== TIF.ioc)
-      fail({ kind: 'invalid-order', detail: 'dYdX takes a reduce-only order only as IOC' })
+  if (order.kind === 'limit') {
+    px = recheckPx(perp, intent, order.px)
+    tif = TIF[order.tif]
   } else {
     const book = await indexer(ctx, `/orderbooks/perpetualMarket/${intent.spec.venueSymbol}`, Orderbook)
-    const far = intent.side === 'buy' ? book.asks[0] : book.bids[0]
-    if (!far) fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
-    px = worstPrice(perp.spec, intent.side, parsePx(far.price, perp.spec.scale), intent.order.slippage)
-    tif = TIF.ioc
+    const [bid, ask] = [book.bids[0], book.asks[0]].map((level) => level && parsePx(level.price, perp.spec.scale))
+    if (order.kind === 'mid') {
+      if (bid === undefined || ask === undefined)
+        fail({ kind: 'invalid-order', detail: 'The book on this network has no mid' })
+      px = midPrice(perp.spec, intent.side, bid, ask)
+      tif = TIF.gtc
+    } else {
+      const far = intent.side === 'buy' ? ask : bid
+      if (far === undefined) fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+      px = worstPrice(perp.spec, intent.side, far, order.slippage)
+      tif = TIF.ioc
+    }
   }
   const { default: Long } = await import('long')
   const { SubaccountInfo, SHORT_BLOCK_FORWARD } = await sdk()

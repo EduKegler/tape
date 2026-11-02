@@ -82,10 +82,14 @@ export type IntentFields = {
   readonly side: Side
   readonly size: Qty
   readonly reduceOnly: boolean
-  /** Market carries no price: the module reads the touch from the network it sends to. */
+  /**
+   * Market and mid carry no price: the module reads the touch from the network it sends to. Mid
+   * rests at the middle of the touch, on the tick on the passive side.
+   */
   readonly order:
     | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
     | { readonly kind: 'market'; readonly slippage: Bps }
+    | { readonly kind: 'mid' }
     | { readonly kind: 'scale'; readonly tif: Exclude<Tif, 'ioc'>; readonly legs: readonly ScaleLeg[] }
     | { readonly kind: 'trailing'; readonly retracement: Retracement; readonly activation: Px | null }
   readonly triggers: { readonly takeProfits: readonly TakeProfit[]; readonly stopLoss: Px | null }

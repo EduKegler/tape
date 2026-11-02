@@ -359,7 +359,7 @@ describe('order intent', () => {
         liquidation: null,
         leverage: null,
       },
-      100 as Bps,
+      { kind: 'market', slippage: 100 as Bps },
     )
     expect(
       intent && { side: intent.side, size: intent.size, reduceOnly: intent.reduceOnly, kind: intent.order.kind },

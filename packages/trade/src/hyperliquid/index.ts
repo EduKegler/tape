@@ -4,7 +4,7 @@ import { parsePx, toDecimals, toQty, wireDecimal } from '@tape/core/fixed'
 import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
-import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
+import { checkExits, checkPrice, checkSize, midPrice, takeProfitField, worstPrice } from '../intent'
 import { lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
@@ -200,10 +200,20 @@ async function placeWires(
     stopLoss: stopLoss === null ? null : parsePx(recheckPx(market, intent, stopLoss, 'Stop loss'), market.spec.scale),
   }
   const order = intent.order
-  const limit =
+  const fixed =
     order.kind === 'limit' ? { px: recheckPx(market, intent, order.px, 'Price'), tif: TIF[order.tif] } : null
   const book =
-    limit === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, market) : null
+    fixed === null || exits.takeProfits.length > 0 || exits.stopLoss !== null ? await touch(ctx, market) : null
+  const limit =
+    fixed
+    ?? (order.kind === 'mid'
+      ? book?.bid != null && book.ask != null
+        ? {
+            px: wireDecimal(midPrice(market.spec, intent.side, book.bid, book.ask), market.spec.scale.px),
+            tif: TIF.gtc,
+          }
+        : fail({ kind: 'invalid-order', detail: 'The book on this network has no mid' })
+      : null)
   if (book) {
     const issues = checkExits(
       intent.side,

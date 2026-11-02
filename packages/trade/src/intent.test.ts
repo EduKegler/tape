@@ -8,6 +8,7 @@ import type { MarketSpec, TickRule } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
 import {
   buildIntent,
+  checkCloseSize,
   checkCount,
   checkExitPrices,
   checkPrice,
@@ -15,6 +16,8 @@ import {
   checkSize,
   checkSkew,
   closeIntent,
+  closeTif,
+  midPrice,
   worstPrice,
 } from './intent'
 import type { IntentDraft } from './intent'
@@ -272,7 +275,7 @@ describe('order intent properties', () => {
             leverage: null,
           }
           const onStep = finerDigit === null && units >= market.step && units % market.step === 0
-          const intent = closeIntent(market, position, slippage as Bps)
+          const intent = closeIntent(market, position, { kind: 'market', slippage: slippage as Bps })
           expect(
             intent && {
               side: intent.side,
@@ -315,6 +318,74 @@ describe('order intent properties', () => {
         expect(passive * (limit - moved)).toBeLessThanOrEqual(0)
         expect(Math.abs(limit - moved)).toBeLessThan(priceTick(market, Math.ceil(moved) as Px))
       }),
+    )
+  })
+})
+
+describe('closing part of a position', () => {
+  const long: Position = {
+    symbol: 'BTC',
+    side: 'long',
+    size: '0.0123' as Decimal,
+    entry: '79000' as Decimal,
+    unrealizedPnl: '12' as Decimal,
+    liquidation: null,
+    leverage: null,
+  }
+
+  it('closes the size given on the other side, reduce-only, at the exit chosen', () => {
+    const exits = [{ kind: 'limit', px: 805_000 as Px, tif: 'gtc' }, { kind: 'mid' }] as const
+    for (const exit of exits)
+      expect(closeIntent(hl, long, exit, 500 as Qty)).toMatchObject({
+        side: 'sell',
+        size: 500,
+        reduceOnly: true,
+        order: exit,
+        triggers: { takeProfits: [], stopLoss: null },
+      })
+    expect(closeIntent(hl, { ...long, side: 'short' }, { kind: 'mid' })).toMatchObject({ side: 'buy', size: 1230 })
+  })
+
+  it('takes a size on the step and no larger than the position', () => {
+    expect(checkCloseSize(hl, long, '0.0123')).toBeUndefined()
+    expect(checkCloseSize(hl, long, '0.005')).toBeUndefined()
+    expect(checkCloseSize(hl, long, '0.0124')).toBe('At most 0.0123')
+    expect(checkCloseSize(hl, long, '')).toBe('Enter a size')
+    expect(checkCloseSize(dydx, long, '0.00005')).toBe('At most 4 decimals')
+  })
+
+  // MsgPlaceOrder.ValidateBasic in v4-chain takes reduce-only only on an IOC.
+  it('rests a limit close where the venue lets reduce-only rest, and sends it IOC on dYdX', () => {
+    expect(closeTif(TRADING.hyperliquid.capabilities)).toBe('gtc')
+    expect(closeTif(TRADING.orderly.capabilities)).toBe('gtc')
+    expect(closeTif(TRADING.dydx.capabilities)).toBe('ioc')
+  })
+})
+
+describe('the mid', () => {
+  it('puts the middle of the touch on the tick on the passive side', () => {
+    // 79990 and 80011 meet at 80000.5. A buy rests at the tick below, a sell at the tick above.
+    expect(midPrice(hl, 'buy', 799_900 as Px, 800_110 as Px)).toBe(800_000)
+    expect(midPrice(hl, 'sell', 799_900 as Px, 800_110 as Px)).toBe(800_010)
+    expect(midPrice(dydx, 'sell', 80_000 as Px, 80_002 as Px)).toBe(80_001)
+    expect(midPrice(dydx, 'buy', 80_000 as Px, 80_001 as Px)).toBe(80_000)
+  })
+
+  it('never takes: a buy at the mid stays between the bid and the mid, a sell between the mid and the ask', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 10_000_000 }),
+        fc.integer({ min: 1, max: 10_000 }),
+        (bidTicks, spreadTicks) => {
+          const bid = bidTicks as Px
+          const ask = (bidTicks + spreadTicks) as Px
+          const buy = midPrice(dydx, 'buy', bid, ask)
+          const sell = midPrice(dydx, 'sell', bid, ask)
+          expect(bid <= buy && 2 * buy <= bid + ask).toBe(true)
+          expect(2 * sell >= bid + ask && sell <= ask).toBe(true)
+          expect(sell - buy).toBe(spreadTicks % 2)
+        },
+      ),
     )
   })
 })

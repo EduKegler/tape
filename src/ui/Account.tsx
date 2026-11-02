@@ -82,7 +82,7 @@ function AccountBody({
     [...(specs.data?.values() ?? [])].find((spec) => spec.venueSymbol === position.symbol)
   const close = (position: Position) => {
     const spec = specOf(position)
-    const intent = spec ? closeIntent(spec, position, slippage) : null
+    const intent = spec ? closeIntent(spec, position, { kind: 'market', slippage }) : null
     setCloseError(
       intent
         ? null

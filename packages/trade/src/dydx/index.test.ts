@@ -4,9 +4,9 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
-import { buildIntent } from '../intent'
+import { buildIntent, closeIntent, closeTif } from '../intent'
 import type { IntentDraft } from '../intent'
-import { TradeFailure, sentOrders } from '../types'
+import { TradeFailure, sentOrders, toDecimal } from '../types'
 import type { Bps, Eip712, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { dydx } from '.'
 
@@ -378,6 +378,57 @@ describe('dydx short-term orders', () => {
       status: 'accepted',
     })
     expect(wire(chain.placeOrder.mock.calls[0])).toMatchObject({ tif: 1, flags: 0, goodTilBlock: 16 })
+  })
+})
+
+describe('dydx closes', () => {
+  const long = {
+    symbol: 'BTC-USD',
+    side: 'long',
+    size: toDecimal('0.002'),
+    entry: toDecimal('79000'),
+    unrealizedPnl: toDecimal('2'),
+    liquidation: null,
+    leverage: null,
+  } as const
+
+  it('sends a limit close as a reduce-only short-term IOC, and refuses a close resting at the mid before any read', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const limit = closeIntent(
+      btc,
+      long,
+      { kind: 'limit', px: 80_500 as Px, tif: closeTif(dydx.capabilities) },
+      10 as Qty,
+    )!
+    expect(await dydx.execute(ctx, { kind: 'place', intent: limit })).toMatchObject({ status: 'accepted' })
+    expect(wire(chain.placeOrder.mock.calls[0])).toMatchObject({ side: 2, tif: 1, flags: 0, quantums: '10000000' })
+    expect(chain.placeOrder.mock.calls[0]?.[8]).toBe(true)
+
+    const { urls, ctx: watched } = indexer(() => markets)
+    expect(
+      await failure(dydx.execute(watched, { kind: 'place', intent: closeIntent(btc, long, { kind: 'mid' })! })),
+    ).toEqual({
+      kind: 'invalid-order',
+      detail: 'dYdX takes a reduce-only order only as IOC',
+    })
+    expect(urls.some((url) => url.includes('/orderbooks/'))).toBe(false)
+  })
+
+  // A touch of 80000 and 80201 has its mid at 80100.5, between the market's 1 USD ticks.
+  it('rests an order at the mid as a long-term order on the tick on the passive side', async () => {
+    chain.reply = { code: 0, hash: 'A1' }
+    const { ctx: booked } = indexer((url) =>
+      url.includes('/orderbooks/') ? { bids: [{ price: '80000' }], asks: [{ price: '80201' }] } : markets,
+    )
+    const opening = { ...intentOf(btc), order: { kind: 'mid' } } as const
+    for (const side of ['buy', 'sell'] as const)
+      expect(await dydx.execute(booked, { kind: 'place', intent: { ...opening, side } })).toMatchObject({
+        status: 'resting',
+      })
+    expect(chain.placeOrder.mock.calls.map(wire)).toEqual([
+      expect.objectContaining({ side: 1, subticks: '8010000000', tif: 0, flags: 64 }),
+      expect.objectContaining({ side: 2, subticks: '8010100000', tif: 0, flags: 64 }),
+    ])
   })
 })
 

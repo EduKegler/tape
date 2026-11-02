@@ -6,7 +6,7 @@ import type { Px, Scale } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
-import { checkPrice, checkSize, worstPrice } from '../intent'
+import { checkPrice, checkSize, midPrice, worstPrice } from '../intent'
 import { post, readReply, send } from '../send'
 import type { Classify } from '../send'
 import { TradeFailure, orderRef, secretHex, toDecimal } from '../types'
@@ -208,7 +208,7 @@ function insidePriceRange(
 const Level = z.object({ price: z.string() })
 const Touch = z.object({ data: z.object({ asks: z.array(Level), bids: z.array(Level) }) })
 
-async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>, side: Side): Promise<Px> {
+async function touchOf(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>) {
   const reply = await send(
     'orderly',
     ctx.fetch,
@@ -217,10 +217,22 @@ async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' 
     unsuccessful,
   )
   const { data } = readReply('orderly', Touch, reply, false)
-  const far = (side === 'buy' ? data.asks : data.bids)[0]
-  return far
-    ? parsePx(plainDecimal(far.price), spec.scale)
-    : fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+  const [bid, ask] = [data.bids[0], data.asks[0]].map(
+    (level) => level && parsePx(plainDecimal(level.price), spec.scale),
+  )
+  return { bid, ask }
+}
+
+async function farTouch(ctx: VenueContext, spec: Pick<MarketSpec, 'venueSymbol' | 'scale'>, side: Side): Promise<Px> {
+  const { bid, ask } = await touchOf(ctx, spec)
+  return (side === 'buy' ? ask : bid) ?? fail({ kind: 'invalid-order', detail: 'The book on this network is empty' })
+}
+
+async function midOf(ctx: VenueContext, spec: OrderRules, side: Side): Promise<Px> {
+  const { bid, ask } = await touchOf(ctx, spec)
+  return bid !== undefined && ask !== undefined
+    ? midPrice(spec, side, bid, ask)
+    : fail({ kind: 'invalid-order', detail: 'The book on this network has no mid' })
 }
 
 async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLookup> {
@@ -303,13 +315,16 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
         price = wireDecimal(intent.order.px, intent.spec.scale.px)
         const issue = checkPrice(spec, price)
         if (issue) fail({ kind: 'invalid-order', detail: `Price ${price}: ${issue} on this network` })
+      } else if (intent.order.kind === 'mid') {
+        price = wireDecimal(await midOf(ctx, spec, intent.side), spec.scale.px)
       } else {
         const range = priceRange ?? fail({ kind: 'unreachable', detail: `Orderly sent no price range for ${symbol}` })
         const [far, mark] = await Promise.all([farTouch(ctx, spec, intent.side), markPrice(ctx, symbol)])
         const worst = worstPrice(spec, intent.side, far, intent.order.slippage)
         price = wireDecimal(insidePriceRange(spec, intent.side, worst, mark, range), spec.scale.px)
       }
-      const type = intent.order.kind === 'limit' ? TYPE[intent.order.tif] : 'IOC'
+      const type =
+        intent.order.kind === 'limit' ? TYPE[intent.order.tif] : intent.order.kind === 'mid' ? TYPE.gtc : 'IOC'
       const body = orderBody({
         symbol,
         clientOrderId: intent.clientId,

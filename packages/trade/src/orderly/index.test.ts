@@ -9,9 +9,9 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
-import { buildIntent } from '../intent'
+import { buildIntent, closeIntent } from '../intent'
 import type { IntentDraft } from '../intent'
-import { TradeFailure, sentOrders } from '../types'
+import { TradeFailure, sentOrders, toDecimal } from '../types'
 import type { Bps, Eip712, KeySlot, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { orderly } from '.'
 
@@ -195,6 +195,59 @@ describe('orderly orders', () => {
         },
       ])
     }
+  })
+
+  it('rests a close at the mid as a reduce-only limit on the tick on the passive side', async () => {
+    // The documented book's mid_price is 77338.35, between the 0.1 ticks 77338.3 and 77338.4.
+    const position = {
+      symbol: 'PERP_BTC_USDC',
+      entry: toDecimal('70000'),
+      unrealizedPnl: toDecimal('1'),
+      liquidation: null,
+      leverage: null,
+    }
+    const cases = [
+      ['long', 'SELL', '77338.4'],
+      ['short', 'BUY', '77338.3'],
+    ] as const
+    for (const [side, wire, price] of cases) {
+      const { ctx, sent } = marketAt('77338.3')
+      const intent = closeIntent(perp, { ...position, side, size: toDecimal('0.002') }, { kind: 'mid' }, 100 as Qty)!
+      expect(await orderly.execute(ctx, { kind: 'place', intent })).toEqual({
+        kind: 'placed',
+        status: 'resting',
+        detail: 'Order 13',
+      })
+      expect(sent).toEqual([
+        MARKET_READS[0],
+        {
+          method: 'POST',
+          url: 'https://testnet-api.orderly.org/v1/order',
+          body: `{"symbol":"PERP_BTC_USDC","client_order_id":"${intent.clientId}","order_type":"LIMIT","order_price":${price},"order_quantity":0.001,"side":"${wire}","reduce_only":true}`,
+        },
+      ])
+    }
+  })
+
+  it('refuses a close at the mid against a book with one side', async () => {
+    const { ctx, sent } = orderlyAt(() => ({
+      body: '{"success":true,"data":{"asks":[],"bids":[{"price":"77337.50","quantity":"0.32"}]}}',
+    }))
+    const long = {
+      symbol: 'PERP_BTC_USDC',
+      side: 'long',
+      size: toDecimal('0.001'),
+      entry: toDecimal('70000'),
+      unrealizedPnl: toDecimal('1'),
+      liquidation: null,
+      leverage: null,
+    } as const
+    const intent = closeIntent(perp, long, { kind: 'mid' })!
+    expect(await failureOf(orderly.execute(ctx, { kind: 'place', intent }))).toEqual({
+      kind: 'invalid-order',
+      detail: 'The book on this network has no mid',
+    })
+    expect(sent).toEqual([MARKET_READS[0]])
   })
 
   it('keeps a market order inside the price range Orderly allows around the mark', async () => {

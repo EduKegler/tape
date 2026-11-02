@@ -6,9 +6,9 @@ import { marketKey } from '@tape/core/ids'
 import type { Base } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
-import { buildIntent, closeIntent } from '../intent'
+import { buildIntent, closeIntent, closeTif } from '../intent'
 import type { TakeProfitDraft } from '../intent'
-import { TradeFailure } from '../types'
+import { TradeFailure, toDecimal } from '../types'
 import type { Bps, Command, KeySlot, OrderRef, StoredKey, VenueContext, WalletSigner } from '../types'
 import { hyperliquid } from '.'
 
@@ -567,7 +567,10 @@ describe('hyperliquid market orders without exits', () => {
       liquidation: null,
       leverage: null,
     } as const
-    const intent = closeIntent(btc, short as Parameters<typeof closeIntent>[1], 100 as Bps)
+    const intent = closeIntent(btc, short as Parameters<typeof closeIntent>[1], {
+      kind: 'market',
+      slippage: 100 as Bps,
+    })
     if (!intent) throw new Error('close')
     const { ctx, sent, posts } = venue(replied('fill'))
     expect(await hyperliquid.execute(ctx, { kind: 'place', intent })).toEqual({
@@ -586,6 +589,55 @@ describe('hyperliquid market orders without exits', () => {
       detail: 'The book on this network is empty',
     })
     expect(posts()).toEqual([])
+  })
+})
+
+describe('hyperliquid closes', () => {
+  const long = {
+    symbol: 'BTC',
+    side: 'long',
+    size: toDecimal('0.002'),
+    entry: toDecimal('79000'),
+    unrealizedPnl: toDecimal('2'),
+    liquidation: null,
+    leverage: null,
+  } as const
+
+  // Order type docs: a Gtc limit rests on the book. A touch of 79990 and 80011 has its mid at 80000.5,
+  // between the 1.0 ticks five significant figures leave at that price.
+  it('rests part of a close at the mid as a reduce-only Gtc limit on the tick on the passive side', async () => {
+    const levels = [[{ px: '79990' }], [{ px: '80011' }]]
+    const cases = [
+      ['long', false, '80001'],
+      ['short', true, '80000'],
+    ] as const
+    for (const [side, isBuy, px] of cases) {
+      const { ctx, posts } = venue(replied('rest'), [], levels)
+      const intent = closeIntent(btc, { ...long, side }, { kind: 'mid' }, 100 as Qty)!
+      expect(await hyperliquid.execute(ctx, { kind: 'place', intent })).toMatchObject({ status: 'resting' })
+      expect(posts()[0]?.body.action).toMatchObject({
+        grouping: 'na',
+        orders: [{ b: isBuy, p: px, s: '0.001', r: true, t: { limit: { tif: 'Gtc' } } }],
+      })
+    }
+  })
+
+  it('rests a limit close at the price given, and refuses a close at the mid against a one-sided book', async () => {
+    const { ctx, posts } = venue(replied('rest'))
+    const limit = closeIntent(btc, long, { kind: 'limit', px: 805_000 as Px, tif: closeTif(hyperliquid.capabilities) })!
+    await hyperliquid.execute(ctx, { kind: 'place', intent: limit })
+    expect(wiresOf(posts()[0])).toEqual({
+      grouping: 'na',
+      orders: [[false, '80500', true, { limit: { tif: 'Gtc' } }]],
+    })
+
+    const oneSided = venue(() => statuses([]), [], [[{ px: '79990' }], []])
+    const mid = closeIntent(btc, long, { kind: 'mid' })!
+    expect(await failureOf(hyperliquid.execute(oneSided.ctx, { kind: 'place', intent: mid }))).toEqual({
+      kind: 'invalid-order',
+      detail: 'The book on this network has no mid',
+    })
+    expect(oneSided.posts()).toEqual([])
   })
 })
 

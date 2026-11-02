@@ -392,18 +392,47 @@ export function buildIntent(spec: MarketSpec, draft: IntentDraft, caps: Capabili
   }
 }
 
-/** A reduce-only market order for the whole position. Null when the size is off this market's step. */
-export function closeIntent(spec: MarketSpec, position: Position, slippage: Bps): OrderIntent | null {
-  const size = position.size.replace(/^-/, '')
-  if (checkSize(spec, size)) return null
+/** How a close takes the position off: at market, at a limit price, or resting at the mid. */
+export type CloseExit =
+  | { readonly kind: 'market'; readonly slippage: Bps }
+  | { readonly kind: 'limit'; readonly px: Px; readonly tif: Tif }
+  | { readonly kind: 'mid' }
+
+/** A limit close rests where the venue lets a reduce-only order rest, and goes IOC elsewhere. */
+export const closeTif = (caps: Pick<Capabilities, 'restingReduceOnly'>): Tif => (caps.restingReduceOnly ? 'gtc' : 'ioc')
+
+const unsigned = (position: Position) => position.size.replace(/^-/, '')
+
+/** A size to close: on this market's step and no more than the position. */
+export function checkCloseSize(spec: MarketSpec, position: Position, value: string): string | undefined {
+  const issue = checkSize(spec, value)
+  if (issue) return issue
+  const whole = unsigned(position)
+  return !checkSize(spec, whole) && parseQty(value, spec.scale) > parseQty(whole, spec.scale)
+    ? `At most ${whole}`
+    : undefined
+}
+
+/**
+ * A reduce-only order that closes `size` of the position, or all of it. Null when the whole size is
+ * off this market's step.
+ */
+export function closeIntent(spec: MarketSpec, position: Position, exit: CloseExit, size?: Qty): OrderIntent | null {
+  const whole = unsigned(position)
+  if (size === undefined && checkSize(spec, whole)) return null
   return intentOf({
     spec,
     side: position.side === 'long' ? 'sell' : 'buy',
-    size: parseQty(size, spec.scale),
+    size: size ?? parseQty(whole, spec.scale),
     reduceOnly: true,
-    order: { kind: 'market', slippage },
+    order: exit,
     triggers: { takeProfits: [], stopLoss: null },
   })
+}
+
+/** The middle of the touch, on the tick on the passive side, so the order rests instead of taking. */
+export function midPrice(spec: Pick<MarketSpec, 'scale' | 'tick'>, side: Side, bid: Px, ask: Px): Px {
+  return toTick(spec, side, (bid + ask) / 2)
 }
 
 export function newClientId(): ClientOrderId {
