@@ -288,7 +288,7 @@ The trading screen fills the viewport from 1024px up. A header (48px) and the ve
 
 Every gap and padding is a step of `SPACING_STEPS`. Gutters between cards and around the grid are 0.625rem (8.1px). Panel titles are 2.75rem (36px) tall with 0.75rem side padding. Table rows are 1.875rem. Book and trade rows are 26px, and the book shows as many levels a side as fit its height.
 
-Below 1024px the panels stack in one column with fixed heights. Below 640px the venue strip stacks its four tabs. The header lays out on one line from 1280px and wraps below.
+Below 1024px the panels stack in one column with fixed heights. Below 640px the venue strip stacks its four tabs. The header lays out on one line from 1024px, where 24h stats that do not fit drop out of view instead of wrapping, so it keeps its height when they land. Below 1024px it wraps.
 
 History uses the same cards and gutters under its own header, with Accounts in a narrow column beside Totals and Fills and funding. Accounts stacks the address form over one block per venue, each cut by a rule. The filter bar sets Venue, Type and the period presets as pills in a well, beside a Market select and the From and To fields.
 

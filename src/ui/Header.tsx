@@ -17,7 +17,7 @@ import { MARK } from './TapeMark'
 export function Header({ venue, base }: { venue: VenueId; base: Base }) {
   const bases = PINNED_BASES.includes(base) ? PINNED_BASES : [...PINNED_BASES, base]
   return (
-    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-surface px-4 py-1.5 xl:h-14.75 xl:flex-nowrap xl:py-0">
+    <header className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-surface px-4 py-1.5 lg:h-14.75 lg:flex-nowrap lg:py-0">
       <Brand />
       <nav aria-label="Market" className="flex shrink-0 items-stretch gap-1 self-stretch">
         {bases.map((marketBase) => (
