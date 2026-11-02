@@ -632,6 +632,7 @@ async function account(ctx: VenueContext): Promise<AccountView> {
         side: position.side === 'LONG' ? 'long' : 'short',
         size: toDecimal(position.size.replace(/^-/, '')),
         entry: toDecimal(position.entryPrice),
+        mark: null,
         unrealizedPnl: toDecimal(position.unrealizedPnl),
         liquidation: null,
         leverage: null,

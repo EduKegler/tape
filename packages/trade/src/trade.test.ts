@@ -355,6 +355,7 @@ describe('order intent', () => {
         side: 'short',
         size: '0.0123' as never,
         entry: '1' as never,
+        mark: null,
         unrealizedPnl: '0' as never,
         liquidation: null,
         leverage: null,
@@ -838,6 +839,7 @@ describe('hyperliquid module', () => {
                 coin: 'BTC',
                 szi: '-0.01',
                 entryPx: '80100.0',
+                positionValue: '801.5',
                 unrealizedPnl: '-1.5',
                 liquidationPx: '95000.5139240506',
                 leverage: { type: 'cross', value: 5 },
@@ -879,6 +881,7 @@ describe('hyperliquid module', () => {
       size: '0.01',
       leverage: '5x cross',
       liquidation: '95000.5',
+      mark: '80150.0',
     })
     expect(view.snapshot.orders[0]).toMatchObject({ ref: '3:589008353129', side: 'buy', px: '70000.0' })
     expect(view.snapshot.fills[0]).toMatchObject({ id: '151386843995060', side: 'sell' })

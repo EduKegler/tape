@@ -565,6 +565,7 @@ const AccountState = z.object({
         coin: z.string(),
         szi: z.string(),
         entryPx: z.string(),
+        positionValue: z.string(),
         unrealizedPnl: z.string(),
         liquidationPx: z.string().nullable(),
         leverage: z.object({ type: z.string(), value: z.string() }),
@@ -613,18 +614,22 @@ async function account(ctx: VenueContext): Promise<AccountView> {
     snapshot: {
       equity: toDecimal(equity),
       available: toDecimal(available),
-      positions: state.assetPositions.map(({ position }) => ({
-        symbol: position.coin,
-        side: position.szi.startsWith('-') ? 'short' : 'long',
-        size: toDecimal(position.szi.replace(/^-/, '')),
-        entry: toDecimal(position.entryPx),
-        unrealizedPnl: toDecimal(position.unrealizedPnl),
-        // An estimate the venue sends unrounded, so it gets the market's price decimals.
-        liquidation: position.liquidationPx
-          ? toDecimal(Number(position.liquidationPx).toFixed(markets.get(position.coin)?.spec.scale.px ?? 6))
-          : null,
-        leverage: `${position.leverage.value}x ${position.leverage.type}`,
-      })),
+      positions: state.assetPositions.map(({ position }) => {
+        const decimals = markets.get(position.coin)?.spec.scale.px ?? 6
+        // Hyperliquid sends the position's value at the mark and no mark, so the mark is that value over the size.
+        const mark = Math.abs(Number(position.positionValue) / Number(position.szi))
+        return {
+          symbol: position.coin,
+          side: position.szi.startsWith('-') ? 'short' : 'long',
+          size: toDecimal(position.szi.replace(/^-/, '')),
+          entry: toDecimal(position.entryPx),
+          mark: Number.isFinite(mark) ? toDecimal(mark.toFixed(decimals)) : null,
+          unrealizedPnl: toDecimal(position.unrealizedPnl),
+          // An estimate the venue sends unrounded, so it gets the market's price decimals.
+          liquidation: position.liquidationPx ? toDecimal(Number(position.liquidationPx).toFixed(decimals)) : null,
+          leverage: `${position.leverage.value}x ${position.leverage.type}`,
+        }
+      }),
       orders: orders.map((order) => openOrderOf(order, markets)),
       fills: fills.slice(0, 20).map((fill) => ({
         id: fill.tid,

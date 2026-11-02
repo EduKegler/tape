@@ -44,6 +44,7 @@ const long: Position = {
   side: 'long',
   size: toDecimal('0.0025'),
   entry: toDecimal('80000'),
+  mark: null,
   unrealizedPnl: toDecimal('1'),
   liquidation: null,
   leverage: null,

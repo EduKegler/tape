@@ -214,6 +214,7 @@ describe('orderly orders', () => {
     const position = {
       symbol: 'PERP_BTC_USDC',
       entry: toDecimal('70000'),
+      mark: null,
       unrealizedPnl: toDecimal('1'),
       liquidation: null,
       leverage: null,
@@ -250,6 +251,7 @@ describe('orderly orders', () => {
       side: 'long',
       size: toDecimal('0.001'),
       entry: toDecimal('70000'),
+      mark: null,
       unrealizedPnl: toDecimal('1'),
       liquidation: null,
       leverage: null,
@@ -967,7 +969,7 @@ describe('orderly reads', () => {
 
 describe('orderly account', () => {
   // The example rows of GET /v1/positions, /v1/orders and /v1/trades in Orderly's OpenAPI spec, plus a closed
-  // position, a long with no liquidation price, a market sell order and a sell fill.
+  // position, a long with no liquidation price or mark, a market sell order and a sell fill.
   const positions = {
     total_collateral_value: 489865.71329,
     free_collateral: 450315.09115,
@@ -977,6 +979,7 @@ describe('orderly account', () => {
         position_qty: -5,
         average_open_price: 27908.14386047,
         unsettled_pnl: 354.858492,
+        mark_price: 27794.9,
         est_liq_price: 117335.92899428,
       },
       { symbol: 'PERP_ETH_USDC', position_qty: 0, average_open_price: 0, unsettled_pnl: 0, est_liq_price: 0 },
@@ -1063,6 +1066,7 @@ describe('orderly account', () => {
             side: 'short',
             size: '5',
             entry: '27908.14386047',
+            mark: '27794.9',
             unrealizedPnl: '354.858492',
             liquidation: '117335.92899428',
             leverage: null,
@@ -1072,6 +1076,7 @@ describe('orderly account', () => {
             side: 'long',
             size: '2.5',
             entry: '150.125',
+            mark: null,
             unrealizedPnl: '-1.5',
             liquidation: null,
             leverage: null,

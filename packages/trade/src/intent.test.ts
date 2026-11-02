@@ -270,6 +270,7 @@ describe('order intent properties', () => {
               ? size
               : `${size}${size.includes('.') ? '' : '.'}00000000${finerDigit}`) as Decimal,
             entry: '1' as Decimal,
+            mark: null,
             unrealizedPnl: '0' as Decimal,
             liquidation: null,
             leverage: null,
@@ -328,6 +329,7 @@ describe('closing part of a position', () => {
     side: 'long',
     size: '0.0123' as Decimal,
     entry: '79000' as Decimal,
+    mark: null,
     unrealizedPnl: '12' as Decimal,
     liquidation: null,
     leverage: null,

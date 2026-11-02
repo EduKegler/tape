@@ -24,6 +24,7 @@ const HOLDING: Record<string, unknown> = {
           coin: 'BTC',
           szi: '0.01',
           entryPx: '80000.0',
+          positionValue: '800.0',
           unrealizedPnl: '0.0',
           liquidationPx: null,
           leverage: { type: 'cross', value: 20 },

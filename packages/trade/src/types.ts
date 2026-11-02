@@ -193,6 +193,8 @@ export interface Position {
   readonly side: 'long' | 'short'
   readonly size: Decimal
   readonly entry: Decimal
+  /** The venue's mark price, null where its account read sends none. */
+  readonly mark: Decimal | null
   readonly unrealizedPnl: Decimal
   readonly liquidation: Decimal | null
   readonly leverage: string | null
