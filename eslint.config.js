@@ -76,6 +76,7 @@ const OXLINT_RULES = new Set(
 // Rules that read the TypeScript program and that Oxlint 1.90 does not have, or has without the
 // no-meaningless-void-operator report on a void that discards no call. eslint.typed.config.js runs them.
 const TYPED_RULES = new Set([
+  '@eslint-react/jsx-no-key-after-spread',
   '@eslint-react/no-leaked-conditional-rendering',
   '@tanstack/query/no-rest-destructuring',
   '@tanstack/query/no-void-query-fn',
@@ -84,6 +85,7 @@ const TYPED_RULES = new Set([
   'regexp/no-missing-g-flag',
   'regexp/no-unused-capturing-group',
   'regexp/no-useless-dollar-replacements',
+  'regexp/no-useless-flag',
 ])
 
 const OXLINT_DIRECTIVE = /^\s*oxlint-(?:disable|enable)/
