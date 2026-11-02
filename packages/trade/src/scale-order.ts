@@ -2,7 +2,7 @@ import { formatQty, toPx, toQty } from '@tape/core/fixed'
 import type { Px, Qty } from '@tape/core/fixed'
 import type { MarketSpec } from '@tape/core/market'
 import { priceTick } from '@tape/core/market'
-import type { ClientOrderId, CommandOutcome, OrderIntent, OrderLookup, Side } from './types'
+import type { CommandOutcome, OrderLookup, Side } from './types'
 
 export const SKEW = { min: 0.1, max: 10 } as const
 
@@ -60,11 +60,6 @@ export function scaleLegs(spec: MarketSpec, side: Side, range: ScaleRange, total
   if (sizes.some((size) => size < spec.step))
     return { ok: false, field: 'size', message: `Each order needs at least ${formatQty(spec.step, spec.scale)}` }
   return { ok: true, legs: prices.map((px, index) => ({ px, size: sizes[index]! })) }
-}
-
-/** Every client id the intent sent: one per leg for a scale order. */
-export function clientIdsOf(intent: OrderIntent): readonly ClientOrderId[] {
-  return intent.order.kind === 'scale' ? intent.order.legs.map((leg) => leg.clientId) : [intent.clientId]
 }
 
 /** One refusal or undefined per leg, in leg order. Refuses the whole order only when every leg was refused. */

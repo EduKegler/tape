@@ -6,9 +6,11 @@ import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
 import { buildIntent } from '../intent'
 import type { IntentDraft } from '../intent'
-import { TradeFailure } from '../types'
-import type { Bps, Eip712, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import { TradeFailure, sentOrders } from '../types'
+import type { Bps, Eip712, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { dydx } from '.'
+
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 const chain = vi.hoisted(() => {
   const state: { reply: unknown } = { reply: undefined }
@@ -244,25 +246,27 @@ describe('dydx key and lookup', () => {
     chain.reply = { code: 0, hash: 'A1' }
     for (const command of [place, { kind: 'cancel', order: 'BTC-USD:7:64:0' as OrderRef } as const])
       expect(await failure(dydx.execute(locked, command))).toMatchObject({ kind: 'needs-setup' })
-    expect(await failure(dydx.lookup(locked, place.intent))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failure(dydx.lookup(locked, sentOf(place.intent)))).toMatchObject({ kind: 'needs-setup' })
     expect(chain.placeOrder).not.toHaveBeenCalled()
 
     const at = (status: number, body: unknown) => indexer(() => new Response(JSON.stringify(body), { status })).ctx
-    expect(await dydx.lookup(at(404, {}), place.intent)).toEqual({
+    expect(await dydx.lookup(at(404, {}), sentOf(place.intent))).toEqual({
       kind: 'absent',
       detail: 'The dYdX indexer has no account for this address',
     })
-    expect(await dydx.lookup(at(200, [{ clientId: '1', status: 'OPEN' }]), place.intent)).toMatchObject({
+    expect(await dydx.lookup(at(200, [{ clientId: '1', status: 'OPEN' }]), sentOf(place.intent))).toMatchObject({
       kind: 'absent',
     })
     const never = recordedWrite('dydx', 'lookupUnknown').exchanges[0]!
-    expect(await dydx.lookup(at(never.status, never.response), place.intent)).toMatchObject({ kind: 'absent' })
-    expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), place.intent))).toMatchObject({ kind: 'unreachable' })
+    expect(await dydx.lookup(at(never.status, never.response), sentOf(place.intent))).toMatchObject({ kind: 'absent' })
+    expect(await failure(dydx.lookup(at(502, 'Bad Gateway'), sentOf(place.intent)))).toMatchObject({
+      kind: 'unreachable',
+    })
   })
 
   it('asks the dYdX testnet indexer about a testnet order', async () => {
     const { urls, ctx: testnet } = indexer(() => [])
-    await dydx.lookup(testnet, place.intent)
+    await dydx.lookup(testnet, sentOf(place.intent))
     // IndexerApiHost.TESTNET in v4-client-js.
     expect(urls[0]?.startsWith('https://indexer.v4testnet.dydx.exchange/v4/orders?')).toBe(true)
   })

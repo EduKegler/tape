@@ -18,6 +18,7 @@ import type {
   OrderIntent,
   OrderLookup,
   OrderRules,
+  SentOrders,
   SetupStep,
   Side,
   StepId,
@@ -29,7 +30,7 @@ import type {
 } from '../types'
 import type { FundingPayment, HistoryFill, VenueHistory } from '../history'
 import { amount, negate, plain } from '../money'
-import { clientIdsOf, lookupSummary, scaleOutcome, toTick } from '../scale-order'
+import { lookupSummary, scaleOutcome, toTick } from '../scale-order'
 import { accountId, addKeyTypedData, orderlyKey, registrationTypedData, signRequest } from './sign'
 import type { OrderlyKey } from './sign'
 import { batchBody, cancelPath, orderBody } from './wire'
@@ -240,9 +241,9 @@ async function lookupOne(ctx: VenueContext, clientId: string): Promise<OrderLook
   }
 }
 
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
   const results: OrderLookup[] = []
-  for (const id of clientIdsOf(intent)) results.push(await lookupOne(ctx, id))
+  for (const id of sent.clientIds) results.push(await lookupOne(ctx, id))
   return lookupSummary(results)
 }
 

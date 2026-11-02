@@ -4,6 +4,7 @@ import { decimalsOf, parsePx, parseQty, wireDecimal } from '@tape/core/fixed'
 import type { Px, Scale } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
 import { checkPrice, checkSize, worstPrice } from '../intent'
+import { lookupSummary } from '../scale-order'
 import { readReply, send } from '../send'
 import { TradeFailure, orderRef, toDecimal } from '../types'
 import type {
@@ -15,6 +16,7 @@ import type {
   OrderLookup,
   OrderRules,
   OrderRef,
+  SentOrders,
   SetupStep,
   StepId,
   TradeError,
@@ -316,14 +318,13 @@ async function openOrders(ctx: VenueContext, address: string): Promise<IndexerOr
 }
 
 /** The indexer has no clientId filter, so the latest orders on the market are searched. */
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
+async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
   const address = addressOf(ctx) ?? fail({ kind: 'needs-setup', detail: 'Unlock the dYdX key in this tab first' })
-  const clientId = String(clientIdOf(intent.clientId))
   let orders: { clientId: string; status: string }[]
   try {
     orders = await indexer(
       ctx,
-      `/orders?address=${address}&subaccountNumber=0&ticker=${intent.spec.venueSymbol}&limit=100&returnLatestOrders=true`,
+      `/orders?address=${address}&subaccountNumber=0&ticker=${sent.venueSymbol}&limit=100&returnLatestOrders=true`,
       z.array(z.object({ clientId: z.string(), status: z.string() })),
     )
   } catch (error) {
@@ -331,10 +332,14 @@ async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLook
       return { kind: 'absent', detail: 'The dYdX indexer has no account for this address' }
     throw error
   }
-  const hit = orders.find((order) => order.clientId === clientId)
-  return hit
-    ? { kind: 'found', detail: `Order ${hit.status.toLowerCase()}` }
-    : { kind: 'absent', detail: 'Not in the dYdX indexer yet. It can lag the chain by a few blocks.' }
+  return lookupSummary(
+    sent.clientIds.map((cloid) => {
+      const hit = orders.find((order) => order.clientId === String(clientIdOf(cloid)))
+      return hit
+        ? { kind: 'found', detail: `Order ${hit.status.toLowerCase()}` }
+        : { kind: 'absent', detail: 'Not in the dYdX indexer yet. It can lag the chain by a few blocks.' }
+    }),
+  )
 }
 
 async function execute(ctx: VenueContext, command: Command): Promise<CommandOutcome> {

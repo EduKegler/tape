@@ -23,7 +23,7 @@ import { accountId, orderlyKey, signRequest } from './orderly/sign'
 import { orderBody } from './orderly/wire'
 import { localSigner } from './typed-data'
 import type { TypedData } from './typed-data'
-import { TradeFailure } from './types'
+import { TradeFailure, sentOrders } from './types'
 import type {
   Bps,
   Command,
@@ -35,6 +35,8 @@ import type {
   VenueContext,
   WalletSigner,
 } from './types'
+
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 interface Exchange {
   readonly method: string
@@ -226,15 +228,18 @@ async function recordHyperliquid(keyFile: string) {
 
   const rest = intentOf(hyperliquid, spec, { price: far, size, ...touch })
   await run('rest', hyperliquid.execute(funded, place(rest)))
-  await run('lookupResting', hyperliquid.lookup(funded, rest))
+  await run('lookupResting', hyperliquid.lookup(funded, sentOf(rest)))
   await run('cancel', hyperliquid.execute(funded, cancel(oidOf('rest'))))
   await run('cancelCanceled', hyperliquid.execute(funded, cancel(oidOf('rest'))))
-  await run('lookupCanceled', hyperliquid.lookup(funded, rest))
-  await run('lookupUnknown', hyperliquid.lookup(funded, intentOf(hyperliquid, spec, { price: far, size, ...touch })))
+  await run('lookupCanceled', hyperliquid.lookup(funded, sentOf(rest)))
+  await run(
+    'lookupUnknown',
+    hyperliquid.lookup(funded, sentOf(intentOf(hyperliquid, spec, { price: far, size, ...touch }))),
+  )
 
   const buy = intentOf(hyperliquid, spec, { kind: 'market', size, ...touch })
   await run('fill', hyperliquid.execute(funded, place(buy)))
-  await run('lookupFilled', hyperliquid.lookup(funded, buy))
+  await run('lookupFilled', hyperliquid.lookup(funded, sentOf(buy)))
   await run('cancelFilled', hyperliquid.execute(funded, cancel(oidOf('fill'))))
   const close = intentOf(hyperliquid, spec, { kind: 'market', side: 'sell', size, reduceOnly: true, ...touch })
   await run('close', hyperliquid.execute(funded, place(close)))
@@ -427,7 +432,7 @@ async function recordDydx() {
   /** The indexer trails the chain by a few blocks, so a lookup waits until it shows the status asked for. */
   const lookupUntil = (intent: OrderIntent, detail: string) => async () => {
     for (let attempt = 0; ; attempt++) {
-      const found = await dydx.lookup(account, intent)
+      const found = await dydx.lookup(account, sentOf(intent))
       if (found.detail === detail || attempt === 20) return found
       take()
       await sleep(2000)
@@ -440,7 +445,7 @@ async function recordDydx() {
   const stranger = await deriveKey(await privateKeyToAccount(generatePrivateKey()).signTypedData(onboarding('testnet')))
   const strangerCtx = ctx(stranger.mnemonic, stranger.address)
   await run('unknownAddress', () => dydx.account(strangerCtx))
-  await run('lookupUnknown', () => dydx.lookup(account, intentOf(dydx, spec, { price: far, size })))
+  await run('lookupUnknown', () => dydx.lookup(account, sentOf(intentOf(dydx, spec, { price: far, size }))))
   await run('unknownAccount', () => dydx.execute(strangerCtx, place(intentOf(dydx, spec, { price: far, size }))))
 
   if (holdsUsdc) {

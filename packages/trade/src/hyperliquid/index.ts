@@ -5,7 +5,7 @@ import type { Px } from '@tape/core/fixed'
 import type { Network } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
 import { checkExits, checkPrice, checkSize, takeProfitField, worstPrice } from '../intent'
-import { clientIdsOf, lookupSummary, scaleOutcome } from '../scale-order'
+import { lookupSummary, scaleOutcome } from '../scale-order'
 import { maintenanceMargin } from '../liquidation'
 import type { MarginState, MarginTier } from '../liquidation'
 import { post, readReply, send } from '../send'
@@ -23,6 +23,7 @@ import type {
   OrderLookup,
   OrderRules,
   OrderRef,
+  SentOrders,
   SetupStep,
   StepId,
   TradeError,
@@ -390,14 +391,9 @@ async function execute(ctx: VenueContext, command: Command): Promise<CommandOutc
 const OrderLookupReply = z.object({ status: z.string(), order: z.object({ status: z.string() }).nullish() })
 
 /** Orders belong to the owner, whichever agent signed them, and `orderStatus` takes the cloid as the oid. */
-async function lookup(ctx: VenueContext, intent: OrderIntent): Promise<OrderLookup> {
-  if (intent.order.kind === 'trailing')
-    fail({
-      kind: 'unsupported',
-      detail: 'Hyperliquid takes no client id on a trailing stop, so it cannot be found by one',
-    })
+async function lookup(ctx: VenueContext, sent: SentOrders): Promise<OrderLookup> {
   const replies = await Promise.all(
-    clientIdsOf(intent).map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
+    sent.clientIds.map((oid) => info(ctx, { type: 'orderStatus', user: ctx.ref.owner, oid }, OrderLookupReply)),
   )
   return lookupSummary(
     replies.map((reply) =>

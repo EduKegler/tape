@@ -18,10 +18,12 @@ import { typedDataDigest } from './typed-data'
 import { claim, release } from './in-flight'
 import { buildIntent, checkExitPrices, closeIntent, splitSize } from './intent'
 import type { IntentDraft, TakeProfitDraft } from './intent'
-import type { Bps, Capabilities, KeySlot, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
-import { TradeFailure } from './types'
+import type { Bps, Capabilities, KeySlot, OrderIntent, OrderRef, StoredKey, TradeConfig, VenueContext } from './types'
+import { TradeFailure, sentOrders } from './types'
 import { domainTypes, walletJson } from './wallet'
 import { TRADING } from './index'
+
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 const btc: MarketSpec = {
   key: marketKey('hyperliquid', 'BTC' as Base),
@@ -993,7 +995,7 @@ describe('orderly module', () => {
       expect(await kindOf(place)).toBe('unknown-outcome')
       const cancel = TRADING.orderly.execute(ctx(reply), { kind: 'cancel', order: 'PERP_BTC_USDC:13' as OrderRef })
       expect(await kindOf(cancel)).toBe('unknown-outcome')
-      expect(await kindOf(TRADING.orderly.lookup(ctx(reply), built.intent))).toBe('unreachable')
+      expect(await kindOf(TRADING.orderly.lookup(ctx(reply), sentOf(built.intent)))).toBe('unreachable')
     }
   })
 
@@ -1088,22 +1090,17 @@ describe('order lookup after an unknown outcome', () => {
       const { fetch, sent } = venue(() => hlRecorded(name))
       const result = await TRADING.hyperliquid.lookup(
         { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
-        intent,
+        sentOf(intent),
       )
       expect(result).toEqual(expected)
       expect(sent[0]?.body).toEqual({ type: 'orderStatus', user: owner, oid: intent.clientId })
     }
   })
 
-  it('does not ask Hyperliquid for a trailing stop, which carries no cloid to find it by', async () => {
+  it('has nothing to find a Hyperliquid trailing stop by, since its action carries no cloid', () => {
     const stop = buildIntent(btc, trailing, caps)
     if (!stop.ok) throw new Error('intent')
-    const { fetch, sent } = venue(() => hlRecorded('lookupUnknown'))
-    const ctx = { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch } as const
-    await expect(TRADING.hyperliquid.lookup(ctx, stop.intent)).rejects.toMatchObject({
-      error: { kind: 'unsupported' },
-    })
-    expect(sent).toEqual([])
+    expect(sentOrders({ kind: 'place', intent: stop.intent })).toBeNull()
   })
 
   it('calls a scale order found when any leg is on Hyperliquid, since legs are judged one by one', async () => {
@@ -1117,7 +1114,7 @@ describe('order lookup after an unknown outcome', () => {
     const { fetch, sent } = venue((_url, body) => hlRecorded(body.oid === second ? 'lookupResting' : 'lookupUnknown'))
     const result = await TRADING.hyperliquid.lookup(
       { ref: { venue: 'hyperliquid', network: 'testnet', owner }, config, keys: memorySlot(), fetch },
-      scale.intent,
+      sentOf(scale.intent),
     )
     expect(result).toEqual({ kind: 'found', detail: '1 of 3 orders on the venue' })
     expect(sent.map((request) => request.body.oid)).toEqual(scale.intent.order.legs.map((leg) => leg.clientId))
@@ -1132,7 +1129,7 @@ describe('order lookup after an unknown outcome', () => {
     ])
     const result = await TRADING.dydx.lookup(
       { ref: { venue: 'dydx', network: 'testnet', owner }, config, keys, fetch },
-      intent,
+      sentOf(intent),
     )
     expect(result).toEqual({ kind: 'found', detail: 'Order filled' })
     expect(sent[0]?.url).toContain(
@@ -1148,17 +1145,17 @@ describe('order lookup after an unknown outcome', () => {
       keys,
       fetch: async () => new Response(JSON.stringify(answer), { status }),
     })
-    expect(await TRADING.orderly.lookup(ctx({ success: true, data: { status: 'NEW' } }), intent)).toEqual({
+    expect(await TRADING.orderly.lookup(ctx({ success: true, data: { status: 'NEW' } }), sentOf(intent))).toEqual({
       kind: 'found',
       detail: 'Order new',
     })
     const missing = orderlyReply('lookup')
-    expect(await TRADING.orderly.lookup(ctx(missing.body, missing.status), intent)).toEqual({
+    expect(await TRADING.orderly.lookup(ctx(missing.body, missing.status), sentOf(intent))).toEqual({
       kind: 'absent',
       detail: 'Orderly has no order with this client id',
     })
     const error = await TRADING.orderly
-      .lookup(ctx({ success: false, message: 'Orderly key not registered' }), intent)
+      .lookup(ctx({ success: false, message: 'Orderly key not registered' }), sentOf(intent))
       .catch((thrown: unknown) => thrown)
     expect(error instanceof TradeFailure && error.error.kind).toBe('needs-setup')
   })

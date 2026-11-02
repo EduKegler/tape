@@ -123,6 +123,22 @@ export type Command =
   | { readonly kind: 'cancel-all'; readonly symbol: string }
   | { readonly kind: 'leverage'; readonly symbol: string; readonly leverage: number }
 
+/** What a write sent that its venue can find again by client id, after a send that ended in unknown-outcome. */
+export interface SentOrders {
+  readonly venueSymbol: string
+  readonly clientIds: readonly ClientOrderId[]
+}
+
+/** Null for a write that carries no client id: a cancel, a leverage change, or a Hyperliquid trailing stop. */
+export function sentOrders(command: Command): SentOrders | null {
+  if (command.kind !== 'place' || command.intent.order.kind === 'trailing') return null
+  const { intent } = command
+  return {
+    venueSymbol: intent.spec.venueSymbol,
+    clientIds: intent.order.kind === 'scale' ? intent.order.legs.map((leg) => leg.clientId) : [intent.clientId],
+  }
+}
+
 /** What the venue says about an order whose send had no answer. `absent` is the venue's own reply, not a timeout. */
 export type OrderLookup =
   { readonly kind: 'found'; readonly detail: string } | { readonly kind: 'absent'; readonly detail: string }
@@ -296,8 +312,8 @@ export interface TradingVenue {
   margin?: (ctx: VenueContext, symbol: string) => Promise<MarginState>
   /** Signs with the slot's key, draft or linked, and lets the venue judge. */
   execute: (ctx: VenueContext, command: Command) => Promise<CommandOutcome>
-  /** Asks the venue for the order by its clientId, after a send that ended in unknown-outcome. */
-  lookup: (ctx: VenueContext, intent: OrderIntent) => Promise<OrderLookup>
+  /** Asks the venue for each order by its clientId, after a send that ended in unknown-outcome. */
+  lookup: (ctx: VenueContext, sent: SentOrders) => Promise<OrderLookup>
   /** Every fill and funding payment the venue still serves, read without a key. */
   history: (request: HistoryRequest) => Promise<VenueHistory>
 }

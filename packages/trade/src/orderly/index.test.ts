@@ -11,9 +11,11 @@ import type { MarketSpec } from '@tape/core/market'
 import { recordedWrite } from '../fixtures'
 import { buildIntent } from '../intent'
 import type { IntentDraft } from '../intent'
-import { TradeFailure } from '../types'
-import type { Bps, Eip712, KeySlot, OrderRef, StepId, StoredKey, VenueContext } from '../types'
+import { TradeFailure, sentOrders } from '../types'
+import type { Bps, Eip712, KeySlot, OrderIntent, OrderRef, StepId, StoredKey, VenueContext } from '../types'
 import { orderly } from '.'
+
+const sentOf = (intent: OrderIntent) => sentOrders({ kind: 'place', intent })!
 
 const perp: MarketSpec = {
   key: marketKey('orderly', 'BTC' as Base),
@@ -437,14 +439,14 @@ describe('orderly lookup', () => {
       status: 401,
       body: '{"success":false,"code":-1002,"message":"Orderly key not found"}',
     }))
-    expect(await failureOf(orderly.lookup(ctx, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failureOf(orderly.lookup(ctx, sentOf(intentOf({}))))).toMatchObject({ kind: 'needs-setup' })
   })
 
   it('asks Orderly for each leg by client order id', async () => {
     const { ctx, sent } = orderlyAt(() => ({ body: '{"success":true,"data":{"status":"NEW"}}' }))
     const intent = intentOf({ kind: 'scale', size: '0.002', start: '80000', end: '79000', count: '2' })
     if (intent.order.kind !== 'scale') throw new Error('scale')
-    await orderly.lookup(ctx, intent)
+    await orderly.lookup(ctx, sentOf(intent))
     expect(sent.map((request) => `${request.method} ${request.url}`)).toEqual(
       intent.order.legs.map((leg) => `GET https://testnet-api.orderly.org/v1/client/order/${leg.clientId}`),
     )
@@ -466,7 +468,7 @@ describe('orderly key', () => {
         kind: 'needs-setup',
         detail: 'Enable trading on this device first',
       })
-    expect(await failureOf(orderly.lookup(bare, intentOf({})))).toMatchObject({ kind: 'needs-setup' })
+    expect(await failureOf(orderly.lookup(bare, sentOf(intentOf({}))))).toMatchObject({ kind: 'needs-setup' })
     expect(sent).toEqual([])
   })
 })
