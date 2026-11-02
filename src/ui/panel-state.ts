@@ -52,3 +52,17 @@ export function panelState({
   if (connection === 'connected' && !quiet) return { data: 'live', connection, text: null }
   return { data: 'stale', connection, text: `${CONNECTION_WORD[connection]} · ${ageText(now - liveAt)}` }
 }
+
+export function readState({
+  readAt,
+  reading,
+  now,
+}: {
+  readAt: number | null
+  reading: boolean
+  now: number
+}): PanelState {
+  if (readAt === null) return { data: 'empty', connection: 'connected', text: reading ? 'Loading…' : null }
+  if (reading) return { data: 'stale', connection: 'connected', text: `Reading… · ${ageText(now - readAt)}` }
+  return { data: 'live', connection: 'connected', text: `Read ${new Date(readAt).toISOString().slice(11, 19)} UTC` }
+}

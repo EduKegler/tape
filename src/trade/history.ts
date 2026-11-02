@@ -23,6 +23,7 @@ export const historyQuery = (venue: TradeVenueId, address: string | null) =>
           )
       : skipToken,
     staleTime: HISTORY_STALE_MS,
+    refetchOnMount: 'always',
     retry: 1,
   })
 

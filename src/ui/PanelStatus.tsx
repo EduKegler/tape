@@ -10,7 +10,7 @@ import { STALE_AFTER_MS, panelState } from './panel-state'
 import type { PanelState } from './panel-state'
 import { Button } from './primitives'
 
-function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => void }) {
+export function PanelStatus({ state, onRetry }: { state: PanelState; onRetry?: () => void }) {
   return (
     <span className="flex min-w-0 items-baseline gap-2 text-xs/tight whitespace-nowrap">
       <span
