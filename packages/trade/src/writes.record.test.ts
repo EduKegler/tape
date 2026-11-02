@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
-import { bytesToHex, hexToBytes } from 'viem'
+import { bytesToHex, hexToBytes, parseSignature } from 'viem'
 import type { Address, Hex } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { decimalsOf, parsePx, parseQty, plainDecimal } from '@tape/core/fixed'
@@ -15,7 +15,7 @@ import type { IntentDraft } from './intent'
 import { dydx } from './dydx'
 import { deriveKey, onboarding, sdk, validatorOf, walletOf } from './dydx/client'
 import { clientIdOf, quantums, subticks } from './dydx/wire'
-import { hyperliquid } from './hyperliquid'
+import { hyperliquid, userAction } from './hyperliquid'
 import { signL1Action } from './hyperliquid/sign'
 import { cancelAction, modifyAction, orderAction, orderWire } from './hyperliquid/wire'
 import { orderly } from './orderly'
@@ -128,6 +128,8 @@ const write = (venue: string, recording: unknown) =>
   )
 
 const HL = 'https://api.hyperliquid-testnet.xyz'
+/** USDC in Hyperliquid testnet's spotMeta, as name:tokenId. */
+const USDC_TESTNET = 'USDC:0xeb62eee3685fc4c43992febcd9e75443'
 
 async function hlInfo<T>(body: unknown): Promise<T> {
   const response = await fetch(`${HL}/info`, {
@@ -457,6 +459,96 @@ async function recordHyperliquid(keyFile: string) {
   if (figures >= spec.scale.px) throw new Error(`${far} leaves no decimal to put a sixth figure in`)
   await pastTapeChecks('offTick', (Number(far) + 10 ** -figures / 2).toFixed(figures + 1), size)
   await pastTapeChecks('offStep', far, (Number(size) + 10 ** -qty / 2).toFixed(qty + 1))
+
+  // A builder fee above the one the owner approved: 1 bp approved, 2 bp sent. Hyperliquid's builder codes docs ask
+  // the builder for 100 USDC of perps account value, so a throwaway builder gets it from the owner and sends it back.
+  const ownerWallet = walletFor(privateKeyToAccount(secret), 421_614)
+  const builderAccount = privateKeyToAccount(throwaway('hyperliquid-builder', generatePrivateKey) as Hex)
+  const builder = builderAccount.address.toLowerCase() as Address
+  const approveBuilder = (maxFeeRate: string) => {
+    const nonce = Date.now()
+    return userAction(
+      funded,
+      ownerWallet,
+      'HyperliquidTransaction:ApproveBuilderFee',
+      { hyperliquidChain: 'Testnet', maxFeeRate, builder, nonce },
+      { type: 'approveBuilderFee' },
+      nonce,
+    )
+  }
+  // The funded account is unified, where Hyperliquid refuses usdSend, so the USDC moves with sendAsset from its
+  // spot balance to the builder's perps, and back. Fields from SEND_ASSET_SIGN_TYPES in Hyperliquid's Python SDK.
+  const sendAsset = async (
+    from: ReturnType<typeof privateKeyToAccount>,
+    destination: Address,
+    sourceDex: string,
+    destinationDex: string,
+    amount: string,
+  ) => {
+    const nonce = Date.now()
+    const message = {
+      hyperliquidChain: 'Testnet',
+      destination,
+      sourceDex,
+      destinationDex,
+      token: USDC_TESTNET,
+      amount,
+      fromSubAccount: '',
+      nonce,
+    }
+    const hex = await localSigner(from).signTypedData({
+      domain: {
+        name: 'HyperliquidSignTransaction',
+        version: '1',
+        chainId: 421_614,
+        verifyingContract: '0x0000000000000000000000000000000000000000',
+      },
+      types: {
+        'HyperliquidTransaction:SendAsset': [
+          { name: 'hyperliquidChain', type: 'string' },
+          { name: 'destination', type: 'string' },
+          { name: 'sourceDex', type: 'string' },
+          { name: 'destinationDex', type: 'string' },
+          { name: 'token', type: 'string' },
+          { name: 'amount', type: 'string' },
+          { name: 'fromSubAccount', type: 'string' },
+          { name: 'nonce', type: 'uint64' },
+        ],
+      },
+      primaryType: 'HyperliquidTransaction:SendAsset',
+      message,
+    })
+    const { r, s, v, yParity } = parseSignature(hex)
+    const response = await fetch(`${HL}/exchange`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: { type: 'sendAsset', signatureChainId: '0x66eee', ...message },
+        nonce,
+        signature: { r, s, v: Number(v ?? BigInt(yParity + 27)) },
+      }),
+    })
+    return response.json()
+  }
+  await run('fundBuilder', sendAsset(privateKeyToAccount(secret), builder, 'spot', '', '103'))
+  await run('approveBuilderFee', approveBuilder('0.01%'))
+  const charged = { ...funded, config: { ...funded.config, hyperliquid: { builder: { b: builder, f: 20 } } } }
+  const overFee = intentOf(hyperliquid, spec, { price: far, size, ...touch })
+  await run('builderFeeAboveApproved', hyperliquid.execute(charged, place(overFee)))
+  const strayOverFee = (await openOrders()).filter((order) => order.coin === coin)
+  take()
+  if (strayOverFee.length > 0)
+    await run(
+      'cancelAboveApproved',
+      exchangeRaw(cancelAction(strayOverFee.map((order) => ({ asset: index, oid: order.oid })))),
+    )
+  await run('revokeBuilderFee', approveBuilder('0%'))
+  const builderState = await hlInfo<{ withdrawable: string }>({ type: 'clearinghouseState', user: builder })
+  take()
+  const refund = Math.floor(Number(builderState.withdrawable) * 100) / 100
+  if (refund > 0) await run('refundBuilder', sendAsset(builderAccount, owner, '', 'spot', String(refund)))
+  process.stdout.write(`builder after ${JSON.stringify(await hlInfo({ type: 'clearinghouseState', user: builder }))}\n`)
+  take()
 
   write('hyperliquid', { network: 'testnet', recordedAt: new Date().toISOString(), owner, coin, asset: index, cases })
   const after = await state()
