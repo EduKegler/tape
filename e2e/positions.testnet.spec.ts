@@ -162,6 +162,25 @@ test('closing half at a limit rests one reduce-only order', async ({ page, walle
   ])
 })
 
+test('a part of a position worth less than the venue minimum shows on the size field and sends nothing', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  const { hyperliquid, account } = await holding(page, [BTC_LONG], [])
+  await account.getByRole('button', { name: 'Close', exact: true }).click()
+  const close = page.getByRole('dialog', { name: /^BTC Long/ })
+  await close.getByRole('radio', { name: 'Limit' }).click()
+  await close.getByRole('textbox', { name: 'Limit price' }).fill('81000')
+  const size = close.getByRole('textbox', { name: 'Size to close' })
+  // Hyperliquid refuses an order worth under 10 USDC, as its error responses page says. 0.0001 at 81000 is 8.10.
+  await size.fill('0.0001')
+  await expect(size).toHaveAccessibleDescription(/^Must be worth at least 10\b/)
+  await expect(close.getByRole('button', { name: 'Close', exact: true })).toBeDisabled()
+  await size.fill('0.0002')
+  await expect(size).toHaveAccessibleDescription('')
+  expect(writes(hyperliquid.sent)).toEqual([])
+})
+
 test('a resting order moves to a typed price in place', async ({ page, wallet: _wallet }) => {
   const { hyperliquid, account } = await holding(page, [BTC_LONG], [RESTING])
   await account.getByRole('radio', { name: 'Orders 1' }).click()

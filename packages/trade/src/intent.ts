@@ -403,14 +403,38 @@ export const closeTif = (caps: Pick<Capabilities, 'restingReduceOnly'>): Tif => 
 
 const unsigned = (position: Position) => position.size.replace(/^-/, '')
 
-/** A size to close: on this market's step and no more than the position. */
-export function checkCloseSize(spec: MarketSpec, position: Position, value: string): string | undefined {
+/**
+ * A size to close at `px`: on this market's step, no more than the position, and worth the venue
+ * minimum unless it closes the whole position, which Hyperliquid lets through. With no `px` yet,
+ * the minimum waits.
+ */
+export function checkCloseSize(spec: MarketSpec, position: Position, value: string, px: Px | null): string | undefined {
   const issue = checkSize(spec, value)
   if (issue) return issue
+  const size = parseQty(value, spec.scale)
   const whole = unsigned(position)
-  return !checkSize(spec, whole) && parseQty(value, spec.scale) > parseQty(whole, spec.scale)
-    ? `At most ${whole}`
-    : undefined
+  const held = checkSize(spec, whole) ? null : parseQty(whole, spec.scale)
+  if (held !== null && size > held) return `At most ${whole}`
+  if (px === null || size === held) return undefined
+  const small = belowMinimum(spec, px, size)
+  return small ? `Must be worth at least ${small}` : undefined
+}
+
+/**
+ * The price a close carries to the venue: its limit, the mid on the passive tick, or the far touch
+ * moved by the slippage. Null until the book has both sides.
+ */
+export function closePrice(
+  spec: Pick<MarketSpec, 'scale' | 'tick'>,
+  position: Pick<Position, 'side'>,
+  exit: CloseExit,
+  touch: { readonly bid: Px | null; readonly ask: Px | null },
+): Px | null {
+  if (exit.kind === 'limit') return exit.px
+  if (touch.bid === null || touch.ask === null) return null
+  const side: Side = position.side === 'long' ? 'sell' : 'buy'
+  if (exit.kind === 'mid') return midPrice(spec, side, touch.bid, touch.ask)
+  return worstPrice(spec, side, side === 'sell' ? touch.bid : touch.ask, exit.slippage)
 }
 
 /**

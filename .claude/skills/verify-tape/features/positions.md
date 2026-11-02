@@ -38,6 +38,6 @@ Preconditions:
 
 - The popover is portalled out of the panel, so scope dialog steps without `--panel`, by the dialog's role and name.
 - `Limit` also names the ticket's order type, so a bare `--role radio --name Limit` matches two radios. Use the `--css` above.
-- Hyperliquid refuses a partial close worth less than 10 USDC with `Order must have minimum value of $10`. Hold at least 25 USDC to close half.
+- Hyperliquid refuses a partial close worth less than 10 USDC, so the Close panel says `Must be worth at least 10.0 USDC` on the size and sends nothing. Hold at least 25 USDC to close half.
 - Testnet books are thin. A market close can come back refused with `Order could not immediately match against any resting orders`, which is the refusal line `Close all` reports.
 - Leave the account clean: cancel every order and close every position before `down`, because the next funded run starts from this account.

@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useSelector } from '@tanstack/react-store'
 import { parsePx, parseQty } from '@tape/core/fixed'
 import { priceTick } from '@tape/core/market'
 import type { MarketSpec } from '@tape/core/market'
-import { checkCloseSize, checkPrice, closeIntent, closeTif } from '@tape/trade/intent'
+import { checkCloseSize, checkPrice, closeIntent, closePrice, closeTif } from '@tape/trade/intent'
 import type { CloseExit } from '@tape/trade/intent'
 import {
   checkStopLoss,
@@ -341,8 +341,23 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
   const [limit, setLimit] = useState('')
   const busy = last.pending || inFlight.length > 0
   const long = position.side === 'long'
-  const sizeError = checkCloseSize(spec, position, size)
   const limitError = how === 'limit' ? (limit ? checkPrice(spec, limit) : 'Drag the limit or type a price') : undefined
+  const exit = (): CloseExit | null => {
+    if (how === 'market') return { kind: 'market', slippage }
+    if (how === 'mid') return { kind: 'mid' }
+    return limitError ? null : { kind: 'limit', px: parsePx(limit, spec.scale), tif: closeTif(caps) }
+  }
+  const sent = exit()
+  const sizeError = checkCloseSize(
+    spec,
+    position,
+    size,
+    sent
+      && closePrice(spec, position, sent, {
+        bid: touch ? nearestTick(spec, touch.bid) : null,
+        ask: touch ? nearestTick(spec, touch.ask) : null,
+      }),
+  )
   const closing = sizeError ? null : parseQty(size, spec.scale)
   const exitPrice =
     how === 'limit' ? finite(typed(limit)) : touch ? (how === 'mid' ? touch.mid : long ? touch.bid : touch.ask) : null
@@ -352,11 +367,6 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
     setHow('limit')
     setLimit(plainPrice(spec, price))
   }
-  const exit = (): CloseExit | null => {
-    if (how === 'market') return { kind: 'market', slippage }
-    if (how === 'mid') return { kind: 'mid' }
-    return limitError ? null : { kind: 'limit', px: parsePx(limit, spec.scale), tif: closeTif(caps) }
-  }
   const kept = closing === null ? null : keptAfter(spec, position, closing)
   const ways: { value: How; label: string }[] = [
     { value: 'market', label: 'Market' },
@@ -364,6 +374,7 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
     ...(caps.restingReduceOnly ? [{ value: 'mid' as const, label: 'Mid' }] : []),
   ]
   const error = sizeError ?? limitError
+  const errorId = useId()
   const at = how === 'limit' ? `at ${limitError ? '' : shownPrice(spec, typed(limit))}` : `at ${how}`
   const armed = (['tp', 'sl'] as const).flatMap((leg) => {
     const order = armedLeg(orders, spec.venueSymbol, leg, caps)
@@ -426,6 +437,7 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
             unit={spec.base}
             value={size}
             aria-invalid={Boolean(sizeError)}
+            aria-describedby={sizeError ? errorId : undefined}
             onChange={(event) => setSize(event.target.value.trim())}
             className="w-34"
           />
@@ -460,6 +472,7 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
               unit={spec.quote}
               value={limit}
               aria-invalid={Boolean(limitError && limit)}
+              aria-describedby={!sizeError && limitError ? errorId : undefined}
               onChange={(event) => {
                 setLimit(event.target.value.trim())
                 const price = typed(event.target.value)
@@ -472,7 +485,7 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
         {error ? (
           <span className="flex items-center gap-1 text-xs text-level1">
             <ErrorMark className="size-3 shrink-0" />
-            {error}
+            <span id={errorId}>{error}</span>
           </span>
         ) : (
           <span className="text-xs text-level3">
@@ -492,10 +505,9 @@ function Close(ctx: Ctx & { readonly touch: Touch | null }) {
           look={long ? 'ask' : 'bid'}
           size="tall"
           className="w-full"
-          disabled={Boolean(error) || busy || !exit()}
+          disabled={Boolean(error) || busy || !sent}
           onClick={() => {
-            const chosen = exit()
-            const intent = chosen && closing !== null ? closeIntent(spec, position, chosen, closing) : null
+            const intent = sent && closing !== null ? closeIntent(spec, position, sent, closing) : null
             if (intent) run({ kind: 'place', intent })
           }}
         >
