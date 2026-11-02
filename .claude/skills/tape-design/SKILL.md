@@ -47,7 +47,7 @@ The title bar is one line, 34 px high, in every state, so panels side by side ke
 - A price warning is its own level, apart from an error, and never blocks.
 - While sending, the button says `Sending…` and the form locks.
 - After an unknown outcome, resend stays locked until the venue answers or the trader resends on purpose.
-- A plain order goes out with no dialog. Closing a position, cancelling all orders and forgetting the trading key confirm in two steps. Close puts its step on a full-width row under the position, so the columns hold; the others swap their button for the step in place.
+- A plain order goes out with no dialog. Closing a position, cancelling all orders, forgetting the trading key and disconnecting the wallet confirm in two steps. Close puts its step on a full-width row under the position, so the columns hold, and the address chip opens a small `Popover` that grows from it like the connect panel; the others swap their button for the step in place.
 
 ## Motion
 
@@ -63,9 +63,9 @@ A dialog and the panel state fade in with `animate-fade-in`. Prices, sizes, book
 
 ### The connect flow
 
-Connecting a wallet is the one motion exception beside the wash, because it is the trader's own act and happens about once a session. `src/wallet/Connect.tsx` plays it, in the connect panel, the address chip and the ticket's submit slot only:
+Connecting a wallet is the one motion exception beside the wash, because it is the trader's own act and happens about once a session. `src/wallet/Connect.tsx` and `src/wallet/Disconnect.tsx` play it, in the connect panel, the address chip, the disconnect panel and the ticket's submit slot only:
 
-- the panel's surface grows from the clicked button and shrinks back into it, or into the address chip once connected;
+- the panel's surface grows from the clicked button and shrinks back into it, or into the address chip once connected. The disconnect panel grows from the chip the same way and fades out on Disconnect;
 - the rows rise into place, and a faint light crosses a row on hover;
 - the chosen wallet's icon moves from its row into the handshake;
 - the feed of 16 holes lights from Tape toward the wallet while the wallet decides, Tape's only loop, unwinds in coral on a refusal and fills with the accent on success;

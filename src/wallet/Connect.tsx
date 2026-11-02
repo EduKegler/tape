@@ -9,7 +9,7 @@ import { Button, Popover, TextLink } from '#/ui/primitives'
 import { TapeMark } from '#/ui/TapeMark'
 import { INJECTED_ID, browserWallets, connectFailure, waitClock } from './flow'
 import type { ConnectFailure } from './flow'
-import { fade, flip, morph, nextFrame, play, reducedMotion, rise, sleep } from './motion'
+import { fade, flip, foldInto, growFrom, morph, nextFrame, play, reducedMotion, rise, sleep } from './motion'
 import { PairingQr } from './PairingQr'
 import { useWalletSettled } from './settled'
 
@@ -217,14 +217,8 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
     busy.current = true
     settle()
     setLanding('idle')
-    const reduced = reducedMotion()
     const source = opener.current?.isConnected ? opener.current.getBoundingClientRect() : null
-    const own = layer.current?.getBoundingClientRect()
-    void fade(backdrop.current, 0, reduced ? 100 : 220)
-    if (!reduced && source && source.width > 0 && own) {
-      void fade(body.current, 0, 90)
-      await morph(layer.current, source, own, { duration: 300, back: true, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' })
-    } else await fade(layer.current?.parentElement ?? null, 0, 100)
+    await foldInto({ layer: layer.current, backdrop: backdrop.current, body: body.current }, source)
     setOpen(false)
     setOpenerId(null)
     busy.current = false
@@ -242,15 +236,7 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
     if (!pending || !root) return
     const reduced = reducedMotion()
     if (pending.kind === 'open') {
-      if (reduced) {
-        void fade(backdrop.current, 1, 120)
-        void fade(layer.current?.parentElement ?? null, 1, 140)
-        return
-      }
-      void fade(backdrop.current, 1, 240)
-      void rise(root.querySelectorAll('[data-stagger]'), { from: 90, step: 28 })
-      const own = layer.current?.getBoundingClientRect()
-      if (own) void morph(layer.current, pending.from, own, { duration: 440 })
+      void growFrom({ layer: layer.current, backdrop: backdrop.current, body: root }, pending.from)
       return
     }
     root.querySelector<HTMLElement>('[data-focus]')?.focus({ preventScroll: true })
@@ -485,7 +471,7 @@ function WalletRow({
   )
 }
 
-function WalletTile({ connector, className }: { connector: Connector; className: string }) {
+export function WalletTile({ connector, className }: { connector: Connector; className: string }) {
   if (connector.icon) return <img data-tile src={connector.icon} alt="" className={`shrink-0 ${className}`} />
   if (isPhone(connector))
     return (

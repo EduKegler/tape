@@ -6,6 +6,11 @@ type Place = { readonly top: number; readonly right: number }
 
 const GAP_PX = 6
 
+const SIZES = {
+  md: { width: 'w-md', body: 'p-5', head: 'mb-5', title: 'text-lg' },
+  sm: { width: 'w-80', body: 'p-4', head: 'mb-3', title: 'text-base' },
+} as const
+
 function placeUnder(anchor: HTMLElement): Place {
   const bottom = (anchor.closest('header') ?? anchor).getBoundingClientRect().bottom
   return { top: bottom + GAP_PX, right: document.documentElement.clientWidth - anchor.getBoundingClientRect().right }
@@ -16,6 +21,7 @@ export function Popover({
   onClose,
   anchor,
   title,
+  size = 'md',
   initialFocus,
   finalFocus,
   layerRef,
@@ -27,6 +33,7 @@ export function Popover({
   onClose: () => void
   anchor: HTMLElement | null
   title: string
+  size?: keyof typeof SIZES
   initialFocus?: () => HTMLElement | null
   finalFocus?: () => HTMLElement | null
   layerRef?: Ref<HTMLDivElement>
@@ -35,6 +42,7 @@ export function Popover({
   children: ReactNode
 }) {
   const [place, setPlace] = useState<Place | null>(null)
+  const look = SIZES[size]
   useLayoutEffect(() => {
     if (!open || !anchor) return
     const measure = () => setPlace(placeUnder(anchor))
@@ -55,16 +63,16 @@ export function Popover({
           initialFocus={initialFocus && (() => initialFocus() ?? true)}
           finalFocus={finalFocus && (() => finalFocus() ?? true)}
           style={place ?? undefined}
-          className="fixed z-dialog w-md text-sm outline-none"
+          className={`fixed z-dialog ${look.width} text-sm outline-none`}
         >
           <div
             ref={layerRef}
             aria-hidden
             className="absolute inset-0 origin-top-left rounded-md border border-rule bg-raised"
           />
-          <div ref={bodyRef} className="relative p-5">
-            <div data-stagger className="mb-5 flex items-center justify-between gap-3">
-              <BaseDialog.Title className="text-lg font-semibold text-level1">{title}</BaseDialog.Title>
+          <div ref={bodyRef} className={`relative ${look.body}`}>
+            <div data-stagger className={`${look.head} flex items-center justify-between gap-3`}>
+              <BaseDialog.Title className={`${look.title} font-semibold text-level1`}>{title}</BaseDialog.Title>
               <BaseDialog.Close
                 aria-label="Close"
                 className="-m-1.5 grid size-8 place-items-center rounded-md text-level3 hover:bg-level1/8 hover:text-level1 motion-safe:transition-colors"
