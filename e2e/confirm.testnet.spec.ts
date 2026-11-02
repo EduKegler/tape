@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
-import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { fakeHyperliquid } from './hyperliquid'
 import type { ExchangeBody } from './hyperliquid'
 
@@ -58,7 +58,7 @@ async function holding(page: Page) {
   })
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
-  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
   await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toBeVisible()
   const account = panel(page, 'Account')

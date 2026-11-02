@@ -25,6 +25,8 @@
   --warn: #e2a93b;
   --err: #ff8466;
   --selection: rgb(239 235 226 / 0.2);
+  --option: rgb(236 235 232 / 0.06);
+  --option-hover: rgb(236 235 232 / 0.1);
 }
 
 @theme {
@@ -68,13 +70,85 @@
   --ease-*: initial;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --transition-duration-fast: 120ms;
+  --transition-duration-sheen: 620ms;
 
   --animate-*: initial;
   --animate-fade-in: fade-in var(--transition-duration-fast) var(--ease-out);
+  --animate-feed: feed 960ms linear infinite;
+  --animate-feed-fill: feed-fill 120ms linear both;
+  --animate-feed-unwind: feed-unwind 700ms linear both;
+  --animate-pop: pop 300ms var(--ease-out) both;
+  --animate-module: module 260ms var(--ease-out) both;
+  --animate-scan: scan 2.4s cubic-bezier(0.45, 0, 0.55, 1) 600ms infinite alternate;
+  --animate-wipe: wipe 520ms var(--ease-out) 160ms both;
 
   @keyframes fade-in {
     from {
       opacity: 0;
+    }
+  }
+
+  @keyframes feed {
+    0% {
+      background-color: var(--accent);
+    }
+    18%,
+    100% {
+      background-color: color-mix(in srgb, var(--level3) 15%, transparent);
+    }
+  }
+
+  @keyframes feed-fill {
+    from {
+      background-color: color-mix(in srgb, var(--level3) 15%, transparent);
+    }
+    to {
+      background-color: var(--accent);
+    }
+  }
+
+  @keyframes feed-unwind {
+    0% {
+      background-color: color-mix(in srgb, var(--level3) 15%, transparent);
+    }
+    25% {
+      background-color: var(--err);
+    }
+    100% {
+      background-color: color-mix(in srgb, var(--err) 25%, transparent);
+    }
+  }
+
+  @keyframes pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.15);
+    }
+  }
+
+  @keyframes module {
+    from {
+      opacity: 0;
+      transform: scale(0.2);
+    }
+  }
+
+  @keyframes scan {
+    to {
+      transform: translateY(calc(18rem - 3px));
+    }
+  }
+
+  @keyframes wipe {
+    from {
+      clip-path: inset(0 100% 0 0 round var(--radius-md));
+    }
+    to {
+      clip-path: inset(0 0 0 0 round var(--radius-md));
     }
   }
 }
@@ -99,6 +173,8 @@
   --color-ask-wash: var(--ask-wash);
   --color-warn: var(--warn);
   --color-err: var(--err);
+  --color-option: var(--option);
+  --color-option-hover: var(--option-hover);
 }
 
 * {

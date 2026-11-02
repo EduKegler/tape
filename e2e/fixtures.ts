@@ -1,17 +1,26 @@
 import { existsSync, readFileSync } from 'node:fs'
 import AxeBuilder from '@axe-core/playwright'
 import { test as base, expect } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import type { Network } from '@tape/core/ids'
 import { RECORDED_AT } from './replay/clock'
 import { restRecording } from './replay/feed'
 import { installWallet } from './wallet'
 import type { Wallet } from './wallet'
 
+export const TEST_WALLET = 'Test Wallet'
+
 const fixtures = new URL('../packages/venues/src/__fixtures__/', import.meta.url)
 
-export const test = base.extend<{ network: Network; escaped: string[]; consoleErrors: string[]; wallet: Wallet }>({
+export const test = base.extend<{
+  network: Network
+  walletNames: readonly string[]
+  escaped: string[]
+  consoleErrors: string[]
+  wallet: Wallet
+}>({
   network: ['mainnet', { option: true }],
+  walletNames: [[TEST_WALLET], { option: true }],
   escaped: [
     async ({ context }, use) => {
       const escaped: string[] = []
@@ -48,8 +57,8 @@ export const test = base.extend<{ network: Network; escaped: string[]; consoleEr
     },
     { auto: true },
   ],
-  wallet: async ({ context }, use) => {
-    const wallet = await installWallet(context)
+  wallet: async ({ context, walletNames }, use) => {
+    const wallet = await installWallet(context, walletNames)
     await use(wallet)
     expect(wallet.unanswered(), 'wallet methods the app called that the test wallet does not answer').toEqual([])
   },
@@ -68,6 +77,18 @@ export async function openMarket(page: Page, path: string) {
   await page.goto(path)
   await expect(panel(page, 'Order book').getByText(/^Spread .* bps$/)).toBeVisible()
   await expect(tickerPlaceholders(page)).toHaveCount(0)
+}
+
+export const connectPanel = (page: Page) => page.getByRole('dialog', { name: 'Connect a wallet' })
+
+export async function connectWallet(page: Page, opener: Locator) {
+  await opener.click()
+  await connectPanel(page)
+    .getByRole('button', { name: new RegExp(`^${TEST_WALLET}`) })
+    .click()
+  await expect(connectPanel(page)).toHaveCount(0)
+  const chip = page.getByRole('banner').getByRole('button', { name: /^0x/ })
+  await expect(chip).toHaveText((await chip.getAttribute('aria-label')) ?? '')
 }
 
 const BLOCKING_IMPACT = new Set(['serious', 'critical'])

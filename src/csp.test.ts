@@ -94,6 +94,13 @@ describe('content security policy', () => {
     expect(script).toBe("script-src 'self' 'nonce-abc' 'wasm-unsafe-eval'")
   })
 
+  it('shows the icons wallets announce through EIP-6963, which come as data URIs', () => {
+    const images = contentSecurityPolicy('abc', 'testnet', false)
+      .split('; ')
+      .find((directive) => directive.startsWith('img-src'))
+    expect(images).toBe("img-src 'self' data:")
+  })
+
   it('opens the WalletConnect relay and verify frame only to builds that offer it', () => {
     const directive = (wc: boolean, name: string) =>
       contentSecurityPolicy('abc', 'testnet', wc)

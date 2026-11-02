@@ -24,6 +24,8 @@ colors:
   warn: "#e2a93b"
   err: "#ff8466"
   selection: "rgb(239 235 226 / 0.2)"
+  option: "rgb(236 235 232 / 0.06)"
+  option-hover: "rgb(236 235 232 / 0.1)"
 typography:
   display:
     fontFamily: "Martian Mono Variable, ui-monospace, monospace"
@@ -187,6 +189,20 @@ components:
     typography: "{typography.body}"
     rounded: "{rounded.sm}"
     padding: "1rem"
+  connect-panel:
+    backgroundColor: "{colors.raised}"
+    textColor: "{colors.level2}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    width: "28rem"
+    padding: "1.25rem"
+  wallet-row:
+    backgroundColor: "{colors.option}"
+    textColor: "{colors.level1}"
+    typography: "{typography.title}"
+    rounded: "{rounded.lg}"
+    height: "3.75rem"
+    padding: "0 0.75rem"
   status-bar:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.level3}"
@@ -204,7 +220,7 @@ The market sits on graphite. Four venues, a chart, a book, a tape and a ticket s
 
 The screen is dense and built for hours of glances. The root type size is 13px, so every rem in the code is 13px: a 1rem gap is 13px and the 0.625rem gutter is 8.1px. Words are Inter. Numbers are Martian Mono pressed to 75% width with a slashed zero, so a column of prices lines up and reads as one block. Depth comes from three graphite steps, never from shadows.
 
-Movement is rare and means something. One animation, the wash, plays when the trader's own order fills and when a venue newly takes the best bid or ask. Prices, sizes, book rows and trades never move.
+Movement is rare and means something. One animation, the wash, plays when the trader's own order fills and when a venue newly takes the best bid or ask. Connecting a wallet is the one exception: the button grows into a panel, the wait runs a feed from Tape to the wallet, and the panel lands in the address chip. Prices, sizes, book rows and trades never move.
 
 **Key Characteristics:**
 - Graphite cards (rounded 0.5rem) on a darker ground, with 8.1px gutters.
@@ -212,7 +228,7 @@ Movement is rare and means something. One animation, the wash, plays when the tr
 - Every number in narrow Martian Mono, every word in Inter.
 - Green and red for side and direction only. Amber for age. Coral with a drawn mark for failure.
 - No shadows. Current things are raised one graphite step.
-- One signature motion, the 900ms wash, and nothing else that draws the eye.
+- One signature motion, the 900ms wash, and one exception, the connect flow. Nothing else draws the eye.
 
 ## Colors
 
@@ -239,6 +255,7 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 - **Level 2** (level2): body text and table cells. The page default.
 - **Level 3** (level3): labels, headers, chain names, hints, idle tabs.
 - **Ink** (ink) and **Ink Contrast** (ink-contrast): the primary button and text on any filled side color.
+- **Option** (option) and **Option Hover** (option-hover): level1 at 6% and 10% over raised graphite, for the rows of a choice inside a panel, such as the wallets in the connect panel, and for secondary buttons that sit on raised graphite.
 
 ### Named Rules
 **The Trader's Light Rule.** The off-white accent marks only what the trader chose or did: the current choice, keyboard focus, their fill. The market never gets it.
@@ -303,7 +320,8 @@ Inside a card, structure is drawn with 1px rule lines, never with nested boxes. 
 Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Shape:** medium radius (0.375rem).
 - **Primary:** off-white ink fill with graphite text, weight 500. Disabled turns raised graphite with a rule ring and level2 text.
-- **Secondary:** raised graphite with level1 text; hover lifts it with level1 at 12%.
+- **Secondary:** raised graphite with level1 text; hover lifts it with level1 at 12%. On raised graphite it takes the option fill instead, and option hover.
+- **Connect:** one primary button, Connect, in the header and on History. The ticket keeps Connect wallet in its submit slot. Either one opens the connect panel.
 - **Buy / Sell:** the submit at the ticket's foot, at least 2.75rem tall, filled bid or ask, graphite text. It reads Buy / Long BTC or Sell / Short BTC at 18px 600. For a limit or market order with a valid size, a 12px 500 second line states size, price and venue, such as 0.01 BTC at 77,614 on Hyperliquid. With no wallet, Connect wallet takes the same slot: primary, full width, at least 2.75rem tall.
 - **Quiet and link:** level3 text that turns level1 on hover; a link is level1 and underlined.
 - **Focus:** the global 2px off-white ring at a 2px offset.
@@ -350,15 +368,38 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 
 ### The wash (signature motion)
 - A background tint of the accent: 20% at the start, 15% at 35%, clear at 900ms, eased with `cubic-bezier(0.33, 1, 0.68, 1)`.
-- It plays on the trader's fill (the outcome block and the changed position row) and on a venue tab that takes the best price. Nothing else uses it.
-- Under reduced motion it holds a still 12% tint for 900ms and then clears. This is the only motion not gated by `motion-safe:`, because it carries information and does not move.
-- The only other animation is a 120ms fade-in for dialogs and panel state, behind `motion-safe:`.
+- It plays on the trader's fill (the outcome block and the changed position row), on a venue tab that takes the best price, and on the wallet and the address chip that just connected. Nothing else uses it.
+- Under reduced motion it holds a still 12% tint for 900ms and then clears. It is the only class-drawn motion not gated by `motion-safe:`, because it carries information and does not move.
+- The only other animations are a 120ms fade-in for dialogs and panel state, behind `motion-safe:`, and the connect flow.
+
+### The connect flow (motion exception)
+Connecting a wallet is the trader's own act, done about once a session, so it is the one place besides the wash where the screen moves. It plays only in the connect panel, the address chip and the ticket's submit slot, eased with `cubic-bezier(0.16, 1, 0.3, 1)`.
+- **Open:** the panel's surface grows from the button that was clicked, by transform and radius, in 440ms, and its rows rise 6px into place 28ms apart.
+- **Hover:** a faint light crosses a wallet row in 620ms, and its arrow steps right.
+- **Choose:** the other rows step out, the chosen wallet's icon moves from its row into the handshake, and the panel's height follows the view.
+- **Wait:** the feed's holes light one after another from Tape toward the wallet, a 960ms loop, while the clock counts tenths. It is Tape's only loop, and it stops when the wallet answers.
+- **Refused:** the holes unwind toward Tape in coral, and the drawn mark pops onto the line.
+- **QR:** the modules appear from the center out within 300ms, and a scan line sweeps the code while Tape waits for the phone. The scan line and the light on a row are Tape's only gradients.
+- **Connected:** the holes fill with the accent and the wallet's icon plays the wash. Then the panel shrinks into the address chip, the address settles left to right in about 350ms like a ticker on a print, and the chip plays the wash. The ticket's submit wipes from Connect wallet to what comes next.
+- **Close:** the panel shrinks back into the button it came from in 300ms.
+- Under reduced motion the panel and its views only fade, the feed holds still, nothing moves or staggers, and the chip shows the still wash.
 
 ### Dialog
 - Raised graphite, rule border, small radius, 1rem padding, a 60% black backdrop. Title in 13px level1. A lock reason shows as a level1 note with an amber left rule.
 
+### Connect panel
+- A popover under the header's wallet slot, right edges aligned, 28rem wide, on raised graphite with a rule border and the medium radius, over a 40% black backdrop. The title is 18px 600 in level1, with a drawn close.
+- Under "In this browser", one row per wallet the browser announces through EIP-6963, with the wallet's own icon, its name in title type and a Detected tag in level2. Under "On your phone", a WalletConnect row, only in builds with a project id. A footer over a rule says that connecting shares the address and that nothing is signed until the trader enables trading on a venue.
+- With no wallet in the browser, an option block says No wallet in this browser and links Rabby and MetaMask. WalletConnect stays.
+- Above the footer, one level3 line at 11px tells a trader who signed in to Hyperliquid with email to export that wallet with Export Email Wallet, linked to Hyperliquid's docs, and import it into their wallet. It shows with or without a browser wallet.
+- The wait is a handshake: the Tape mark, a feed of 16 holes, and the wallet's icon, with "Waiting for" the wallet, where to approve, and a wait clock in Martian Mono 22px 600 over "since the request". Cancel goes back to the list.
+- A refusal says Connection rejected, then the drawn mark and that the wallet said no and nothing was shared. Any other error says Connection failed with the first line of the error. Other wallet and Try again sit under it.
+- The WalletConnect QR shows in the same panel, dark modules on the accent inside a graphite frame, with Back and Copy link. Once the phone approves, the panel goes to the handshake.
+- Connected, it says Connected over the address in display type, then shrinks into the address chip in the header.
+- Escape, a click outside and Close shut it. Focus stays inside while it is open and goes back to the button that opened it, or to the address chip once connected.
+
 ### Navigation
-- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right.
+- The header is graphite: the lockup and the Testnet chip, the market links (level3, level1 with the selected underline when current), market search, the ticker, then History and the wallet on the right. The wallet is Connect, or the network select and the address chip.
 
 ## Do's and Don'ts
 
@@ -376,7 +417,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Don't** use the accent for market data or for emphasis. It is the trader's.
 - **Don't** use green or red for a warning, an error or decoration.
 - **Don't** animate prices, sizes, book rows, trades or charts. A change in the market gets a direction mark only.
-- **Don't** add a second animation or play the wash for anything but the trader's fill or a venue taking the best price.
+- **Don't** add a second animation outside the connect flow, or play the wash for anything but the trader's fill, a venue taking the best price, or a wallet that just connected.
 - **Don't** add drop shadows, glows or blur. Depth is the graphite steps.
 - **Don't** use full rounding or radii outside sm, md and lg.
 - **Don't** set words in Martian Mono, or numbers in Inter outside sentences and canvas.

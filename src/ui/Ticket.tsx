@@ -41,7 +41,8 @@ import type { Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
 import { useFrame, useFrameEffect } from '#/client/hooks'
-import { useUsdcBalance, WalletButton } from '#/wallet/Wallet'
+import { ConnectButton, useConnectFlow } from '#/wallet/Connect'
+import { useUsdcBalance } from '#/wallet/Wallet'
 import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
 import { ErrorMark } from './ErrorMark'
 import { EnableTrading } from './EnableTrading'
@@ -823,6 +824,7 @@ function SubmitArea({
 }) {
   const fixId = useId()
   const summaryId = useId()
+  const { landing } = useConnectFlow()
   const label = `${side === 'buy' ? 'Buy / Long' : 'Sell / Short'} ${base}`
   const why = fix && !canSubmit ? fixId : undefined
   const told = phase === 'idle' && summary ? summaryId : undefined
@@ -856,27 +858,61 @@ function SubmitArea({
       )}
     </>
   )
-  switch (session.status) {
-    case 'read-only':
-      return session.cause === 'venue-not-traded' ? (
-        <p className="text-xs/snug text-level3">{venue} is read only in Tape. It never signs or sends an order here.</p>
-      ) : (
-        <SiteReadOnly />
-      )
-    case 'unavailable':
-      return <p className="text-sm text-level3">{session.reason}.</p>
-    case 'disconnected':
-      return <WalletButton wide />
-    case 'setup':
-      return (
-        <>
-          <EnableTrading session={session} />
-          {session.keyed && button}
-        </>
-      )
-    case 'ready':
-      return button
+  const shown =
+    landing === 'holding' && (session.status === 'setup' || session.status === 'ready')
+      ? 'disconnected'
+      : session.status
+  return <Arrival key={shown === 'disconnected' ? 'off' : 'on'}>{slot()}</Arrival>
+
+  function slot() {
+    if (shown === 'disconnected') return <ConnectButton wide />
+    switch (session.status) {
+      case 'read-only':
+        return session.cause === 'venue-not-traded' ? (
+          <p className="text-xs/snug text-level3">
+            {venue} is read only in Tape. It never signs or sends an order here.
+          </p>
+        ) : (
+          <SiteReadOnly />
+        )
+      case 'unavailable':
+        return <p className="text-sm text-level3">{session.reason}.</p>
+      case 'disconnected':
+        return <ConnectButton wide />
+      case 'setup':
+        return (
+          <>
+            <EnableTrading session={session} />
+            {session.keyed && button}
+          </>
+        )
+      case 'ready':
+        return button
+    }
   }
+}
+
+function Arrival({ children }: { children: ReactNode }) {
+  const { landing } = useConnectFlow()
+  const [wiping, setWiping] = useState(landing === 'landing')
+  return (
+    <div className="relative">
+      {wiping && (
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 hidden min-h-11 items-center justify-center rounded-md bg-ink text-base font-medium text-ink-contrast motion-safe:flex"
+        >
+          Connect wallet
+        </div>
+      )}
+      <div
+        className={`relative flex flex-col gap-2 ${wiping ? 'motion-safe:animate-wipe' : ''}`}
+        onAnimationEnd={(event) => event.target === event.currentTarget && setWiping(false)}
+      >
+        {children}
+      </div>
+    </div>
+  )
 }
 
 function MainnetWalletUsdc() {

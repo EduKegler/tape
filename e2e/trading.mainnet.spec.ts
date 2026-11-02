@@ -1,7 +1,7 @@
 import { VENUE_IDS } from '@tape/core/ids'
 import { isTradeVenue } from '@tape/trade/types'
 import { fakeChains } from './chain'
-import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { fakeHyperliquid } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
 
@@ -17,7 +17,7 @@ for (const venue of VENUE_IDS.filter(isTradeVenue))
     const chains = await fakeChains(page, 'mainnet')
     chains.fund(1, ACCOUNTS.alice, { native: 0n, tokens: { [USDC]: 25_000_000n } })
     await openMarket(page, `/${venue}/BTC?interval=1m`)
-    await page.getByRole('button', { name: 'Connect wallet' }).click()
+    await connectWallet(page, page.getByRole('banner').getByRole('button', { name: 'Connect', exact: true }))
 
     const ticket = panel(page, 'Order ticket')
     await expect(ticket.getByText('Mainnet is read only in Tape.')).toBeVisible()

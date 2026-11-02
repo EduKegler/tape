@@ -8,7 +8,7 @@ description: Tape's visual system. Use before changing how any Tape screen looks
 Tape's look lives in code, and this skill points at it instead of repeating it:
 
 - `src/styles.css` holds the tokens. `:root` has the colors, and `@theme` closes every Tailwind scale to Tape's steps.
-- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Search`, `Select`, `Table` and `TextLink`. Base UI enters only through them.
+- `src/ui/primitives/` holds `Button`, `Checkbox`, `Dialog`, `InlineInput`, `Input`, `NoData`, `Popover`, `Search`, `Select`, `Table` and `TextLink`. Base UI enters only through them.
 - `src/ui/Panel.tsx` frames every panel. `src/ui/panel-state.ts` and `src/ui/PanelStatus.tsx` say what state a panel is in.
 - `scripts/check-contrast.mjs` lists every color pair the primitives and the panel state draw.
 - `DESIGN.md` describes the system in prose, with `.impeccable/design.json` beside it.
@@ -54,11 +54,26 @@ The title bar is one line, 34 px high, in every state, so panels side by side ke
 The wash is Tape's one signature. An off-white tint starts at 20 %, holds near 15 % for the first third and clears by 900 ms on `cubic-bezier(0.33, 1, 0.68, 1)`. It plays on:
 
 - the trader's own fill: the order outcome and the position row the fill changed;
-- a venue tab that newly takes the best bid or ask, at most once every 2 s per venue, never on the first frame and never for a venue that just came live.
+- a venue tab that newly takes the best bid or ask, at most once every 2 s per venue, never on the first frame and never for a venue that just came live;
+- the wallet and the address chip that just connected.
 
 `src/ui/wash.ts` and `src/ui/lead.ts` decide when. The `wash` utility in `src/styles.css` draws it, and it is the one animation outside `motion-safe:`: under `prefers-reduced-motion` it shows a still 12 % tint and clears at once, because a fill must still be seen. Draw it as an overlay under the content, never over the text.
 
 A dialog and the panel state fade in with `animate-fade-in`. Prices, sizes, book rows, new trades, the ticket total and balances hold still. Every other animation sits behind `motion-safe:`.
+
+### The connect flow
+
+Connecting a wallet is the one motion exception beside the wash, because it is the trader's own act and happens about once a session. `src/wallet/Connect.tsx` plays it, in the connect panel, the address chip and the ticket's submit slot only:
+
+- the panel's surface grows from the clicked button and shrinks back into it, or into the address chip once connected;
+- the rows rise into place, and a faint light crosses a row on hover;
+- the chosen wallet's icon moves from its row into the handshake;
+- the feed of 16 holes lights from Tape toward the wallet while the wallet decides, Tape's only loop, unwinds in coral on a refusal and fills with the accent on success;
+- the QR's modules appear from the center out and a scan line sweeps it. The scan line and the row light are Tape's only gradients;
+- the wait clock counts tenths, and the address settles left to right like a ticker. They are the only figures that move while read, and both belong to the trader;
+- the ticket's submit wipes from Connect wallet to what comes next.
+
+The moves that need a measured rect run on the Web Animations API through `src/wallet/motion.ts`, which lint cannot gate, so each one checks `reducedMotion()` first. The rest are tokens in `src/styles.css` behind `motion-safe:`. Under reduced motion the panel and its views only fade, the feed holds still, and the chip shows the still wash. Nothing else borrows these moves.
 
 ## Guardrails
 
@@ -81,7 +96,7 @@ Review catches the rest. A screen that shows one of these goes back:
 - a shadow on a card, a side stripe on a row or a note, or a colored pill on every state;
 - weight above 600, or 600 outside a key number;
 - off-white on anything the trader does not own, or color carrying a meaning alone;
-- a number that moves while the trader reads it, or a wash on anything but a fill or a lift.
+- a number that moves while the trader reads it, or a wash on anything but a fill, a lift or a wallet that just connected, outside the connect flow above.
 
 ## Evidence
 

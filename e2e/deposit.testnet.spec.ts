@@ -1,7 +1,7 @@
 import { encodeFunctionData, erc20Abi } from 'viem'
 import type { Page } from '@playwright/test'
 import { fakeChains } from './chain'
-import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { fakeHyperliquid } from './hyperliquid'
 import { ACCOUNTS } from './wallet'
 
@@ -15,7 +15,7 @@ async function openDeposit(page: Page) {
   const chains = await fakeChains(page, 'testnet')
   chains.fund(ARBITRUM_SEPOLIA, ACCOUNTS.alice, { native: 10n ** 16n, tokens: { [BRIDGE_USDC]: 50_000_000n } })
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  await panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }))
   await panel(page, 'Account').getByRole('button', { name: 'Deposit' }).click()
   const dialog = page.getByRole('dialog', { name: 'Deposit USDC to Hyperliquid perps' })
   return { dialog, chains, amount: dialog.getByRole('textbox', { name: 'Amount (USDC)' }) }

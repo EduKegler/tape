@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
 import { fakeOrderly } from './orderly'
 import { ACCOUNTS } from './wallet'
 
@@ -17,7 +17,7 @@ async function enable(page: Page) {
   const orderly = await fakeOrderly(page, 'testnet')
   await openMarket(page, '/orderly/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
-  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
   await expect(ticket.getByText('Register an Orderly account')).toBeVisible()
   await expectAccessible(page)
   await ticket.getByRole('button', { name: 'Enable trading' }).click()
@@ -118,7 +118,7 @@ test('a setup step already done reads done in text', async ({ page, wallet: _wal
   orderly.registered.value = true
   await openMarket(page, '/orderly/BTC?interval=1m')
   const ticket = panel(page, 'Order ticket')
-  await ticket.getByRole('button', { name: 'Connect wallet' }).click()
+  await connectWallet(page, ticket.getByRole('button', { name: 'Connect wallet' }))
   const steps = ticket.getByRole('listitem')
   await expect(steps).toHaveText(['Register an Orderly account, done', 'Add a trading key'])
 })
