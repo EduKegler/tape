@@ -144,11 +144,11 @@ function Spread({ topic }: { topic: BookTopic }) {
   return (
     <div className="mx-1.5 flex shrink-0 flex-col justify-center gap-2 rounded-md bg-ground px-2.5 py-1">
       <span
-        className={`num flex items-center gap-1.5 text-xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+        className={`num flex items-baseline gap-1.5 text-xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
       >
         {last.side && (
           <>
-            <SideMark side={last.side} className="size-3.5" />
+            <SideMark side={last.side} className="size-5" />
             <span className="sr-only">Last {last.side === 'buy' ? 'buy' : 'sell'} </span>
           </>
         )}

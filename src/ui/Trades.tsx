@@ -79,7 +79,7 @@ export function Trades({ market, source }: { market: MarketKey; source: string }
                   className={`num absolute inset-x-0 grid h-8 grid-cols-[1fr_1fr_auto] items-center gap-2 px-3 ${item.index === 0 ? 'bg-raised inset-shadow-newest' : ''}`}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  <span className={`flex items-center gap-1 ${trade.side === 'buy' ? 'text-bid' : 'text-ask'}`}>
+                  <span className={`flex items-baseline gap-1 ${trade.side === 'buy' ? 'text-bid' : 'text-ask'}`}>
                     <SideMark side={trade.side} className="size-2.5" />
                     <span className="sr-only">{trade.side === 'buy' ? 'Buy' : 'Sell'} </span>
                     {trade.px}
