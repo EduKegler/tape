@@ -67,11 +67,11 @@ function Ticker({ venue, base }: { venue: VenueId; base: Base }) {
         <div>
           <dt className="sr-only">Last price</dt>
           <dd
-            className={`num flex items-center gap-1.5 text-2xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
+            className={`num flex items-baseline gap-1.5 text-2xl leading-none font-semibold ${last.side === 'sell' ? 'text-ask' : last.side === 'buy' ? 'text-bid' : 'text-level1'}`}
           >
             {last.side && (
               <>
-                <SideMark side={last.side} className="size-4" />
+                <SideMark side={last.side} className="size-5.5" />
                 <span className="sr-only">{last.side === 'buy' ? 'Buy' : 'Sell'} </span>
               </>
             )}
