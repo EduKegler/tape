@@ -81,7 +81,7 @@ try {
 if (failed.length > 0) {
   console.error(`\n${failed.length} of ${commits.length} commits since ${base} fail pnpm verify on their own.`)
   console.error(`Fix each in the commit that broke it: git commit --fixup=<sha>, then`)
-  console.error(`GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash ${base}. See Commits in CLAUDE.md.`)
+  console.error(`GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash ${base}. See Commits in CONTRIBUTING.md.`)
   process.exit(1)
 }
 console.log(`verify ok: ${commits.length} commits since ${base}`)

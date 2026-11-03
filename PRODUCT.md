@@ -48,7 +48,7 @@ Tape has no server between the trader and the venue. One SharedWorker keeps one 
 
 - Live venue data on mainnet and testnet, and recorded frames in `packages/venues/src/__fixtures__/` and the e2e replay.
 - Approved screens of the current look in `.claude/skills/tape-design/reference/`.
-- No users, testimonials, volumes or benchmarks beyond the render numbers in the README. None may be invented.
+- No users, testimonials, volumes or benchmarks beyond the render numbers in `docs/architecture.md`. None may be invented.
 
 ## Product Principles
 
