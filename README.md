@@ -36,40 +36,4 @@ pnpm dev
 VITE_NETWORK=testnet pnpm dev
 ```
 
-```bash
-pnpm verify   # package boundaries, typecheck of each package and the app, no notes in the public repo, import cycles, lint, format, unused code, tests
-pnpm verify --docs # only the format check and check-public, what a markdown-only change runs
-pnpm verify:commits # pnpm verify on each commit since origin/main, as the pre-push hook and CI run it, or pnpm verify --docs on a markdown-only commit
-pnpm e2e # Playwright journeys on the testnet and mainnet production builds over the recorded replay, with all outside network blocked
-pnpm build
-pnpm fixtures # re-record venue fixtures
-pnpm fixtures:history # re-record trade history fixtures
-RECORD_WRITES=dydx pnpm fixtures:writes # re-record one venue's testnet write replies, Hyperliquid also takes RECORD_WRITES_HL_KEY_FILE
-node scripts/capture.mjs # screenshot and social preview from a running preview server
-```
-
-Every night `.github/workflows/nightly.yml` records each venue on mainnet and testnet and replays it through the parsers, opens the testnet build against the live venues, and runs `pnpm e2e` in Firefox and WebKit.
-
-`pnpm preview` serves the last build with `wrangler dev`, in workerd, the runtime Cloudflare runs.
-
-Deploys and build variables are in [Deploy](docs/deploy.md).
-
-## Layout
-
-A pnpm workspace. The app sits at the root and imports three packages through `workspace:*`. The packages ship TypeScript source with no build step, so Vite and Vitest read them like app code and HMR reaches them.
-
-```
-packages/core     @tape/core: ids, fixed point, market rules, book sync
-packages/venues   @tape/venues: one market data adapter per venue, plus recorded fixtures
-packages/trade    @tape/trade: one trading module per venue behind TradingVenue
-src/core          the hub protocol: topics, frames, projections
-src/hub           the worker: sockets, connection state machine, projections
-src/client        the tab side: hub connection, store registry, hooks
-src/trade         React hooks, key storage and env config for @tape/trade
-src/ui            screen components
-src/wallet        wagmi config and the wallet button
-```
-
-Packages never import React or the app. `scripts/check-packages.mjs` runs first in `pnpm verify` and fails on an import a package does not declare, an import of `#/`, or a cycle between packages. A package reads no env: the app passes `TradeConfig` in the venue context.
-
-To add a package, create `packages/<name>` with a `package.json` named `@tape/<name>` (`private: true`, `exports` pointing at `src`), a `tsconfig.json` that extends `../../tsconfig.base.json`, and add its `tsc -p` to the `typecheck` script.
+The commands, the layout and the rules for a change are in [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,3 +1,7 @@
+# Tape
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before you change anything. Its rules apply to agents as they do to people.
+
 <!-- intent-skills:start -->
 ## Skill Loading
 
