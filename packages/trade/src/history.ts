@@ -177,7 +177,7 @@ type CsvRow = Record<(typeof CSV_COLUMNS)[number], string>
 
 const field = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value)
 
-/** RFC 4180 with CRLF, oldest first. The README's History CSV section is the column contract. */
+/** RFC 4180 with CRLF, oldest first. `docs/history-csv.md` is the column contract. */
 export function toCsv(fills: readonly RealizedFill[], funding: readonly FundingPayment[], network: Network): string {
   const common = (entry: HistoryFill | FundingPayment) => ({
     time_utc: new Date(entry.time).toISOString(),
