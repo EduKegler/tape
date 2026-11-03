@@ -1,0 +1,62 @@
+name: Bug report
+description: Something on screen is wrong, or an action did not do what it said.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never paste a private key, a seed phrase or a Tape trading key. To report a vulnerability, use the private report in SECURITY.md instead.
+  - type: dropdown
+    id: site
+    attributes:
+      label: Where
+      options:
+        - tape.kegler.dev
+        - tape.testnet.kegler.dev
+        - A local build
+    validations:
+      required: true
+  - type: dropdown
+    id: venue
+    attributes:
+      label: Venue
+      options:
+        - Binance
+        - Hyperliquid
+        - dYdX
+        - Orderly
+        - More than one, or none
+    validations:
+      required: true
+  - type: input
+    id: market
+    attributes:
+      label: Market and page
+      placeholder: /hyperliquid/BTC
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: Chrome 142 on macOS
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you did, in order.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: What the screen showed. Paste the venue's words if it showed any, and add a screenshot.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true

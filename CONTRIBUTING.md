@@ -72,6 +72,8 @@ Every commit passes `pnpm verify` on its own, which sets the order: the cleanup 
 
 A PR carries one ticket. Tickets go in one PR only when they touch the same files. Branch each PR from `main`, never from another open PR. Each PR costs two CI runs of about 4 minutes, one per push to it and one for the merge to `main`, and a small PR is easier to review and to revert.
 
+The PR template asks what changed, why, and how you checked it. A change on screen carries a screenshot.
+
 ## Coding agents
 
 You can write code with an agent. You answer for every line you submit: read it, run it, and write the PR description yourself. A test whose expected value an agent copied from the code under test proves nothing, as Tests explains.
