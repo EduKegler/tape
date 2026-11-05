@@ -1,6 +1,6 @@
 # Deploy
 
-Mainnet is the Worker `tape` and testnet is `tape-testnet`. A push to `main` that passes `verify` and `e2e` runs the `deploy` job in `.github/workflows/verify.yml`, which builds each network and runs `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The build reads every `VITE_` variable of the GitHub environment named after the network. A changed variable reaches the site only through a deploy, so the `deploy` workflow also runs by hand for one network and builds `main` with that environment. Both keep the check that `main` still points at the built commit. The Worker reads `POSTHOG_KEY` and `POSTHOG_HOST` from its own variables in Cloudflare, which a deploy keeps.
+Mainnet is the Worker `tape` and testnet is `tape-testnet`. A push to `main` that passes `verify` and `e2e` runs the `deploy` job in `.github/workflows/verify.yml`, which builds each network and runs `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The build reads every `VITE_` variable of the GitHub environment named after the network. A changed variable reaches the site only through a deploy, so the `deploy` workflow also runs by hand for one network and builds `main` with that environment. Both keep the check that `main` still points at the built commit. The Worker reads `POSTHOG_KEY` and `POSTHOG_HOST` from its own variables in Cloudflare, which a deploy keeps. Cloudflare's version URLs are off, so a rollback leaves no older build reachable.
 
 ## Build variables
 

@@ -84,6 +84,8 @@ export default defineConfig(({ command, mode }) => {
             name: VITE_NETWORK === 'mainnet' ? 'tape' : 'tape-testnet',
             // `wrangler deploy` deletes the variables set in the dashboard unless this keeps them.
             keep_vars: true,
+            // Cloudflare keeps a public URL for each version, and a rollback leaves it serving that build. `wrangler deploy` changes this setting only when the field is present.
+            preview_urls: false,
           },
         },
         routeRules: {
