@@ -4,6 +4,8 @@ import type { Network } from '@tape/core/ids'
 import { expect, expectAccessible, openMarket, panel, test } from './fixtures'
 
 const TITLE_SUFFIX: Record<Network, string> = { mainnet: '', testnet: ' testnet' }
+const BINANCE_YELLOW_AT_10_PERCENT_OVER_GRAPHITE = 'rgb(40, 36, 20)'
+const DYDX_VIOLET_AT_10_PERCENT_OVER_GRAPHITE = 'rgb(27, 27, 44)'
 
 test('the root opens Hyperliquid BTC on the 1m chart', async ({ page, network }) => {
   await page.goto('/')
@@ -62,6 +64,18 @@ test('a market the venue lists but Tape leaves out never reads as unlisted', asy
   await page.goto('/dydx/PEPE')
   await expect(page.getByRole('heading', { name: 'Tape does not show PEPE on dYdX' })).toBeVisible()
   await expect(page.getByText('dYdX does not list it, or Tape leaves it out.')).toBeVisible()
+})
+
+test('the page and the chart name the selected venue', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?interval=1m')
+  const shell = page.locator('[data-venue]')
+  const chart = panel(page, 'Chart')
+  await expect(shell).toHaveCSS('background-color', BINANCE_YELLOW_AT_10_PERCENT_OVER_GRAPHITE)
+  await expect(chart.getByText('BTC-USDT · Binance')).toBeVisible()
+
+  await page.getByRole('navigation', { name: 'Venue' }).getByRole('link', { name: 'dYdX' }).click()
+  await expect(shell).toHaveCSS('background-color', DYDX_VIOLET_AT_10_PERCENT_OVER_GRAPHITE)
+  await expect(chart.getByText('BTC-USD · dYdX')).toBeVisible()
 })
 
 test('the venues table marks the venues where Tape does not show the market', async ({ page }) => {

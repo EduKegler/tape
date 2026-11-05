@@ -10,6 +10,7 @@ import { formatChartTick, formatChartTime } from './format'
 import { Panel, Segmented } from './Panel'
 import { TopicStatus } from './PanelStatus'
 import { candlesQuery, marketQuery } from './queries'
+import { VenueLogo } from './VenueLogo'
 
 type Bar = { readonly open: number; readonly high: number; readonly low: number; readonly close: number }
 
@@ -180,14 +181,22 @@ export function CandleChart({
           {latest && decimals !== undefined && <Ohlc bar={latest} decimals={decimals} />}
         </div>
       }
-      aside={
-        spec && (
-          <span className="text-sm text-level3 @max-2xl:hidden">{`${base}-${spec.quote} · ${VENUES[venue].label}`}</span>
-        )
-      }
       className="@container"
     >
-      <div ref={host} className="absolute inset-0" />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 flex items-center justify-center gap-4 opacity-10"
+      >
+        <VenueLogo venue={venue} size={72} />
+        <span className="text-2xl font-semibold text-level1">{VENUES[venue].label}</span>
+      </span>
+      <div ref={host} className="absolute inset-0 isolate" />
+      {spec && (
+        <span className="pointer-events-none absolute top-1.5 left-1.5 flex items-center gap-1.5 rounded-md bg-surface px-1.5 py-1 text-sm font-medium text-level1">
+          <VenueLogo venue={venue} size={14} />
+          {`${base}-${spec.quote} · ${VENUES[venue].label}`}
+        </span>
+      )}
     </Panel>
   )
 }

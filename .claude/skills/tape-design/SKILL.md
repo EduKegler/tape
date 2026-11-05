@@ -18,13 +18,14 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 ## Build with the system
 
 - **Connected is `live`.** A small `live` square marks a connected wallet in the address chip and each open socket and the hub in the status bar. It shares the bid hue but never means side, and the hub's square turns `warn` while it is offline.
-- **Graphite, one off-white.** The page is `ground`. Header, venue strip, panels and status bar are `surface` cards with an 8 px gutter (`gap-2.5` and `p-2.5`, since 1rem is 13 px). `raised` lifts one thing inside a card: the current venue tab, the current table row, the order outcome, a secondary button, a dialog. A field sits on `inset` inside an `edge` border.
-- **Off-white belongs to the trader.** `accent` marks the current venue, the selected item, focus as a 2 px ring with a 2 px offset, and the trader's own fill. It never decorates.
+- **Graphite, one off-white, one venue color.** The page is `ground`. Header, venue strip, panels and status bar are `surface` cards with an 8 px gutter (`gap-2.5` and `p-2.5`, since 1rem is 13 px). `raised` lifts one thing inside a card: the current table row, the order outcome, a secondary button, a dialog. A field sits on `inset` inside an `edge` border.
+- **Off-white belongs to the trader.** `accent` marks the selected item, focus as a 2 px ring with a 2 px offset, and the trader's own fill. It never decorates.
 - **Color carries meaning.** `bid` and `ask` mean side, and on the price ruler the direction of the trader's money: gain zone, take profit and a gain in `bid`, loss zone, stop loss and a loss in `ask`, always beside a signed number or a word. `err` (coral) with `ErrorMark` means something failed: a refused order, a rule error on a field, a failed read. `warn` (amber) means old data, a price warning or a venue reconnecting. Text sits on three levels: `level1` for values and the selected item, `level2` for body, `level3` for labels.
 - **Numbers are Inter with tabular figures.** `num` sets them on the number element. Align numbers right in columns and keep the same decimals down a column. A sentence that carries numbers, such as an order outcome, takes `tabular-nums`. Canvas text in the chart is Inter too.
-- **Corners.** Cards take `rounded-lg`, controls and blocks inside them `rounded-md`. No shadows, except three 2 px inset lines: `inset-shadow-selected` under the current venue tab and the checked option, `inset-shadow-current` at the left of the current Venues row, and `inset-shadow-newest` in `level3` at the left of the newest trade.
+- **Corners.** Cards take `rounded-lg`, controls and blocks inside them `rounded-md`. No shadows, except four 2 px inset lines: `inset-shadow-venue` under the current venue tab, `inset-shadow-selected` under the checked option, `inset-shadow-current` at the left of the current Venues row, and `inset-shadow-newest` in `level3` at the left of the newest trade.
 - **Controls come from primitives.** `Button` takes a `look`, and only `primary`, `secondary`, `bid` and `ask` take a `size`. A pressed side fills with its color and `ink-contrast` text. `className` on a primitive carries layout: width, alignment, padding. `Input` is a field with its label and message, and `InlineInput` a bare field in a bar or a filter row. A field's error goes through `Input`'s `error`. `UnitInput` is the compact field with its unit inside, for popovers, and `Anchored` the popover that opens above its trigger with a caret.
 - **Side reads without color.** A label like `Buy / Long`, a mark like `▲`, `▼` or `●` with its words, or position, as in the book.
+- **The selected venue colors its screen.** `data-venue` on the trading route sets `--venue`, `--venue-tab` and a tinted `--ground`, and turns `surface` and `ticket` to 92% with no blur. `venue` draws only the underline on the current tab and the logo there and in the chart, never text. `VenueLogo` draws every logo, in `venue` when selected and in `level3` with `mono` on the other tabs. Labels on `venue-tab` rise to `level2`. The chart's legend names the pair and venue, and its watermark sits behind the candles at 10%. `/history` and `/terms` stay on plain graphite.
 - **The venue strip quotes each venue.** Four equal tabs under the header: venue on the left with its chain under it, and `Bid`, `Ask` and `Basis` over their values on the right. The label of the best bid or ask across venues carries `●` in the side color, and from the `wide` breakpoint the strip ends with a `● ● best across venues` legend. A venue that went quiet says `Reconnecting` in `warn` with a dot over its last quotes in `level3`.
 - **The submit names the order.** It reads `Buy / Long BTC` or `Sell / Short BTC`, and for a limit or market order with a valid size a second line states size, price and venue. The second line is hidden from the accessible name and read as its description.
 
@@ -101,7 +102,7 @@ The lint in `eslint.config.js` refuses these, and the fix is always the token or
 
 Review catches the rest. A screen that shows one of these goes back:
 
-- a warm light background, a blue or tinted shell, a gradient, glass, blur, a texture or a decorative grid;
+- a warm light background, a tinted shell other than the selected venue's ground, a gradient, frosted glass, blur, a texture or a decorative grid;
 - an italic or second font, a serif, a monospace, or letter-spaced capitals above a panel;
 - numbered labels such as 01, 02, 03, or a decorative icon beside each title;
 - a shadow on a card, a side stripe on a row or a note, or a colored pill on every state;
@@ -122,8 +123,8 @@ Review catches the rest. A screen that shows one of these goes back:
 
 Screens of the graphite redesign, taken from the code. Each settles tokens, primitives, state and motion.
 
-- `reference/trading-live.png`: the whole screen live on mainnet at 1440×900, matched to the quoted-tabs target frame. The strip quotes bid, ask and basis per venue with the best marks and the legend, the chart heads with intervals and OHLC, the book opens on the last price with 9 levels a side, the ticket folds its title into the order types, and the status bar shows its `live` squares.
-- `reference/trading-1280.png`: the same at 1280×800, with no legend in the strip and 7 book levels a side. The chart drops its source label, and the ticket, Account and Venues still fit.
+- `reference/trading-live.png`: the whole screen live on mainnet at 1440×900, matched to the quoted-tabs target frame. The ground, the current tab, the logos and the chart's legend and watermark take Hyperliquid's color. The strip quotes bid, ask and basis per venue with the best marks and the legend, the chart heads with intervals and OHLC, the book opens on the last price with 9 levels a side, the ticket folds its title into the order types, and the status bar shows its `live` squares.
+- `reference/trading-1280.png`: the same at 1280×800, with no legend in the strip and 7 book levels a side. The ticket, Account and Venues still fit.
 - `reference/fill-ticket.png`: a real Hyperliquid testnet market fill. The outcome sits on `raised` right above the submit, which names the order on two lines.
 - `reference/fill-position.png`: the same fill as a position in Account: tabs on the left, then equity, leverage, the key and Deposit grouped on the right, size with its unit.
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.

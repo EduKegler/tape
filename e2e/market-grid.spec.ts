@@ -27,6 +27,13 @@ for (const { levels, ...size } of [
     expect(ticket && [ticket.y, ticket.y + ticket.height]).toEqual(book && [book.y, book.y + book.height])
   })
 
+test('at 375 px the latest candle does not widen the page', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 })
+  await openMarket(page, '/binance/BTC?interval=1m')
+  await expect(panel(page, 'Chart').getByRole('definition').first()).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375)
+})
+
 const send = (page: Page, command: Command) =>
   page.evaluate(
     ({ control, message }) => {

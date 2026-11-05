@@ -4,7 +4,10 @@ import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import type { CompareRow } from '#/core/topics'
 import { VENUES } from '#/site'
+import { VenueLogo } from './VenueLogo'
 import { useLifts, useWashing } from './wash'
+
+const LABEL = 'text-level3 group-aria-[current=page]:text-level2'
 
 const NO_ROWS: readonly CompareRow[] = []
 
@@ -61,13 +64,16 @@ function Tab({
       search={(search) => search}
       aria-current={current ? 'page' : undefined}
       data-lifting={lifting || undefined}
-      className="group relative flex min-w-0 items-center gap-2.5 border-rule px-4 py-2 text-level3 not-last:border-b hover:bg-raised aria-[current=page]:bg-raised aria-[current=page]:inset-shadow-selected sm:flex-1 sm:py-0 sm:not-last:border-r sm:not-last:border-b-0"
+      className="group relative flex min-w-0 items-center gap-2.5 border-rule px-4 py-2 text-level3 not-last:border-b hover:bg-raised aria-[current=page]:bg-venue-tab aria-[current=page]:inset-shadow-venue sm:flex-1 sm:py-0 sm:not-last:border-r sm:not-last:border-b-0"
     >
       {lifts > 0 && <span key={lifts} aria-hidden className="pointer-events-none absolute inset-0 wash" />}
       <span className="relative flex min-w-0 flex-1 items-center gap-3">
         <span className="flex min-w-0 flex-1 flex-col gap-1.5 leading-none">
-          <span className="text-base font-semibold text-level1">{VENUES[venue].label}</span>
-          <span className="truncate text-xs text-level3 group-data-lifting:text-level1">{VENUES[venue].chain}</span>
+          <span className="flex items-center gap-1.5 text-base font-semibold text-level1">
+            {VENUES[venue].label}
+            <VenueLogo venue={venue} size={13} mono={!current} />
+          </span>
+          <span className={`truncate text-xs group-data-lifting:text-level1 ${LABEL}`}>{VENUES[venue].chain}</span>
         </span>
         <Quotes row={row} />
       </span>
@@ -77,10 +83,10 @@ function Tab({
 
 function Quotes({ row }: { row: CompareRow | undefined }) {
   if (!row) return null
-  if (row.status === 'unlisted') return <span className="shrink-0 text-xs text-level3">Not shown</span>
+  if (row.status === 'unlisted') return <span className={`shrink-0 text-xs ${LABEL}`}>Not shown</span>
   if (row.status === 'syncing' && !row.mid) return null
   const live = row.status === 'live'
-  const value = `num text-base font-medium ${live ? 'text-level1' : 'text-level3'}`
+  const value = `num text-base font-medium ${live ? 'text-level1' : LABEL}`
   if (!live)
     return (
       <span className="flex shrink-0 flex-col items-end gap-1.5 leading-none">
@@ -126,7 +132,7 @@ function Quote({
 }) {
   return (
     <span className="flex flex-col items-end gap-1.5">
-      <span className="flex items-center gap-1 text-xs text-level3 group-data-lifting:text-level1">
+      <span className={`flex items-center gap-1 text-xs group-data-lifting:text-level1 ${LABEL}`}>
         {best && (
           <span aria-hidden className={best === 'bid' ? 'text-bid' : 'text-ask'}>
             ●

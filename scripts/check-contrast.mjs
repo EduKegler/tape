@@ -112,18 +112,32 @@ const PAIRS = [
   ['Connect panel QR module', 'ink-contrast', 'accent', 'graphic'],
 ]
 
+const VENUE_PAIRS = [
+  ['Venue tab, selected name and values', 'level1', 'venue-tab', 'text'],
+  ['Venue tab, selected labels', 'level2', 'venue-tab', 'text'],
+  ['Venue tab, selected and reconnecting', 'warn', 'venue-tab', 'text'],
+  ['Venue tab, selected best bid mark', 'bid', 'venue-tab', 'graphic'],
+  ['Venue tab, selected best ask mark', 'ask', 'venue-tab', 'graphic'],
+  ['Venue tab, selected logo', 'venue', 'venue-tab', 'graphic'],
+  ['Chart legend logo', 'venue', 'surface', 'graphic'],
+]
+
 // WebAIM's published ratio for #767676 on white, so a wrong formula fails before it measures anything.
 const KNOWN = [['#767676', '#ffffff', 4.54]]
 
-function tokens(css) {
-  const root = /:root\s*\{([^}]*)\}/.exec(css)?.[1]
-  if (!root) throw new Error('no :root block in src/styles.css')
-  const declarations = root.split(';').map((d) => d.trim())
+function tokens(declarationBlock) {
+  const declarations = declarationBlock.split(';').map((d) => d.trim())
   return new Map(
     declarations
       .filter((d) => d.startsWith('--'))
       .map((d) => [d.slice(2, d.indexOf(':')), d.slice(d.indexOf(':') + 1).trim()]),
   )
+}
+
+function block(css, selector) {
+  const found = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(css)?.[1]
+  if (!found) throw new Error(`no ${selector} block in src/styles.css`)
+  return tokens(found)
 }
 
 function rgba(value) {
@@ -154,25 +168,46 @@ for (const [fg, bg, published] of KNOWN) {
 }
 
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
-const palette = tokens(css)
-const color = (name) => {
-  const value = palette.get(name)
-  if (!value) throw new Error(`--${name} is not in :root`)
-  return rgba(value)
+const rootPalette = block(css, ':root')
+const venueShared = block(css, '\\[data-venue\\]')
+const venueIds = [...css.matchAll(/\[data-venue='(\w+)'\]/g)].map((match) => match[1])
+if (venueIds.length === 0) throw new Error('no venue blocks in src/styles.css')
+
+function venuePalette(venueId) {
+  const palette = new Map([...rootPalette, ...venueShared, ...block(css, `\\[data-venue='${venueId}'\\]`)])
+  const ground = rgba(palette.get('ground'))
+  for (const card of ['surface', 'ticket']) {
+    const [red, green, blue] = over(rgba(palette.get(card)), ground)
+    palette.set(card, `rgb(${red} ${green} ${blue})`)
+  }
+  return palette
 }
 
 let failed = 0
-for (const [use, fg, background, kind] of PAIRS) {
-  const [bottom, ...above] = background.split(' over ').toReversed()
-  const bg = above.reduce((below, name) => over(color(name), below), color(bottom))
-  const measured = ratio(over(color(fg), bg), bg)
-  const ok = measured >= NEED[kind]
-  if (!ok) failed++
-  console.log(
-    `${ok ? 'ok  ' : 'FAIL'}  ${measured.toFixed(2).padStart(5)}  ${kind.padEnd(7)} ${NEED[kind]}  ${fg} on ${background}  ${use}`,
-  )
+let measuredPairs = 0
+function measure(pairs, palette, scope) {
+  const color = (name) => {
+    const value = palette.get(name)
+    if (!value) throw new Error(`--${name} is not in the ${scope} palette`)
+    return rgba(value)
+  }
+  for (const [use, fg, background, kind] of pairs) {
+    const [bottom, ...above] = background.split(' over ').toReversed()
+    const bg = above.reduce((below, name) => over(color(name), below), color(bottom))
+    const measured = ratio(over(color(fg), bg), bg)
+    const ok = measured >= NEED[kind]
+    measuredPairs++
+    if (!ok) failed++
+    console.log(
+      `${ok ? 'ok  ' : 'FAIL'}  ${measured.toFixed(2).padStart(5)}  ${kind.padEnd(7)} ${NEED[kind]}  ${scope}  ${fg} on ${background}  ${use}`,
+    )
+  }
 }
+
+measure(PAIRS, rootPalette, 'root')
+for (const venueId of venueIds) measure([...PAIRS, ...VENUE_PAIRS], venuePalette(venueId), venueId)
+
 if (failed > 0) {
-  console.log(`${failed} of ${PAIRS.length} pairs under the WCAG minimum`)
+  console.log(`${failed} of ${measuredPairs} pairs under the WCAG minimum`)
   process.exitCode = 1
 }

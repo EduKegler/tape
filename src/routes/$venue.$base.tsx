@@ -47,7 +47,7 @@ function Market() {
   const market = marketKey(venue, base)
   const unlisted = useQuery(marketQuery(venue, base)).data === null
   return (
-    <div className="flex min-h-dvh flex-col lg:h-dvh">
+    <div data-venue={venue} className="flex min-h-dvh flex-col bg-ground lg:h-dvh">
       <Header venue={venue} base={base} />
       <VenueStrip base={base} current={venue} />
       {unlisted ? (
