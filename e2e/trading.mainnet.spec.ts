@@ -22,7 +22,7 @@ const MAINNET_EXCHANGE = 'https://api.hyperliquid.xyz/exchange'
 const OFF_ON_MAINNET = { dydx: 'dYdX', orderly: 'Orderly' } as const
 
 for (const [venue, label] of Object.entries(OFF_ON_MAINNET))
-  test(`a filled ${venue} ticket on mainnet asks the wallet for nothing and sends nothing`, async ({
+  test(`a connected ${venue} ticket on mainnet has no form and asks the wallet for nothing`, async ({
     page,
     wallet,
   }) => {
@@ -33,16 +33,12 @@ for (const [venue, label] of Object.entries(OFF_ON_MAINNET))
     await connectWallet(page, page.getByRole('banner').getByRole('button', { name: 'Connect', exact: true }))
 
     const ticket = panel(page, 'Order ticket')
-    const testnetOnly = `${label} trades only on testnet in Tape.`
-    await expect(ticket.getByText(testnetOnly)).toBeVisible()
     await expect(ticket.getByText('Read only', { exact: true })).toBeVisible()
-    await expect(ticket.getByRole('term')).toHaveText(['Notional'])
-    await expect(panel(page, 'Account').getByText(testnetOnly)).toBeVisible()
+    await expect(ticket.getByText(`You can't trade on ${label} in Tape.`)).toBeVisible()
+    await expect(ticket.getByRole('textbox')).toHaveCount(0)
+    await expect(panel(page, 'Account').getByText(`${label} is read only in Tape.`)).toBeVisible()
     await expect(page.getByRole('contentinfo')).toContainText('Market data comes straight from the venues.')
-    await ticket.getByRole('textbox', { name: /^Price/ }).fill('70000')
-    await ticket.getByRole('textbox', { name: /^Size/ }).fill('0.002')
-    await ticket.getByRole('textbox', { name: /^Size/ }).press('Enter')
-    await expect(ticket.getByRole('button', { name: /Enable trading|BTC$/ })).toHaveCount(0)
+    await expect(ticket.getByRole('button')).toHaveCount(0)
     await expect(panel(page, 'Account').getByRole('button', { name: 'Deposit' })).toHaveCount(0)
     await expectAccessible(page)
 

@@ -109,6 +109,12 @@ const PAIRS = [
   ['Disconnect panel address', 'level2', 'option over raised', 'text'],
   ['Button secondary on raised, hover', 'level1', 'option-hover over raised', 'text'],
   ['Connect panel feed, lit hole', 'accent', 'raised', 'graphic'],
+  ['Testnet tag, read only tag', 'level1', 'level1/12 over surface', 'text'],
+  ['Read only tag, hovered tab', 'level1', 'level1/12 over raised', 'text'],
+  ['Read only ticket, title', 'level1', 'ticket', 'text'],
+  ['Read only ticket, line', 'level2', 'ticket', 'text'],
+  ['Read only ticket, link', 'level1', 'option over ticket', 'text'],
+  ['Read only ticket, link hover', 'level1', 'option-hover over ticket', 'text'],
   ['Connect panel QR module', 'ink-contrast', 'accent', 'graphic'],
 ]
 
@@ -119,6 +125,7 @@ const VENUE_PAIRS = [
   ['Venue tab, selected best bid mark', 'bid', 'venue-tab', 'graphic'],
   ['Venue tab, selected best ask mark', 'ask', 'venue-tab', 'graphic'],
   ['Venue tab, selected logo', 'venue', 'venue-tab', 'graphic'],
+  ['Venue tab, selected read only tag', 'level1', 'level1/12 over venue-tab', 'text'],
   ['Chart legend logo', 'venue', 'surface', 'graphic'],
 ]
 
@@ -187,9 +194,11 @@ let failed = 0
 let measuredPairs = 0
 function measure(pairs, palette, scope) {
   const color = (name) => {
-    const value = palette.get(name)
-    if (!value) throw new Error(`--${name} is not in the ${scope} palette`)
-    return rgba(value)
+    const [token, percent] = name.split('/')
+    const value = palette.get(token)
+    if (!value) throw new Error(`--${token} is not in the ${scope} palette`)
+    const [red, green, blue, alpha] = rgba(value)
+    return [red, green, blue, percent ? Number(percent) / 100 : alpha]
   }
   for (const [use, fg, background, kind] of pairs) {
     const [bottom, ...above] = background.split(' over ').toReversed()

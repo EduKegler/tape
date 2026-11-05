@@ -4,6 +4,7 @@ import type { Base, VenueId } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
 import type { CompareRow } from '#/core/topics'
 import { VENUES } from '#/site'
+import { sendsOrders } from '#/trade/config'
 import { VenueLogo } from './VenueLogo'
 import { useLifts, useWashing } from './wash'
 
@@ -73,7 +74,13 @@ function Tab({
             {VENUES[venue].label}
             <VenueLogo venue={venue} size={13} mono={!current} />
           </span>
-          <span className={`truncate text-xs group-data-lifting:text-level1 ${LABEL}`}>{VENUES[venue].chain}</span>
+          {sendsOrders(venue) ? (
+            <span className={`truncate text-xs group-data-lifting:text-level1 ${LABEL}`}>{VENUES[venue].chain}</span>
+          ) : (
+            <span className="self-start rounded-sm bg-level1/12 px-1.5 py-0.5 text-xs/none font-medium whitespace-nowrap text-level1">
+              Read only
+            </span>
+          )}
         </span>
         <Quotes row={row} />
       </span>

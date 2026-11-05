@@ -256,10 +256,12 @@ async function captureView(browser, base, view) {
 }
 
 async function capture(flags) {
-  if (!existsSync(STATE)) die('no verify-tape run. Run `verify-tape.mjs up --replay` first.')
+  if (!existsSync(STATE)) die('no verify-tape run. Run `verify-tape.mjs up --replay --network testnet` first.')
   const s = JSON.parse(readFileSync(STATE, 'utf8'))
   if (!s.replay)
-    die(`run ${s.runId} serves live data, so two captures never match. Run \`down\`, then \`up --replay\`.`)
+    die(
+      `run ${s.runId} serves live data, so two captures never match. Run \`down\`, then \`up --replay --network testnet\`.`,
+    )
   const only = flags.view ? String(flags.view).split(',') : null
   const views = VIEWS.filter((v) => !only || only.includes(v.name))
   if (views.length === 0) die(`no view named ${flags.view}. Views: ${VIEWS.map((v) => v.name).join(', ')}`)
@@ -382,7 +384,7 @@ function diff(pos) {
 const HELP = `parity <command> [flags]
 
   capture [--out <file>] [--view <name,...>]
-                    read every rendered element of each view in the current replay run (verify-tape up --replay)
+                    read every rendered element of each view in the current replay run (verify-tape up --replay --network testnet)
                     and write <file>, by default artifacts/<run-id>/parity.json
   diff <a> <b>      list every element added, removed or changed between two captures. Exit 1 on any change.
 

@@ -18,8 +18,36 @@ async function touchField(page: Page, name: string, value: string) {
   return field
 }
 
-test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
-  await openMarket(page, '/binance/BTC?interval=1m')
+test('a venue that sends no orders has a ticket with no form and a link to one that does', async ({ page }) => {
+  await openMarket(page, '/binance/BTC?group=10&interval=5m')
+  const ticket = ticketOf(page)
+  await expect(ticket.getByText('Read only', { exact: true })).toBeVisible()
+  await expect(ticket.getByText("You can't trade on Binance in Tape.")).toBeVisible()
+  await expect(ticket.getByRole('textbox')).toHaveCount(0)
+  await expect(ticket.getByRole('button')).toHaveCount(0)
+  await expect(panel(page, 'Account').getByText('Binance is read only in Tape.')).toBeVisible()
+  await expectAccessible(page)
+  await ticket.getByRole('link', { name: 'Trade on Hyperliquid' }).click()
+  await expect(page).toHaveURL(/\/hyperliquid\/BTC\?group=10&interval=5m$/)
+  await expect(ticket.getByRole('textbox', { name: 'Price (USDC)' })).toBeVisible()
+})
+
+const READ_ONLY_TABS: Record<Network, Record<'Binance' | 'Hyperliquid' | 'dYdX' | 'Orderly', boolean>> = {
+  mainnet: { Binance: true, Hyperliquid: false, dYdX: true, Orderly: true },
+  testnet: { Binance: true, Hyperliquid: false, dYdX: false, Orderly: false },
+}
+
+test('a venue tab says read only when the build sends no orders there', async ({ page, network }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  const strip = page.getByRole('navigation', { name: 'Venue' })
+  for (const [label, readOnly] of Object.entries(READ_ONLY_TABS[network])) {
+    const tab = strip.getByRole('link', { name: new RegExp(`^${label}`) })
+    await expect(tab.getByText('Read only', { exact: true })).toHaveCount(readOnly ? 1 : 0)
+  }
+})
+
+test('the ticket starts as a limit buy', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)
   await expect(ticket.getByRole('button', { name: 'Buy / Long', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(ticket.getByRole('radio', { name: 'Limit', exact: true })).toBeChecked()
@@ -29,30 +57,28 @@ test('the Binance ticket starts as a read only limit buy', async ({ page }) => {
     'Post only',
   ])
   await expect(notionalOf(page)).toHaveText('—')
-  await expect(ticket.getByText('Binance is read only in Tape. It never signs or sends an order here.')).toBeVisible()
-  await expect(ticket.getByRole('button', { name: 'Buy / Long BTC' })).toHaveCount(0)
   await expectAccessible(page)
 })
 
 test('the ticket refuses a price with more decimals than the market has', async ({ page }) => {
-  await openMarket(page, '/binance/BTC?interval=1m')
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const size = ticketOf(page).getByRole('textbox', { name: 'Size (BTC)' })
   const before = await size.boundingBox()
-  const price = await touchField(page, 'Price (USDT)', '1.234')
-  await expect(ticketOf(page).getByText('At most 2 decimals')).toBeVisible()
+  const price = await touchField(page, 'Price (USDC)', '1.23')
+  await expect(ticketOf(page).getByText('At most 1 decimal')).toBeVisible()
   await expect(price).toHaveAttribute('aria-invalid', 'true')
   expect((await size.boundingBox())?.y).toBe(before?.y)
   await expectAccessible(page)
 })
 
 test('the ticket refuses a price that is not a number, zero or empty', async ({ page }) => {
-  await openMarket(page, '/binance/BTC?interval=1m')
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)
-  await touchField(page, 'Price (USDT)', 'abc')
+  await touchField(page, 'Price (USDC)', 'abc')
   await expect(ticket.getByText('Not a number')).toBeVisible()
-  await touchField(page, 'Price (USDT)', '0')
+  await touchField(page, 'Price (USDC)', '0')
   await expect(ticket.getByText('Price must be above zero')).toBeVisible()
-  await touchField(page, 'Price (USDT)', '')
+  await touchField(page, 'Price (USDC)', '')
   await expect(ticket.getByText('Enter a price')).toBeVisible()
 })
 
@@ -62,8 +88,8 @@ test('the ticket refuses a price between two Hyperliquid ticks', async ({ page }
   await expect(ticketOf(page).getByText('Price must be a multiple of 1')).toBeVisible()
 })
 
-test('the ticket refuses a size finer than the Binance step or below it', async ({ page }) => {
-  await openMarket(page, '/binance/BTC?interval=1m')
+test('the ticket refuses a size finer than the Hyperliquid step or below it', async ({ page }) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)
   const size = await touchField(page, 'Size (BTC)', '0.000001')
   await expect(ticket.getByText('At most 5 decimals')).toBeVisible()
@@ -155,16 +181,11 @@ test('a market buy hides the price, offers slippage and prices the notional at t
   await expectAccessible(page)
 })
 
-const NETWORK_COPY: Record<Network, { aside: string; mainnetNotes: number }> = {
-  mainnet: { aside: 'Mainnet', mainnetNotes: 0 },
-  testnet: { aside: 'Testnet', mainnetNotes: 0 },
-}
+const NETWORK_ASIDE: Record<Network, string> = { mainnet: 'Mainnet', testnet: 'Testnet' }
 
 test('the ticket says which network the build is', async ({ page, network }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)
-  const copy = NETWORK_COPY[network]
-  await expect(ticket.getByText(copy.aside, { exact: true })).toBeVisible()
-  await expect(ticket.getByText('Hyperliquid trades only on testnet in Tape.')).toHaveCount(copy.mainnetNotes)
+  await expect(ticket.getByText(NETWORK_ASIDE[network], { exact: true })).toBeVisible()
   await expectAccessible(page)
 })

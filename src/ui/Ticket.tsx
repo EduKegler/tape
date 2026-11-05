@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useForm } from '@tanstack/react-form'
+import { Link } from '@tanstack/react-router'
 import { useSelector } from '@tanstack/react-store'
 import { shallow } from '@tanstack/store'
 import { useQuery } from '@tanstack/react-query'
@@ -15,7 +16,7 @@ import {
   toPx,
   toQty,
 } from '@tape/core/fixed'
-import { marketKey } from '@tape/core/ids'
+import { VENUE_IDS, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import {
@@ -37,25 +38,27 @@ import type { Slice } from '@tape/trade/scale-order'
 import { estimateLiquidation } from '@tape/trade/liquidation'
 import type { Entry } from '@tape/trade/liquidation'
 import { isTif, toBps } from '@tape/trade/types'
-import type { AccountRef, Capabilities, Side, Tif, TradeError, TradeVenueId } from '@tape/trade/types'
+import type { AccountRef, Capabilities, Side, Tif, TradeError } from '@tape/trade/types'
 import type { MarginReading, TradeSession } from '#/trade/hooks'
 import { useAccountView, useMarginReading, useTradeCommands, useTradeSession } from '#/trade/hooks'
+import { sendsOrders } from '#/trade/config'
 import { useFrame, useFrameEffect } from '#/client/hooks'
 import { ConnectButton, useConnectFlow } from '#/wallet/Connect'
-import { NETWORK, TESTNET_SITE, VENUES } from '#/site'
+import { NETWORK, VENUES } from '#/site'
 import { ErrorMark } from './ErrorMark'
 import { EnableTrading } from './EnableTrading'
 import { groupThousands, groupedAmount } from './format'
 import { Panel, Segmented } from './Panel'
 import { STALE_AFTER_MS } from './panel-state'
 import { TopicStatus } from './PanelStatus'
-import { Button, Checkbox, Input, Select, TextLink } from './primitives'
+import { Button, Checkbox, Input, Select } from './primitives'
 import { marketQuery } from './queries'
 import { OrderNote, TradeNote } from './TradeNote'
 import { proposedPrice, SLIPPAGE_STEPS, slippageBps } from './ticket-store'
 
 const plain = (px: string | undefined) => (px ? px.replaceAll(',', '') : '')
 type Kind = 'limit' | 'market' | 'scale' | 'trailing'
+type SendingSession = Exclude<TradeSession, { readonly status: 'read-only' }>
 const DEFAULT_VALUES = {
   price: '',
   size: '',
@@ -124,6 +127,12 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   const specs = useQuery(marketQuery(venue, base))
   const spec = specs.data ?? undefined
   const session = useTradeSession(venue)
+  if (session.status === 'read-only')
+    return (
+      <Panel title="Order ticket" tone="ticket">
+        <ReadOnly venue={venue} base={base} />
+      </Panel>
+    )
   const note = (
     <span className="ml-auto flex min-w-0 items-baseline gap-2">
       <TopicStatus
@@ -133,13 +142,7 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
         onRetry={() => void specs.refetch()}
       />
       <span className="shrink-0 text-xs text-level3">
-        {session.status === 'read-only'
-          ? 'Read only'
-          : session.status === 'unavailable'
-            ? null
-            : NETWORK === 'testnet'
-              ? 'Testnet'
-              : 'Mainnet'}
+        {session.status === 'unavailable' ? null : NETWORK === 'testnet' ? 'Testnet' : 'Mainnet'}
       </span>
     </span>
   )
@@ -163,6 +166,26 @@ export function Ticket({ venue, base, group }: { venue: VenueId; base: Base; gro
   )
 }
 
+function ReadOnly({ venue, base }: { venue: VenueId; base: Base }) {
+  const sending = VENUE_IDS.find(sendsOrders)
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-5 text-center">
+      <p className="text-lg font-semibold text-level1">Read only</p>
+      <p className="text-sm text-level2">You can't trade on {VENUES[venue].label} in Tape.</p>
+      {sending && (
+        <Link
+          to="/$venue/$base"
+          params={{ venue: sending, base }}
+          search={(search) => search}
+          className="rounded-md bg-option px-3 py-2 text-sm font-medium text-level1 hover:bg-option-hover"
+        >
+          Trade on {VENUES[sending].label}
+        </Link>
+      )}
+    </div>
+  )
+}
+
 function TicketForm({
   spec,
   group,
@@ -171,7 +194,7 @@ function TicketForm({
 }: {
   spec: MarketSpec
   group: string
-  session: TradeSession
+  session: SendingSession
   note: ReactNode
 }) {
   const [side, setSide] = useState<Side>('buy')
@@ -662,7 +685,6 @@ function TicketForm({
                 <SubmitArea
                   summary={summary}
                   session={session}
-                  venue={VENUES[spec.venue].label}
                   side={side}
                   base={spec.base}
                   phase={phaseOf(last, sent, draftOf(values))}
@@ -812,7 +834,6 @@ function phaseOf(last: ReturnType<typeof useTradeCommands>['last'], sent: string
 
 function SubmitArea({
   session,
-  venue,
   side,
   base,
   phase,
@@ -821,8 +842,7 @@ function SubmitArea({
   summary,
 }: {
   summary: string
-  session: TradeSession
-  venue: string
+  session: SendingSession
   side: Side
   base: string
   phase: Phase
@@ -874,14 +894,6 @@ function SubmitArea({
   function slot() {
     if (shown === 'disconnected') return <ConnectButton wide />
     switch (session.status) {
-      case 'read-only':
-        return session.cause === 'venue-not-traded' ? (
-          <p className="text-xs/snug text-level3">
-            {venue} is read only in Tape. It never signs or sends an order here.
-          </p>
-        ) : (
-          <TestnetOnly venue={session.venue} />
-        )
       case 'unavailable':
         return <p className="text-sm text-level3">{session.reason}.</p>
       case 'disconnected':
@@ -937,26 +949,6 @@ function VenueAvailable({ account }: { account: AccountRef }) {
         )}
       </dd>
     </>
-  )
-}
-
-const MAINNET_APP: Partial<Record<TradeVenueId, { readonly href: string; readonly host: string }>> = {
-  hyperliquid: { href: 'https://app.hyperliquid.xyz', host: 'app.hyperliquid.xyz' },
-}
-
-export function TestnetOnly({ venue }: { venue: TradeVenueId }) {
-  const app = MAINNET_APP[venue]
-  return (
-    <p className="text-xs/snug text-level3">
-      {VENUES[venue].label} trades only on {TESTNET_SITE ? <TextLink href={TESTNET_SITE}>testnet</TextLink> : 'testnet'}{' '}
-      in Tape.
-      {app && (
-        <>
-          {' '}
-          Manage mainnet positions on <TextLink href={app.href}>{app.host}</TextLink>.
-        </>
-      )}
-    </p>
   )
 }
 
