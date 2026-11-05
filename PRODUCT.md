@@ -33,7 +33,7 @@ Tape has no server between the trader and the venue. One SharedWorker keeps one 
 - A send with no answer is an unknown outcome. The ticket says so, asks the venue for the order by client id, and keeps resend locked until it knows.
 - A rejection shows the venue's own words. A failed read says what it could not read, never what was sent.
 - Old data stays readable and says its age. Connection and data state are separate, and both show.
-- Binance is read only. Orderly's Community Listed markets and markets that need more than 8 decimals stay out.
+- Binance is read only, and so is any venue the build does not send orders on. Its tab says so and its ticket has no form. Orderly's Community Listed markets and markets that need more than 8 decimals stay out.
 - Prices in the book, trades, ticket and venues table are exact. Floats exist only in display data such as chart coordinates and the 24h line.
 - The public repo holds no research, competitor notes or decision logs.
 

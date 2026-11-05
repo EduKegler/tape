@@ -31,8 +31,7 @@ import { keySlot, subscribeVault } from './vault'
 import { TRADE_CONFIG, sendsOrders } from './config'
 
 export type TradeSession =
-  | { readonly status: 'read-only'; readonly cause: 'venue-not-traded' }
-  | { readonly status: 'read-only'; readonly cause: 'testnet-only'; readonly venue: TradeVenueId }
+  | { readonly status: 'read-only' }
   | { readonly status: 'unavailable'; readonly reason: string }
   | { readonly status: 'disconnected' }
   | {
@@ -186,8 +185,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
       if (ref) void client.invalidateQueries({ queryKey: tradeKeys(ref).all })
     },
   })
-  if (!module) return { status: 'read-only', cause: 'venue-not-traded' }
-  if (!sendsOrders(venue)) return { status: 'read-only', cause: 'testnet-only', venue: module.id }
+  if (!module || !sendsOrders(venue)) return { status: 'read-only' }
   if (unavailable) return { status: 'unavailable', reason: unavailable }
   if (!ref) return { status: 'disconnected' }
   if (linked) {

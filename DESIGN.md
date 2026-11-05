@@ -348,6 +348,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Shadow Strategy:** none, see Elevation & Depth.
 - **Border:** none outside. A rule line under the 2.625rem title row.
 - **Title row:** title in level1 semibold, the panel state line beside it, controls on the right. The chart shows its intervals and the latest candle's OHLC in place of the title. The ticket and Account fold their title into their first row, the order types and the account tabs, and keep it as a hidden heading.
+- **Read only ticket:** a venue the build sends no orders on keeps the title row and no form. Centered, Read only in 18px 600 level1, one 12px level2 line that says the venue can't be traded in Tape, and a link on the option fill to the first venue that sends orders. It never says why. Account says the venue is read only in its empty text.
 
 ### Inputs / Fields
 - **Style:** well fill, 1px edge border, medium radius, 2.75rem tall in the ticket, value in Inter tabular 13px 500 level1, and the unit at the right edge in 12px level3. The label sits above in 11px level3 with a hint or a button on the right.
@@ -363,6 +364,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 ### Venue strip (signature)
 - Four equal tabs on one graphite card under the header, 44px tall and 48px from the `wide` breakpoint. From `wide` the card ends with a legend in 11px level3: a bid dot, an ask dot and "best across venues".
 - Left: the venue name in title type, level1, followed by its 13px logo, and under it the chain in 11px level3.
+- A venue the build sends no orders on swaps the chain for a Read only tag, on the current tab and on the others: 11px 500 level1 on level1 at 12%, small radius, like the header's Testnet.
 - Right: Bid, Ask and Basis, each an 11px level3 label over its value in Inter tabular 13px 500. When the venue holds the best bid or ask across venues, that label starts with a dot in the side color.
 - A venue that lost its feed says Reconnecting in amber with an amber dot, over its last bid, ask and basis in level3. An unlisted market shows Not shown in level3.
 - The current tab is raised with the selected underline. Hover raises any tab.

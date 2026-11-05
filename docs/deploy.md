@@ -10,7 +10,6 @@ The build reads these from the environment or a `.env` file. `src/env.ts`, `src/
 | --- | --- | --- |
 | `VITE_NETWORK` | `mainnet` | `mainnet` or `testnet`. Picks the venues' hosts for market data and trading |
 | `VITE_TRADE_MAINNET` | empty | Comma list of venue ids that send orders on a mainnet build, such as `hyperliquid`. Empty means the build only reads |
-| `VITE_TESTNET_SITE` | none | URL of the testnet site, linked where a mainnet venue says it trades only on testnet |
 | `VITE_WALLETCONNECT_PROJECT_ID` | none | A [Reown](https://cloud.reown.com) project id. Adds the WalletConnect button |
 | `VITE_ORDERLY_BROKER_ID` | none | Orderly broker for mainnet. Orderly trading and deposits on mainnet need it |
 | `VITE_ORDERLY_BROKER_ID_TESTNET` | `demo` | Orderly broker for testnet |

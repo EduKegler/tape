@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Performance probe for Tape. Drives a verify-tape run that was started with `up --replay`, keeps the
+// Performance probe for Tape. Drives a verify-tape run that was started with `up --replay --network testnet`, keeps the
 // recorded book moving, and measures frame time, long tasks, the time from a key press in the ticket's price
 // field to the next paint, and main thread and GPU work. Writes one JSON per run and a summary, and compares
 // the summary to a baseline when given one.
@@ -60,7 +60,7 @@ const METRICS = {
 
 const HELP = `perf-probe [flags]
 
-Needs a verify-tape run started with \`up --replay\`. Loads the market ${PROBE.primeLoads} times to warm Chrome's code
+Needs a verify-tape run started with \`up --replay --network testnet\`. Loads the market ${PROBE.primeLoads} times to warm Chrome's code
 cache. Then each run opens ${PROBE.path} in a new tab, waits for the book, loops the recording, warms up
 ${PROBE.warmupSeconds} s, and measures for ${PROBE.seconds} s while it types ${PROBE.typed} into the ticket's price field and
 deletes it again, one key every ${PROBE.pressEveryMs} ms.
@@ -87,13 +87,13 @@ if (flags.help) {
 }
 if (flags.seconds) PROBE.seconds = Number(flags.seconds)
 if (!existsSync(STATE)) {
-  console.error('perf-probe: no verify-tape run. Start one with `up --replay`.')
+  console.error('perf-probe: no verify-tape run. Start one with `up --replay --network testnet`.')
   process.exit(1)
 }
 const run = JSON.parse(readFileSync(STATE, 'utf8'))
 if (!run.replay) {
   console.error(
-    'perf-probe: the run serves live venues. Live data changes between runs. Run `down`, then `up --replay`.',
+    'perf-probe: the run serves live venues. Live data changes between runs. Run `down`, then `up --replay --network testnet`.',
   )
   process.exit(1)
 }

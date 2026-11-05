@@ -114,14 +114,14 @@ Locators, in order of preference:
 
 ## Parity
 
-`scripts/parity.mjs` proves that a change leaves every computed style as it was, which a PR that swaps classes for tokens or markup for primitives must show. It needs a replay run.
+`scripts/parity.mjs` proves that a change leaves every computed style as it was, which a PR that swaps classes for tokens or markup for primitives must show. It needs a replay run on testnet, because a mainnet build with no `VITE_TRADE_MAINNET` has no ticket form to read.
 
 ```bash
-node .claude/skills/verify-tape/scripts/verify-tape.mjs up --replay
+node .claude/skills/verify-tape/scripts/verify-tape.mjs up --replay --network testnet
 node .claude/skills/verify-tape/scripts/parity.mjs capture --out /tmp/parity/before.json
 node .claude/skills/verify-tape/scripts/verify-tape.mjs down
 # switch to the change, then:
-node .claude/skills/verify-tape/scripts/verify-tape.mjs up --replay
+node .claude/skills/verify-tape/scripts/verify-tape.mjs up --replay --network testnet
 node .claude/skills/verify-tape/scripts/parity.mjs capture --out /tmp/parity/after.json
 node .claude/skills/verify-tape/scripts/verify-tape.mjs down
 node .claude/skills/verify-tape/scripts/parity.mjs diff /tmp/parity/before.json /tmp/parity/after.json
@@ -146,7 +146,7 @@ A capture does not see:
 node .claude/skills/verify-tape/scripts/perf-probe.mjs --runs 3 --baseline <baseline.json>
 ```
 
-It needs a run started with `up --replay` and no other Tape tab, because every tab shares the hub and renders too. `close` them first. The probe loads the market twice before the first run, so Chrome's code cache is warm for all of them. Each run opens `/dydx/BTC?interval=1m` in a fresh tab, with REST served from the recordings, waits for the book, asks the replay to loop its recordings so the book keeps changing, warms up 5 s, and measures 60 s while it types `80520` into the ticket's price field and deletes it, one key every 330 ms. dYdX has the longest book recording.
+It needs a run started with `up --replay --network testnet`, where dYdX has the ticket form it types into, and no other Tape tab, because every tab shares the hub and renders too. `close` them first. The probe loads the market twice before the first run, so Chrome's code cache is warm for all of them. Each run opens `/dydx/BTC?interval=1m` in a fresh tab, with REST served from the recordings, waits for the book, asks the replay to loop its recordings so the book keeps changing, warms up 5 s, and measures 60 s while it types `80520` into the ticket's price field and deletes it, one key every 330 ms. dYdX has the longest book recording.
 
 - Frame time from `requestAnimationFrame`, p95 and p99, and the share of frames dropped against the display rate.
 - Long tasks, their count and total blocking time.
