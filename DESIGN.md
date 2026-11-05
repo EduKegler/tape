@@ -3,6 +3,8 @@ name: Tape
 description: Four perps venues on one graphite screen, with the trader's own actions in off-white.
 colors:
   ground: "#121315"
+  venue: "#97fce4"
+  venue-tab: "#324040"
   surface: "#1a1b1e"
   raised: "#232428"
   ticket: "#1a1b1e"
@@ -107,7 +109,7 @@ components:
     height: "3.375rem"
     padding: "0 1rem"
   venue-tab-current:
-    backgroundColor: "{colors.raised}"
+    backgroundColor: "{colors.venue-tab}"
     textColor: "{colors.level1}"
   button-primary:
     backgroundColor: "{colors.ink}"
@@ -211,7 +213,7 @@ components:
 
 **Creative North Star: "Graphite and the Trader's Light"**
 
-The market sits on graphite. Four venues, a chart, a book, a tape and a ticket share one dark field of cards that stay quiet so the numbers can be read. Warm off-white is the light the trader brings: it marks the venue they chose, where their keyboard is, and their fill. The market only gets green, red and a small mark.
+The market sits on graphite. Four venues, a chart, a book, a tape and a ticket share one dark field of cards that stay quiet so the numbers can be read. Warm off-white is the light the trader brings: it marks what they chose, where their keyboard is, and their fill. The market only gets green, red and a small mark. The selected venue tints the ground and lends its own color and logo to its tab and the chart, so the trader can tell at a glance whose book they are reading.
 
 The screen is dense and built for hours of glances. The root type size is 13px, so every rem in the code is 13px: a 1rem gap is 13px and the 0.625rem gutter is 8.1px. Words and numbers are Inter. Numbers take tabular figures, so a column of prices lines up and reads as one block. Depth comes from three graphite steps, never from shadows.
 
@@ -220,6 +222,7 @@ Movement is rare and means something. One animation, the wash, plays when the tr
 **Key Characteristics:**
 - Graphite cards (rounded 0.5rem) on a darker ground, with 8.1px gutters.
 - Off-white accent only for what is the trader's: current choice, focus, fill.
+- The trading screen takes the selected venue's color: 10% on the ground, 13% on its tab, and a 92% graphite on the cards over it.
 - One face, Inter, with tabular figures for every number.
 - Green and red for side and direction only. Amber for age. Coral with a drawn mark for failure.
 - No shadows. Current things are raised one graphite step.
@@ -230,10 +233,15 @@ Movement is rare and means something. One animation, the wash, plays when the tr
 Graphite neutrals carry everything; four signal hues each own one meaning, and the off-white accent belongs to the trader.
 
 ### Primary
-- **Trader's Light** (accent): the underline on the current venue tab, market and segmented choice; the venue name in the current Venues row, semibold; the keyboard focus ring; the wash on the trader's fill. Text selection uses it at 20%.
+- **Trader's Light** (accent): the underline on the current market and segmented choice; the venue name in the current Venues row, semibold; the keyboard focus ring; the wash on the trader's fill. Text selection uses it at 20%.
 
 ### Secondary
 - **Bid Green** (bid) and **Ask Red** (ask): side and direction. Book prices, trade marks, the last price by the side of the last trade, the 24h change, Buy and Sell buttons, the selected side, the best-price dot in the strip and the Venues table. Their 10% washes fill book depth bars, the depth chart and candle volume. On the price ruler they read as direction of the trader's money: bid fills the gain zone, the take profit grip and a gain, ask the loss zone, the stop loss grip and a loss, always beside a signed number or the words Profit and Loss.
+
+### Venue
+- **Venue Color** (venue): the brand color of the selected venue, set on the route by `data-venue`: Binance `#f0b90b`, Hyperliquid `#97fce4`, dYdX `#6966ff`, Orderly `#9c75ff`. It draws only the underline on the current venue tab and the logo on that tab, in the chart legend and in the chart's watermark. dYdX's mark keeps its two off-white strokes. Other tabs show their logo in level3. It never colors text or a number, and it says nothing about side, age or failure.
+- **Venue Ground** (ground, on the trading screen): the venue color at 10% over `#121315`.
+- **Venue Tab** (venue-tab): the venue color at 13% over raised, the fill of the current venue tab. Its labels rise from level3 to level2 for contrast.
 
 ### Tertiary
 - **Stale Amber** (warn): old data, its age, Reconnecting, Offline, price warnings under a field, the dialog lock note, the cancel-all note that TP/SL legs go with the orders, a close the venue did not answer.
@@ -241,9 +249,9 @@ Graphite neutrals carry everything; four signal hues each own one meaning, and t
 - **Failure Coral** (err): the drawn error mark, a field's error edge, the result word of a failed order, a panel's error line, the liquidation price on the price ruler.
 
 ### Neutral
-- **Ground** (ground): the page between cards, and the well under the book's last price.
-- **Graphite** (surface): cards, header, venue strip, status bar.
-- **Raised Graphite** (raised): the current venue tab, the current Venues row, the order outcome block, dialogs, popovers, secondary buttons, tab hover.
+- **Ground** (ground): the page between cards, and the well under the book's last price. The trading screen tints it with the venue color.
+- **Graphite** (surface): cards, header, venue strip, status bar. On the trading screen surface and ticket are 92% opaque with no blur, and nothing scrolls under them.
+- **Raised Graphite** (raised): the current Venues row, the order outcome block, dialogs, popovers, secondary buttons, tab hover.
 - **Well** (inset): field and select fill, the side switch track.
 - **Rule** (rule): 1px lines inside a card, under the panel title, between table rows and between venue tabs, and the outline button's border.
 - **Edge** (edge): field and select borders. Reaches 3:1 on every surface.
@@ -294,15 +302,16 @@ History uses the same cards and gutters under its own header, with Accounts in a
 
 ## Elevation & Depth
 
-Tape is flat. Depth is three graphite steps: ground under graphite cards, raised graphite for what is current or on top, and a darker well for fields. There are no drop shadows, blurs or glows; the shadow scales are reset to nothing in the theme. Three 2px inset lines mark what is current or newest.
+Tape is flat. Depth is three graphite steps: ground under graphite cards, raised graphite for what is current or on top, and a darker well for fields. There are no drop shadows, blurs or glows; the shadow scales are reset to nothing in the theme. Four 2px inset lines mark what is current or newest.
 
 ### Shadow Vocabulary
-- **Selected underline** (`box-shadow: inset 0 -2px var(--accent)`): the current venue tab, the current market (BTC, ETH, SOL), and the checked option of a segmented control.
+- **Selected underline** (`box-shadow: inset 0 -2px var(--accent)`): the current market (BTC, ETH, SOL) and the checked option of a segmented control.
+- **Venue underline** (`box-shadow: inset 0 -2px var(--venue)`): the current venue tab.
 - **Current bar** (`box-shadow: inset 2px 0 var(--accent)`): the left edge of the current Venues row.
 - **Newest bar** (`box-shadow: inset 2px 0 var(--level3)`): the left edge of the newest trade. It is level3, because the trades tape is market data, not the trader's.
 
 ### Named Rules
-**The Raised Means Current Rule.** A raised fill says this is the current one or it sits above the page: the current venue tab, the current Venues row, the order outcome, a dialog. Do not raise a thing for emphasis alone.
+**The Raised Means Current Rule.** A raised fill says this is the current one or it sits above the page: the current Venues row, the order outcome, a dialog. Do not raise a thing for emphasis alone.
 
 ## Shapes
 
@@ -353,7 +362,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 
 ### Venue strip (signature)
 - Four equal tabs on one graphite card under the header, 44px tall and 48px from the `wide` breakpoint. From `wide` the card ends with a legend in 11px level3: a bid dot, an ask dot and "best across venues".
-- Left: the venue name in title type, level1, and under it the chain in 11px level3.
+- Left: the venue name in title type, level1, followed by its 13px logo, and under it the chain in 11px level3.
 - Right: Bid, Ask and Basis, each an 11px level3 label over its value in Inter tabular 13px 500. When the venue holds the best bid or ask across venues, that label starts with a dot in the side color.
 - A venue that lost its feed says Reconnecting in amber with an amber dot, over its last bid, ask and basis in level3. An unlisted market shows Not shown in level3.
 - The current tab is raised with the selected underline. Hover raises any tab.

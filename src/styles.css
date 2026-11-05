@@ -29,6 +29,36 @@
   --option-hover: rgb(236 235 232 / 0.1);
 }
 
+[data-venue] {
+  --surface: rgb(26 27 30 / 0.92);
+  --ticket: rgb(26 27 30 / 0.92);
+  --bid-wash: rgb(46 189 133 / 0.09);
+}
+
+[data-venue='binance'] {
+  --venue: #f0b90b;
+  --venue-tab: #3e3724;
+  --ground: #282414;
+}
+
+[data-venue='hyperliquid'] {
+  --venue: #97fce4;
+  --venue-tab: #324040;
+  --ground: #1f2a2a;
+}
+
+[data-venue='dydx'] {
+  --venue: #6966ff;
+  --venue-tab: #2c2d44;
+  --ground: #1b1b2c;
+}
+
+[data-venue='orderly'] {
+  --venue: #9c75ff;
+  --venue-tab: #332f44;
+  --ground: #201d2c;
+}
+
 @theme {
   --color-*: initial;
   --color-black: #000;
@@ -64,6 +94,7 @@
   --blur-*: initial;
   --inset-shadow-*: initial;
   --inset-shadow-selected: inset 0 -2px var(--accent);
+  --inset-shadow-venue: inset 0 -2px var(--venue);
   --inset-shadow-newest: inset 2px 0 var(--level3);
   --inset-shadow-current: inset 2px 0 var(--accent);
 
@@ -202,6 +233,8 @@
   --color-live: var(--live);
   --color-option: var(--option);
   --color-option-hover: var(--option-hover);
+  --color-venue: var(--venue);
+  --color-venue-tab: var(--venue-tab);
 }
 
 * {
