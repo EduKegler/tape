@@ -4,7 +4,7 @@ Live order books from Binance, Hyperliquid, dYdX and Orderly on one screen, with
 
 ![Tape showing the BTC book on Hyperliquid](docs/screenshot.png)
 
-Try it at [tape.kegler.dev](https://tape.kegler.dev), which reads mainnet, or at [tape.testnet.kegler.dev](https://tape.testnet.kegler.dev), which trades on the testnets.
+Try it at [tape.kegler.dev](https://tape.kegler.dev), which trades on Hyperliquid mainnet with real funds and only reads the other venues, or at [tape.testnet.kegler.dev](https://tape.testnet.kegler.dev), which trades on the testnets.
 
 Tape is for a perps trader who trades on more than one venue and wants the books, the best price and their positions on one screen.
 
@@ -24,7 +24,7 @@ The markets are Binance's USDT spot pairs and the perps that Hyperliquid, dYdX a
 | Venue | Books | Testnet trading | Mainnet trading | Deposits |
 | --- | --- | --- | --- | --- |
 | Binance | Spot | No | No | No |
-| Hyperliquid | Perps | Yes | Verified with real funds, off on tape.kegler.dev | From Arbitrum, Base, OP Mainnet and Ethereum |
+| Hyperliquid | Perps | Yes | On at tape.kegler.dev, verified with real funds on a local build | From Arbitrum, Base, OP Mainnet and Ethereum |
 | dYdX | Perps | Yes | Not verified, off | No |
 | Orderly | Perps | Yes | Not verified, off | From Arbitrum, Base and OP Mainnet |
 
