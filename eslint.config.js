@@ -473,6 +473,31 @@ const config = [
     },
   },
   {
+    files: ['e2e/**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression > ObjectExpression > Property[key.name='timeout'][value.type!='ArrayExpression']",
+          message: 'A test that needs a longer timeout to pass is wrong. Remove the wait at its cause.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='setTimeout']:not([callee.object.name=/^(window|globalThis|self)$/])",
+          message: 'A test that needs a longer timeout to pass is wrong. Remove the wait at its cause.',
+        },
+        {
+          selector: "CallExpression[callee.property.name='slow']",
+          message: 'A test that needs a longer timeout to pass is wrong. Remove the wait at its cause.',
+        },
+        {
+          selector: "CallExpression[callee.property.name='waitForTimeout']",
+          message: 'Wait for what the user reads on screen, not for a fixed time.',
+        },
+      ],
+    },
+  },
+  {
     ignores: [
       'eslint.config.js',
       'eslint.typed.config.js',

@@ -149,6 +149,7 @@ Before a venue ships, its tests prove these:
 | No casts that narrow a type outside the constructor that owns it | `typescript/no-unsafe-type-assertion` in `.oxlintrc.json`, off in tests |
 | A lint rule that needs types runs in Oxlint, or in `TYPED_RULES` when Oxlint lacks it, so ESLint builds the TypeScript program only for those | `eslint.config.js` turns `projectService` on only in `eslint.typed.config.js`, so a typed rule anywhere else fails `pnpm verify` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
+| A test that needs a longer timeout to pass is wrong, so no spec raises a timeout, marks a test slow or waits a fixed time | `no-restricted-syntax` for `e2e/**/*.spec.ts` in `eslint.config.js` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml`, green only when its three shards pass |
 | UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |

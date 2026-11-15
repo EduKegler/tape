@@ -142,7 +142,7 @@ test('the search says when the market list fails and tries again when it opens',
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const search = page.getByRole('combobox', { name: 'Search markets' })
   await search.click()
-  await expect(page.getByText('Could not load markets.')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Could not load markets.')).toBeVisible()
   await page.unroute('**/info', failMarketList)
   await page.keyboard.press('Escape')
   await search.click()

@@ -6,6 +6,17 @@ import base from '../vite.config'
 const cache = `e2e/.cache/${process.env.VITE_NETWORK ?? 'mainnet'}`
 const router = fileURLToPath(new URL('../src/router.tsx', import.meta.url))
 const page = fileURLToPath(new URL('./replay/page.ts', import.meta.url))
+const retryDelay = fileURLToPath(new URL('../src/integrations/tanstack-query/retry-delay.ts', import.meta.url))
+
+const replayRetryDelay: Plugin = {
+  name: 'tape:replay-retry-delay',
+  enforce: 'pre',
+  async resolveId(source, importer, options) {
+    if (!source.endsWith('/retry-delay')) return null
+    const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
+    return resolved?.id === retryDelay ? fileURLToPath(new URL('./replay/retry-delay.ts', import.meta.url)) : resolved
+  },
+}
 
 const replayPage: Plugin = {
   name: 'tape:replay-page',
@@ -16,7 +27,7 @@ const replayPage: Plugin = {
 
 export default defineConfig((env) =>
   mergeConfig(base(env), {
-    plugins: [replayPage],
+    plugins: [replayPage, replayRetryDelay],
     resolve: {
       alias: [
         {
