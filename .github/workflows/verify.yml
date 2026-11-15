@@ -90,6 +90,9 @@ jobs:
       matrix:
         network: [mainnet, testnet]
     uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: read
+      deployments: read
     with:
       network: ${{ matrix.network }}
     secrets: inherit
