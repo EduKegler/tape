@@ -67,7 +67,7 @@ Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. N
 
 One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. A feature goes with its tests and a fix with its test, so a revert takes both. Three fixes are three commits, because a reviewer can revert each one alone, and a batch of new tests for one package is one. The same edit at many sites is also one commit, such as one `refactor: stop exporting symbols used only in their module` for every export knip flags.
 
-The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A push or PR that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run, and the deploy skips a network when that holds for every commit since its last deployment. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
+The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A change of only docs or tests runs less, such as `pnpm verify --docs` or no e2e run, and [`scripts/change-kind.ts`](scripts/change-kind.ts) decides which. Never push with `--no-verify`.
 
 ## Pull requests
 
