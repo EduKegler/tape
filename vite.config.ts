@@ -66,13 +66,15 @@ export default defineConfig(({ command, mode }) => {
         '@reown/appkit/core': new URL('./src/wallet/no-appkit.ts', import.meta.url).pathname,
       },
     },
-    // eventemitter3 (under wagmi) is CommonJS behind an ESM wrapper, and the dev SSR runner can't inline it.
-    // The build bundles it fine, and can't resolve it as an external, so only dev leaves it to Node.
-    ssr: { noExternal: true, external: command === 'serve' ? ['eventemitter3'] : [] },
-    ...(uploadMaps && {
-      environments: { client: { build: { sourcemap: 'hidden' } } },
-      worker: { plugins: () => [sourceMaps()] },
-    }),
+    ssr: { noExternal: true },
+    environments: {
+      // Nitro's dev SSR runner in workerd can't evaluate CommonJS, such as use-sync-external-store under
+      // @tanstack/react-store. TanStack Start pre-bundles React and those packages to ESM only when the SSR
+      // environment turns discovery on.
+      ssr: { optimizeDeps: { noDiscovery: false } },
+      ...(uploadMaps && { client: { build: { sourcemap: 'hidden' } } }),
+    },
+    ...(uploadMaps && { worker: { plugins: () => [sourceMaps()] } }),
     plugins: [
       devtools(),
       nitro({
