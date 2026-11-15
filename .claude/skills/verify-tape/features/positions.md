@@ -23,7 +23,7 @@ A position row in the `Account` panel opens a popover with a price ruler. `TP / 
 
 Preconditions:
 
-- `VERIFY_TAPE_KEY_FILE=<path> vt up --network testnet`, enabled as in `features/trading.md` under Hyperliquid funded.
+- `VERIFY_TAPE_FUNDED=1 vt up --network testnet`, enabled as in `features/trading.md` under Hyperliquid funded.
 - The account starts clean. Open a position with a market order from the ticket, worth at least 10 USDC, and wait for it in `vt text --panel Account`.
 
 - **TP / SL.** `vt click --panel Account --role button --regex --name "^Add TP/SL to BTC$"`. The dialog is named after the position, such as `BTC Long 0.00100 · PnL +0.12`. Fill `Take profit price` above the ask and `Stop loss price` below the bid, then click the button that starts with `Set TP`. Wait for `vt text --panel Account` to show both prices in the TP / SL cell.

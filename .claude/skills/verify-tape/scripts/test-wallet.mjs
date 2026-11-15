@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readFundedKey } from './funded-key.mjs'
+import { fundedRequested, readFundedKey } from './funded-key.mjs'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const require = createRequire(resolve(REPO, 'package.json'))
@@ -23,11 +23,10 @@ if (watch && !/^0x[0-9a-fA-F]{40}$/.test(watch)) {
   console.error(`VERIFY_TAPE_WATCH is not an address: ${watch}`)
   process.exit(1)
 }
-const fundedFile = process.env.VERIFY_TAPE_KEY_FILE || null
 let funded = null
-if (fundedFile)
+if (fundedRequested())
   try {
-    funded = readFundedKey(fundedFile, { network, watch })
+    funded = readFundedKey({ network, watch })
   } catch (e) {
     console.error(e.message)
     process.exit(1)

@@ -1,6 +1,6 @@
 # Trading
 
-On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends orders from the ticket, and reads positions, orders and fills in the `Account` panel. Every rejection shows the venue's own words. The harness wallet has no funds by default, so the venue's rejection is the proof: it names the address the venue recovered from the signature. A funded run with `VERIFY_TAPE_KEY_FILE` proves Hyperliquid orders past the rejection.
+On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends orders from the ticket, and reads positions, orders and fills in the `Account` panel. Every rejection shows the venue's own words. The harness wallet has no funds by default, so the venue's rejection is the proof: it names the address the venue recovered from the signature. A funded run with `VERIFY_TAPE_FUNDED=1` proves Hyperliquid orders past the rejection.
 
 ## Sub-features
 
@@ -15,7 +15,7 @@ On Hyperliquid, dYdX and Orderly a connected wallet enables trading, sends order
 - `trade-lookup` asks the venue for the order by its client id after a send with no answer. Make `/exchange` fail with a `window.fetch` wrapper installed by `vt eval`, submit, and wait for `[data-order-lookup]`. On Hyperliquid testnet it says `The venue does not show this order. Hyperliquid answered unknownOid`.
 - `trade-order-dydx` gets `account dydx1… not found` from the chain, with the derived address. The client looks the account up before it signs, so an unfunded wallet never reaches the order signature. This proves the derivation, not the order encoding.
 - `trade-enable-orderly` switches the wallet to Arbitrum Sepolia, signs `Registration`, and the guard blocks the POST. The ticket shows the 451 text and `wallet.jsonl` holds the signed body.
-- `trade-funded-hl` signs with the funded testnet key from `VERIFY_TAPE_KEY_FILE`. Enable trading approves the agent, the `Account` panel shows the funded equity, a limit order rests with an `oid`, and its cancel answers `canceled`.
+- `trade-funded-hl` signs with the funded testnet key, `VERIFY_TAPE_KEY` in the `.env`. Enable trading approves the agent, the `Account` panel shows the funded equity, a limit order rests with an `oid`, and its cancel answers `canceled`.
 - `trade-revoke-hl` revokes the agent from `Revoke trading key` in the `Account` bar. The wallet signs an `approveAgent` under the name `tape` for an address whose key Tape drops, `extraAgents` lists that address in place of the device's agent, and the ticket goes back to `Approve a trading key`. A refusal keeps the key and says `Not revoked`.
 - `trade-account` shows `No account on this venue yet. Deposit to start.` for an unfunded wallet, after setup on dYdX and right away on Hyperliquid.
 
@@ -40,7 +40,7 @@ Preconditions:
 - **Hyperliquid scale.** Click `Scale`, fill the range, size and skew, submit, and wait as above. Read the sent action with a `window.fetch` wrapper installed by `vt eval`: one action, `grouping` `na`, one order per row of `Scale orders`.
 - **dYdX.** `vt open "/dydx/BTC?interval=1m"`, connect, wait for `Unlock your dYdX key`, click `Enable trading`, `vt wait --panel "Order ticket" --role button --name "Buy / Long BTC"`. Fill `Price (USD)` and size, submit, wait for `[data-trade-error]`. The alert says `account dydx1… not found`.
 - **Orderly.** `vt open "/orderly/BTC?interval=1m"`, connect, wait for `Register an Orderly account`, click `Enable trading`, wait for the alert. It shows `451` and `Orderly account and key registration is blocked in verification`. Check the signature with `node .claude/skills/verify-tape/.cache/probes/orderly-recover.ts <artifacts>/wallet.jsonl` when that probe exists, or recover it with viem from the logged body.
-- **Hyperliquid funded.** `VERIFY_TAPE_KEY_FILE=<path> vt up --network testnet`. The `wallet` line ends in `(funded)`. Enable as above. The ticket turns ready with no alert, and `vt text --panel Account` shows the equity. Fill `Price (USDC)` well under the bid and a size worth at least 10 USDC, click `Buy / Long BTC`, and wait for the status `Resting as order <oid>`. Cancel it from the `Orders` tab of the `Account` panel. Cancel every order and close every position before `down`, because the next funded run starts from this account.
+- **Hyperliquid funded.** `VERIFY_TAPE_FUNDED=1 vt up --network testnet`. The `wallet` line ends in `(funded)`. Enable as above. The ticket turns ready with no alert, and `vt text --panel Account` shows the equity. Fill `Price (USDC)` well under the bid and a size worth at least 10 USDC, click `Buy / Long BTC`, and wait for the status `Resting as order <oid>`. Cancel it from the `Orders` tab of the `Account` panel. Cancel every order and close every position before `down`, because the next funded run starts from this account.
 - **Proof.** `vt aria --panel "Order ticket" --path <venue>/NN.aria.txt` after each alert, `vt aria --panel Account`, and a full page `vt shot`.
 
 ## Gotchas

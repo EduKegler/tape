@@ -9,7 +9,7 @@ Find the real constraint, then make the smallest change that makes the right beh
 ## Three ways to hurt yourself
 
 1. **Killing by pattern.** Never `pkill -f`, or `kill` a PID you found by matching a name or path. Your own process and other worktrees' servers match too. Kill only a PID you captured when you started it. Port 3000 is the developer's `pnpm dev`, so start your own servers on other ports.
-2. **Trading for real.** A mainnet build with `VITE_TRADE_MAINNET` signs real orders with real money. Trade on a testnet build. A funded testnet key stays outside every git work tree and never reaches a log, a fixture or a commit.
+2. **Trading for real.** A mainnet build with `VITE_TRADE_MAINNET` signs real orders with real money. Trade on a testnet build. A funded testnet key lives only in the environment or in the git-ignored `.env`, and never reaches a log, a fixture or a commit.
 3. **Re-recording to get green.** `pnpm fixtures` overwrites the recordings that the parser tests and `pnpm e2e` read. Re-record when a venue changed what it sends, and read the diff. A failing test is never the reason.
 
 ## Hit every surface
