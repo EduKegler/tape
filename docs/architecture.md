@@ -80,7 +80,7 @@ The tests replay recorded history of public mainnet accounts in `packages/trade/
 
 ## Stack
 
-- TanStack Start on TanStack Redact, the alternative React runtime
+- TanStack Start on React 19
 - Nitro's `cloudflare-module` preset, one Cloudflare Worker per network
 - TanStack Router with typed params and validated search, Query for market rules, stats and candle history, Store, Pacer, Virtual for the trade feed, Form for the ticket, Table v9 for the venues table
 - wagmi and viem for the wallet, the dYdX client for its chain, msgpack and noble curves for Hyperliquid and Orderly signing
