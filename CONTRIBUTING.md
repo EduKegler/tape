@@ -59,7 +59,7 @@ To add a package, create `packages/<name>` with a `package.json` named `@tape/<n
 
 The repo is public and holds code and the docs that `scripts/check-public.mjs` allows. Research, competitor notes and decision logs stay out.
 
-Some files are read by tools more than by people. `DESIGN.md` and `PRODUCT.md` feed the Impeccable design tool, `.impeccable/` holds its notes on each screen, and `CLAUDE.md`, `AGENTS.md` and `.claude/skills/` give coding agents these same rules.
+Some files are read by tools more than by people. `DESIGN.md` and `PRODUCT.md` feed the Impeccable design tool, `.impeccable/` holds its notes on each screen, and `CLAUDE.md`, `AGENTS.md` and `.claude/skills/` point coding agents at these same rules. An agent session loads only `CLAUDE.md` and `AGENTS.md`, so they stay short.
 
 ## Commits
 
@@ -93,7 +93,7 @@ Most changes need no doc change. The code, its types and its tests already say w
 - `docs/deploy.md` and `docs/history-csv.md` serve whoever runs a build or reads an export.
 - Do not list files, fields, variables or steps that the code lists already, narrate control flow, or append a PR summary. Link to the source instead of copying it. [The glossary](docs/internals/glossary.md) defines shared words, and is not a feature index.
 - When a decision changes, rewrite or delete the text that described it. Do not add a second account next to the old one.
-- A new page in `docs/internals/` needs a distinct, lasting reason to exist and its name in `scripts/check-public.mjs`.
+- A new page in `docs/internals/` needs a distinct, lasting reason to exist, its name in `scripts/check-public.mjs`, and a line in the list in `AGENTS.md` that says when to read it.
 - A reason only one spot needs goes in a comment there, under the rules in Comments.
 
 ## Design
