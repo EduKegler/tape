@@ -1,6 +1,6 @@
 # How Tape works
 
-Six design decisions behind Tape, and the stack it runs on.
+Six design decisions behind Tape, the replay its journeys run on, and the stack.
 
 ## 1. One WebSocket per venue, shared across tabs
 
@@ -70,6 +70,10 @@ Each trading venue also reads its full history from a public endpoint, with no k
 Realized PnL per fill is the venue's own figure where it reports one, Hyperliquid's `closedPnl` and Orderly's `realized_pnl`. dYdX reports none, so `realize` in `packages/trade/src/history.ts` computes it by average cost: increases average the entry, reductions realize against it, and a flip closes everything before it opens the rest. Amounts are `bigint` at 18 places, so sums of venue decimals are exact. Fees and funding stay apart from realized PnL, and net is realized minus fees plus funding.
 
 The tests replay recorded history of public mainnet accounts in `packages/trade/src/__fixtures__` and check the result against each venue's own numbers: average cost reproduces Hyperliquid's `closedPnl` on every fill of one account and Orderly's `realized_pnl` on every fill of another. The net lands within cents of Hyperliquid's perp PnL chart, which samples every 15 minutes and rounds to cents, and on dYdX's `totalPnl` to the micro dollar. The CSV columns are under [History CSV](../history-csv.md).
+
+## The recorded replay
+
+`pnpm e2e` and `pnpm dev:replay` run the real hub over frames recorded from each venue, with no venue traffic. Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker, so the build swaps the hub's entry for `e2e/replay/worker.ts`. It wraps the real hub worker, gives it a `WebSocket` and a `fetch` that serve the recordings, and starts its `Date.now` at the time the recording was made, so ages and candle times read as they did live. The page's clock starts at the same time.
 
 ## Stack
 

@@ -73,11 +73,11 @@ The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs i
 
 A PR carries one ticket. Tickets go in one PR only when they touch the same files. Branch each PR from `main`, never from another open PR. Each PR costs two CI runs of about 4 minutes, one per push to it and one for the merge to `main`, and a small PR is easier to review and to revert.
 
-The PR template asks what changed, why, and how you checked it. A change on screen carries a screenshot.
+The PR template asks what changed, why, and how you checked it. A change on screen carries a screenshot. A fix for a purely visual bug carries screenshots before and after, and no test.
 
 ## Coding agents
 
-You can write code with an agent. You answer for every line you submit: read it, run it, and write the PR description yourself. A test whose expected value an agent copied from the code under test proves nothing, as Tests explains.
+You can write code with an agent. You answer for every line you submit: read it, run it, and write the PR description yourself. A test whose expected value an agent copied from the code under test proves nothing, as [Testing](docs/internals/testing.md#expected-values) explains.
 
 ## Comments
 
@@ -102,32 +102,7 @@ Most changes need no doc change. The code, its types and its tests already say w
 
 ## Tests
 
-A test goes in the one layer that can catch its kind of mistake. A test that repeats another layer's proof stays out.
-
-| What it proves | Layer | Expected value comes from |
-| --- | --- | --- |
-| Decimal math, ticks and steps, order building, book sync | Vitest in Node, examples and fast-check properties | A hand calculation, the venue's docs, or a plain model written in the test |
-| Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
-| Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
-| History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
-| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production builds, with no network. A `*.testnet.spec.ts` or `*.mainnet.spec.ts` runs on that network's build, any other spec runs on mainnet, and a test whose result depends on the network takes the `@each-network` tag to run on both. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
-| Each venue still serves the book the testnet build reads | Playwright in `e2e/live.smoke.ts`, run only by the nightly, against the live venues | A live book on screen |
-| Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
-
-The `verify-tape` skill explores and reproduces bugs against live data. Regressions belong to `pnpm e2e`. A spec finds elements by role and accessible name, and a `data-testid` goes in only where neither is reliable.
-
-The expected value never comes from a run of the code under test. Another model writing the test does not fix that, because it reads the same code and guesses the same value.
-
-A property's generators stay inside its valid domain, and invalid input gets its own refusal test. Use `fast-check` with `fc.assert` inside a Vitest `it`. The `it` and `test` from `@fast-check/vitest` rerun every example test `numRuns` times.
-
-Before a venue ships, its tests prove these:
-
-- The recorded replay yields a live, uncrossed book, a reconnect resyncs it, and a late snapshot is ignored.
-- A 5xx, a timeout or an unreadable reply on a write is an unknown outcome, and the order is then found by client id.
-- A missing order is told apart from a missing key, and cancelling a filled order is not an error.
-- A cancel the venue says it already holds, such as dYdX's `already exists` codes 9 and 32, is a done cancel, not a refused one.
-- A 5xx, a timeout or an unreadable reply on a read means the venue is unreachable, never a missing order or account.
-- Trading stays off on mainnet unless the build turns mainnet trading on for that venue.
+A test goes in the one layer that can catch its kind of mistake, the lowest one that fails on `main`. Its expected value comes from outside the code under test: a hand calculation, the venue's docs or a recording. A logic bug fix carries a test that fails on `main`, and a purely visual fix carries screenshots instead. [docs/internals/testing.md](docs/internals/testing.md) has the layers, the rules and what a new venue must prove.
 
 ## Rules and what enforces them
 
