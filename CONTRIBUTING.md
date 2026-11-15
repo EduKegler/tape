@@ -146,7 +146,7 @@ Before a venue ships, its tests prove these:
 | One logical change per commit | review only |
 | A PR carries one ticket, and tickets that touch the same files share one | review only |
 | A test's expected value comes from outside the code under test | review only |
-| Comments only for constraints from outside the repo | review only |
+| Comments only for constraints from outside the repo | `tape/low-value-comments` in `eslint.config.js` for section dividers, commented-out code, PR numbers, JSDoc types, a comment that repeats the name below it and a comment over 4 lines, and review for the rest |
 | StrykerJS runs only in its own worktree, with `.claude/worktrees/**` in `ignorePatterns`, and the mode of `.claude/skills/verify-tape/scripts/verify-tape.mjs` is restored after each `inPlace` run | review only |
 
 A rule enforced by review only that breaks again gets a check in the same change, unless no check can tell the mistake apart. Drop a row once its mistake can no longer be written.

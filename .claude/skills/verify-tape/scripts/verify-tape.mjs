@@ -105,8 +105,6 @@ function record(s, entry) {
   appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`)
 }
 
-// ---------- lifecycle ----------
-
 async function up(flags) {
   const prior = readState()
   if (prior && (alive(prior.serverPid) || alive(prior.chromePid)))
@@ -402,8 +400,6 @@ async function doctor() {
   if (core.some((c) => !c.ok)) process.exit(1)
   if (checks.some((c) => !c.ok)) process.exit(2)
 }
-
-// ---------- browser ----------
 
 async function targetId(page) {
   const cdp = await page.context().newCDPSession(page)

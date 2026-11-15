@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Performance probe for Tape. Drives a verify-tape run that was started with `up --replay --network testnet`, keeps the
-// recorded book moving, and measures frame time, long tasks, the time from a key press in the ticket's price
-// field to the next paint, and main thread and GPU work. Writes one JSON per run and a summary, and compares
-// the summary to a baseline when given one.
-// Usage: node .claude/skills/verify-tape/scripts/perf-probe.mjs [flags]. Run with --help for the list.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { cpus, loadavg, totalmem } from 'node:os'

@@ -119,6 +119,98 @@ const oxlintComments = {
   },
 }
 
+const DIVIDER = /^(?:[-=*#~_/+]{3,}.*|.*[-=*#~_]{3,})$/
+const TEST_STEP = /^(?:arrange|act|assert|given|when|then)\s*[:.]?$/i
+const TASK_MARKER = /\b(?:TODO|FIXME|XXX|HACK)\b/
+const TASK_LINK = /#\d+|https?:\/\//
+const BARE_PR = /(?<![\w/&#-])#[1-9]\d{0,4}(?![\w-])/
+const COMMENTED_CODE =
+  /^(?:(?:(?:const|let|var)\s+[\w${}[\], ]+=.*|import\s.+\sfrom\s+["'].+["']|(?:await\s+|return\s+)?[\w$.]+\(.*\)|[\w$.[\]]+\s*=\s*.+);?|(?:if|for|while|switch)\s*\(.*\)\s*\{|\}(?:\s*else\s*\{)?)$/
+const JSDOC_TYPE = /^@(?:param|returns?|type|typedef)\s+\{/
+const DECLARATION =
+  /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:(?:const|let|var|function\*?|class|interface|type|enum)\s+)?([A-Za-z_$][\w$]*)\s*[?!]?\s*[:=(<{]/
+const DIRECTIVE = /^\s*(?:(?:oxlint|eslint)-|@ts-|prettier-ignore|global\s)/
+const FILLER = new Set(
+  'a an the of for to in on at by with from and or is are be this that it its as get set return create new current value given whether'.split(
+    ' ',
+  ),
+)
+const MAX_COMMENT_LINES = 4
+
+const words = (text) =>
+  (text.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    .map((word) => (word.length > 3 ? word.replace(/([^s])s$/, '$1') : word))
+    .filter((word) => !FILLER.has(word))
+const nameWords = (name) => words(name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2'))
+const commentLines = (comment) =>
+  comment.value
+    .split('\n')
+    .map((line) => line.replace(/^\s*\*?\s?/, '').trim())
+    .filter((line) => line !== '')
+
+function lowValue(comments, lines, source) {
+  const text = comments.map((comment) => comment.value).join('\n')
+  if (lines.length === 0 || comments.some((comment) => DIRECTIVE.test(comment.value))) return null
+  const isLine = comments[0].type === 'Line'
+  if (lines.some((line) => DIVIDER.test(line))) return 'divider'
+  if (isLine && lines.length === 1 && TEST_STEP.test(lines[0])) return 'testStep'
+  if (TASK_MARKER.test(text) && !TASK_LINK.test(text)) return 'task'
+  if (!TASK_MARKER.test(text) && BARE_PR.test(text.replace(/`[^`]*`/g, ''))) return 'history'
+  if (lines.some((line) => JSDOC_TYPE.test(line))) return 'jsdocType'
+  if (isLine && lines.every((line) => COMMENTED_CODE.test(line))) return 'commentedCode'
+  const name = DECLARATION.exec(source.lines[comments.at(-1).loc.end.line] ?? '')?.[1]
+  const said = words(lines.join(' '))
+  if (name && !lines.some((line) => line.startsWith('@')) && said.length > 0 && said.length <= 6) {
+    const named = new Set(nameWords(name))
+    if (said.every((word) => named.has(word))) return 'restates'
+  }
+  if (lines.length > MAX_COMMENT_LINES) return 'long'
+  return null
+}
+
+const tapeComments = {
+  rules: {
+    'low-value-comments': {
+      meta: {
+        type: 'suggestion',
+        schema: [],
+        messages: {
+          divider: 'Drop the section divider. Split the file or let the code show the grouping.',
+          testStep: 'Drop the test step label.',
+          task: 'Link the issue that tracks this, or drop the marker.',
+          history: 'Drop the PR or issue number, git history records it. Keep the outside reason.',
+          jsdocType: 'Drop the JSDoc type, TypeScript already has it.',
+          commentedCode: 'Delete the commented-out code, git keeps it.',
+          restates: 'Drop the comment, it only repeats the name below it.',
+          long: `Cut this to ${MAX_COMMENT_LINES} lines or fewer: keep the outside constraint, drop the background.`,
+        },
+      },
+      create: (context) => ({
+        Program: () => {
+          const groups = []
+          for (const comment of context.sourceCode.getAllComments()) {
+            const previous = groups.at(-1)?.comments.at(-1)
+            const continues =
+              comment.type === 'Line'
+              && previous?.type === 'Line'
+              && previous.loc.end.line === comment.loc.start.line - 1
+              && previous.loc.start.column === comment.loc.start.column
+            if (continues) {
+              groups.at(-1).comments.push(comment)
+              groups.at(-1).lines.push(...commentLines(comment))
+            } else groups.push({ comments: [comment], lines: commentLines(comment) })
+          }
+          for (const { comments, lines } of groups) {
+            const messageId = lowValue(comments, lines, context.sourceCode)
+            if (messageId)
+              context.report({ loc: { start: comments[0].loc.start, end: comments.at(-1).loc.end }, messageId })
+          }
+        },
+      }),
+    },
+  },
+}
+
 const SIDE_FILES = [
   'src/ui/Account.tsx',
   'src/ui/BatchPanel.tsx',
@@ -175,10 +267,11 @@ const config = [
   comments.recommended,
   {
     linterOptions: { reportUnusedDisableDirectives: 'error' },
-    plugins: { 'oxlint-comments': oxlintComments },
+    plugins: { 'oxlint-comments': oxlintComments, tape: tapeComments },
     rules: {
       '@eslint-community/eslint-comments/require-description': 'error',
       'oxlint-comments/directive': 'error',
+      'tape/low-value-comments': 'error',
     },
   },
   regexp.configs['flat/recommended'],

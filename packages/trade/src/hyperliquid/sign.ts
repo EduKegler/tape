@@ -4,12 +4,9 @@ import type { Address, Hex } from 'viem'
 import type { TypedData, TypedDataSigner } from '../typed-data'
 
 /**
- * Hyperliquid has two signing schemes, both EIP-712, mirrored from the official
- * Python SDK (hyperliquid/utils/signing.py), whose vectors the tests replay.
- *
- * L1 actions (order, cancel, leverage) are msgpack-hashed with the nonce and signed
- * by the agent key as a "phantom agent". User actions (approve an agent, approve a
- * builder fee) are typed data the wallet signs itself.
+ * Hyperliquid's two EIP-712 schemes, from its Python SDK (hyperliquid/utils/signing.py), whose vectors the tests replay.
+ * L1 actions (order, cancel, leverage) are msgpack-hashed with the nonce and signed by the agent key as a "phantom agent".
+ * User actions, such as approving an agent or a builder fee, are typed data the wallet signs itself.
  */
 
 export type HlChain = 'Mainnet' | 'Testnet'
