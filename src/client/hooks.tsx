@@ -37,8 +37,8 @@ export function useFrame<T extends Topic>(
   const client = useContext(HubContext)
   const key = topicKey(topic)
   const store = client ? client.store(topic) : NOTHING
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- key is topicKey(topic), so it changes whenever topic does
-  useEffect(() => client?.retain(topic), [client, key])
+  const retain = useEffectEvent(() => client?.retain(topic))
+  useEffect(() => retain(), [client, key])
   return useSelector(store, select, compare ? { compare } : undefined)
 }
 

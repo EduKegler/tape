@@ -41,6 +41,8 @@ const SHARES = [25, 50, 75, 100] as const
 const LEGS = ['tp', 'sl'] as const
 
 type Leg = OrderExit['kind']
+
+const ROE_FIELD = { tp: 'tpRoe', sl: 'slRoe' } as const
 type Ctx = {
   readonly account: AccountRef
   readonly venue: string
@@ -159,14 +161,14 @@ function Protect(ctx: Ctx & { readonly touch: Touch | null }) {
   const busy = last.pending || inFlight.length > 0
   const setPrice = (leg: Leg, text: string) => {
     const price = typed(text)
-    setDraft((before) => ({ ...before, [leg]: text, [`${leg}Roe`]: Number.isFinite(price) ? roeText(price) : '' }))
+    setDraft((before) => ({ ...before, [leg]: text, [ROE_FIELD[leg]]: Number.isFinite(price) ? roeText(price) : '' }))
     if (Number.isFinite(price) && (price < scene.domain[0] || price > scene.domain[1])) scene.widen([price])
   }
   const setRoe = (leg: Leg, text: string) => {
     const roe = typed(text)
     const px = Number.isFinite(roe) ? priceForRoe(spec, position, roe) : null
     const price = px === null ? null : px / 10 ** spec.scale.px
-    setDraft((before) => ({ ...before, [`${leg}Roe`]: text, [leg]: price === null ? '' : plainPrice(spec, price) }))
+    setDraft((before) => ({ ...before, [ROE_FIELD[leg]]: text, [leg]: price === null ? '' : plainPrice(spec, price) }))
     if (price !== null && (price < scene.domain[0] || price > scene.domain[1])) scene.widen([price])
   }
   const checks = { tp: legCheck(ctx, touch, 'tp', draft.tp), sl: legCheck(ctx, touch, 'sl', draft.sl) }
@@ -186,7 +188,7 @@ function Protect(ctx: Ctx & { readonly touch: Touch | null }) {
       takeProfit: leg === 'tp' ? { kind: 'remove' } : { kind: 'keep' },
       stopLoss: leg === 'sl' ? { kind: 'remove' } : { kind: 'keep' },
     })
-    setDraft((before) => ({ ...before, [leg]: '', [`${leg}Roe`]: '' }))
+    setDraft((before) => ({ ...before, [leg]: '', [ROE_FIELD[leg]]: '' }))
   }
   const ghost = (leg: Leg) => {
     const roe = priceForRoe(spec, position, leg === 'tp' ? GHOST_ROE : -GHOST_ROE)
@@ -263,7 +265,7 @@ function Protect(ctx: Ctx & { readonly touch: Touch | null }) {
                       label={`${word} return on margin`}
                       unit="% ROE"
                       placeholder={leg === 'tp' ? `+${GHOST_ROE}` : `-${GHOST_ROE}`}
-                      value={draft[`${leg}Roe`]}
+                      value={draft[ROE_FIELD[leg]]}
                       onChange={(event) => setRoe(leg, event.target.value.trim())}
                       className="w-28"
                     />
