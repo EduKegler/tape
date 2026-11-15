@@ -18,14 +18,7 @@ The hub does the work off the main thread: book sync, grouping, formatting, cumu
 
 The tab keeps only the latest frame per topic and flushes once per animation frame inside a TanStack Store batch. The book has 28 fixed rows keyed by index, so DOM nodes never move. Each row subscribes to its own slice with a shallow compare. The depth bar is a `scaleX` transform, the depth chart is a canvas, and candles go straight to `series.update`. None of those three render React.
 
-Measured in headless Chrome on 2026-10-28, 20 s per market:
-
-| Market | Venue messages in | Book flushes | Rows touched per flush | Long tasks |
-| --- | --- | --- | --- | --- |
-| Binance BTC | 564/s | 176 | 25 of 28 | 0 |
-| dYdX ETH | 333/s | 163 | 27 of 28 | 0 |
-
-In a busy book most rows change every flush, because a new level shifts every cumulative total below it. The win is the cap on how often the DOM is touched, not skipping rows.
+In a busy book most rows change every flush, because a new level shifts every cumulative total below it: 25 to 27 of the 28 rows on Binance BTC and dYdX ETH. The win is the cap on how often the DOM is touched, not skipping rows.
 
 ## 3. Decimals, not floats
 
@@ -46,7 +39,7 @@ Integers instead of `bigint` everywhere keep book levels fast as `Map` keys and 
 
 Each venue is one adapter behind `VenueAdapter` in `packages/venues/src/types.ts`: market rules, subscribe frames, a parser from raw messages to one event type, 24h stats and candle history. Everything after the parser is venue-agnostic. One pure function, `stepBook` in `packages/core/src/book.ts`, runs all three book protocols. A new venue is one adapter file plus recorded fixtures.
 
-The tests replay frames recorded from each venue in `packages/venues/src/__fixtures__` until each book is live and uncrossed. `pnpm fixtures` records fresh ones from mainnet, and `NETWORK=testnet pnpm fixtures` from testnet.
+The tests replay frames recorded from each venue in `packages/venues/src/__fixtures__` until each book is live and uncrossed.
 
 ## 5. Orders signed in the browser, judged by the venue
 
@@ -60,15 +53,15 @@ Tape has no server between the user and the venue. Each trading venue is one mod
 
 Every send gets a new client id and nothing resends on its own. A send with no answer is an unknown outcome: the ticket says so, asks the venue for that client id, and tells whether the order is there. A rejection always shows the venue's own words.
 
-Deposits leave from the wallet itself. `Deposit` in the Account panel moves USDC to Hyperliquid perps or to Orderly. To Hyperliquid it goes from Arbitrum through Hyperliquid's bridge, free and credited in about a minute, or on mainnet from Base, OP Mainnet and Ethereum over Circle's CCTP, which burns the USDC and has Circle forward it to the same address on Hyperliquid for a fee Circle quotes. To Orderly it goes from Arbitrum, Base or OP Mainnet, or Arbitrum Sepolia on testnet, into Orderly's Vault, which sends LayerZero a message to credit the account. The wallet pays that message in ETH on top of gas, at the fee the Vault quotes. On mainnet the Orderly route needs the broker in `VITE_ORDERLY_BROKER_ID`. Before the wallet signs, the dialog shows the route, fee, gas, time and each transaction the wallet will ask for. It blocks an amount under the bridge's 5 USDC minimum, which Hyperliquid keeps without crediting, an address Orderly has no account for yet, an amount over the Vault's USDC limit when Orderly sets one, a USDC or gas shortfall, a contract wallet, and a transaction the chain would revert. After the send it follows the deposit to the credit, in Hyperliquid's ledger or in Orderly's asset history, and keeps the receipt on the device. Orderly serves that history only to a request signed by the account's key, so the receipt follows an Orderly credit only on a device where trading is enabled. A deposit Tape cannot follow to the end, such as a CCTP forward Circle has not completed in 30 min or a state the venue does not document, ends at `Check manually`, with a link to the Circle or LayerZero message and the transaction hash to give support. Each venue's routes sit behind `DepositVenue` in `packages/trade/src/deposit.ts`.
+Deposits leave from the wallet itself, through the routes behind `DepositVenue` in `packages/trade/src/deposit.ts`: to Hyperliquid through its bridge from Arbitrum or, on mainnet, through Circle's CCTP from Base, OP Mainnet and Ethereum, and to Orderly through its Vault, which the wallet pays in ETH for the LayerZero message that credits the account. Before the wallet signs, the dialog shows the route, the fees, the time and each transaction, and blocks a deposit the venue would lose or the chain would revert, such as an amount under the bridge's 5 USDC minimum, which Hyperliquid keeps without crediting. After the send Tape follows the deposit to the credit and keeps the receipt on the device. Orderly serves its asset history only to a request signed by the account's key, so Tape follows an Orderly credit only on a device where trading is enabled. A deposit it cannot follow to the end stops at `Check manually`, with the Circle or LayerZero link and the transaction hash.
 
-Each build is one network, set by `VITE_NETWORK`. A `testnet` build reads books, trades and candles from the testnets and trades there too, so the price on screen is the price the order meets. A `mainnet` build sends orders only on the venues named in `VITE_TRADE_MAINNET`, a comma list of venue ids such as `hyperliquid`. Any other value, `1` included, fails the build. With the variable unset it only reads. A venue left out is read only: its tab carries a `Read only` tag in place of the chain, its ticket has no form and links to the first venue that sends orders, and Account says it is read only. `VITE_WALLETCONNECT_PROJECT_ID`, a [Reown](https://cloud.reown.com) project id, adds a WalletConnect button that shows a QR for a phone wallet. Without it the build offers only the browser's own wallet.
+Each build is one network, set by `VITE_NETWORK`. A testnet build reads and trades on the testnets, so the price on screen is the price the order meets. A mainnet build trades only on the venues that `VITE_TRADE_MAINNET` names and only reads the others, whose ticket links to a venue that trades. [Deploy](deploy.md) lists every build variable.
 
 The production server sends a Content Security Policy with a nonce per request. Only scripts the server rendered run, and the page connects only to its own network's hosts, listed in `src/csp.ts`, plus Circle's API for CCTP fees and status on mainnet. A new venue host goes there, and `src/csp.test.ts` fails until it does. `pnpm dev` sends no policy, because Vite's dev client injects inline scripts.
 
-Analytics run no third-party script. The page queues events from a fixed list in `src/analytics/events.ts` and sends them with `sendBeacon` to `/r1` on its own origin. The server validates the batch and forwards it to PostHog's batch API with `POSTHOG_KEY`, and `POSTHOG_HOST` (default EU cloud). Events make no person profile and carry no wallet address. Each is keyed by a page load id that lives in memory and tagged with the build's network. The visitor's IP goes along for GeoIP, unless the PostHog project discards it. Without `POSTHOG_KEY` the route drops everything.
+Analytics run no third-party script. The page sends events from the fixed list in `src/analytics/events.ts` with `sendBeacon` to `/r1` on its own origin, and the Worker forwards them to PostHog. Events make no person profile and carry no wallet address, and [Deploy](deploy.md) says how the Worker keys them.
 
-Errors take the same route to PostHog error tracking. The page sends uncaught errors, unhandled rejections, route errors, unexpected trade failures and errors in the hub worker as `$exception`, each with its stack and a message cleared of addresses and keys. An uncaught error with no frame on the site's own origin, like one from a wallet extension, stays on the page. Each JS context sends an error once, and 10 at most. When the build has `POSTHOG_PERSONAL_API_KEY`, a personal key that can write error tracking, and `POSTHOG_PROJECT_ID`, it marks each browser chunk with an id, uploads the source maps to `POSTHOG_HOST` (default US cloud) as release `tape` at `GITHUB_SHA`, and deletes them. A failed upload fails the build. Without both variables the build has no source maps.
+Errors take the same route to PostHog error tracking, with stacks and messages cleared of addresses and keys. An uncaught error with no frame on the site's own origin, like one from a wallet extension, stays on the page, and each JS context sends 10 at most.
 
 ## 6. History that adds up to the venue's number
 
@@ -76,7 +69,7 @@ Each trading venue also reads its full history from a public endpoint, with no k
 
 Realized PnL per fill is the venue's own figure where it reports one, Hyperliquid's `closedPnl` and Orderly's `realized_pnl`. dYdX reports none, so `realize` in `packages/trade/src/history.ts` computes it by average cost: increases average the entry, reductions realize against it, and a flip closes everything before it opens the rest. Amounts are `bigint` at 18 places, so sums of venue decimals are exact. Fees and funding stay apart from realized PnL, and net is realized minus fees plus funding.
 
-The tests replay recorded history of public mainnet accounts in `packages/trade/src/__fixtures__` and check the result against each venue's own numbers: average cost reproduces Hyperliquid's `closedPnl` on every fill of one account and Orderly's `realized_pnl` on every fill of another. The net lands within cents of Hyperliquid's perp PnL chart, which samples every 15 minutes and rounds to cents, and on dYdX's `totalPnl` to the micro dollar. `pnpm fixtures:history` records fresh ones. The CSV columns are under [History CSV](history-csv.md).
+The tests replay recorded history of public mainnet accounts in `packages/trade/src/__fixtures__` and check the result against each venue's own numbers: average cost reproduces Hyperliquid's `closedPnl` on every fill of one account and Orderly's `realized_pnl` on every fill of another. The net lands within cents of Hyperliquid's perp PnL chart, which samples every 15 minutes and rounds to cents, and on dYdX's `totalPnl` to the micro dollar. The CSV columns are under [History CSV](history-csv.md).
 
 ## Stack
 

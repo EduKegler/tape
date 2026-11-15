@@ -71,8 +71,6 @@ function parseArgs(argv) {
 const panel = (page, title) =>
   page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
 
-// ---------- capture ----------
-
 function readTree(snapshot, ax) {
   const doc = snapshot.documents[0]
   const str = (i) => (i >= 0 ? snapshot.strings[i] : '')
@@ -322,8 +320,6 @@ function unpack(file) {
     for (const element of Object.values(view.elements)) element.style = styles[element.style]
   return capture
 }
-
-// ---------- diff ----------
 
 function diffElements(a, b) {
   const changed = new Map()

@@ -28,7 +28,7 @@ pnpm e2e # Playwright journeys on the production builds over the recorded replay
 pnpm dev:replay # pnpm dev on the recorded replay that pnpm e2e plays, with no venue traffic and the books looping
 pnpm build
 pnpm preview # serves the last build with wrangler dev, in workerd, the runtime Cloudflare runs
-pnpm fixtures # re-record venue fixtures
+pnpm fixtures # re-record venue fixtures from mainnet, NETWORK=testnet for the testnets
 pnpm fixtures:history # re-record trade history fixtures
 RECORD_WRITES=dydx pnpm fixtures:writes # re-record one venue's testnet write replies, Hyperliquid also takes RECORD_WRITES_HL_KEY_FILE
 node scripts/capture.mjs # screenshot and social preview from a running preview server
@@ -64,9 +64,9 @@ Some files are read by tools more than by people. `DESIGN.md` and `PRODUCT.md` f
 
 Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. Never skip the hook.
 
-One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. Size a commit by the work, not by the edit: a feature with its tests, a fix with its test, a batch of new tests for one package. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits, because a reviewer can revert each fix alone. Split: #36 has 36 commits, one per test, and is two, one `test(trade)` for the dYdX gaps the mutation run found and one `test(core)` for the core ones. The same edit at many sites is also one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol.
+One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. A feature goes with its tests and a fix with its test, so a revert takes both. Three fixes are three commits, because a reviewer can revert each one alone, and a batch of new tests for one package is one. The same edit at many sites is also one commit, such as one `refactor: stop exporting symbols used only in their module` for every export knip flags.
 
-The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A push or PR that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A fix still shares a commit with its Vitest test, so a revert takes both. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run, and the deploy skips a network when that holds for every commit since its last deployment. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
+The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A push or PR that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run, and the deploy skips a network when that holds for every commit since its last deployment. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
 
 ## Pull requests
 
@@ -82,7 +82,16 @@ You can write code with an agent. You answer for every line you submit: read it,
 
 Our own code explains itself through names, types and tests. A comment stays only for a constraint from outside the repo that the code cannot show: a venue quirk, a browser or library limit, a protocol rule. It names that outside party. Doc comments on `packages/*/src` exports state the public contract, and a lint suppression carries its reason after `--`.
 
-A why about our own design is a rename, an extracted function or a type instead. `/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */` was deleted for that. `/** Not found comes back as success: false, sometimes with a 200, so reads treat it as rejected. */` stays, because Orderly decides it. Naming the outside party is not enough on its own: the four comments #5 added and #7 deleted named TanStack Router, Vite, Safari and Firefox, but `src/router.tsx` already states the Router fact where it applies, and `V8_STACK`, `JSC_STACK` and `GECKO_STACK` already say which engine wrote each stack. No lint can tell these apart, so read each comment you add against this rule before you commit.
+A why about our own design is a rename, an extracted function or a type instead. `/** Bids floor to the step and asks ceil to it, so grouping never collapses the spread. */` goes for that reason. `/** Not found comes back as success: false, sometimes with a 200, so reads treat it as rejected. */` stays, because Orderly decides it. Naming an outside party is not enough when the code already states that fact where it applies, as `src/router.tsx` does for TanStack Router. Read each comment you add against this rule before you commit.
+
+## Docs
+
+Most changes need no doc change. The code, its types and its tests already say what it does.
+
+- `docs/` holds what no single file shows: a decision and the outside constraint behind it, a rule that spans packages, a trap that is hard to find in the source. Before you add a paragraph, ask what a maintainer would get wrong without it. If the code answers that, leave the paragraph out.
+- Do not list files, fields, variables or steps that the code lists already, narrate control flow, or append a PR summary. Link to the source instead of copying it.
+- When a decision changes, rewrite or delete the text that described it. Do not add a second account next to the old one.
+- A reason only one spot needs goes in a comment there, under the rules in Comments.
 
 ## Design
 
@@ -147,7 +156,7 @@ Before a venue ships, its tests prove these:
 | One logical change per commit | review only |
 | A PR carries one ticket, and tickets that touch the same files share one | review only |
 | A test's expected value comes from outside the code under test | review only |
-| Comments only for constraints from outside the repo | review only |
+| Comments only for constraints from outside the repo | `tape/low-value-comments` in `eslint.config.js` for section dividers, commented-out code, PR numbers, JSDoc types, a comment that repeats the name below it and a comment over 4 lines, and review for the rest |
 | StrykerJS runs only in its own worktree, with `.claude/worktrees/**` in `ignorePatterns`, and the mode of `.claude/skills/verify-tape/scripts/verify-tape.mjs` is restored after each `inPlace` run | review only |
 
 A rule enforced by review only that breaks again gets a check in the same change, unless no check can tell the mistake apart. Drop a row once its mistake can no longer be written.
