@@ -7,6 +7,8 @@ import type { AppEvent, Batch } from './events'
 
 const SITE = 'https://tape.kegler.dev'
 const ENV = { POSTHOG_KEY: 'phc_test', POSTHOG_HOST: 'https://eu.i.posthog.com' }
+const CHROME =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
 
 function beacon(body: unknown, headers: Record<string, string> = { origin: SITE }) {
   return new Request(`${SITE}/r1`, {
@@ -48,6 +50,7 @@ describe('analytics ingest', () => {
         origin: SITE,
         'x-forwarded-for': '198.51.100.9, 203.0.113.7',
         'cf-connecting-ip': '203.0.113.7',
+        'user-agent': CHROME,
       }),
       'mainnet',
       ENV,
@@ -73,10 +76,20 @@ describe('analytics ingest', () => {
             $process_person_profile: false,
             network: 'mainnet',
             $ip: '203.0.113.7',
+            $raw_user_agent: CHROME,
           },
         },
       ],
     })
+  })
+
+  it('caps the user agent at 512 characters and leaves it out when the browser sends none', async () => {
+    const { sent, send } = recorder()
+    const batch: Batch = { session, events: [[now, { event: 'trading_enabled', venue: 'dydx' }]] }
+    await ingest(beacon(batch, { origin: SITE, 'user-agent': 'a'.repeat(600) }), 'mainnet', ENV, send)
+    await ingest(beacon(batch), 'mainnet', ENV, send)
+    expect(sent[0]!.body.batch[0]!.properties.$raw_user_agent).toBe('a'.repeat(512))
+    expect(sent[1]!.body.batch[0]!.properties).not.toHaveProperty('$raw_user_agent')
   })
 
   it('keeps the funnel properties of a placed order', async () => {

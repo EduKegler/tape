@@ -19,7 +19,15 @@ export const readEnv = (): Env =>
 
 type PageviewEvent = Extract<AppEvent, { event: '$pageview' }>
 
-type Context = { readonly network: Network; readonly origin: string; readonly ip: string | null; readonly now: number }
+const MAX_USER_AGENT = 512
+
+type Context = {
+  readonly network: Network
+  readonly origin: string
+  readonly ip: string | null
+  readonly userAgent: string | null
+  readonly now: number
+}
 
 /** PostHog's exception shape. `web:javascript` frames with a chunk id resolve against the uploaded source maps. */
 function exception({ type, value, handled, source, frames }: Omit<ExceptionEvent, 'event'>, origin: string) {
@@ -74,6 +82,7 @@ function toPostHog(batch: Batch, key: string, ctx: Context) {
           $process_person_profile: false,
           network: ctx.network,
           ...(ctx.ip ? { $ip: ctx.ip } : {}),
+          ...(ctx.userAgent ? { $raw_user_agent: ctx.userAgent } : {}),
         },
       }
     }),
@@ -97,7 +106,8 @@ export async function ingest(request: Request, network: Network, env: Env, send:
   if (!env.POSTHOG_KEY) return new Response(null, { status: 204 })
   // Cloudflare appends to the X-Forwarded-For a client sends, and puts only the visitor in CF-Connecting-IP.
   const ip = request.headers.get('cf-connecting-ip') || null
-  const body = toPostHog(batch.data, env.POSTHOG_KEY, { network, origin, ip, now: Date.now() })
+  const userAgent = request.headers.get('user-agent')?.slice(0, MAX_USER_AGENT) || null
+  const body = toPostHog(batch.data, env.POSTHOG_KEY, { network, origin, ip, userAgent, now: Date.now() })
   await send(new URL('/batch/', env.POSTHOG_HOST), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
