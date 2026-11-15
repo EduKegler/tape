@@ -3,6 +3,7 @@ import { useRouterState } from '@tanstack/react-router'
 import type { VenueId } from '@tape/core/ids'
 import type { Command, CommandOutcome, TradeError } from '@tape/trade/types'
 import { pack } from './beacon'
+import { campaign } from './campaign'
 import type { AppEvent, Batch } from './events'
 import { createReporter } from './exception'
 
@@ -42,17 +43,24 @@ export function track(event: AppEvent) {
   timer ??= setTimeout(flush, FLUSH_MS)
 }
 
-/** Search params never leave the page. The referrer leaves as its origin, and only when it is another web page. */
-export function pageview(path: string, referrer: string, origin: string): AppEvent {
+/** The referrer leaves as its origin, and only when it is another web page. */
+export function pageview(path: string, referrer: string, origin: string, search = ''): AppEvent {
   const from = URL.canParse(referrer) ? new URL(referrer) : null
   const external = from && /^https?:$/.test(from.protocol) && from.origin !== origin
-  return { event: '$pageview', path: path.slice(0, MAX_PATH), ...(external ? { referrer: from.origin } : {}) }
+  return {
+    event: '$pageview',
+    path: path.slice(0, MAX_PATH),
+    ...(external ? { referrer: from.origin } : {}),
+    ...campaign(search),
+  }
 }
+
+const landing = typeof location === 'undefined' ? '' : location.search
 
 export function usePageViews() {
   const path = useRouterState({ select: (state) => state.location.pathname })
   useEffect(() => {
-    track(pageview(path, session ? '' : document.referrer, location.origin))
+    track(pageview(path, session ? '' : document.referrer, location.origin, session ? '' : landing))
   }, [path])
 }
 

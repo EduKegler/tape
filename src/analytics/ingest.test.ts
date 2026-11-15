@@ -124,6 +124,10 @@ describe('analytics ingest', () => {
       { session, events: [[now, { event: 'trading_enabled', venue: 'dydx', owner: '0xabc' }]] },
     ],
     [
+      'a UTM tag outside the catalog',
+      { session, events: [[now, { event: '$pageview', path: '/hyperliquid/BTC', utm_term: 'perps' }]] },
+    ],
+    [
       'a session that is not a UUIDv7',
       { session: crypto.randomUUID(), events: [[now, { event: 'trading_enabled', venue: 'dydx' }]] },
     ],
@@ -146,6 +150,28 @@ describe('analytics ingest', () => {
     const batch: Batch = { session, events: [[now, pageview('/hyperliquid/BTC', referrer, SITE)]] }
     expect((await ingest(beacon(batch), 'mainnet', ENV, send)).status).toBe(204)
     expect(sent[0]!.body.batch[0]!.properties.$referrer).toBe(expected)
+  })
+
+  it('forwards the UTM tags of the landing page and no other search param', async () => {
+    const { sent, send } = recorder()
+    const search = '?utm_source=reddit&utm_medium=social&utm_campaign=launch&ref=abc&interval=1m'
+    const batch: Batch = { session, events: [[now, pageview('/hyperliquid/BTC', '', SITE, search)]] }
+    expect((await ingest(beacon(batch), 'mainnet', ENV, send)).status).toBe(204)
+    const properties = sent[0]!.body.batch[0]!.properties
+    expect(properties).toMatchObject({ utm_source: 'reddit', utm_medium: 'social', utm_campaign: 'launch' })
+    expect(properties).not.toHaveProperty('ref')
+    expect(properties).not.toHaveProperty('interval')
+    expect(properties.$current_url).toBe(`${SITE}/hyperliquid/BTC`)
+  })
+
+  it('trims a UTM tag, caps it at 100 characters and drops an empty one', () => {
+    const search = `?utm_source=%20x%20&utm_medium=&utm_campaign=${'c'.repeat(150)}`
+    expect(pageview('/hyperliquid/BTC', '', SITE, search)).toEqual({
+      event: '$pageview',
+      path: '/hyperliquid/BTC',
+      utm_source: 'x',
+      utm_campaign: 'c'.repeat(100),
+    })
   })
 
   it('accepts a pageview for any path the page can be on', async () => {

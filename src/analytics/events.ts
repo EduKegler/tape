@@ -47,6 +47,7 @@ const error = z.enum(keysOf(ERRORS))
 const command = z.enum(keysOf(COMMANDS))
 const connector = z.enum(['injected', 'walletConnect', 'other'])
 const chain = z.number().int().positive()
+const tag = z.string().min(1).max(100).optional()
 
 const frame = z.strictObject({
   file: z
@@ -65,6 +66,9 @@ export const AppEvent = z.discriminatedUnion('event', [
     event: z.literal('$pageview'),
     path: z.string().startsWith('/').max(200),
     referrer: z.url().max(200).optional(),
+    utm_source: tag,
+    utm_medium: tag,
+    utm_campaign: tag,
   }),
   z.strictObject({ event: z.literal('wallet_connected'), connector }),
   z.strictObject({

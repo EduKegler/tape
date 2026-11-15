@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { Network } from '@tape/core/ids'
 import { MAX_BODY } from './beacon'
 import { Batch } from './events'
+import type { AppEvent } from './events'
 import type { ExceptionEvent } from './exception'
 
 const MAX_SKEW_MS = 60 * 60_000
@@ -15,6 +16,8 @@ type Env = z.infer<typeof Env>
 /** An empty variable means unset, so a blank value in the dashboard does not fail every beacon. */
 export const readEnv = (): Env =>
   Env.parse({ POSTHOG_KEY: process.env.POSTHOG_KEY || undefined, POSTHOG_HOST: process.env.POSTHOG_HOST || undefined })
+
+type PageviewEvent = Extract<AppEvent, { event: '$pageview' }>
 
 type Context = { readonly network: Network; readonly origin: string; readonly ip: string | null; readonly now: number }
 
@@ -44,23 +47,23 @@ function exception({ type, value, handled, source, frames }: Omit<ExceptionEvent
   }
 }
 
+function pageProperties({ path, referrer, ...campaign }: Omit<PageviewEvent, 'event'>, origin: string) {
+  return {
+    $current_url: origin + path,
+    $pathname: path,
+    $host: new URL(origin).host,
+    ...(referrer ? { $referrer: referrer, $referring_domain: new URL(referrer).host } : {}),
+    ...campaign,
+  }
+}
+
 /** The body for PostHog's batch endpoint. Every event is anonymous and keyed by the page load, so no person profile is made. */
 function toPostHog(batch: Batch, key: string, ctx: Context) {
-  const host = new URL(ctx.origin).host
   return {
     api_key: key,
     batch: batch.events.map(([at, { event, ...props }]) => {
       const page =
-        'path' in props
-          ? {
-              $current_url: ctx.origin + props.path,
-              $pathname: props.path,
-              $host: host,
-              ...(props.referrer ? { $referrer: props.referrer, $referring_domain: new URL(props.referrer).host } : {}),
-            }
-          : 'frames' in props
-            ? exception(props, ctx.origin)
-            : props
+        'path' in props ? pageProperties(props, ctx.origin) : 'frames' in props ? exception(props, ctx.origin) : props
       return {
         event,
         timestamp: new Date(Math.abs(at - ctx.now) > MAX_SKEW_MS ? ctx.now : at).toISOString(),
