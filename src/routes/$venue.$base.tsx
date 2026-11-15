@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { createFileRoute, notFound, stripSearchParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 import { INTERVALS, isBase, isVenueId, marketKey } from '@tape/core/ids'
@@ -17,9 +17,11 @@ import { Account } from '#/ui/Account'
 import { Trades } from '#/ui/Trades'
 import { VenueStrip } from '#/ui/VenueStrip'
 
+const SEARCH_DEFAULTS = { interval: '1m' } as const
+
 const searchSchema = z.object({
   group: z.number().positive().optional().catch(undefined),
-  interval: z.enum(INTERVALS).default('1m').catch('1m'),
+  interval: z.enum(INTERVALS).default(SEARCH_DEFAULTS.interval).catch(SEARCH_DEFAULTS.interval),
 })
 
 export const Route = createFileRoute('/$venue/$base')({
@@ -31,6 +33,7 @@ export const Route = createFileRoute('/$venue/$base')({
     stringify: (params) => params,
   },
   validateSearch: searchSchema,
+  search: { middlewares: [stripSearchParams(SEARCH_DEFAULTS)] },
   head: ({ params }) =>
     isVenueId(params.venue) && isBase(params.base)
       ? marketHead({

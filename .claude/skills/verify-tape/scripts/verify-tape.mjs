@@ -211,7 +211,7 @@ async function up(flags) {
   while (Date.now() < deadline) {
     if (!alive(server.pid)) break
     try {
-      const r = await fetch(`${BASE}/hyperliquid/BTC?interval=1m`, { signal: AbortSignal.timeout(30_000) })
+      const r = await fetch(`${BASE}/hyperliquid/BTC`, { signal: AbortSignal.timeout(30_000) })
       const body = await r.text()
       if (r.status === 200 && body.includes('BTC on Hyperliquid')) {
         ready = true
@@ -334,7 +334,7 @@ async function doctor() {
       const title = body.match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
       check(
         'app serves /',
-        r.ok && /\/hyperliquid\/BTC\?interval=1m$/.test(r.url) && title.includes('Tape'),
+        r.ok && /\/hyperliquid\/BTC$/.test(r.url) && title.includes('Tape'),
         `${r.status} ${r.url} title "${title}"`,
       )
     } catch (e) {

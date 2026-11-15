@@ -4,7 +4,7 @@ A user picks a market on one of four venues from the `Market` nav or the header 
 
 ## Sub-features
 
-- `nav-root` redirects `/` to `/hyperliquid/BTC?interval=1m`.
+- `nav-root` redirects `/` to `/hyperliquid/BTC`, and the default `?interval=1m` redirects to the same URL.
 - `nav-market` switches base from the `Market` nav and keeps the venue and search params. The nav holds BTC, ETH, SOL and the current market.
 - `nav-search` filters the venue's markets in `Search markets` as the user types, Hyperliquid's grouped by dex, and opens one with the arrows and Enter. A query with no match shows `No market matches`.
 - `nav-venue` switches venue from the `Venue` nav and keeps the base and search params.
@@ -29,7 +29,7 @@ Preconditions:
 
 - Baseline from `features/README.md`.
 
-- **Root redirect.** Run `vt open "/"` and `vt wait --url "/hyperliquid/BTC\\?interval=1m"`. `vt eval "document.title"` returns `BTC on Hyperliquid · Live order book · Tape`.
+- **Root redirect.** Run `vt open "/"` and `vt wait --url "/hyperliquid/BTC$"`. `vt eval "document.title"` returns `BTC on Hyperliquid · Live order book · Tape`.
 - **Market nav.** Run `vt click --nav Market --role link --name ETH --exact` and `vt wait --url "/hyperliquid/ETH"`. Run `vt aria --nav Market`. `link "ETH"` is the current page.
 - **Search.** Run `vt fill --role combobox --name "Search markets" --value doge`, `vt press --key Enter` and `vt wait --url "/hyperliquid/DOGE"`. `vt aria --nav Market` lists `link "DOGE"` as the current page.
 - **Venue nav.** Run `vt click --nav Venue --role link --name Binance` and `vt wait --url "/binance/ETH"`. The title is `ETH on Binance · Tape`.
