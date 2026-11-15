@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, openMarket, test } from './fixtures'
 
 test('robots.txt names the sitemap, which lists the pinned markets of each venue', async ({ request, baseURL }) => {
   const robots = await request.get('/robots.txt')
@@ -9,4 +9,20 @@ test('robots.txt names the sitemap, which lists the pinned markets of each venue
   const body = await sitemap.text()
   expect(body).toContain(`<loc>${baseURL}/hyperliquid/BTC</loc>`)
   expect(body).toContain(`<loc>${baseURL}/orderly/SOL</loc>`)
+})
+
+test('a market page names its market in an H1 and describes it, with nothing asking engines to skip it', async ({
+  page,
+}) => {
+  await openMarket(page, '/dydx/BTC?interval=1m')
+  await expect(page.getByRole('heading', { level: 1, name: 'BTC order book on dYdX' })).toBeAttached()
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    'Live BTC order book, trades, depth and candles on dYdX, beside the best bid and ask on the other venues.',
+  )
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    'content',
+    'BTC on dYdX · Live order book · Tape',
+  )
+  await expect(page.locator('meta[name="robots"]')).toHaveCount(0)
 })

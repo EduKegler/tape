@@ -9,6 +9,7 @@ The build reads these from the environment or a `.env` file. `src/env.ts`, `src/
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `VITE_NETWORK` | `mainnet` | `mainnet` or `testnet`. Picks the venues' hosts for market data and trading |
+| `VITE_SITE_URL` | none | The site's origin, such as `https://tape.kegler.dev`. Adds the canonical link and `og:url` to each market page |
 | `VITE_TRADE_MAINNET` | empty | Comma list of venue ids that send orders on a mainnet build, such as `hyperliquid`. Empty means the build only reads |
 | `VITE_WALLETCONNECT_PROJECT_ID` | none | A [Reown](https://cloud.reown.com) project id. Adds the WalletConnect button |
 | `VITE_ORDERLY_BROKER_ID` | none | Orderly broker for mainnet. Orderly trading and deposits on mainnet need it |

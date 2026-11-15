@@ -6,4 +6,5 @@ z.config({ jitless: true })
 
 export const env = z.object({
   VITE_NETWORK: z.enum(NETWORKS).default('mainnet'),
+  VITE_SITE_URL: z.preprocess((value) => value || undefined, z.url().optional()),
 })

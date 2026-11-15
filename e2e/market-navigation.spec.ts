@@ -10,7 +10,7 @@ const DYDX_VIOLET_AT_10_PERCENT_OVER_GRAPHITE = 'rgb(27, 27, 44)'
 test('the root opens Hyperliquid BTC on the 1m chart', async ({ page, network }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/hyperliquid\/BTC\?interval=1m$/)
-  await expect(page).toHaveTitle(`BTC on Hyperliquid · Tape${TITLE_SUFFIX[network]}`)
+  await expect(page).toHaveTitle(`BTC on Hyperliquid · Live order book · Tape${TITLE_SUFFIX[network]}`)
 })
 
 test('the interval, venues table, market and venue move around and keep the search params', async ({
@@ -27,17 +27,17 @@ test('the interval, venues table, market and venue move around and keep the sear
 
   await panel(page, 'Venues').getByRole('row', { name: /^dYdX/ }).click()
   await expect(page).toHaveURL(/\/dydx\/BTC\?/)
-  await expect(page).toHaveTitle(`BTC on dYdX · Tape${TITLE_SUFFIX[network]}`)
+  await expect(page).toHaveTitle(`BTC on dYdX · Live order book · Tape${TITLE_SUFFIX[network]}`)
 
   const market = page.getByRole('navigation', { name: 'Market' })
   await market.getByRole('link', { name: 'ETH', exact: true }).click()
   await expect(page).toHaveURL(/\/dydx\/ETH\?/)
-  await expect(page).toHaveTitle(`ETH on dYdX · Tape${TITLE_SUFFIX[network]}`)
+  await expect(page).toHaveTitle(`ETH on dYdX · Live order book · Tape${TITLE_SUFFIX[network]}`)
   await expect(market.getByRole('link', { name: 'ETH', exact: true })).toHaveAttribute('aria-current', 'page')
 
   await page.getByRole('navigation', { name: 'Venue' }).getByRole('link', { name: 'Binance' }).click()
   await expect(page).toHaveURL(/\/binance\/ETH\?/)
-  await expect(page).toHaveTitle(`ETH on Binance · Tape${TITLE_SUFFIX[network]}`)
+  await expect(page).toHaveTitle(`ETH on Binance · Live order book · Tape${TITLE_SUFFIX[network]}`)
 
   const search = new URL(page.url()).searchParams
   expect(search.get('interval')).toBe('5m')
@@ -98,7 +98,7 @@ test('the header search filters markets as you type and opens one by keyboard', 
   await search.press('ArrowDown')
   await search.press('Enter')
   await expect(page).toHaveURL(/\/hyperliquid\/ETHFI\?interval=5m$/)
-  await expect(page).toHaveTitle(`ETHFI on Hyperliquid · Tape${TITLE_SUFFIX[network]}`)
+  await expect(page).toHaveTitle(`ETHFI on Hyperliquid · Live order book · Tape${TITLE_SUFFIX[network]}`)
   await expect(search).toHaveValue('')
   await expectAccessible(page)
 

@@ -29,7 +29,7 @@ Preconditions:
 
 - Baseline from `features/README.md`.
 
-- **Root redirect.** Run `vt open "/"` and `vt wait --url "/hyperliquid/BTC\\?interval=1m"`. `vt eval "document.title"` returns `BTC on Hyperliquid · Tape`.
+- **Root redirect.** Run `vt open "/"` and `vt wait --url "/hyperliquid/BTC\\?interval=1m"`. `vt eval "document.title"` returns `BTC on Hyperliquid · Live order book · Tape`.
 - **Market nav.** Run `vt click --nav Market --role link --name ETH --exact` and `vt wait --url "/hyperliquid/ETH"`. Run `vt aria --nav Market`. `link "ETH"` is the current page.
 - **Search.** Run `vt fill --role combobox --name "Search markets" --value doge`, `vt press --key Enter` and `vt wait --url "/hyperliquid/DOGE"`. `vt aria --nav Market` lists `link "DOGE"` as the current page.
 - **Venue nav.** Run `vt click --nav Venue --role link --name Binance` and `vt wait --url "/binance/ETH"`. The title is `ETH on Binance · Tape`.

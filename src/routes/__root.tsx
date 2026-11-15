@@ -8,6 +8,7 @@ import { HubProvider } from '#/client/hooks'
 import { wagmiConfig } from '#/wallet/config'
 import { ConnectProvider } from '#/wallet/Connect'
 import { useErrorReports, usePageViews } from '#/analytics/track'
+import { SITE_DESCRIPTION } from '#/seo'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import appCss from '../styles.css?url'
@@ -31,8 +32,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
       {
         name: 'description',
-        content:
-          'Order book, trades, depth and order entry for BTC, ETH and SOL on Hyperliquid, dYdX and Orderly, with Binance read only.',
+        content: SITE_DESCRIPTION,
       },
     ],
     links: [

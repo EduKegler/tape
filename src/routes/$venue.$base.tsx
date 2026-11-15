@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 import { INTERVALS, isBase, isVenueId, marketKey } from '@tape/core/ids'
 import type { Base, VenueId } from '@tape/core/ids'
-import { NETWORK, VENUES } from '#/site'
+import { NETWORK, SITE_URL, VENUES } from '#/site'
+import { marketHead } from '#/seo'
 import { CandleChart } from '#/ui/CandleChart'
 import { Compare } from '#/ui/Compare'
 import { DepthChart } from '#/ui/DepthChart'
@@ -30,14 +31,18 @@ export const Route = createFileRoute('/$venue/$base')({
     stringify: (params) => params,
   },
   validateSearch: searchSchema,
-  head: ({ params }) => marketHead(params),
+  head: ({ params }) =>
+    isVenueId(params.venue) && isBase(params.base)
+      ? marketHead({
+          venue: params.venue,
+          venueLabel: VENUES[params.venue].label,
+          base: params.base,
+          network: NETWORK,
+          site: SITE_URL,
+        })
+      : {},
   component: Market,
 })
-
-function marketHead({ venue, base }: Record<'venue' | 'base', string>) {
-  if (!isVenueId(venue) || !isBase(base)) return {}
-  return { meta: [{ title: `${base} on ${VENUES[venue].label} · Tape${NETWORK === 'testnet' ? ' testnet' : ''}` }] }
-}
 
 function Market() {
   const { venue, base } = Route.useParams()
@@ -54,6 +59,9 @@ function Market() {
         <Unlisted venue={venue} base={base} />
       ) : (
         <main className="grid flex-1 gap-2.5 p-2.5 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_18.25rem_16.5rem_22rem] lg:grid-rows-[minmax(0,1fr)_13rem_12rem] wide:grid-cols-[minmax(0,1fr)_19.75rem_16.5rem_22rem] wide:grid-rows-[minmax(0,1fr)_13rem_13rem]">
+          <h1 className="sr-only">
+            {base} order book on {VENUES[venue].label}
+          </h1>
           <div className="rounded-lg lg:col-start-4 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
             <Ticket venue={venue} base={base} group={group} />
           </div>
