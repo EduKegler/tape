@@ -1,6 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useConnection } from 'wagmi'
 import { UserRejectedRequestError, isAddress } from 'viem'
 import type { VenueId } from '@tape/core/ids'
 import { isRecord } from '@tape/core/json'
@@ -24,6 +23,7 @@ import type {
 } from '@tape/trade/types'
 import { rejectionMessage, toEip1193, walletSigner } from '@tape/trade/wallet'
 import type { MarginState } from '@tape/trade/liquidation'
+import { useWalletConnection } from '#/wallet/connection'
 import { commandResult, commandSent, report, track } from '#/analytics/track'
 import { NETWORK } from '#/site'
 import { switchOrAddChain } from '#/wallet/config'
@@ -96,7 +96,7 @@ export async function guard<T>(venue: TradeVenueId, run: () => Promise<T>): Prom
 }
 
 function useRef(venue: VenueId): AccountRef | null {
-  const owner = useConnection().address?.toLowerCase()
+  const owner = useWalletConnection().address?.toLowerCase()
   return owner && isAddress(owner) && isTradeVenue(venue) && sendsOrders(venue)
     ? { venue, network: NETWORK, owner }
     : null
@@ -118,7 +118,7 @@ export function useTradeSession(venue: VenueId): TradeSession {
   const ref = useRef(venue)
   const slot = useSlot(ref)
   const client = useQueryClient()
-  const { connector } = useConnection()
+  const { connector } = useWalletConnection()
   const [progress, setProgress] = useState<StepId | null>(null)
   const module = isTradeVenue(venue) ? TRADING[venue] : null
   const unavailable = module?.unavailable(NETWORK, TRADE_CONFIG) ?? null

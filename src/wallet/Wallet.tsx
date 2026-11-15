@@ -1,7 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useConnection, useSwitchChain } from 'wagmi'
+import { useSwitchChain } from 'wagmi'
 import { shortAddress } from '#/ui/format'
 import { Button, Select } from '#/ui/primitives'
+import { useWalletConnection } from './connection'
 import { chains, isChainId } from './config'
 import { ConnectButton, useConnectFlow } from './Connect'
 import { Disconnect } from './Disconnect'
@@ -11,7 +12,7 @@ import { reducedMotion } from './motion'
 
 export function WalletButton() {
   const { anchor, landing } = useConnectFlow()
-  const { address, chainId, connector, isConnected } = useConnection()
+  const { address, chainId, connector, isConnected } = useWalletConnection()
   const { mutate: switchChain } = useSwitchChain()
   const [slot, setSlot] = useState<HTMLDivElement | null>(null)
   const [held, setHeld] = useState<Held | null>(null)

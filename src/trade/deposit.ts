@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { queryOptions, skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useBalance, useBytecode, useConnection, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
+import { useBalance, useBytecode, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
 import { estimateGas, getPublicClient, waitForTransactionReceipt } from 'wagmi/actions'
 import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, isHex, numberToHex } from 'viem'
 import type { Address, Chain, Client, Hex, Transport } from 'viem'
@@ -14,6 +14,7 @@ import { TradeFailure } from '@tape/trade/types'
 import type { AccountRef } from '@tape/trade/types'
 import { rejectionMessage, toEip1193 } from '@tape/trade/wallet'
 import type { Eip1193 } from '@tape/trade/wallet'
+import { useWalletConnection } from '#/wallet/connection'
 import { track } from '#/analytics/track'
 import { switchOrAddChain, toChainId, wagmiConfig } from '#/wallet/config'
 import type { ChainId } from '#/wallet/config'
@@ -187,7 +188,7 @@ const DEPOSIT = { kind: 'deposit' } as const
 
 /** Sends the calls from the route's chain, waiting for an approval to land before the deposit. Hands over the deposit's hash once the wallet sends it. */
 export function useSendDeposit(ref: AccountRef) {
-  const { connector } = useConnection()
+  const { connector } = useWalletConnection()
   const queryClient = useQueryClient()
   const mutation = useMutation<Hex, Error, DepositRequest>({
     networkMode: 'always',

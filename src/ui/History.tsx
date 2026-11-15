@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useConnection } from 'wagmi'
 import { z } from 'zod'
 import { isAddress } from 'viem'
 import { selectHistory, summarize, toCsv } from '@tape/trade/history'
 import type { FundingPayment, RealizedFill, Totals } from '@tape/trade/history'
 import { amount, format } from '@tape/trade/money'
 import type { TradeVenueId } from '@tape/trade/types'
+import { useWalletConnection } from '#/wallet/connection'
 import { HISTORY_VENUES, historyQuery, useDydxAddress } from '#/trade/history'
 import { NETWORK, VENUES } from '#/site'
 import { ErrorMark } from './ErrorMark'
@@ -66,7 +66,7 @@ function presets(now: number): { label: string; from?: string; to?: string }[] {
 export function History({ search, onSearch }: { search: HistorySearch; onSearch: (next: HistorySearch) => void }) {
   const [now] = useState(() => Date.now())
   useEffect(() => lastHistorySearch.setState(() => search), [search])
-  const { address: connected } = useConnection()
+  const { address: connected } = useWalletConnection()
   const wallet = (search.address ?? connected ?? null)?.toLowerCase() ?? null
   const owned = wallet !== null && wallet === connected?.toLowerCase() && isAddress(wallet) ? wallet : null
   const derived = useDydxAddress(owned)
