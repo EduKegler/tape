@@ -4,16 +4,16 @@ import type { CompareRow } from '#/core/topics'
 import { NO_LIFTS, takeLifts } from './lead'
 
 const WASH_MS = 900
+const NONE: ReadonlySet<string> = new Set()
 
 export function useWashCount(cause: unknown, active: boolean): number {
-  const [count, setCount] = useState(0)
-  const seen = useRef<unknown>(null)
-  useEffect(() => {
-    if (!active || cause === seen.current) return
-    seen.current = cause
-    setCount((value) => value + 1)
-  }, [cause, active])
-  return count
+  const [washed, setWashed] = useState<{ cause: unknown; count: number }>({ cause: null, count: 0 })
+  if (active && cause !== washed.cause) {
+    const next = { cause, count: washed.count + 1 }
+    setWashed(next)
+    return next.count
+  }
+  return washed.count
 }
 
 export function useWashing(count: number): boolean {
@@ -47,19 +47,17 @@ export function useChangedKeys<T>(
   keyOf: (item: T) => string,
   signatureOf: (item: T) => string,
 ): ReadonlySet<string> {
-  const [washing, setWashing] = useState<ReadonlySet<string>>(() => new Set())
-  const before = useRef<ReadonlyMap<string, string> | null>(null)
-  useEffect(() => {
-    const now = new Map(items.map((item) => [keyOf(item), signatureOf(item)]))
-    const previous = before.current
-    before.current = now
-    if (!previous) return
-    const changed = [...now].filter(([key, signature]) => previous.get(key) !== signature).map(([key]) => key)
-    if (changed.length > 0) setWashing((current) => new Set([...current, ...changed]))
-  }, [items, keyOf, signatureOf])
+  const signatures = new Map(items.map((item) => [keyOf(item), signatureOf(item)]))
+  const [seen, setSeen] = useState(signatures)
+  const [washing, setWashing] = useState<ReadonlySet<string>>(NONE)
+  const changed = [...signatures].filter(([key, signature]) => seen.get(key) !== signature).map(([key]) => key)
+  if (signatures.size !== seen.size || changed.length > 0) {
+    setSeen(signatures)
+    if (changed.length > 0) setWashing(new Set([...washing, ...changed]))
+  }
   useEffect(() => {
     if (washing.size === 0) return
-    const timer = setTimeout(() => setWashing(new Set()), WASH_MS)
+    const timer = setTimeout(() => setWashing(NONE), WASH_MS)
     return () => clearTimeout(timer)
   }, [washing])
   return washing

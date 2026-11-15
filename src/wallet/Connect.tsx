@@ -281,9 +281,10 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
     void fade(root, 1, 160)
   }
 
+  const closeConnected = useEffectEvent(() => void close())
   useEffect(() => {
-    if (open && isConnected && landing === 'idle') void close()
-  })
+    if (open && isConnected && landing === 'idle') closeConnected()
+  }, [open, isConnected, landing])
 
   const flow: Flow = {
     openerId,
