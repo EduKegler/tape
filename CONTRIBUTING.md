@@ -25,6 +25,7 @@ The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/archite
 pnpm verify   # package boundaries, typecheck of each package and the app, no notes in the public repo, import cycles, lint, format, unused code, tests
 pnpm verify --docs # only the format check and check-public, what a markdown-only change runs
 pnpm e2e # Playwright journeys on the production builds over the recorded replay, with all outside network blocked
+pnpm dev:replay # pnpm dev on the recorded replay that pnpm e2e plays, with no venue traffic and the books looping
 pnpm build
 pnpm preview # serves the last build with wrangler dev, in workerd, the runtime Cloudflare runs
 pnpm fixtures # re-record venue fixtures
