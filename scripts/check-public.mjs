@@ -12,7 +12,8 @@ const prose = /\.(?:md|mdx|markdown|txt|rst|adoc|org|pdf|docx?)$/i
 const proseAllowed = [
   /^(?:README|CLAUDE|AGENTS|PRODUCT|DESIGN|CONTRIBUTING|SECURITY)\.md$/,
   /^packages\/[^/]+\/README\.md$/,
-  /^docs\/(?:architecture|deploy|history-csv)\.md$/,
+  /^docs\/(?:deploy|history-csv)\.md$/,
+  /^docs\/internals\/(?:overview|glossary|testing|rules)\.md$/,
   /^\.github\/pull_request_template\.md$/,
   /^\.claude\/skills\//,
   /^\.impeccable\/.+\.md$/,

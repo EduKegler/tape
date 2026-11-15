@@ -359,7 +359,7 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 - **Checkbox:** a 1rem well box with an edge border and the small radius. Checked, it fills level1 and draws a graphite check.
 
 ### Panel state
-- One 11px line beside the panel title. Empty is level3 (Loading…, Waiting for the venue). Stale is amber with its age (Reconnecting · 4 s old). Error is coral with the drawn mark and a Retry link. It fades in at 120ms when it changes.
+- One 11px line beside the panel title. Empty is level3 (Loading…, Waiting for the venue). Old data is amber with its age (Reconnecting · 4 s old). Error is coral with the drawn mark and a Retry link. It fades in at 120ms when it changes.
 
 ### Venue strip (signature)
 - Four equal tabs on one graphite card under the header, 44px tall and 48px from the `wide` breakpoint. From `wide` the card ends with a legend in 11px level3: a bid dot, an ask dot and "best across venues".

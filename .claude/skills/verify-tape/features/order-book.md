@@ -8,7 +8,7 @@ The order book shows 28 ask rows above a spread line and 28 bid rows below it, e
 - `book-group` regroups the book from the `Group` select and writes `group=<n>` into the URL.
 - `book-group-url` restores the grouping from a URL that already has `group=<n>`.
 - `book-click` puts a clicked level's price into the ticket's limit price.
-- `book-status` shows `Loading…` beside the panel title before data and `Reconnecting · <n> s old` when the feed goes stale.
+- `book-status` shows `Loading…` beside the panel title before data and `Reconnecting · <n> s old` when its data turns old.
 
 ## How to get to it (user POV)
 
@@ -41,5 +41,5 @@ Preconditions:
 - Empty rows are buttons with no name. Filter on text before asserting on rows.
 - Hyperliquid sends 20 levels per side, so wide grouping leaves only a few filled rows. That is documented in the README, not a bug.
 - The group value in the URL is a number. `group=0.1` is valid on markets with decimal prices.
-- `book-status` stale and syncing states need a venue outage to observe on purpose. There is no switch for it. Report it as not driven unless the outage happens.
+- `book-status` old and syncing states need a venue outage to observe on purpose. There is no switch for it. Report it as not driven unless the outage happens.
 - The ticket ignores a book click that happened before the ticket mounted. Wait for `live` before clicking.

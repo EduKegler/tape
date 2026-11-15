@@ -62,7 +62,7 @@ The build variables are in [docs/deploy.md](docs/deploy.md).
 
 ## How it works
 
-A SharedWorker keeps one socket per venue for every open tab, syncs the books off the main thread and sends each tab render-ready frames. Prices and sizes are exact decimals, never floats. Each venue is one adapter for market data and one module for trading, tested against frames recorded from the venue. [How Tape works](docs/architecture.md) covers the six decisions behind that, and the stack: TanStack Start on React 19, deployed as a Cloudflare Worker.
+A SharedWorker keeps one socket per venue for every open tab, syncs the books off the main thread and sends each tab render-ready frames. Prices and sizes are exact decimals, never floats. Each venue is one adapter for market data and one module for trading, tested against frames recorded from the venue. [How Tape works](docs/internals/overview.md) covers the six decisions behind that, and the stack: TanStack Start on React 19, deployed as a Cloudflare Worker.
 
 Analytics and errors go through the site's own `/r1` route to PostHog. No third-party script loads, no event carries a wallet address, and the UTM tags are the only search params that leave the page. A visitor is counted by an id the Worker derives from the IP and the browser, which changes every UTC day and is never stored in the browser. Opening a market with `?internal=1` tags that browser's events as internal until `?internal=0`.
 

@@ -17,7 +17,7 @@ pnpm dev
 VITE_NETWORK=testnet pnpm dev
 ```
 
-The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/architecture.md](docs/architecture.md) explains how the hub, the book and the trading modules work.
+The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/internals/overview.md](docs/internals/overview.md) explains how the hub, the book and the trading modules work.
 
 ## Commands
 
@@ -59,7 +59,7 @@ To add a package, create `packages/<name>` with a `package.json` named `@tape/<n
 
 The repo is public and holds code and the docs that `scripts/check-public.mjs` allows. Research, competitor notes and decision logs stay out.
 
-Some files are read by tools more than by people. `DESIGN.md` and `PRODUCT.md` feed the Impeccable design tool, `.impeccable/` holds its notes on each screen, and `CLAUDE.md`, `AGENTS.md` and `.claude/skills/` give coding agents these same rules.
+Some files are read by tools more than by people. `DESIGN.md` and `PRODUCT.md` feed the Impeccable design tool, `.impeccable/` holds its notes on each screen, and `CLAUDE.md`, `AGENTS.md` and `.claude/skills/` point coding agents at these same rules. An agent session loads only `CLAUDE.md` and `AGENTS.md`, so they stay short.
 
 ## Commits
 
@@ -67,17 +67,17 @@ Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. N
 
 One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. A feature goes with its tests and a fix with its test, so a revert takes both. Three fixes are three commits, because a reviewer can revert each one alone, and a batch of new tests for one package is one. The same edit at many sites is also one commit, such as one `refactor: stop exporting symbols used only in their module` for every export knip flags.
 
-The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A push or PR that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run, and the deploy skips a network when that holds for every commit since its last deployment. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
+The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A change of only docs or tests runs less, such as `pnpm verify --docs` or no e2e run, and [`scripts/change-kind.ts`](scripts/change-kind.ts) decides which. Never push with `--no-verify`.
 
 ## Pull requests
 
 A PR carries one ticket. Tickets go in one PR only when they touch the same files. Branch each PR from `main`, never from another open PR. Each PR costs two CI runs of about 4 minutes, one per push to it and one for the merge to `main`, and a small PR is easier to review and to revert.
 
-The PR template asks what changed, why, and how you checked it. A change on screen carries a screenshot.
+The PR template asks what changed, why, and how you checked it. A change on screen carries a screenshot. A fix for a purely visual bug carries screenshots before and after, and no test.
 
 ## Coding agents
 
-You can write code with an agent. You answer for every line you submit: read it, run it, and write the PR description yourself. A test whose expected value an agent copied from the code under test proves nothing, as Tests explains.
+You can write code with an agent. You answer for every line you submit: read it, run it, and write the PR description yourself. A test whose expected value an agent copied from the code under test proves nothing, as [Testing](docs/internals/testing.md#expected-values) explains.
 
 ## Comments
 
@@ -89,9 +89,11 @@ A why about our own design is a rename, an extracted function or a type instead.
 
 Most changes need no doc change. The code, its types and its tests already say what it does.
 
-- `docs/` holds what no single file shows: a decision and the outside constraint behind it, a rule that spans packages, a trap that is hard to find in the source. Before you add a paragraph, ask what a maintainer would get wrong without it. If the code answers that, leave the paragraph out.
-- Do not list files, fields, variables or steps that the code lists already, narrate control flow, or append a PR summary. Link to the source instead of copying it.
+- `docs/internals/` holds what no single file shows: a decision and the outside constraint behind it, a rule that spans packages, a trap that is hard to find in the source. Before you add a paragraph, ask what a maintainer would get wrong without it. If the code answers that, leave the paragraph out.
+- `docs/deploy.md` and `docs/history-csv.md` serve whoever runs a build or reads an export.
+- Do not list files, fields, variables or steps that the code lists already, narrate control flow, or append a PR summary. Link to the source instead of copying it. [The glossary](docs/internals/glossary.md) defines shared words, and is not a feature index.
 - When a decision changes, rewrite or delete the text that described it. Do not add a second account next to the old one.
+- A new page in `docs/internals/` needs a distinct, lasting reason to exist, its name in `scripts/check-public.mjs`, and a line in the list in `AGENTS.md` that says when to read it.
 - A reason only one spot needs goes in a comment there, under the rules in Comments.
 
 ## Design
@@ -100,63 +102,8 @@ Most changes need no doc change. The code, its types and its tests already say w
 
 ## Tests
 
-A test goes in the one layer that can catch its kind of mistake. A test that repeats another layer's proof stays out.
+A test goes in the one layer that can catch its kind of mistake, the lowest one that fails on `main`. Its expected value comes from outside the code under test: a hand calculation, the venue's docs or a recording. A logic bug fix carries a test that fails on `main`, and a purely visual fix carries screenshots instead. [docs/internals/testing.md](docs/internals/testing.md) has the layers, the rules and what a new venue must prove.
 
-| What it proves | Layer | Expected value comes from |
-| --- | --- | --- |
-| Decimal math, ticks and steps, order building, book sync | Vitest in Node, examples and fast-check properties | A hand calculation, the venue's docs, or a plain model written in the test |
-| Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
-| Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
-| History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
-| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production builds, with no network. A `*.testnet.spec.ts` or `*.mainnet.spec.ts` runs on that network's build, any other spec runs on mainnet, and a test whose result depends on the network takes the `@each-network` tag to run on both. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
-| Each venue still serves the book the testnet build reads | Playwright in `e2e/live.smoke.ts`, run only by the nightly, against the live venues | A live book on screen |
-| Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
+## Rules
 
-The `verify-tape` skill explores and reproduces bugs against live data. Regressions belong to `pnpm e2e`. A spec finds elements by role and accessible name, and a `data-testid` goes in only where neither is reliable.
-
-The expected value never comes from a run of the code under test. Another model writing the test does not fix that, because it reads the same code and guesses the same value.
-
-A property's generators stay inside its valid domain, and invalid input gets its own refusal test. Use `fast-check` with `fc.assert` inside a Vitest `it`. The `it` and `test` from `@fast-check/vitest` rerun every example test `numRuns` times.
-
-Before a venue ships, its tests prove these:
-
-- The recorded replay yields a live, uncrossed book, a reconnect resyncs it, and a stale snapshot is ignored.
-- A 5xx, a timeout or an unreadable reply on a write is an unknown outcome, and the order is then found by client id.
-- A missing order is told apart from a missing key, and cancelling a filled order is not an error.
-- A cancel the venue says it already holds, such as dYdX's `already exists` codes 9 and 32, is a done cancel, not a refused one.
-- A 5xx, a timeout or an unreadable reply on a read means the venue is unreachable, never a missing order or account.
-- Trading stays off on mainnet unless the build turns mainnet trading on for that venue.
-
-## Rules and what enforces them
-
-| Rule | Enforced by |
-| --- | --- |
-| Conventional Commits | commitlint in the lefthook `commit-msg` hook |
-| No AI attribution in commits or PRs | the `commit-msg` hook, `attribution` in `.claude/settings.json` |
-| A push and a PR's merge pass `pnpm verify`, or `pnpm verify --docs` if they change only `.md` files | `scripts/change-kind.ts`, in the `pre-push` hook and the `verify` job of `.github/workflows/verify.yml` |
-| No research, competitor notes or decision logs in the repo | `scripts/check-public.mjs` in `pnpm verify` |
-| Packages import no React, no `#/` and nothing undeclared | `scripts/check-packages.mjs` in `pnpm verify` |
-| No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
-| No unused files, exports or dependencies | knip in `pnpm verify` |
-| Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter, wagmi's connection only through `useWalletConnection` | `no-restricted-*` rules in `eslint.config.js` |
-| Color, type, weight, radius, z-index, duration and animation come from the tokens in `src/styles.css`, padding, margin and gap from `SPACING_STEPS`, motion plays only under `motion-safe:`, except the `wash` utility and its reduced-motion still, and buttons, fields, links, tables, dialogs and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-unknown-classes` and `no-restricted-classes`, and the `no-restricted-*` rules in `eslint.config.js` |
-| A failed read says what it could not read, never what was sent | `src/ui/trade-errors.test.ts`, and the read failure tests in `e2e/history.mainnet.spec.ts` and `e2e/trading.testnet.spec.ts` |
-| The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |
-| Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
-| Every lint suppression gives its reason after `--` | `eslint-comments/require-description`, and `oxlint-comments/directive` in `eslint.config.js` for Oxlint, which also takes only a one-line `oxlint-disable` that names its rule |
-| Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
-| No one-letter names | `id-length` in `eslint.config.js` |
-| No casts that narrow a type outside the constructor that owns it | `typescript/no-unsafe-type-assertion` in `.oxlintrc.json`, off in tests |
-| A lint rule that needs types runs in Oxlint, or in `TYPED_RULES` when Oxlint lacks it, so ESLint builds the TypeScript program only for those | `eslint.config.js` turns `projectService` on only in `eslint.typed.config.js`, so a typed rule anywhere else fails `pnpm verify` |
-| Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
-| A test that needs a longer timeout to pass is wrong, so no spec raises a timeout, marks a test slow or waits a fixed time | `no-restricted-syntax` for `e2e/**/*.spec.ts` in `eslint.config.js` |
-| UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml`, green only when its three shards pass |
-| UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |
-| The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
-| The testnet build shows each venue's live book | the `smoke` job in `.github/workflows/nightly.yml` |
-| One logical change per commit | review only |
-| A PR carries one ticket, and tickets that touch the same files share one | review only |
-| A test's expected value comes from outside the code under test | review only |
-| Comments only for constraints from outside the repo | `tape/low-value-comments` in `eslint.config.js` for section dividers, commented-out code, PR numbers, JSDoc types, a comment that repeats the name below it and a comment over 4 lines, and review for the rest |
-
-A rule enforced by review only that breaks again gets a check in the same change, unless no check can tell the mistake apart. Drop a row once its mistake can no longer be written.
+[docs/internals/rules.md](docs/internals/rules.md) lists each rule and the check or review that enforces it.

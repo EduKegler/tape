@@ -1,6 +1,6 @@
 # How Tape works
 
-Six design decisions behind Tape, and the stack it runs on.
+Six design decisions behind Tape, the replay its journeys run on, and the stack.
 
 ## 1. One WebSocket per venue, shared across tabs
 
@@ -34,7 +34,7 @@ Integers instead of `bigint` everywhere keep book levels fast as `Map` keys and 
 | --- | --- | --- | --- |
 | Binance | spot | REST snapshot plus sequenced diffs | Buffer diffs, fetch the snapshot after the first diff, replay, refetch on a gap |
 | Hyperliquid | perps | Full 20-level snapshot every message | Tick is 5 significant figures, so it depends on the price |
-| dYdX v4 | perps | Snapshot on subscribe, then deltas | The indexer book can cross, so a fresher write evicts the stale side, and a corrupt book resubscribes |
+| dYdX v4 | perps | Snapshot on subscribe, then deltas | The indexer book can cross, so a fresher write evicts the older side, and a corrupt book resubscribes |
 | Orderly | perps | Full snapshot every second | Numbers come as JSON numbers, so they are read from the source text, not as doubles |
 
 Each venue is one adapter behind `VenueAdapter` in `packages/venues/src/types.ts`: market rules, subscribe frames, a parser from raw messages to one event type, 24h stats and candle history. Everything after the parser is venue-agnostic. One pure function, `stepBook` in `packages/core/src/book.ts`, runs all three book protocols. A new venue is one adapter file plus recorded fixtures.
@@ -55,11 +55,11 @@ Every send gets a new client id and nothing resends on its own. A send with no a
 
 Deposits leave from the wallet itself, through the routes behind `DepositVenue` in `packages/trade/src/deposit.ts`: to Hyperliquid through its bridge from Arbitrum or, on mainnet, through Circle's CCTP from Base, OP Mainnet and Ethereum, and to Orderly through its Vault, which the wallet pays in ETH for the LayerZero message that credits the account. Before the wallet signs, the dialog shows the route, the fees, the time and each transaction, and blocks a deposit the venue would lose or the chain would revert, such as an amount under the bridge's 5 USDC minimum, which Hyperliquid keeps without crediting. After the send Tape follows the deposit to the credit and keeps the receipt on the device. Orderly serves its asset history only to a request signed by the account's key, so Tape follows an Orderly credit only on a device where trading is enabled. A deposit it cannot follow to the end stops at `Check manually`, with the Circle or LayerZero link and the transaction hash.
 
-Each build is one network, set by `VITE_NETWORK`. A testnet build reads and trades on the testnets, so the price on screen is the price the order meets. A mainnet build trades only on the venues that `VITE_TRADE_MAINNET` names and only reads the others, whose ticket links to a venue that trades. [Deploy](deploy.md) lists every build variable.
+Each build is one network, set by `VITE_NETWORK`. A testnet build reads and trades on the testnets, so the price on screen is the price the order meets. A mainnet build trades only on the venues that `VITE_TRADE_MAINNET` names and only reads the others, whose ticket links to a venue that trades. [Deploy](../deploy.md) lists every build variable.
 
 The production server sends a Content Security Policy with a nonce per request. Only scripts the server rendered run, and the page connects only to its own network's hosts, listed in `src/csp.ts`, plus Circle's API for CCTP fees and status on mainnet. A new venue host goes there, and `src/csp.test.ts` fails until it does. `pnpm dev` sends no policy, because Vite's dev client injects inline scripts.
 
-Analytics run no third-party script. The page sends events from the fixed list in `src/analytics/events.ts` with `sendBeacon` to `/r1` on its own origin, and the Worker forwards them to PostHog. Events make no person profile and carry no wallet address, and [Deploy](deploy.md) says how the Worker keys them.
+Analytics run no third-party script. The page sends events from the fixed list in `src/analytics/events.ts` with `sendBeacon` to `/r1` on its own origin, and the Worker forwards them to PostHog. Events make no person profile and carry no wallet address, and [Deploy](../deploy.md) says how the Worker keys them.
 
 Errors take the same route to PostHog error tracking, with stacks and messages cleared of addresses and keys. An uncaught error with no frame on the site's own origin, like one from a wallet extension, stays on the page, and each JS context sends 10 at most.
 
@@ -69,7 +69,11 @@ Each trading venue also reads its full history from a public endpoint, with no k
 
 Realized PnL per fill is the venue's own figure where it reports one, Hyperliquid's `closedPnl` and Orderly's `realized_pnl`. dYdX reports none, so `realize` in `packages/trade/src/history.ts` computes it by average cost: increases average the entry, reductions realize against it, and a flip closes everything before it opens the rest. Amounts are `bigint` at 18 places, so sums of venue decimals are exact. Fees and funding stay apart from realized PnL, and net is realized minus fees plus funding.
 
-The tests replay recorded history of public mainnet accounts in `packages/trade/src/__fixtures__` and check the result against each venue's own numbers: average cost reproduces Hyperliquid's `closedPnl` on every fill of one account and Orderly's `realized_pnl` on every fill of another. The net lands within cents of Hyperliquid's perp PnL chart, which samples every 15 minutes and rounds to cents, and on dYdX's `totalPnl` to the micro dollar. The CSV columns are under [History CSV](history-csv.md).
+The tests replay recorded history of public mainnet accounts in `packages/trade/src/__fixtures__` and check the result against each venue's own numbers: average cost reproduces Hyperliquid's `closedPnl` on every fill of one account and Orderly's `realized_pnl` on every fill of another. The net lands within cents of Hyperliquid's perp PnL chart, which samples every 15 minutes and rounds to cents, and on dYdX's `totalPnl` to the micro dollar. The CSV columns are under [History CSV](../history-csv.md).
+
+## The recorded replay
+
+`pnpm e2e` and `pnpm dev:replay` run the real hub over frames recorded from each venue, with no venue traffic. Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker, so the build swaps the hub's entry for `e2e/replay/worker.ts`. It wraps the real hub worker, gives it a `WebSocket` and a `fetch` that serve the recordings, and starts its `Date.now` at the time the recording was made, so ages and candle times read as they did live. The page's clock starts at the same time.
 
 ## Stack
 
