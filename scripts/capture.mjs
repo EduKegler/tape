@@ -15,7 +15,7 @@ await app.waitForFunction(
   () =>
     [...document.querySelectorAll('section')]
       .find((s) => s.querySelector('h2')?.textContent === 'Order book')
-      ?.innerText.includes('Spread') && /Sockets \d/.test(document.querySelector('footer')?.innerText ?? ''),
+      ?.innerText.includes('Spread') && /Sockets \d/.test(document.querySelector('footer')?.textContent ?? ''),
 )
 await app.waitForTimeout(6000)
 const shot = await app.screenshot({ path: `${root}docs/screenshot.png` })
