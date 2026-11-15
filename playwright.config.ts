@@ -39,6 +39,7 @@ export default defineConfig({
     name: network,
     use: { baseURL: origin(network), network },
     testIgnore: NETWORKS.filter((other) => other !== network).map((other) => `**/*.${other}.spec.ts`),
+    ...(network !== 'mainnet' && { grep: [new RegExp(`\\.${network}\\.spec\\.ts`), /@each-network/] }),
   })),
   webServer: NETWORKS.map((network) => ({
     command: `wrangler dev -c e2e/.cache/${network}/output/server/wrangler.json --ip 127.0.0.1 --port ${new URL(origin(network)).port}`,

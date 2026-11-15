@@ -7,7 +7,7 @@ const TITLE_SUFFIX: Record<Network, string> = { mainnet: '', testnet: ' testnet'
 const BINANCE_YELLOW_AT_10_PERCENT_OVER_GRAPHITE = 'rgb(40, 36, 20)'
 const DYDX_VIOLET_AT_10_PERCENT_OVER_GRAPHITE = 'rgb(27, 27, 44)'
 
-test('the root opens Hyperliquid BTC on the 1m chart', async ({ page, network }) => {
+test('the root opens Hyperliquid BTC on the 1m chart', { tag: '@each-network' }, async ({ page, network }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/hyperliquid\/BTC$/)
   await expect(page).toHaveTitle(`BTC on Hyperliquid · Live order book · Tape${TITLE_SUFFIX[network]}`)

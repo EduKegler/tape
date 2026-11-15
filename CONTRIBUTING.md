@@ -25,7 +25,7 @@ The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/archite
 pnpm verify   # package boundaries, typecheck of each package and the app, no notes in the public repo, import cycles, lint, format, unused code, tests
 pnpm verify --docs # only the format check and check-public, what a markdown-only change runs
 pnpm verify:commits # pnpm verify on each commit since origin/main, as the pre-push hook and CI run it, or pnpm verify --docs on a markdown-only commit
-pnpm e2e # Playwright journeys on the testnet and mainnet production builds over the recorded replay, with all outside network blocked
+pnpm e2e # Playwright journeys on the production builds over the recorded replay, with all outside network blocked
 pnpm build
 pnpm preview # serves the last build with wrangler dev, in workerd, the runtime Cloudflare runs
 pnpm fixtures # re-record venue fixtures
@@ -98,7 +98,7 @@ A test goes in the one layer that can catch its kind of mistake. A test that rep
 | Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
 | Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
 | History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
-| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the testnet and mainnet production builds, with no network. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
+| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production builds, with no network. A `*.testnet.spec.ts` or `*.mainnet.spec.ts` runs on that network's build, any other spec runs on mainnet, and a test whose result depends on the network takes the `@each-network` tag to run on both. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
 | Each venue still serves the book the testnet build reads | Playwright in `e2e/live.smoke.ts`, run only by the nightly, against the live venues | A live book on screen |
 | Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
 | The Node tests catch a broken rule in `packages/core` and `packages/trade` | StrykerJS with the Vitest runner, run by hand once per batch of new tests | Each surviving mutant is judged a missing test, which gets one, or an equivalent mutant |
