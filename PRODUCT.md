@@ -53,7 +53,7 @@ Tape has no server between the trader and the venue. One SharedWorker keeps one 
 ## Product Principles
 
 1. The trader reads before acting. Nothing on screen competes with a number while it is being read.
-2. Every number is true or says why it is not: stale, reconnecting, failed, unknown.
+2. Every number is true or says why it is not: old, reconnecting, failed, unknown.
 3. Live signals inform. A movement on screen means something changed in the market or in the trader's account.
 4. Acting is short. From a price on screen to an order sent takes the fewest steps the venue allows, and the outcome is never ambiguous.
 5. The trader's money moves only on their deliberate action. Nothing nudges them to trade more.

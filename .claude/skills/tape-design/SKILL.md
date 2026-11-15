@@ -1,6 +1,6 @@
 ---
 name: tape-design
-description: Tape's visual system. Use before changing how any Tape screen looks or reads, such as a color, size or spacing, a button, field or table, a loading, stale, empty or error state, a dialog, motion, or a screenshot review.
+description: Tape's visual system. Use before changing how any Tape screen looks or reads, such as a color, size or spacing, a button, field or table, a loading, old, empty or error state, a dialog, motion, or a screenshot review.
 ---
 
 # Tape design
@@ -32,7 +32,7 @@ These files win over any other skill, such as `interface-design` or `frontend-de
 
 ## Panel state
 
-Data and connection are two axes. Data is live, stale, empty or error. Connection is connected, reconnecting or down. `panelState` turns both into one text, and `src/ui/panel-state.test.ts` holds every text a trader can read.
+Data and connection are two axes. Data is `live`, `stale`, `empty` or `error`, and `stale` reads as old data on screen. Connection is `connected`, `reconnecting` or `down`. `panelState` turns both into one text, and `src/ui/panel-state.test.ts` holds every text a trader can read.
 
 A panel fed by a hub topic passes `<TopicStatus topic={…} />` to `Panel`'s `status` slot, beside the title. Pass `ageLimit` where an old frame misleads, as in the book, the depth and the ticket's price hint. Pass `error` and `onRetry` for a failed read.
 
@@ -114,7 +114,7 @@ Review catches the rest. A screen that shows one of these goes back:
 ## Evidence
 
 1. Run `pnpm verify`. It runs the lint and `scripts/check-contrast.mjs`. Add any new color pair to that script's `PAIRS` first.
-2. Capture with the `verify-tape` skill on the replay build: `parity.mjs capture` on `main` and on the change, then `parity.mjs diff`, summarized by property. Take screenshots at 1440×900 and 1280×800 with live, stale and error data, plus `/history` and the Deposit dialog.
+2. Capture with the `verify-tape` skill on the replay build: `parity.mjs capture` on `main` and on the change, then `parity.mjs diff`, summarized by property. Take screenshots at 1440×900 and 1280×800 with live, old and error data, plus `/history` and the Deposit dialog.
 3. Compare each screenshot with the matching one in `reference/`. A difference the change did not intend goes back.
 4. Run `pnpm e2e`. An assertion changed on purpose goes in the review with its diff.
 5. For a change on the trading screen, run `perf-probe.mjs` against the baseline and report main-thread work.
@@ -139,4 +139,4 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/cancel-all.png`: Cancel all over every market, one row per order, and the `warn` note that TP/SL legs go with them.
 - `reference/close-all.png`: the Close all report, one line per position with its fill and PnL, and Done on `secondary-raised`.
 
-Not retaken yet: a venue tab during a live best-price lift, stale, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.
+Not retaken yet: a venue tab during a live best-price lift, old data, offline and failed reads, the unknown and refused order outcomes. Their rules above still hold, and each enters here once a screen of it is approved.

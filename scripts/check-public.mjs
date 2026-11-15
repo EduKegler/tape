@@ -13,7 +13,7 @@ const proseAllowed = [
   /^(?:README|CLAUDE|AGENTS|PRODUCT|DESIGN|CONTRIBUTING|SECURITY)\.md$/,
   /^packages\/[^/]+\/README\.md$/,
   /^docs\/(?:deploy|history-csv)\.md$/,
-  /^docs\/internals\/(?:overview)\.md$/,
+  /^docs\/internals\/(?:overview|glossary)\.md$/,
   /^\.github\/pull_request_template\.md$/,
   /^\.claude\/skills\//,
   /^\.impeccable\/.+\.md$/,
