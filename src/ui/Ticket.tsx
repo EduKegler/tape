@@ -213,6 +213,7 @@ function TicketForm({
   const slippage = useSelector(slippageBps, (state) => state)
   const ref = session.status === 'ready' || session.status === 'setup' ? session.ref : null
   const caps = session.status === 'ready' || session.status === 'setup' ? session.capabilities : null
+  const triggerOrders = caps?.triggers?.orders ?? 0
   const canSend = session.status === 'ready' || (session.status === 'setup' && session.keyed)
   const { run, last } = useTradeCommands(ref)
   const [sent, setSent] = useState<string | null>(null)
@@ -593,7 +594,7 @@ function TicketForm({
                     ))}
                     <form.Subscribe selector={(state) => state.values.stopLoss !== ''}>
                       {(withStop) =>
-                        count + (withStop ? 1 : 0) < (caps.triggers?.orders ?? 0) && (
+                        count + (withStop ? 1 : 0) < triggerOrders ? (
                           <Button
                             look="quiet"
                             className="self-start"
@@ -604,7 +605,7 @@ function TicketForm({
                           >
                             Add take profit
                           </Button>
-                        )
+                        ) : null
                       }
                     </form.Subscribe>
                   </>
@@ -889,7 +890,6 @@ function SubmitArea({
     landing === 'holding' && (session.status === 'setup' || session.status === 'ready')
       ? 'disconnected'
       : session.status
-  return <Arrival key={shown === 'disconnected' ? 'off' : 'on'}>{slot()}</Arrival>
 
   function slot() {
     if (shown === 'disconnected') return <ConnectButton wide />
@@ -909,6 +909,8 @@ function SubmitArea({
         return button
     }
   }
+
+  return <Arrival key={shown === 'disconnected' ? 'off' : 'on'}>{slot()}</Arrival>
 }
 
 function Arrival({ children }: { children: ReactNode }) {
