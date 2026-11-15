@@ -37,14 +37,18 @@ const READ_ONLY_TABS: Record<Network, Record<'Binance' | 'Hyperliquid' | 'dYdX' 
   testnet: { Binance: true, Hyperliquid: false, dYdX: false, Orderly: false },
 }
 
-test('a venue tab says read only when the build sends no orders there', async ({ page, network }) => {
-  await openMarket(page, '/hyperliquid/BTC?interval=1m')
-  const strip = page.getByRole('navigation', { name: 'Venue' })
-  for (const [label, readOnly] of Object.entries(READ_ONLY_TABS[network])) {
-    const tab = strip.getByRole('link', { name: new RegExp(`^${label}`) })
-    await expect(tab.getByText('Read only', { exact: true })).toHaveCount(readOnly ? 1 : 0)
-  }
-})
+test(
+  'a venue tab says read only when the build sends no orders there',
+  { tag: '@each-network' },
+  async ({ page, network }) => {
+    await openMarket(page, '/hyperliquid/BTC?interval=1m')
+    const strip = page.getByRole('navigation', { name: 'Venue' })
+    for (const [label, readOnly] of Object.entries(READ_ONLY_TABS[network])) {
+      const tab = strip.getByRole('link', { name: new RegExp(`^${label}`) })
+      await expect(tab.getByText('Read only', { exact: true })).toHaveCount(readOnly ? 1 : 0)
+    }
+  },
+)
 
 test('the ticket starts as a limit buy', async ({ page }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
@@ -183,7 +187,7 @@ test('a market buy hides the price, offers slippage and prices the notional at t
 
 const NETWORK_ASIDE: Record<Network, string> = { mainnet: 'Mainnet', testnet: 'Testnet' }
 
-test('the ticket says which network the build is', async ({ page, network }) => {
+test('the ticket says which network the build is', { tag: '@each-network' }, async ({ page, network }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const ticket = ticketOf(page)
   await expect(ticket.getByText(NETWORK_ASIDE[network], { exact: true })).toBeVisible()

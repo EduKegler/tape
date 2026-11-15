@@ -24,8 +24,7 @@ The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/archite
 ```bash
 pnpm verify   # package boundaries, typecheck of each package and the app, no notes in the public repo, import cycles, lint, format, unused code, tests
 pnpm verify --docs # only the format check and check-public, what a markdown-only change runs
-pnpm verify:commits # pnpm verify on each commit since origin/main, as the pre-push hook and CI run it, or pnpm verify --docs on a markdown-only commit
-pnpm e2e # Playwright journeys on the testnet and mainnet production builds over the recorded replay, with all outside network blocked
+pnpm e2e # Playwright journeys on the production builds over the recorded replay, with all outside network blocked
 pnpm build
 pnpm preview # serves the last build with wrangler dev, in workerd, the runtime Cloudflare runs
 pnpm fixtures # re-record venue fixtures
@@ -66,7 +65,7 @@ Conventional Commits, checked by commitlint in the lefthook `commit-msg` hook. N
 
 One logical change per commit: one piece of work that a reviewer keeps or reverts as a whole, with a subject that names it with no "and" or list. Size a commit by the work, not by the edit: a feature with its tests, a fix with its test, a batch of new tests for one package. Bundled: `fix: no TP/SL on market orders, unknown outcomes on dYdX timeouts and close guards` is three commits, because a reviewer can revert each fix alone. Split: #36 has 36 commits, one per test, and is two, one `test(trade)` for the dYdX gaps the mutation run found and one `test(core)` for the core ones. The same edit at many sites is also one commit, so the 13 exports knip flags go in one `refactor: stop exporting symbols used only in their module`, not one commit per symbol.
 
-Every commit passes `pnpm verify` on its own, which sets the order: the cleanup lands before the check that enforces it, and a fix shares a commit with its Vitest test, because a red test fails `pnpm verify`. `pnpm verify:commits` runs it on each commit since `origin/main` in the pre-push hook, and the PR's CI runs it on each commit and the merge in a job of its own, up to 8 at a time, skipping trees an earlier run of the PR verified. A commit that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run and the deploy. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
+The pre-push hook runs `pnpm verify` on the working tree, and the PR's CI runs it on the merge with `main`. A push or PR that changes only `.md` files runs `pnpm verify --docs` instead, which is the format check and `check-public.mjs`. A fix still shares a commit with its Vitest test, so a revert takes both. A PR or push whose whole diff is `.md` files, or `.md` files and `*.test.ts` or `*.test.tsx` files outside `e2e/` and `__fixtures__/`, skips the e2e run and the deploy. `scripts/change-kind.ts` decides both, and any other file, an empty diff or a range git cannot read counts as code. Never push with `--no-verify`.
 
 ## Pull requests
 
@@ -98,7 +97,7 @@ A test goes in the one layer that can catch its kind of mistake. A test that rep
 | Venue parsers and adapters | Vitest in Node over `packages/venues/src/__fixtures__/` | Frames recorded from the venue |
 | Signing | Vitest in Node | A published vector, such as RFC 8032 in `orderly/sign.test.ts`, or viem's `hashTypedData` |
 | History and PnL | Vitest in Node | The venue's own numbers, such as Hyperliquid's `closedPnl` |
-| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the testnet and mainnet production builds, with no network. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
+| UI wiring and journeys | Playwright in `e2e/`, run by `pnpm e2e` on the production builds, with no network. A `*.testnet.spec.ts` or `*.mainnet.spec.ts` runs on that network's build, any other spec runs on mainnet, and a test whose result depends on the network takes the `@each-network` tag to run on both. `e2e/replay/worker.ts` wraps the real hub worker and feeds it the recorded frames through its `WebSocket` and `fetch`, and starts its clock at the recording's time, because Playwright's `routeWebSocket` and `page.clock` do not reach a SharedWorker. Chromium runs on each PR, Firefox and WebKit run nightly | What the user reads on screen |
 | Each venue still serves the book the testnet build reads | Playwright in `e2e/live.smoke.ts`, run only by the nightly, against the live venues | A live book on screen |
 | Components, visual regression, Storybook | None | Rules live in packages and get Node tests |
 | The Node tests catch a broken rule in `packages/core` and `packages/trade` | StrykerJS with the Vitest runner, run by hand once per batch of new tests | Each surviving mutant is judged a missing test, which gets one, or an equivalent mutant |
@@ -124,7 +123,7 @@ Before a venue ships, its tests prove these:
 | --- | --- |
 | Conventional Commits | commitlint in the lefthook `commit-msg` hook |
 | No AI attribution in commits or PRs | the `commit-msg` hook, `attribution` in `.claude/settings.json` |
-| Every commit passes `pnpm verify` on its own, or `pnpm verify --docs` if it changes only `.md` files | `scripts/verify-commits.mjs` with `scripts/change-kind.ts`, in the `pre-push` hook and `.github/workflows/verify.yml` |
+| A push and a PR's merge pass `pnpm verify`, or `pnpm verify --docs` if they change only `.md` files | `scripts/change-kind.ts`, in the `pre-push` hook and the `verify` job of `.github/workflows/verify.yml` |
 | No research, competitor notes or decision logs in the repo | `scripts/check-public.mjs` in `pnpm verify` |
 | Packages import no React, no `#/` and nothing undeclared | `scripts/check-packages.mjs` in `pnpm verify` |
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |

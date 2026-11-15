@@ -9,7 +9,7 @@ const hyperliquid = (network: Network): Probe => ({
   socket: `wss://${HYPERLIQUID[network]}/ws`,
 })
 
-test('the page cannot reach a venue', async ({ page, network, escaped, consoleErrors }) => {
+test('the page cannot reach a venue', { tag: '@each-network' }, async ({ page, network, escaped, consoleErrors }) => {
   const venue = hyperliquid(network)
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const reached = await page.evaluate(async ({ http, socket }) => {
@@ -34,7 +34,7 @@ test('the page cannot reach a venue', async ({ page, network, escaped, consoleEr
   expect(errors.filter((error) => !error.includes(HYPERLIQUID[network]))).toEqual([])
 })
 
-test('the hub worker cannot reach a venue', async ({ page, network }) => {
+test('the hub worker cannot reach a venue', { tag: '@each-network' }, async ({ page, network }) => {
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   const reached = await page.evaluate(
     async ({ control, probe }) =>
