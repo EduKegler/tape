@@ -398,6 +398,14 @@ const config = [
             KEY_IMPORTS,
             { group: ['@base-ui/react', '@base-ui/react/*'], message: 'Use the primitives in src/ui/primitives.' },
           ],
+          paths: [
+            {
+              name: 'wagmi',
+              importNames: ['useConnection'],
+              message:
+                'Use useWalletConnection from src/wallet/connection.ts, which reads disconnected until hydration ends.',
+            },
+          ],
         },
       ],
       'no-restricted-syntax': [

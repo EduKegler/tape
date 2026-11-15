@@ -1,12 +1,13 @@
 import { createContext, use, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useConnect, useConnection, useConnectors } from 'wagmi'
+import { useConnect, useConnectors } from 'wagmi'
 import type { Connector, CreateConnectorFn } from 'wagmi'
 import { track } from '#/analytics/track'
 import { ErrorMark } from '#/ui/ErrorMark'
 import { shortAddress } from '#/ui/format'
 import { Button, Popover, TextLink } from '#/ui/primitives'
 import { TapeMark } from '#/ui/TapeMark'
+import { useWalletConnection } from './connection'
 import { INJECTED_ID, browserWallets, connectFailure, waitClock } from './flow'
 import type { ConnectFailure } from './flow'
 import { fade, flip, foldInto, growFrom, morph, nextFrame, play, reducedMotion, rise, sleep } from './motion'
@@ -108,7 +109,7 @@ export function ConnectProvider({ children }: { children: ReactNode }) {
   const attempt = useRef(0)
   const busy = useRef(false)
   const wallets = useWallets()
-  const { isConnected } = useConnection()
+  const { isConnected } = useWalletConnection()
   const { mutate: connect, reset } = useConnect({
     mutation: {
       onSuccess: (_data, { connector }) => track({ event: 'wallet_connected', connector: kindOf(connector) }),

@@ -1,10 +1,10 @@
 import { queryOptions, skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useConnection } from 'wagmi'
 import { WITHDRAWALS } from '@tape/trade'
 import { claim, release } from '@tape/trade/in-flight'
 import type { AccountRef, TradeFailure } from '@tape/trade/types'
 import { toEip1193, walletSigner } from '@tape/trade/wallet'
 import type { SentWithdrawal, WithdrawProgress } from '@tape/trade/withdraw'
+import { useWalletConnection } from '#/wallet/connection'
 import { track } from '#/analytics/track'
 import { switchOrAddChain } from '#/wallet/config'
 import { contextFor, guard, tradeKeys } from './hooks'
@@ -15,7 +15,7 @@ export const withdrawVenue = (ref: AccountRef) => WITHDRAWALS[ref.venue] ?? null
 
 /** Signs the withdrawal with the wallet and resolves once the venue takes it. */
 export function useWithdraw(ref: AccountRef) {
-  const { connector } = useConnection()
+  const { connector } = useWalletConnection()
   const client = useQueryClient()
   const mutation = useMutation<SentWithdrawal, TradeFailure, bigint>({
     networkMode: 'always',

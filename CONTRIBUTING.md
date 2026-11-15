@@ -139,7 +139,7 @@ Before a venue ships, its tests prove these:
 | Packages import no React, no `#/` and nothing undeclared | `scripts/check-packages.mjs` in `pnpm verify` |
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
 | No unused files, exports or dependencies | knip in `pnpm verify` |
-| Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter | `no-restricted-*` rules in `eslint.config.js` |
+| Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter, wagmi's connection only through `useWalletConnection` | `no-restricted-*` rules in `eslint.config.js` |
 | Color, type, weight, radius, z-index, duration and animation come from the tokens in `src/styles.css`, padding, margin and gap from `SPACING_STEPS`, motion plays only under `motion-safe:`, except the `wash` utility and its reduced-motion still, and buttons, fields, links, tables, dialogs and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-unknown-classes` and `no-restricted-classes`, and the `no-restricted-*` rules in `eslint.config.js` |
 | A failed read says what it could not read, never what was sent | `src/ui/trade-errors.test.ts`, and the read failure tests in `e2e/history.mainnet.spec.ts` and `e2e/trading.testnet.spec.ts` |
 | The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |

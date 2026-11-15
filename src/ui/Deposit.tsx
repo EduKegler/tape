@@ -1,12 +1,12 @@
 import { useId, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { useConnection } from 'wagmi'
 import { formatEther, formatUnits } from 'viem'
 import type { Hex } from 'viem'
 import { DEPOSITS } from '@tape/trade'
 import { USDC_DECIMALS, blocksDeposit, parseUsdc } from '@tape/trade/deposit'
 import type { DepositFee, DepositIssue, DepositRoute, DepositTerms, DepositVenue } from '@tape/trade/deposit'
 import type { AccountRef } from '@tape/trade/types'
+import { useWalletConnection } from '#/wallet/connection'
 import {
   depositRoutes,
   sendFailure,
@@ -133,7 +133,7 @@ function DepositForm({
 }) {
   const routes = depositRoutes(account)
   const balances = useRouteBalances(account, routes)
-  const { chainId: walletChain } = useConnection()
+  const { chainId: walletChain } = useWalletConnection()
   const route =
     routes.find((candidate) => candidate.chainId === draft.chainId)
     ?? routes.find((candidate) => candidate.chainId === walletChain)
