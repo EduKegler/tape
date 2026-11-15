@@ -9,7 +9,7 @@ import { createConnection } from 'node:net'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
-import { readFundedKey } from './funded-key.mjs'
+import { fundedRequested, readFundedKey } from './funded-key.mjs'
 
 const SKILL = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = resolve(SKILL, '../../..')
@@ -22,6 +22,7 @@ const CDP_PORT = Number(process.env.VERIFY_TAPE_CDP_PORT ?? 9391)
 const WALLET_PORT = Number(process.env.VERIFY_TAPE_WALLET_PORT ?? 4392)
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = `http://127.0.0.1:${PORT}`
+const { VERIFY_TAPE_KEY: _fundedKey, ...withoutKey } = process.env
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const die = (msg, code = 1) => {
@@ -121,10 +122,10 @@ async function up(flags) {
 
   const network = flags.network ?? 'mainnet'
   if (network !== 'mainnet' && network !== 'testnet') die(`--network takes mainnet or testnet, not ${network}`)
-  const funded = Boolean(process.env.VERIFY_TAPE_KEY_FILE)
+  const funded = fundedRequested()
   if (funded)
     try {
-      readFundedKey(process.env.VERIFY_TAPE_KEY_FILE, { network, watch: process.env.VERIFY_TAPE_WATCH })
+      readFundedKey({ network, watch: process.env.VERIFY_TAPE_WATCH })
     } catch (e) {
       die(e.message)
     }
@@ -155,7 +156,7 @@ async function up(flags) {
         ],
         {
           cwd: REPO,
-          env: { ...process.env, VITE_NETWORK: network, VERIFY_TAPE_REPLAY: replay ? '1' : '' },
+          env: { ...withoutKey, VITE_NETWORK: network, VERIFY_TAPE_REPLAY: replay ? '1' : '' },
           stdio: ['ignore', openSync(buildLog, 'w'), openSync(buildLog, 'a')],
         },
       )
@@ -170,7 +171,7 @@ async function up(flags) {
   const server = spawn(
     join(REPO, 'node_modules/.bin/wrangler'),
     ['dev', '-c', join(OUTPUT, 'server/wrangler.json'), '--ip', '127.0.0.1', '--port', String(PORT)],
-    { cwd: REPO, detached: true, stdio: ['ignore', fd, fd] },
+    { cwd: REPO, env: withoutKey, detached: true, stdio: ['ignore', fd, fd] },
   )
   server.unref()
   const chrome = spawn(
@@ -186,7 +187,7 @@ async function up(flags) {
       ...(replay ? ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'] : []),
       'about:blank',
     ],
-    { detached: true, stdio: 'ignore' },
+    { env: withoutKey, detached: true, stdio: 'ignore' },
   )
   chrome.unref()
   const s = {
