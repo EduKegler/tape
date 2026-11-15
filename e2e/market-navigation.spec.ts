@@ -9,7 +9,7 @@ const DYDX_VIOLET_AT_10_PERCENT_OVER_GRAPHITE = 'rgb(27, 27, 44)'
 
 test('the root opens Hyperliquid BTC on the 1m chart', async ({ page, network }) => {
   await page.goto('/')
-  await expect(page).toHaveURL(/\/hyperliquid\/BTC\?interval=1m$/)
+  await expect(page).toHaveURL(/\/hyperliquid\/BTC$/)
   await expect(page).toHaveTitle(`BTC on Hyperliquid · Live order book · Tape${TITLE_SUFFIX[network]}`)
 })
 
@@ -170,7 +170,7 @@ test('the venues table is one Tab stop, the arrows walk it and Enter opens a ven
   await page.keyboard.press('ArrowDown')
   await expect(venues.getByRole('row', { name: /^dYdX/ })).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/dydx\/BTC\?/)
+  await expect(page).toHaveURL(/\/dydx\/BTC$/)
 })
 
 test('the venues table marks the best bid and the best ask in text', async ({ page }) => {

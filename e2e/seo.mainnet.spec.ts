@@ -26,3 +26,13 @@ test('a market page names its market in an H1 and describes it, with nothing ask
   )
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0)
 })
+
+test('each sitemap URL answers itself, and the default interval redirects to it', async ({ request, baseURL }) => {
+  const market = await request.get('/hyperliquid/BTC', { maxRedirects: 0 })
+  expect(market.status()).toBe(200)
+
+  const withDefault = await request.get('/hyperliquid/BTC?interval=1m', { maxRedirects: 0 })
+  expect(withDefault.status()).toBe(307)
+  const target = new URL(withDefault.headers().location ?? '', baseURL)
+  expect(`${target.pathname}${target.search}`).toBe('/hyperliquid/BTC')
+})
