@@ -28,3 +28,4 @@ The Worker reads these at runtime, from its variables in Cloudflare.
 | --- | --- | --- |
 | `POSTHOG_KEY` | none | PostHog project key. Without it `/r1` drops every analytics event and error |
 | `POSTHOG_HOST` | `https://eu.i.posthog.com` | PostHog host that `/r1` forwards to |
+| `VISITOR_SALT` | none | Secret that keys the daily visitor id. With it, the events of one IP and browser on one UTC day share an id, which changes at midnight. Without it every page load is its own id. Use 32 random bytes, such as `openssl rand -hex 32` |

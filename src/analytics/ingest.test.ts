@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { createHmac } from 'node:crypto'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Command, OrderIntent } from '@tape/trade/types'
 import { MAX_BODY, pack } from './beacon'
 import { ingest, readEnv } from './ingest'
@@ -81,6 +82,63 @@ describe('analytics ingest', () => {
         },
       ],
     })
+  })
+
+  describe('with a visitor salt', () => {
+    const SALT = 'a-salt-of-at-least-thirty-two-characters'
+    const SALTED = { ...ENV, VISITOR_SALT: SALT }
+    const IP = '203.0.113.7'
+    const visit = { origin: SITE, 'cf-connecting-ip': IP, 'user-agent': CHROME }
+    const expectedId = (day: string) => createHmac('sha256', SALT).update(`${day}\n${IP}\n${CHROME}`).digest('hex')
+    const pageLoad = (): Batch => ({
+      session: uuidv7(Date.now()),
+      events: [[Date.now(), { event: '$pageview', path: '/hyperliquid/BTC' }]],
+    })
+
+    afterEach(() => vi.useRealTimers())
+
+    it("keys every page load of one visitor on one UTC day to the day's id, and each keeps its session", async () => {
+      vi.useFakeTimers({ now: new Date('2026-11-15T09:00:00Z'), toFake: ['Date'] })
+      const { sent, send } = recorder()
+      const first = pageLoad()
+      const second = pageLoad()
+      await ingest(beacon(first, visit), 'mainnet', SALTED, send)
+      await ingest(beacon(second, visit), 'mainnet', SALTED, send)
+      const [one, two] = sent.map((request) => request.body.batch[0]!.properties)
+      expect(one!.distinct_id).toBe(expectedId('2026-11-15'))
+      expect(two!.distinct_id).toBe(expectedId('2026-11-15'))
+      expect([one!.$session_id, two!.$session_id]).toEqual([first.session, second.session])
+    })
+
+    it('gives the same visitor a new id after midnight UTC', async () => {
+      const { sent, send } = recorder()
+      vi.useFakeTimers({ now: new Date('2026-11-15T23:59:59Z'), toFake: ['Date'] })
+      await ingest(beacon(pageLoad(), visit), 'mainnet', SALTED, send)
+      vi.setSystemTime(new Date('2026-11-16T00:00:01Z'))
+      await ingest(beacon(pageLoad(), visit), 'mainnet', SALTED, send)
+      expect(sent.map((request) => request.body.batch[0]!.properties.distinct_id)).toEqual([
+        expectedId('2026-11-15'),
+        expectedId('2026-11-16'),
+      ])
+    })
+
+    it('keys the events to the page load when Cloudflare names no visitor IP', async () => {
+      const { sent, send } = recorder()
+      const batch = pageLoad()
+      await ingest(beacon(batch, { origin: SITE, 'user-agent': CHROME }), 'mainnet', SALTED, send)
+      expect(sent[0]!.body.batch[0]!.properties.distinct_id).toBe(batch.session)
+    })
+  })
+
+  it('keys the events to the page load without a visitor salt', async () => {
+    const { sent, send } = recorder()
+    await ingest(
+      beacon({ session, events: [[now, { event: 'trading_enabled', venue: 'dydx' }]] }),
+      'mainnet',
+      ENV,
+      send,
+    )
+    expect(sent[0]!.body.batch[0]!.properties.distinct_id).toBe(session)
   })
 
   it('caps the user agent at 512 characters and leaves it out when the browser sends none', async () => {
@@ -333,8 +391,13 @@ describe('analytics ingest', () => {
     const before = { ...process.env }
     process.env.POSTHOG_KEY = ''
     process.env.POSTHOG_HOST = ''
+    process.env.VISITOR_SALT = ''
     try {
-      expect(readEnv()).toEqual({ POSTHOG_KEY: undefined, POSTHOG_HOST: 'https://eu.i.posthog.com' })
+      expect(readEnv()).toEqual({
+        POSTHOG_KEY: undefined,
+        POSTHOG_HOST: 'https://eu.i.posthog.com',
+        VISITOR_SALT: undefined,
+      })
     } finally {
       process.env = before
     }
