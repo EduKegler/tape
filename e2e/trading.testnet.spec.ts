@@ -758,9 +758,7 @@ test('a failed account read says what it could not read, never what it sent, and
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   await connectWallet(page, panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }))
   const account = panel(page, 'Account')
-  await expect(account.getByRole('alert')).toHaveText('Could not read the account. The venue did not answer. Retry', {
-    timeout: 15_000,
-  })
+  await expect(account.getByRole('alert')).toHaveText('Could not read the account. The venue did not answer. Retry')
   await expect(account.getByText(/sent/)).toHaveCount(0)
   await expectAccessible(page)
   await page.unroute('https://api.hyperliquid-testnet.xyz/info', noAccountAnswer)

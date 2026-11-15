@@ -52,7 +52,6 @@ test('changing the interval reloads the candle history for it', async ({ page })
       request.url().endsWith('/info')
       && request.postData()?.includes('"candleSnapshot"') === true
       && request.postData()?.includes('"interval":"1h"') === true,
-    { timeout: 5_000 },
   )
   await chart.getByRole('radio', { name: '1h', exact: true }).click()
   await history

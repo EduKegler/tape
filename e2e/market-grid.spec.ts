@@ -76,7 +76,7 @@ test('every panel title bar keeps one height while a panel says a read failed or
   const book = panel(page, 'Order book')
   await expect(book.getByText(/^Spread .* bps$/)).toBeVisible()
   const ticket = panel(page, 'Order ticket')
-  await expect(ticket.getByText('Could not load market rules.')).toBeVisible({ timeout: 20_000 })
+  await expect(ticket.getByText('Could not load market rules.')).toBeVisible()
   await expect(ticket.getByRole('button', { name: 'Retry' })).toBeVisible()
   expect(new Set(await barHeights(page)).size).toBe(1)
   await send(page, { drop: 'hyperliquid' })
