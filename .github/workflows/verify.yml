@@ -92,5 +92,4 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       network: ${{ matrix.network }}
-      range: ${{ github.event.before }}..${{ github.sha }}
     secrets: inherit
