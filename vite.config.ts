@@ -5,7 +5,6 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
-import { redact } from '@tanstack/redact/vite'
 import posthog from '@posthog/rollup-plugin'
 import { workerSecurityPolicy } from './src/csp'
 import { env } from './src/env'
@@ -96,7 +95,6 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
       tanstackStart(),
       viteReact(),
-      redact(),
       uploadMaps && sourceMaps(),
     ],
   }

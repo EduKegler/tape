@@ -35,7 +35,7 @@ img { position: absolute; left: 578px; top: 72px; width: 820px; border-radius: 1
   box-shadow: 0 30px 70px rgb(47 49 76 / .18) }
 </style>
 <div class="copy"><div class="repo"><b>EduKegler</b> / tape</div><h1>Tape</h1>
-<p>Live order books from Binance, Hyperliquid and dYdX in one model. TanStack Start on Redact.</p>
+<p>Live order books from Binance, Hyperliquid and dYdX in one model. TanStack Start on Cloudflare Workers.</p>
 <a>tape.kegler.dev</a></div>
 <img src="data:image/png;base64,${shot.toString('base64')}">`)
 await card.screenshot({ path: `${root}docs/social-preview.png` })

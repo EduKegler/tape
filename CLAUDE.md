@@ -23,7 +23,7 @@ Look up TanStack APIs with the CLI instead of guessing. It is a dev dependency (
 
 ```bash
 pnpm exec tanstack libraries --json
-pnpm exec tanstack doc redact compatibility --json
+pnpm exec tanstack doc start framework/react/guide/hydration-errors --json
 pnpm exec tanstack search-docs "throttle" --library pacer --framework react --json
 pnpm exec tanstack create --list-add-ons --framework React --json
 pnpm exec tanstack create --addon-details tanstack-query --framework React --json
