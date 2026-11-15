@@ -150,6 +150,18 @@ describe('analytics ingest', () => {
     expect(sent[1]!.body.batch[0]!.properties).not.toHaveProperty('$raw_user_agent')
   })
 
+  it('tags every event of a browser marked as internal traffic, and no other', async () => {
+    const { sent, send } = recorder()
+    const events: Batch['events'] = [
+      [now, { event: '$pageview', path: '/hyperliquid/BTC' }],
+      [now + 1, { event: 'trading_enabled', venue: 'dydx' }],
+    ]
+    for (const body of pack({ session, internal: true }, events)) await ingest(beacon(body), 'mainnet', ENV, send)
+    await ingest(beacon({ session, events }), 'mainnet', ENV, send)
+    expect(sent[0]!.body.batch.map((event) => event.properties.internal)).toEqual([true, true])
+    expect(sent[1]!.body.batch.every((event) => !('internal' in event.properties))).toBe(true)
+  })
+
   it('keeps the funnel properties of a placed order', async () => {
     const { sent, send } = recorder()
     const batch: Batch = {
@@ -366,7 +378,7 @@ describe('analytics ingest', () => {
       now + index,
       index % 4 ? funnel : exception,
     ])
-    const bodies = pack(session, queue)
+    const bodies = pack({ session }, queue)
     const forwarded: string[] = []
     for (const body of bodies) {
       expect(body.length).toBeLessThanOrEqual(MAX_BODY)

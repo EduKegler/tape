@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import type { VenueId } from '@tape/core/ids'
 import type { Command, CommandOutcome, TradeError } from '@tape/trade/types'
+import { isInternalTraffic, markInternalTraffic } from '#/trade/vault'
 import { pack } from './beacon'
 import { campaign } from './campaign'
 import type { AppEvent, Batch } from './events'
@@ -20,6 +21,7 @@ export function uuidv7(now: number): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+const landing = typeof location === 'undefined' ? '' : location.search
 let session: string | null = null
 let queue: Batch['events'] = []
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -28,14 +30,21 @@ function flush() {
   if (timer) clearTimeout(timer)
   timer = null
   if (!session) return
-  for (const body of pack(session, queue)) navigator.sendBeacon('/r1', body)
+  const head = { session, ...(isInternalTraffic() ? { internal: true as const } : {}) }
+  for (const body of pack(head, queue)) navigator.sendBeacon('/r1', body)
   queue = []
+}
+
+function readInternalSwitch() {
+  const internal = new URLSearchParams(landing).get('internal')
+  if (internal === '1' || internal === '0') markInternalTraffic(internal === '1')
 }
 
 export function track(event: AppEvent) {
   if (typeof navigator === 'undefined' || !('sendBeacon' in navigator)) return
   if (!session) {
     session = uuidv7(Date.now())
+    readInternalSwitch()
     addEventListener('pagehide', flush)
     addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush())
   }
@@ -54,8 +63,6 @@ export function pageview(path: string, referrer: string, origin: string, search 
     ...campaign(search),
   }
 }
-
-const landing = typeof location === 'undefined' ? '' : location.search
 
 export function usePageViews() {
   const path = useRouterState({ select: (state) => state.location.pathname })

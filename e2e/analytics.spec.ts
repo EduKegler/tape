@@ -23,6 +23,19 @@ test('a landing link keeps its UTM tags through the root redirect and the first 
   })
 })
 
+test('?internal=1 marks the browser as internal traffic across reloads, and ?internal=0 clears it', async ({
+  page,
+}) => {
+  await openMarket(page, '/hyperliquid/BTC?interval=1m&internal=1')
+  expect((await firstBeacon(page)).internal).toBe(true)
+
+  await openMarket(page, '/hyperliquid/BTC?interval=1m')
+  expect((await firstBeacon(page)).internal).toBe(true)
+
+  await openMarket(page, '/hyperliquid/BTC?interval=1m&internal=0')
+  expect(await firstBeacon(page)).not.toHaveProperty('internal')
+})
+
 async function firstBeacon(page: Page): Promise<Batch> {
   const beacon = page.waitForRequest((request) => new URL(request.url()).pathname === '/r1')
   await page.clock.runFor(FLUSH_MS)

@@ -100,6 +100,7 @@ function toPostHog(batch: Batch, key: string, ctx: Context) {
           network: ctx.network,
           ...(ctx.ip ? { $ip: ctx.ip } : {}),
           ...(ctx.userAgent ? { $raw_user_agent: ctx.userAgent } : {}),
+          ...(batch.internal ? { internal: true } : {}),
         },
       }
     }),

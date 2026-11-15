@@ -128,9 +128,10 @@ export const AppEvent = z.discriminatedUnion('event', [
 ])
 export type AppEvent = z.infer<typeof AppEvent>
 
-/** What the page posts: one page load's id and the events it queued, each after the client time it happened. */
+/** What the page posts: one page load's id, whether the browser is marked as internal traffic, and the events it queued, each after the client time it happened. */
 export const Batch = z.strictObject({
   session: z.uuid({ version: 'v7' }),
+  internal: z.literal(true).optional(),
   events: z
     .array(z.tuple([z.number().int().positive(), AppEvent]))
     .min(1)
