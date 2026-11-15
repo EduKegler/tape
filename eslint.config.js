@@ -481,7 +481,8 @@ const config = [
     },
   },
   {
-    files: ['e2e/**/*.spec.ts'],
+    files: ['e2e/*.ts'],
+    ignores: ['e2e/live.smoke.ts', 'e2e/smoke.config.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
