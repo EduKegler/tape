@@ -15,7 +15,7 @@ Load the `tape-design` skill before changing how a screen looks or reads. The sk
 
 ## Rules
 
-When the operator corrects a mistake, fix it and add its row to Rules and what enforces them in CONTRIBUTING.md.
+When the operator corrects a mistake, fix it and add its row to [docs/internals/rules.md](docs/internals/rules.md).
 
 ## TanStack docs and add-ons
 
