@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { shallow } from '@tanstack/store'
 import type { MarketKey } from '@tape/core/ids'
 import { useFrame } from '#/client/hooks'
@@ -92,7 +92,7 @@ export function OrderBook({
   )
 }
 
-const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; side: 'asks' | 'bids'; index: number }) {
+function Row({ topic, side, index }: { topic: BookTopic; side: 'asks' | 'bids'; index: number }) {
   const row = useFrame(topic, (frame: BookFrame | null) => frame?.[side][index] ?? EMPTY_ROW, shallow)
   const ask = side === 'asks'
   return (
@@ -123,7 +123,7 @@ const Row = memo(function BookRow({ topic, side, index }: { topic: BookTopic; si
       </span>
     </Button>
   )
-})
+}
 
 function Spread({ topic }: { topic: BookTopic }) {
   const last = useFrame(

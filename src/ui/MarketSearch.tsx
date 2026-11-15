@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { VenueId } from '@tape/core/ids'
 import type { MarketSpec } from '@tape/core/market'
 import { searchMarkets } from '@tape/core/search'
@@ -12,11 +12,11 @@ export function MarketSearch({ venue }: { venue: VenueId }) {
   const [opened, setOpened] = useState(false)
   const list = useQuery({ ...marketsQuery(venue), enabled: opened })
   const markets = list.data
-  const groups = useMemo(
-    () =>
-      searchMarkets(markets ?? [], query).map((group) => ({ key: group.dex, label: group.name, items: group.markets })),
-    [markets, query],
-  )
+  const groups = searchMarkets(markets ?? [], query).map((group) => ({
+    key: group.dex,
+    label: group.name,
+    items: group.markets,
+  }))
   const navigate = useNavigate()
   return (
     <Search<MarketSpec>
