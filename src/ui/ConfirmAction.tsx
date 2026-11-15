@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Button } from './primitives'
 
@@ -21,20 +21,17 @@ function ConfirmStep({
 }) {
   const step = useRef<HTMLSpanElement>(null)
   const confirmButton = useRef<HTMLButtonElement>(null)
-  const cancel = useRef(onCancel)
-  useEffect(() => {
-    cancel.current = onCancel
-  })
+  const cancel = useEffectEvent(onCancel)
 
   useEffect(() => {
     confirmButton.current?.focus()
     const outside = (event: PointerEvent) => {
       const target = event.target instanceof Node ? event.target : null
       if (target && (step.current?.contains(target) || trigger?.current?.contains(target))) return
-      cancel.current(false)
+      cancel(false)
     }
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancel.current(true)
+      if (event.key === 'Escape') cancel(true)
     }
     document.addEventListener('pointerdown', outside)
     document.addEventListener('keydown', escape)
