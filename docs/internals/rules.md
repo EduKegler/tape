@@ -12,15 +12,10 @@ The rules a change follows, and the check or review that catches a change that b
 | No runtime import cycles | `scripts/check-cycles.mjs` in `pnpm verify` |
 | No unused files, exports or dependencies | knip in `pnpm verify` |
 | Storage only through `src/trade/vault.ts`, key libraries only in `packages/trade`, `Math.random` only for jitter, wagmi's connection only through `useWalletConnection` | `no-restricted-*` rules in `eslint.config.js` |
-| Color, type, weight, radius, z-index, duration and animation come from the tokens in `src/styles.css`, padding, margin and gap from `SPACING_STEPS`, motion plays only under `motion-safe:`, except the `wash` utility and its reduced-motion still, and buttons, fields, links, tables, dialogs and Base UI only from `src/ui/primitives` | `better-tailwindcss/no-unknown-classes` and `no-restricted-classes`, and the `no-restricted-*` rules in `eslint.config.js` |
+| Screens take color, type, spacing and motion from the design tokens, and controls from `src/ui/primitives` | `eslint.config.js`, explained in the `tape-design` skill |
 | A failed read says what it could not read, never what was sent | `src/ui/trade-errors.test.ts`, and the read failure tests in `e2e/history.mainnet.spec.ts` and `e2e/trading.testnet.spec.ts` |
 | The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |
 | Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
-| Every lint suppression gives its reason after `--` | `eslint-comments/require-description`, and `oxlint-comments/directive` in `eslint.config.js` for Oxlint, which also takes only a one-line `oxlint-disable` that names its rule |
-| Imports grouped by origin | `import/order`, fixed by `eslint --fix` |
-| No one-letter names | `id-length` in `eslint.config.js` |
-| No casts that narrow a type outside the constructor that owns it | `typescript/no-unsafe-type-assertion` in `.oxlintrc.json`, off in tests |
-| A lint rule that needs types runs in Oxlint, or in `TYPED_RULES` when Oxlint lacks it, so ESLint builds the TypeScript program only for those | `eslint.config.js` turns `projectService` on only in `eslint.typed.config.js`, so a typed rule anywhere else fails `pnpm verify` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
 | A test that needs a longer timeout to pass is wrong, so no spec raises a timeout, marks a test slow or waits a fixed time | `no-restricted-syntax` for `e2e/**/*.spec.ts` in `eslint.config.js` |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml`, green only when its three shards pass |
