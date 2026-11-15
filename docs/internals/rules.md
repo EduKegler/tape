@@ -17,7 +17,7 @@ The rules a change follows, and the check or review that catches a change that b
 | The `bid` and `ask` colors appear only in the files that show a side | `SIDE_FILES` and `no-restricted-classes` in `eslint.config.js` |
 | Every text and control color pair the primitives and the panel state use meets WCAG 2.2 contrast | `scripts/check-contrast.mjs` in `pnpm verify` |
 | Every trading venue reports mainnet unavailable unless the build turns mainnet trading on for that venue | `packages/trade/src/index.test.ts` |
-| A test that needs a longer timeout to pass is wrong, so no spec raises a timeout, marks a test slow or waits a fixed time | `no-restricted-syntax` for `e2e/**/*.spec.ts` in `eslint.config.js` |
+| A test that needs a longer timeout to pass is wrong, so no spec or spec helper raises a timeout, marks a test slow or waits a fixed time | `no-restricted-syntax` for `e2e/*.ts` in `eslint.config.js`, with the live smoke files left out |
 | UI journeys work on the production build | the `e2e` job in `.github/workflows/verify.yml`, green only when its three shards pass |
 | UI journeys work in Firefox and WebKit | the `browsers` job in `.github/workflows/nightly.yml` |
 | The venue parsers read what each venue sends today, on mainnet and testnet | `.github/workflows/nightly.yml` |
