@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as R1RouteImport } from './routes/r1'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VenueBaseRouteImport } from './routes/$venue.$base'
 
@@ -30,6 +32,16 @@ const R1Route = R1RouteImport.update({
   path: '/r1',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -45,6 +57,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
   '/r1': typeof R1Route
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/$venue/$base': typeof VenueBaseRoute
 }
@@ -52,6 +66,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
   '/r1': typeof R1Route
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/$venue/$base': typeof VenueBaseRoute
 }
@@ -60,21 +76,47 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
   '/r1': typeof R1Route
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/$venue/$base': typeof VenueBaseRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/history' | '/r1' | '/terms' | '/$venue/$base'
+  fullPaths:
+    | '/'
+    | '/history'
+    | '/r1'
+    | '/robots.txt'
+    | '/sitemap.xml'
+    | '/terms'
+    | '/$venue/$base'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/history' | '/r1' | '/terms' | '/$venue/$base'
-  id: '__root__' | '/' | '/history' | '/r1' | '/terms' | '/$venue/$base'
+  to:
+    | '/'
+    | '/history'
+    | '/r1'
+    | '/robots.txt'
+    | '/sitemap.xml'
+    | '/terms'
+    | '/$venue/$base'
+  id:
+    | '__root__'
+    | '/'
+    | '/history'
+    | '/r1'
+    | '/robots.txt'
+    | '/sitemap.xml'
+    | '/terms'
+    | '/$venue/$base'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRoute
   R1Route: typeof R1Route
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   VenueBaseRoute: typeof VenueBaseRoute
 }
@@ -102,6 +144,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof R1RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -123,6 +179,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
   R1Route: R1Route,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   VenueBaseRoute: VenueBaseRoute,
 }

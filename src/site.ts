@@ -4,4 +4,5 @@ import { env } from '#/env'
 const config = env.parse(import.meta.env)
 
 export const NETWORK = config.VITE_NETWORK
+export const SITE_URL = config.VITE_SITE_URL
 export const VENUES = venues(NETWORK)
