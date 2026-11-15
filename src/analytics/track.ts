@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import type { VenueId } from '@tape/core/ids'
 import type { Command, CommandOutcome, TradeError } from '@tape/trade/types'
+import { isInternalTraffic, markInternalTraffic } from '#/trade/vault'
 import { pack } from './beacon'
+import { campaign } from './campaign'
 import type { AppEvent, Batch } from './events'
 import { createReporter } from './exception'
 
@@ -19,6 +21,7 @@ export function uuidv7(now: number): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+const landing = typeof location === 'undefined' ? '' : location.search
 let session: string | null = null
 let queue: Batch['events'] = []
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -27,14 +30,21 @@ function flush() {
   if (timer) clearTimeout(timer)
   timer = null
   if (!session) return
-  for (const body of pack(session, queue)) navigator.sendBeacon('/r1', body)
+  const head = { session, ...(isInternalTraffic() ? { internal: true as const } : {}) }
+  for (const body of pack(head, queue)) navigator.sendBeacon('/r1', body)
   queue = []
+}
+
+function readInternalSwitch() {
+  const internal = new URLSearchParams(landing).get('internal')
+  if (internal === '1' || internal === '0') markInternalTraffic(internal === '1')
 }
 
 export function track(event: AppEvent) {
   if (typeof navigator === 'undefined' || !('sendBeacon' in navigator)) return
   if (!session) {
     session = uuidv7(Date.now())
+    readInternalSwitch()
     addEventListener('pagehide', flush)
     addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush())
   }
@@ -42,17 +52,22 @@ export function track(event: AppEvent) {
   timer ??= setTimeout(flush, FLUSH_MS)
 }
 
-/** Search params never leave the page. The referrer leaves as its origin, and only when it is another web page. */
-export function pageview(path: string, referrer: string, origin: string): AppEvent {
+/** The referrer leaves as its origin, and only when it is another web page. */
+export function pageview(path: string, referrer: string, origin: string, search = ''): AppEvent {
   const from = URL.canParse(referrer) ? new URL(referrer) : null
   const external = from && /^https?:$/.test(from.protocol) && from.origin !== origin
-  return { event: '$pageview', path: path.slice(0, MAX_PATH), ...(external ? { referrer: from.origin } : {}) }
+  return {
+    event: '$pageview',
+    path: path.slice(0, MAX_PATH),
+    ...(external ? { referrer: from.origin } : {}),
+    ...campaign(search),
+  }
 }
 
 export function usePageViews() {
   const path = useRouterState({ select: (state) => state.location.pathname })
   useEffect(() => {
-    track(pageview(path, session ? '' : document.referrer, location.origin))
+    track(pageview(path, session ? '' : document.referrer, location.origin, session ? '' : landing))
   }, [path])
 }
 

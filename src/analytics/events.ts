@@ -47,6 +47,7 @@ const error = z.enum(keysOf(ERRORS))
 const command = z.enum(keysOf(COMMANDS))
 const connector = z.enum(['injected', 'walletConnect', 'other'])
 const chain = z.number().int().positive()
+const tag = z.string().min(1).max(100).optional()
 
 const frame = z.strictObject({
   file: z
@@ -65,6 +66,9 @@ export const AppEvent = z.discriminatedUnion('event', [
     event: z.literal('$pageview'),
     path: z.string().startsWith('/').max(200),
     referrer: z.url().max(200).optional(),
+    utm_source: tag,
+    utm_medium: tag,
+    utm_campaign: tag,
   }),
   z.strictObject({ event: z.literal('wallet_connected'), connector }),
   z.strictObject({
@@ -124,9 +128,10 @@ export const AppEvent = z.discriminatedUnion('event', [
 ])
 export type AppEvent = z.infer<typeof AppEvent>
 
-/** What the page posts: one page load's id and the events it queued, each after the client time it happened. */
+/** What the page posts: one page load's id, whether the browser is marked as internal traffic, and the events it queued, each after the client time it happened. */
 export const Batch = z.strictObject({
   session: z.uuid({ version: 'v7' }),
+  internal: z.literal(true).optional(),
   events: z
     .array(z.tuple([z.number().int().positive(), AppEvent]))
     .min(1)

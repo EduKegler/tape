@@ -35,6 +35,15 @@ export function keySlot(ref: AccountRef, lifetime: SecretLifetime): KeySlot {
   }
 }
 
+const INTERNAL_TRAFFIC = 'tape:analytics:internal'
+
+export const isInternalTraffic = () => localStorage.getItem(INTERNAL_TRAFFIC) === '1'
+
+export function markInternalTraffic(internal: boolean) {
+  if (internal) localStorage.setItem(INTERNAL_TRAFFIC, '1')
+  else localStorage.removeItem(INTERNAL_TRAFFIC)
+}
+
 export function subscribeVault(listener: () => void): () => void {
   listeners.add(listener)
   const onStorage = (event: StorageEvent) => event.key?.startsWith('tape:trade:') && listener()

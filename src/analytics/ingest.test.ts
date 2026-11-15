@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { createHmac } from 'node:crypto'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Command, OrderIntent } from '@tape/trade/types'
 import { MAX_BODY, pack } from './beacon'
 import { ingest, readEnv } from './ingest'
@@ -7,6 +8,8 @@ import type { AppEvent, Batch } from './events'
 
 const SITE = 'https://tape.kegler.dev'
 const ENV = { POSTHOG_KEY: 'phc_test', POSTHOG_HOST: 'https://eu.i.posthog.com' }
+const CHROME =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
 
 function beacon(body: unknown, headers: Record<string, string> = { origin: SITE }) {
   return new Request(`${SITE}/r1`, {
@@ -48,6 +51,7 @@ describe('analytics ingest', () => {
         origin: SITE,
         'x-forwarded-for': '198.51.100.9, 203.0.113.7',
         'cf-connecting-ip': '203.0.113.7',
+        'user-agent': CHROME,
       }),
       'mainnet',
       ENV,
@@ -73,10 +77,89 @@ describe('analytics ingest', () => {
             $process_person_profile: false,
             network: 'mainnet',
             $ip: '203.0.113.7',
+            $raw_user_agent: CHROME,
           },
         },
       ],
     })
+  })
+
+  describe('with a visitor salt', () => {
+    const SALT = 'a-salt-of-at-least-thirty-two-characters'
+    const SALTED = { ...ENV, VISITOR_SALT: SALT }
+    const IP = '203.0.113.7'
+    const visit = { origin: SITE, 'cf-connecting-ip': IP, 'user-agent': CHROME }
+    const expectedId = (day: string) => createHmac('sha256', SALT).update(`${day}\n${IP}\n${CHROME}`).digest('hex')
+    const pageLoad = (): Batch => ({
+      session: uuidv7(Date.now()),
+      events: [[Date.now(), { event: '$pageview', path: '/hyperliquid/BTC' }]],
+    })
+
+    afterEach(() => vi.useRealTimers())
+
+    it("keys every page load of one visitor on one UTC day to the day's id, and each keeps its session", async () => {
+      vi.useFakeTimers({ now: new Date('2026-11-15T09:00:00Z'), toFake: ['Date'] })
+      const { sent, send } = recorder()
+      const first = pageLoad()
+      const second = pageLoad()
+      await ingest(beacon(first, visit), 'mainnet', SALTED, send)
+      await ingest(beacon(second, visit), 'mainnet', SALTED, send)
+      const [one, two] = sent.map((request) => request.body.batch[0]!.properties)
+      expect(one!.distinct_id).toBe(expectedId('2026-11-15'))
+      expect(two!.distinct_id).toBe(expectedId('2026-11-15'))
+      expect([one!.$session_id, two!.$session_id]).toEqual([first.session, second.session])
+    })
+
+    it('gives the same visitor a new id after midnight UTC', async () => {
+      const { sent, send } = recorder()
+      vi.useFakeTimers({ now: new Date('2026-11-15T23:59:59Z'), toFake: ['Date'] })
+      await ingest(beacon(pageLoad(), visit), 'mainnet', SALTED, send)
+      vi.setSystemTime(new Date('2026-11-16T00:00:01Z'))
+      await ingest(beacon(pageLoad(), visit), 'mainnet', SALTED, send)
+      expect(sent.map((request) => request.body.batch[0]!.properties.distinct_id)).toEqual([
+        expectedId('2026-11-15'),
+        expectedId('2026-11-16'),
+      ])
+    })
+
+    it('keys the events to the page load when Cloudflare names no visitor IP', async () => {
+      const { sent, send } = recorder()
+      const batch = pageLoad()
+      await ingest(beacon(batch, { origin: SITE, 'user-agent': CHROME }), 'mainnet', SALTED, send)
+      expect(sent[0]!.body.batch[0]!.properties.distinct_id).toBe(batch.session)
+    })
+  })
+
+  it('keys the events to the page load without a visitor salt', async () => {
+    const { sent, send } = recorder()
+    await ingest(
+      beacon({ session, events: [[now, { event: 'trading_enabled', venue: 'dydx' }]] }),
+      'mainnet',
+      ENV,
+      send,
+    )
+    expect(sent[0]!.body.batch[0]!.properties.distinct_id).toBe(session)
+  })
+
+  it('caps the user agent at 512 characters and leaves it out when the browser sends none', async () => {
+    const { sent, send } = recorder()
+    const batch: Batch = { session, events: [[now, { event: 'trading_enabled', venue: 'dydx' }]] }
+    await ingest(beacon(batch, { origin: SITE, 'user-agent': 'a'.repeat(600) }), 'mainnet', ENV, send)
+    await ingest(beacon(batch), 'mainnet', ENV, send)
+    expect(sent[0]!.body.batch[0]!.properties.$raw_user_agent).toBe('a'.repeat(512))
+    expect(sent[1]!.body.batch[0]!.properties).not.toHaveProperty('$raw_user_agent')
+  })
+
+  it('tags every event of a browser marked as internal traffic, and no other', async () => {
+    const { sent, send } = recorder()
+    const events: Batch['events'] = [
+      [now, { event: '$pageview', path: '/hyperliquid/BTC' }],
+      [now + 1, { event: 'trading_enabled', venue: 'dydx' }],
+    ]
+    for (const body of pack({ session, internal: true }, events)) await ingest(beacon(body), 'mainnet', ENV, send)
+    await ingest(beacon({ session, events }), 'mainnet', ENV, send)
+    expect(sent[0]!.body.batch.map((event) => event.properties.internal)).toEqual([true, true])
+    expect(sent[1]!.body.batch.every((event) => !('internal' in event.properties))).toBe(true)
   })
 
   it('keeps the funnel properties of a placed order', async () => {
@@ -124,6 +207,10 @@ describe('analytics ingest', () => {
       { session, events: [[now, { event: 'trading_enabled', venue: 'dydx', owner: '0xabc' }]] },
     ],
     [
+      'a UTM tag outside the catalog',
+      { session, events: [[now, { event: '$pageview', path: '/hyperliquid/BTC', utm_term: 'perps' }]] },
+    ],
+    [
       'a session that is not a UUIDv7',
       { session: crypto.randomUUID(), events: [[now, { event: 'trading_enabled', venue: 'dydx' }]] },
     ],
@@ -146,6 +233,28 @@ describe('analytics ingest', () => {
     const batch: Batch = { session, events: [[now, pageview('/hyperliquid/BTC', referrer, SITE)]] }
     expect((await ingest(beacon(batch), 'mainnet', ENV, send)).status).toBe(204)
     expect(sent[0]!.body.batch[0]!.properties.$referrer).toBe(expected)
+  })
+
+  it('forwards the UTM tags of the landing page and no other search param', async () => {
+    const { sent, send } = recorder()
+    const search = '?utm_source=reddit&utm_medium=social&utm_campaign=launch&ref=abc&interval=1m'
+    const batch: Batch = { session, events: [[now, pageview('/hyperliquid/BTC', '', SITE, search)]] }
+    expect((await ingest(beacon(batch), 'mainnet', ENV, send)).status).toBe(204)
+    const properties = sent[0]!.body.batch[0]!.properties
+    expect(properties).toMatchObject({ utm_source: 'reddit', utm_medium: 'social', utm_campaign: 'launch' })
+    expect(properties).not.toHaveProperty('ref')
+    expect(properties).not.toHaveProperty('interval')
+    expect(properties.$current_url).toBe(`${SITE}/hyperliquid/BTC`)
+  })
+
+  it('trims a UTM tag, caps it at 100 characters and drops an empty one', () => {
+    const search = `?utm_source=%20x%20&utm_medium=&utm_campaign=${'c'.repeat(150)}`
+    expect(pageview('/hyperliquid/BTC', '', SITE, search)).toEqual({
+      event: '$pageview',
+      path: '/hyperliquid/BTC',
+      utm_source: 'x',
+      utm_campaign: 'c'.repeat(100),
+    })
   })
 
   it('accepts a pageview for any path the page can be on', async () => {
@@ -269,7 +378,7 @@ describe('analytics ingest', () => {
       now + index,
       index % 4 ? funnel : exception,
     ])
-    const bodies = pack(session, queue)
+    const bodies = pack({ session }, queue)
     const forwarded: string[] = []
     for (const body of bodies) {
       expect(body.length).toBeLessThanOrEqual(MAX_BODY)
@@ -294,8 +403,13 @@ describe('analytics ingest', () => {
     const before = { ...process.env }
     process.env.POSTHOG_KEY = ''
     process.env.POSTHOG_HOST = ''
+    process.env.VISITOR_SALT = ''
     try {
-      expect(readEnv()).toEqual({ POSTHOG_KEY: undefined, POSTHOG_HOST: 'https://eu.i.posthog.com' })
+      expect(readEnv()).toEqual({
+        POSTHOG_KEY: undefined,
+        POSTHOG_HOST: 'https://eu.i.posthog.com',
+        VISITOR_SALT: undefined,
+      })
     } finally {
       process.env = before
     }
