@@ -6,5 +6,5 @@ commit-msg:
       run: "! grep -qiE 'co-authored-by:.*(claude|anthropic|openai|copilot|cursor|gemini)|generated with|claude-session:' {1}"
 pre-push:
   jobs:
-    - name: pnpm verify on every commit
-      run: pnpm verify:commits
+    - name: pnpm verify, or pnpm verify --docs on a markdown-only push
+      run: if node scripts/change-kind.ts origin/main...HEAD | grep -qx 'kind=docs'; then pnpm verify --docs; else pnpm verify; fi
