@@ -10,10 +10,13 @@ import type { HubClient } from './registry'
 const HubContext = createContext<HubClient | null>(null)
 const NOTHING = createStore<null>(null)
 
+let connection: Promise<HubClient> | undefined
+const connectOnce = () => (connection ??= import('./connect').then(({ connectHub }) => connectHub()))
+
 export function HubProvider({ children }: { readonly children: ReactNode }) {
   const [client, setClient] = useState<HubClient | null>(null)
   useEffect(() => {
-    void import('./connect').then(({ connectHub }) => setClient(connectHub()))
+    void connectOnce().then(setClient)
   }, [])
   return <HubContext value={client}>{children}</HubContext>
 }
