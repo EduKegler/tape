@@ -5,19 +5,13 @@ import { NETWORK } from '#/site'
 import { RECORDED_AT } from './clock'
 import { CONTROL } from './control'
 import type { Command, Playback, Probe, ProbeResult } from './control'
-import { createFeed, restRecording } from './feed'
+import { createFeed } from './feed'
 import type { Feed } from './feed'
-
-const recordings = import.meta.glob<string>('../../packages/venues/src/__fixtures__/*', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-})
-const recording = (name: string) => recordings[`../../packages/venues/src/__fixtures__/${name}`] ?? null
+import { recording, replayFetch } from './recordings'
 
 const urls = venues(NETWORK)
 const open = new Set<Feed>()
-let looping = false
+let looping = import.meta.env.DEV
 const down = new Set<VenueId>()
 const sockets = new Set<ReplayWebSocket>()
 const realFetch = globalThis.fetch.bind(globalThis)
@@ -77,14 +71,6 @@ class ReplayWebSocket {
     sockets.delete(this)
     setTimeout(() => this.onclose?.(), 0)
   }
-}
-
-const replayFetch: typeof fetch = async (input, init) => {
-  const url = input instanceof Request ? input.url : input.toString()
-  const name = restRecording(url, typeof init?.body === 'string' ? init.body : null)
-  const body = name ? recording(name) : null
-  if (!body) throw new TypeError(`no recording for ${url}`)
-  return new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })
 }
 
 async function reaches({ http, socket }: Probe): Promise<ProbeResult> {
