@@ -17,7 +17,7 @@ pnpm dev
 VITE_NETWORK=testnet pnpm dev
 ```
 
-The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/architecture.md](docs/architecture.md) explains how the hub, the book and the trading modules work.
+The other build variables are in [docs/deploy.md](docs/deploy.md). [docs/internals/overview.md](docs/internals/overview.md) explains how the hub, the book and the trading modules work.
 
 ## Commands
 
@@ -89,9 +89,11 @@ A why about our own design is a rename, an extracted function or a type instead.
 
 Most changes need no doc change. The code, its types and its tests already say what it does.
 
-- `docs/` holds what no single file shows: a decision and the outside constraint behind it, a rule that spans packages, a trap that is hard to find in the source. Before you add a paragraph, ask what a maintainer would get wrong without it. If the code answers that, leave the paragraph out.
+- `docs/internals/` holds what no single file shows: a decision and the outside constraint behind it, a rule that spans packages, a trap that is hard to find in the source. Before you add a paragraph, ask what a maintainer would get wrong without it. If the code answers that, leave the paragraph out.
+- `docs/deploy.md` and `docs/history-csv.md` serve whoever runs a build or reads an export.
 - Do not list files, fields, variables or steps that the code lists already, narrate control flow, or append a PR summary. Link to the source instead of copying it.
 - When a decision changes, rewrite or delete the text that described it. Do not add a second account next to the old one.
+- A new page in `docs/internals/` needs a distinct, lasting reason to exist and its name in `scripts/check-public.mjs`.
 - A reason only one spot needs goes in a comment there, under the rules in Comments.
 
 ## Design
