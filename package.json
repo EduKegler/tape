@@ -21,6 +21,7 @@
     "fixtures:history": "RECORD_HISTORY=1 vitest run packages/trade/src/history.record.test.ts",
     "fixtures:writes": "vitest run packages/trade/src/writes.record.test.ts",
     "verify": "node scripts/verify.mjs",
+    "prove": "node scripts/prove.ts",
     "e2e": "node e2e/build.mjs && playwright test",
     "prepare": "lefthook install"
   },
