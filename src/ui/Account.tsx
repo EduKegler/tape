@@ -183,7 +183,7 @@ function AccountBody({
             />
           )}
           {forget && <ForgetKey forget={forget} venue={venue} />}
-          <DepositButton account={account} />
+          <DepositButton account={account} available={snapshot?.available ?? null} />
           {snapshot && <WithdrawButton account={account} available={snapshot.available} />}
         </span>
       </div>

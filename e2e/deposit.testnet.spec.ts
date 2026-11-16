@@ -1,9 +1,10 @@
 import { encodeFunctionData, erc20Abi } from 'viem'
 import type { Page } from '@playwright/test'
 import { fakeChains } from './chain'
-import { connectWallet, expect, expectAccessible, openMarket, panel, test } from './fixtures'
+import { connectWallet, expect, expectAccessible, openMarket, panel, settled, test } from './fixtures'
 import { fakeHyperliquid } from './hyperliquid'
-import { ACCOUNTS } from './wallet'
+import { RECORDED_AT } from './replay/clock'
+import { ACCOUNTS, answerSend, holdSends } from './wallet'
 
 /** Hyperliquid's testnet bridge and the USDC it takes on Arbitrum Sepolia, from Hyperliquid's bridge docs. */
 const ARBITRUM_SEPOLIA = 421614
@@ -11,14 +12,15 @@ const BRIDGE_USDC = '0x1baAbB04529D43a73232B713C0FE471f7c7334d5'
 const BRIDGE = '0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89'
 
 async function openDeposit(page: Page) {
-  await fakeHyperliquid(page, 'testnet')
+  const hyperliquid = await fakeHyperliquid(page, 'testnet')
   const chains = await fakeChains(page, 'testnet')
   chains.fund(ARBITRUM_SEPOLIA, ACCOUNTS.alice, { native: 10n ** 16n, tokens: { [BRIDGE_USDC]: 50_000_000n } })
   await openMarket(page, '/hyperliquid/BTC?interval=1m')
   await connectWallet(page, panel(page, 'Order ticket').getByRole('button', { name: 'Connect wallet' }))
   await panel(page, 'Account').getByRole('button', { name: 'Deposit' }).click()
+  await settled(page)
   const dialog = page.getByRole('dialog', { name: 'Deposit USDC to Hyperliquid perps' })
-  return { dialog, chains, amount: dialog.getByRole('textbox', { name: 'Amount (USDC)' }) }
+  return { dialog, chains, hyperliquid, amount: dialog.getByRole('textbox', { name: 'Amount' }) }
 }
 
 test('the deposit form stops an amount the bridge keeps or the wallet lacks', async ({ page, wallet }) => {
@@ -43,10 +45,12 @@ test('the deposit form stops an amount the bridge keeps or the wallet lacks', as
     '0xf39f…2266, the same address',
     'None',
     '10 USDC',
+    // The address has no Hyperliquid account yet, so there is no balance to add to.
+    '—',
     // 60,000 gas at viem's max fee: a 1 gwei base fee times its 1.2 headroom, plus the 0.1 gwei tip.
-    '≈0.000078 ETH on Arbitrum Sepolia',
-    'Under a minute, up to 10 min',
-    'One transaction',
+    'About 0.000078 ETH on Arbitrum Sepolia',
+    'Under a minute, at most 10 min',
+    'Once, for the deposit',
   ])
   await expect(dialog.getByRole('alert')).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' })).toBeEnabled()
@@ -127,50 +131,85 @@ test('the deposit dialog starts on the amount, keeps Tab inside, and Escape give
   await expect(panel(page, 'Account').getByRole('button', { name: 'Deposit' })).toBeFocused()
 })
 
-function holdSends() {
-  const hold = () => {
-    const wallet = (window as { ethereum?: { request: (r: { method: string }) => Promise<unknown> } }).ethereum
-    if (!wallet) return void setTimeout(hold, 0)
-    const ask = wallet.request.bind(wallet)
-    wallet.request = (args) =>
-      args.method === 'eth_sendTransaction'
-        ? new Promise((resolve) => Object.assign(window, { answerSend: resolve }))
-        : ask(args)
-  }
-  hold()
-}
+const SENT = `0x${'cd'.repeat(32)}` as const
 
-test('Escape and close keep the amount, and while the wallet signs only close leaves, keeping the receipt', async ({
+test('Escape and close keep the amount, and while the wallet signs only close leaves, keeping the deposit', async ({
   page,
   wallet: _wallet,
 }) => {
   await page.addInitScript(holdSends)
   const { dialog, amount } = await openDeposit(page)
-  const reopen = () => panel(page, 'Account').getByRole('button', { name: 'Deposit' }).click()
+  const account = panel(page, 'Account')
   await amount.fill('10')
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
-  await reopen()
+  await account.getByRole('button', { name: 'Deposit', exact: true }).click()
   await expect(amount).toHaveValue('10')
 
   await dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' }).click()
   await expect(dialog.getByRole('status')).toHaveText(
-    'Confirm in your wallet. Esc stays here until you answer it, and closing keeps this deposit.',
+    'Confirm the deposit in Test Wallet. Esc stays here until the wallet answers, and closing keeps this deposit.',
   )
   await page.keyboard.press('Escape')
   await page.mouse.click(4, 4)
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Waiting for your wallet…' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Waiting for Test Wallet…' })).toBeDisabled()
   await expectAccessible(page)
 
   await dialog.getByRole('button', { name: 'Close' }).click()
   await expect(dialog).toBeHidden()
-  await page.evaluate(
-    (hash) => (window as unknown as { answerSend: (hash: string) => void }).answerSend(hash),
-    `0x${'cd'.repeat(32)}`,
-  )
-  await reopen()
-  await expect(dialog.getByRole('region', { name: 'Deposit receipt' }).getByRole('definition').first()).toHaveText(
-    /^10 USDC from Arbitrum Sepolia at /,
+  await answerSend(page, SENT)
+  await expect(account.getByRole('button', { name: 'Depositing 10 USDC confirming' })).toBeVisible()
+})
+
+test('a sent deposit lets the trader leave, waits beside Deposit, and Deposit opens the form again', async ({
+  page,
+  wallet: _wallet,
+}) => {
+  await page.addInitScript(holdSends)
+  const { dialog, chains, hyperliquid, amount } = await openDeposit(page)
+  const account = panel(page, 'Account')
+  await amount.fill('10')
+  await dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' }).click()
+  await expect(dialog.getByRole('button', { name: 'Waiting for Test Wallet…' })).toBeDisabled()
+  chains.mine(SENT)
+  await answerSend(page, SENT)
+
+  const slip = dialog.getByRole('region', { name: 'Deposit slip' })
+  const answers = slip.getByRole('list', { name: 'Answers' }).getByRole('listitem')
+  await expect(answers).toHaveText([
+    /^Sent from Arbitrum Sepolia[\d:]{8}/,
+    /^Confirmed on Arbitrum Sepolia[\d:]{8}$/,
+    /^Credit due in0:\d\dWaiting for Hyperliquid to credit the bridge deposit$/,
+  ])
+  await expect(dialog.getByRole('button', { name: 'Close and keep trading' })).toBeFocused()
+  await expectAccessible(page)
+
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  const trail = account.getByRole('button', { name: /^Depositing 10 USDC 0:\d\d$/ })
+  await expect(trail).toBeFocused()
+
+  await page.reload()
+  await expect(trail).toBeVisible()
+
+  // Hyperliquid's ledger names a bridge deposit by the Arbitrum transaction hash.
+  hyperliquid.account.userNonFundingLedgerUpdates = [
+    { time: RECORDED_AT + 30_000, hash: SENT, delta: { type: 'deposit', usdc: '10.0' } },
+  ]
+  await page.clock.fastForward(5_000)
+  const credited = account.getByRole('button', { name: 'Credited 10 USDC' })
+  await credited.click()
+  await expect(slip.getByRole('definition').last()).toHaveText('10 USDC')
+  await expect(answers.nth(2)).toHaveText(/^Credited 10 USDC[\d:]{8}$/)
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  await expect(credited).toHaveCount(0)
+
+  await account.getByRole('button', { name: 'Deposit', exact: true }).click()
+  await expect(amount).toBeFocused()
+  await expect(amount).toHaveValue('')
+  await expect(dialog.getByRole('region', { name: 'Recent deposits' }).getByRole('button')).toHaveText(
+    /^10 USDC · Arbitrum Sepolia · [\d:]{8}Credited$/,
   )
 })

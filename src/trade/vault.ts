@@ -71,7 +71,11 @@ export interface DepositRecord {
   readonly sentAt: number
   /** Wei, once the source chain has the receipt. */
   readonly gasPaid: bigint | null
+  /** When this device saw the source chain's receipt. Null on a record stored before Tape kept it. */
+  readonly confirmedAt: number | null
   readonly outcome: DepositOutcome | null
+  /** The trader opened the receipt after the deposit ended. Until then it stays beside Deposit in Account. */
+  readonly seen: boolean
 }
 
 const MAX_DEPOSITS = 20
@@ -92,6 +96,8 @@ const depositRecord = z.object({
   replacement: txHash.nullable().default(null),
   sentAt: z.number(),
   gasPaid: units.nullable(),
+  confirmedAt: z.number().nullable().default(null),
+  seen: z.boolean().default(true),
   outcome: z
     .discriminatedUnion('stage', [
       z.object({ stage: z.literal('credited'), amount: units, at: z.number(), receipt: z.string() }),
@@ -129,7 +135,7 @@ export function addDeposit(ref: AccountRef, record: DepositRecord) {
 export function updateDeposit(
   ref: AccountRef,
   hash: Hex,
-  patch: Partial<Pick<DepositRecord, 'replacement' | 'gasPaid' | 'outcome'>>,
+  patch: Partial<Pick<DepositRecord, 'replacement' | 'gasPaid' | 'confirmedAt' | 'outcome' | 'seen'>>,
 ) {
   writeDeposits(
     ref,

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { queryOptions, skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState, useSyncExternalStore } from 'react'
+import { queryOptions, skipToken, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBalance, useBytecode, useEstimateFeesPerGas, useReadContract, useReadContracts } from 'wagmi'
 import { estimateGas, getPublicClient, waitForTransactionReceipt } from 'wagmi/actions'
 import { BaseError, ExecutionRevertedError, UserRejectedRequestError, erc20Abi, isHex, numberToHex } from 'viem'
@@ -21,6 +21,8 @@ import type { ChainId } from '#/wallet/config'
 import { TRADE_CONFIG } from './config'
 import { addDeposit, depositsSnapshot, keySlot, parseDeposits, subscribeVault, updateDeposit } from './vault'
 import type { DepositRecord } from './vault'
+import { depositStatus, followed } from './deposit-trail'
+import type { Followed } from './deposit-trail'
 
 const watchEnded = (progress: DepositProgress | undefined) => progress?.stage === 'unresolved'
 
@@ -186,10 +188,13 @@ interface DepositRequest {
 
 const DEPOSIT = { kind: 'deposit' } as const
 
+export type SendStep = 'approving' | 'approval' | 'signing'
+
 /** Sends the calls from the route's chain, waiting for an approval to land before the deposit. Hands over the deposit's hash once the wallet sends it. */
 export function useSendDeposit(ref: AccountRef) {
   const { connector } = useWalletConnection()
   const queryClient = useQueryClient()
+  const [step, setStep] = useState<SendStep | null>(null)
   const mutation = useMutation<Hex, Error, DepositRequest>({
     networkMode: 'always',
     mutationFn: async ({ route, amount, terms, calls }) => {
@@ -215,15 +220,19 @@ export function useSendDeposit(ref: AccountRef) {
       let approved = false
       for (const call of calls) {
         if (call.kind === 'approve') {
+          setStep('approving')
+          const approval = await send(call)
+          setStep('approval')
           const receipt = await waitForTransactionReceipt(wagmiConfig, {
             chainId: toChainId(route.chainId),
-            hash: await send(call),
+            hash: approval,
           })
           if (receipt.status !== 'success') throw new Error('The approval reverted. Nothing was deposited')
           approved = true
           await queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === 'readContract' })
           continue
         }
+        setStep('signing')
         let hash: Hex
         try {
           hash = await send(call)
@@ -241,7 +250,9 @@ export function useSendDeposit(ref: AccountRef) {
           replacement: null,
           sentAt: Date.now(),
           gasPaid: null,
+          confirmedAt: null,
           outcome: null,
+          seen: false,
         })
         return hash
       }
@@ -263,6 +274,7 @@ export function useSendDeposit(ref: AccountRef) {
       if (claim(ref, DEPOSIT)) mutation.mutate(request, { onSuccess: onSent })
     },
     pending: mutation.isPending,
+    step: mutation.isPending ? step : null,
     error: mutation.error,
     reset: mutation.reset,
   }
@@ -277,87 +289,100 @@ export function useDeposits(ref: AccountRef): readonly DepositRecord[] {
   return useMemo(() => parseDeposits(raw), [raw])
 }
 
-function usePassed(deadline: number): boolean {
-  const [passed, setPassed] = useState(() => Date.now() > deadline)
-  useEffect(() => {
-    if (passed || !Number.isFinite(deadline)) return
-    const timer = setTimeout(() => setPassed(true), deadline - Date.now())
-    return () => clearTimeout(timer)
-  }, [deadline, passed])
-  return passed
-}
-
-export type DepositStatus =
-  { readonly stage: 'confirming' } | { readonly stage: 'reverted' } | { readonly stage: 'replaced' } | DepositProgress
-
 export const sentHash = (record: DepositRecord) => record.replacement ?? record.hash
 
-/** Follows one deposit from the source chain's receipt to the venue's credit, and stores each step on the record. */
-export function useDepositStatus(ref: AccountRef, record: DepositRecord): { status: DepositStatus; late: boolean } {
-  const route = depositRoutes(ref).find((candidate) => candidate.chainId === record.chainId)
-  const chainId = toChainId(record.chainId)
-  const others = useDeposits(ref)
-  const claimed = new Set(
-    others.flatMap((other) =>
-      other.hash !== record.hash && other.outcome?.stage === 'credited' ? [other.outcome.receipt] : [],
-    ),
-  )
-  useQuery(
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the hash names the deposit
-    queryOptions({
-      queryKey: ['deposit', 'receipt', record.hash],
-      queryFn:
-        record.gasPaid === null && !record.outcome
-          ? async () => {
-              const seen = { dropped: false }
-              const receipt = await waitForTransactionReceipt(wagmiConfig, {
-                chainId,
-                hash: sentHash(record),
-                onReplaced: ({ reason, transaction }) => {
-                  if (reason === 'repriced') updateDeposit(ref, record.hash, { replacement: transaction.hash })
-                  else seen.dropped = true
-                },
-              })
-              const failed = seen.dropped ? 'replaced' : receipt.status === 'success' ? null : 'reverted'
-              if (failed) {
-                updateDeposit(ref, record.hash, { outcome: { stage: failed } })
-                track({ event: 'deposit_failed', venue: ref.venue, chain: record.chainId, reason: failed })
-              } else updateDeposit(ref, record.hash, { gasPaid: receipt.gasUsed * receipt.effectiveGasPrice })
-              return receipt.status
-            }
-          : skipToken,
-      retry: true,
-      staleTime: Infinity,
-    }),
-  )
-  const progress = useQuery(
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the hash names the deposit
-    queryOptions({
-      queryKey: ['deposit', 'progress', record.hash],
-      queryFn:
-        route && record.gasPaid !== null && !record.outcome
-          ? async () => {
-              const io = { fetch: browserFetch, keys: keySlot(ref, TRADING[ref.venue].secrets) }
-              const reported = await route.progress(io, { ...record, hash: sentHash(record), ref, claimed })
-              if (reported.stage === 'credited') {
-                updateDeposit(ref, record.hash, { outcome: reported })
-                track({
-                  event: 'deposit_credited',
-                  venue: ref.venue,
-                  chain: record.chainId,
-                  seconds: Math.max(0, Math.round((reported.at - record.sentAt) / 1000)),
+const stored = (ref: AccountRef, hash: Hex) =>
+  parseDeposits(depositsSnapshot(ref)).find((deposit) => deposit.hash === hash)
+
+export const markSeen = (ref: AccountRef, hash: Hex) => updateDeposit(ref, hash, { seen: true })
+
+export function useDepositStatuses(
+  ref: AccountRef,
+  records: readonly DepositRecord[],
+  now: number,
+  open: Hex | null,
+): ReadonlyMap<Hex, Followed> {
+  const routes = depositRoutes(ref)
+  const routeOf = (record: DepositRecord) => routes.find((candidate) => candidate.chainId === record.chainId)
+  const watched = (record: DepositRecord) => followed(record, now) || (record.hash === open && !record.outcome)
+  useQueries({
+    queries: records.map((record) =>
+      // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the hash names the deposit
+      queryOptions({
+        queryKey: ['deposit', 'receipt', record.hash],
+        queryFn:
+          watched(record) && record.gasPaid === null
+            ? async () => {
+                const seen = { dropped: false }
+                const receipt = await waitForTransactionReceipt(wagmiConfig, {
+                  chainId: toChainId(record.chainId),
+                  hash: sentHash(record),
+                  onReplaced: ({ reason, transaction }) => {
+                    if (reason === 'repriced') updateDeposit(ref, record.hash, { replacement: transaction.hash })
+                    else seen.dropped = true
+                  },
                 })
+                const failure = seen.dropped ? 'replaced' : receipt.status === 'success' ? null : 'reverted'
+                const inAnotherTab = stored(ref, record.hash)
+                if (inAnotherTab?.gasPaid !== null || inAnotherTab.outcome) return receipt.status
+                if (failure) {
+                  updateDeposit(ref, record.hash, { outcome: { stage: failure } })
+                  track({ event: 'deposit_failed', venue: ref.venue, chain: record.chainId, reason: failure })
+                } else
+                  updateDeposit(ref, record.hash, {
+                    gasPaid: receipt.gasUsed * receipt.effectiveGasPrice,
+                    confirmedAt: Date.now(),
+                  })
+                return receipt.status
               }
-              return reported
-            }
-          : skipToken,
-      refetchInterval: (query) => (!route || watchEnded(query.state.data) ? false : route.pollEvery),
-      staleTime: (query) => (watchEnded(query.state.data) ? Infinity : 0),
+            : skipToken,
+        retry: true,
+        staleTime: Infinity,
+      }),
+    ),
+  })
+  const progress = useQueries({
+    queries: records.map((record) => {
+      const route = routeOf(record)
+      // eslint-disable-next-line @tanstack/query/exhaustive-deps -- the hash names the deposit
+      return queryOptions({
+        queryKey: ['deposit', 'progress', record.hash],
+        queryFn:
+          route && watched(record) && record.gasPaid !== null
+            ? async () => {
+                const claimed = new Set(
+                  parseDeposits(depositsSnapshot(ref)).flatMap((other) =>
+                    other.hash !== record.hash && other.outcome?.stage === 'credited' ? [other.outcome.receipt] : [],
+                  ),
+                )
+                const io = { fetch: browserFetch, keys: keySlot(ref, TRADING[ref.venue].secrets) }
+                const reported = await route.progress(io, { ...record, hash: sentHash(record), ref, claimed })
+                if (reported.stage === 'credited' && !stored(ref, record.hash)?.outcome) {
+                  updateDeposit(ref, record.hash, { outcome: reported })
+                  track({
+                    event: 'deposit_credited',
+                    venue: ref.venue,
+                    chain: record.chainId,
+                    seconds: Math.max(0, Math.round((reported.at - record.sentAt) / 1000)),
+                  })
+                }
+                return reported
+              }
+            : skipToken,
+        refetchInterval: (query) => (!route || watchEnded(query.state.data) ? false : route.pollEvery),
+        staleTime: (query) => (watchEnded(query.state.data) ? Infinity : 0),
+      })
     }),
+  })
+  return new Map(
+    records.map((record, index) => [
+      record.hash,
+      depositStatus(
+        record,
+        routeOf(record),
+        { data: progress[index]?.data, pending: progress[index]?.isPending ?? true },
+        now,
+      ),
+    ]),
   )
-  const late = usePassed(route ? record.sentAt + route.eta.worst * 1000 : Infinity)
-  if (record.outcome) return { status: record.outcome, late: false }
-  if (record.gasPaid === null) return { status: { stage: 'confirming' }, late }
-  const status = progress.data ?? { stage: 'relaying', detail: 'Checking with the venue' }
-  return { status, late: late && !progress.isPending && status.stage !== 'unwatched' }
 }

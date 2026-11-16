@@ -112,3 +112,53 @@ export function foldInto({ layer, backdrop, body }: PopoverParts, into: DOMRect 
   void fade(body, 0, 90)
   return morph(layer, into, own, { duration: 300, back: true, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' })
 }
+
+const FOLD = 'cubic-bezier(0.4, 0, 0.2, 1)'
+
+function shrunkTo(own: DOMRect, to: DOMRect) {
+  return {
+    transformOrigin: 'top left',
+    transform: `translate(${to.left - own.left}px, ${to.top - own.top}px) scale(${to.width / own.width}, ${to.height / own.height})`,
+  }
+}
+
+export function unfold(popup: HTMLElement, backdrop: HTMLElement | null, from: DOMRect) {
+  const own = popup.getBoundingClientRect()
+  if (reducedMotion() || from.width === 0 || own.width === 0) {
+    void fade(backdrop, 1, 120)
+    return fade(popup, 1, 140)
+  }
+  void fade(backdrop, 1, 240)
+  for (const child of popup.children) void play(child, [{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 120 })
+  return play(
+    popup,
+    [
+      { ...shrunkTo(own, from), opacity: 0.35 },
+      { transformOrigin: 'top left', transform: 'none', opacity: 1 },
+    ],
+    {
+      duration: 380,
+      fill: 'none',
+    },
+  )
+}
+
+export function foldAway(popup: HTMLElement | null, backdrop: HTMLElement | null, into: DOMRect | null) {
+  const own = popup?.getBoundingClientRect()
+  if (!popup || !own || own.width === 0) return Promise.resolve()
+  const reduced = reducedMotion()
+  void fade(backdrop, 0, reduced ? 100 : 220)
+  if (reduced || !into || into.width === 0) return fade(popup, 0, 100)
+  for (const child of popup.children) void fade(child, 0, 90)
+  return play(
+    popup,
+    [
+      { transformOrigin: 'top left', transform: 'none', opacity: 1 },
+      { ...shrunkTo(own, into), opacity: 0 },
+    ],
+    {
+      duration: 280,
+      easing: FOLD,
+    },
+  )
+}

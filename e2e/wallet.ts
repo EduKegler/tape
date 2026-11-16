@@ -1,7 +1,7 @@
 import { concat, getAddress, hashDomain, hashStruct, keccak256, numberToHex } from 'viem'
 import type { Address, Hex, TypedDataDomain, TypedDataParameter } from 'viem'
 import { mnemonicToAccount } from 'viem/accounts'
-import type { BrowserContext } from '@playwright/test'
+import type { BrowserContext, Page } from '@playwright/test'
 
 /** Foundry's default mnemonic, so the addresses are the ones Anvil prints. */
 const ANVIL_MNEMONIC = 'test test test test test test test test test test test junk'
@@ -319,3 +319,23 @@ function provider({
   window.addEventListener('eip6963:requestProvider', announce)
   announce()
 }
+
+/**
+ * An init script that keeps every transaction the page sends unanswered, as a wallet does while its owner reads
+ * the prompt, until `answerSend` gives it a hash. The held send never reaches `asked`.
+ */
+export function holdSends() {
+  const hold = () => {
+    const wallet = (window as { ethereum?: { request: (r: { method: string }) => Promise<unknown> } }).ethereum
+    if (!wallet) return void setTimeout(hold, 0)
+    const ask = wallet.request.bind(wallet)
+    wallet.request = (args) =>
+      args.method === 'eth_sendTransaction'
+        ? new Promise((resolve) => Object.assign(window, { answerSend: resolve }))
+        : ask(args)
+  }
+  hold()
+}
+
+export const answerSend = (page: Page, hash: Hex) =>
+  page.evaluate((sent) => (window as unknown as { answerSend: (hash: string) => void }).answerSend(sent), hash)
