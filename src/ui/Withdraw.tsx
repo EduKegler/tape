@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { formatUnits } from 'viem'
 import { USDC_DECIMALS, parseUsdc } from '@tape/trade/deposit'
@@ -11,6 +11,7 @@ import { ErrorMark } from './ErrorMark'
 import { shortAddress } from './format'
 import { useNow } from './now'
 import { Button, Dialog, Input, TextLink } from './primitives'
+import { TornEdge } from './TornEdge'
 
 const usdc = (units: bigint) => formatUnits(units, USDC_DECIMALS)
 const chainName = (id: number) => wagmiConfig.chains.find((chain) => chain.id === id)?.name ?? `chain ${id}`
@@ -274,21 +275,6 @@ function Slip({ account, venue, state }: { account: AccountRef; venue: WithdrawV
         </ol>
       )}
     </section>
-  )
-}
-
-function TornEdge() {
-  const id = useId()
-  return (
-    <svg aria-hidden="true" className="absolute inset-x-0 -top-1.5 h-1.5 w-full">
-      <defs>
-        <pattern id={id} width="10" height="6" patternUnits="userSpaceOnUse">
-          <rect width="10" height="6" className="fill-surface" />
-          <circle cx="5" cy="0" r="3.5" className="fill-inset" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="6" fill={`url(#${id})`} />
-    </svg>
   )
 }
 
