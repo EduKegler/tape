@@ -213,3 +213,23 @@ test('a sent deposit lets the trader leave, waits beside Deposit, and Deposit op
     /^10 USDC · Arbitrum Sepolia · [\d:]{8}Credited$/,
   )
 })
+
+test('a deposit the chain reverts says so, and that the USDC stayed', async ({ page, wallet: _wallet }) => {
+  await page.addInitScript(holdSends)
+  const { dialog, chains, amount } = await openDeposit(page)
+  await amount.fill('10')
+  await dialog.getByRole('button', { name: 'Deposit 10 USDC from Arbitrum Sepolia' }).click()
+  await expect(dialog.getByRole('button', { name: 'Waiting for Test Wallet…' })).toBeDisabled()
+  chains.mine(SENT, 'reverted')
+  await answerSend(page, SENT)
+
+  const slip = dialog.getByRole('region', { name: 'Deposit slip' })
+  await expect(slip.getByRole('alert')).toHaveText(
+    'Reverted on Arbitrum Sepolia. The USDC stayed in the wallet.The gas was spent.',
+  )
+  await expect(slip.locator('dt:text-is("You receive") + dd')).toHaveText('Nothing')
+  await expect(dialog.getByRole('region', { name: 'Deposits' }).getByRole('button')).toHaveText(
+    /^10 USDC · Arbitrum Sepolia · [\d:]{8}Reverted$/,
+  )
+  expect(chains.unanswered()).toEqual([])
+})

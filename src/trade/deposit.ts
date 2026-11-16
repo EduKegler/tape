@@ -314,8 +314,9 @@ export function useDepositStatuses(
           watched(record) && record.gasPaid === null
             ? async () => {
                 const seen = { dropped: false }
-                const receipt = await waitForTransactionReceipt(wagmiConfig, {
-                  chainId: toChainId(record.chainId),
+                // wagmi's waitForTransactionReceipt throws on a reverted receipt, which a retrying query never stores.
+                const chain = getPublicClient(wagmiConfig, { chainId: toChainId(record.chainId) })
+                const receipt = await chain.waitForTransactionReceipt({
                   hash: sentHash(record),
                   onReplaced: ({ reason, transaction }) => {
                     if (reason === 'repriced') updateDeposit(ref, record.hash, { replacement: transaction.hash })

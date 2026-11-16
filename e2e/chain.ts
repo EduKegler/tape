@@ -34,7 +34,7 @@ const LAYERZERO_FEE = 10n ** 14n
 export async function fakeChains(page: Page, network: Network) {
   const holdings = new Map<string, Holdings>()
   const unanswered: string[] = []
-  const mined = new Set<Hex>()
+  const mined = new Map<Hex, 'success' | 'reverted'>()
   const held = (chainId: number, owner: Address) => holdings.get(`${chainId}:${owner.toLowerCase()}`) ?? NOTHING
 
   const call = (chainId: number, { to, data }: Call): Hex => {
@@ -73,7 +73,7 @@ export async function fakeChains(page: Page, network: Network) {
     }
   }
 
-  /** A successful receipt in the shape of the JSON-RPC spec, with the gas the fake chain estimates. */
+  /** A receipt in the shape of the JSON-RPC spec, with the gas the fake chain estimates. */
   const receipt = (chainId: number, hash: Hex) => ({
     transactionHash: hash,
     transactionIndex: '0x0',
@@ -87,7 +87,7 @@ export async function fakeChains(page: Page, network: Network) {
     effectiveGasPrice: numberToHex(GWEI),
     logs: [],
     logsBloom: `0x${'0'.repeat(512)}`,
-    status: '0x1',
+    status: mined.get(hash) === 'reverted' ? '0x0' : '0x1',
     type: '0x2',
     chainId: numberToHex(chainId),
   })
@@ -157,8 +157,8 @@ export async function fakeChains(page: Page, network: Network) {
   return {
     fund: (chainId: number, owner: Address, balances: Holdings) =>
       holdings.set(`${chainId}:${owner.toLowerCase()}`, balances),
-    /** The chains hold a successful receipt for this transaction from now on, one block later. */
-    mine: (hash: Hex) => mined.add(hash),
+    /** The chains hold a receipt for this transaction from now on, one block later. */
+    mine: (hash: Hex, status: 'success' | 'reverted' = 'success') => mined.set(hash, status),
     unanswered: () => [...unanswered],
   }
 }
