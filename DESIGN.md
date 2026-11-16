@@ -217,7 +217,7 @@ The market sits on graphite. Four venues, a chart, a book, a tape and a ticket s
 
 The screen is dense and built for hours of glances. The root type size is 13px, so every rem in the code is 13px: a 1rem gap is 13px and the 0.625rem gutter is 8.1px. Words and numbers are Inter. Numbers take tabular figures, so a column of prices lines up and reads as one block. Depth comes from three graphite steps, never from shadows.
 
-Movement is rare and means something. One animation, the wash, plays when the trader's own order fills and when a venue newly takes the best bid or ask. Connecting a wallet is one exception: the button grows into a panel, the wait runs a feed from Tape to the wallet, and the panel lands in the address chip. A withdrawal is the other: its slip prints one line per answer and counts down to the arrival. Prices, sizes, book rows and trades never move.
+Movement is rare and goes where the trader should look. One animation, the wash, plays when the trader's own order fills and when a venue newly takes the best bid or ask. An act the trader chooses and does rarely, such as connecting a wallet, a deposit or a withdrawal, can move on its own to say where a thing came from or went: the connect button grows into a panel that lands in the address chip, a slip prints one line per answer, and the deposit dialog shrinks into the chip that keeps following it. An act the trader repeats, such as an order, a cancel, TP/SL or leverage, gets the wash on its result and nothing more. Prices, sizes, book rows and trades never move.
 
 **Key Characteristics:**
 - Graphite cards (rounded 0.5rem) on a darker ground, with 8.1px gutters.
@@ -226,7 +226,7 @@ Movement is rare and means something. One animation, the wash, plays when the tr
 - One face, Inter, with tabular figures for every number.
 - Green and red for side and direction only. Amber for age. Coral with a drawn mark for failure.
 - No shadows. Current things are raised one graphite step.
-- One signature motion, the 900ms wash, and two exceptions, the connect flow and the withdrawal slip. Nothing else draws the eye.
+- One signature motion, the 900ms wash. Beyond it only the trader's rare acts move: connecting, depositing and withdrawing. Nothing else draws the eye.
 
 ## Colors
 
@@ -378,12 +378,12 @@ Compact and literal. Heights follow three sizes: 1.5rem, 2rem and 2.5rem.
 
 ### The wash (signature motion)
 - A background tint of the accent: 20% at the start, 15% at 35%, clear at 900ms, eased with `cubic-bezier(0.33, 1, 0.68, 1)`.
-- It plays on the trader's fill (the outcome block and the changed position row), on a venue tab that takes the best price, on the wallet and the address chip that just connected, and on the withdrawal slip and its chip when the USDC lands. Nothing else uses it.
+- It plays on the trader's fill (the outcome block and the changed position row), on a venue tab that takes the best price, on the wallet and the address chip that just connected, on the withdrawal slip and its chip when the USDC lands, and on the deposit slip and its chip when the venue credits it. Nothing else uses it.
 - Under reduced motion it holds a still 12% tint for 900ms and then clears. It is the only class-drawn motion not gated by `motion-safe:`, because it carries information and does not move.
-- The only other animations are a 120ms fade-in for dialogs and panel state, behind `motion-safe:`, the connect flow and the withdrawal slip.
+- The only other animations are a 120ms fade-in for dialogs and panel state, behind `motion-safe:`, the connect flow, the withdrawal slip and the deposit dialog.
 
-### The connect flow (motion exception)
-Connecting a wallet is the trader's own act, done about once a session, so it is the one place besides the wash where the screen moves. It plays only in the connect panel, the address chip, the disconnect panel the chip opens and the ticket's submit slot, eased with `cubic-bezier(0.16, 1, 0.3, 1)`.
+### The connect flow
+Connecting a wallet is the trader's own act, done about once a session, so the screen moves to show it. It plays only in the connect panel, the address chip, the disconnect panel the chip opens and the ticket's submit slot, eased with `cubic-bezier(0.16, 1, 0.3, 1)`.
 - **Open:** the panel's surface grows from the button that was clicked, by transform and radius, in 440ms, and its rows rise 6px into place 28ms apart.
 - **Hover:** a faint light crosses a wallet row in 620ms, and its arrow steps right.
 - **Choose:** the other rows step out, the chosen wallet's icon moves from its row into the handshake, and the panel's height follows the view.
@@ -396,15 +396,25 @@ Connecting a wallet is the trader's own act, done about once a session, so it is
 
 ### Dialog
 - Raised graphite, rule border, small radius, 1rem padding, a 60% black backdrop. Title in 13px level1. A lock reason shows as a level1 note with an amber left rule.
+- A dialog can hold a well, a column of `inset` that runs to its edge and carries a slip: beside the content in the 51rem dialog, above it in the 27rem one.
 
-### Withdraw dialog (motion exception)
-Moving money out is the trader's own act and rare, so the withdrawal gets the second exception. It plays only in the Withdraw dialog and the chip beside Withdraw in Account.
+### Withdraw dialog
+Moving money out is the trader's own act and rare, so the withdrawal moves too. It plays only in the Withdraw dialog and the chip beside Withdraw in Account.
 - **Split:** the dialog is 50rem wide. The form sits on the left: the amount with Max, the field's rule errors, a level3 note that the wallet asks one signature with no gas and the USDC goes to the connected address, and the submit naming amount and chain. A slip sits on the right in a well of `inset`.
 - **Slip:** a `surface` block with a torn top edge, half circles of the well bitten out of it. Withdrawal in title type with the nonce or `draft` in Martian Mono, then From, Via and To, then Amount, Fee and You receive, then Available before and after and the arrival time, the groups cut by a dashed `edge` rule at 60%. The terms fill in as the amount becomes valid.
 - **Answers:** each answer prints one line under the terms: Waiting for your signature with a blinking accent caret, a decline, the venue's refusal with the drawn mark and its words in quotes, No answer in amber with the explorer link, Taken with its time, the countdown to the arrival, and Sent with its time and the explorer link. A new line prints left to right in eight steps over 300ms and the slip rises 1.5rem into place.
 - **Taken:** once the venue takes it, the form leaves and the dialog narrows to the slip, a note that closing does not cancel, Close and, once sent, New withdrawal. The arrival countdown is the only figure here that moves while read, because it belongs to the trader.
 - **Chip:** closed while pending, the dialog leaves a secondary chip before Withdraw, Withdrawing 10 USDC with the countdown in Martian Mono, that reopens it. When the USDC lands the chip reads Sent 9 USDC and plays the wash, and so does the slip.
 - Under reduced motion the lines appear at once, the slip holds still and the caret stays lit.
+
+### Deposit dialog
+Moving money in is as rare as moving it out, and takes longer: the wallet sends, the source chain confirms, then the venue credits. The dialog holds the trader only while the wallet decides. After that the deposit goes on beside Deposit in Account.
+- **Form:** the dialog is 51rem wide. The form sits on the left: the source chain with its balance, the amount with Max, what blocks the deposit with the drawn mark, and the submit naming amount and chain. A draft slip sits on the right in a well of `inset`, with the same torn edge as the withdrawal's: Route, Credited to, Fee, You receive, Available after, Gas, Time and what the wallet will ask. A fee that can vary reads `About` what is expected and `at most` its ceiling, never the ceiling alone.
+- **Wallet:** while the wallet decides, a level1 line with the accent caret says what it is asking, once per transaction, and Escape and the backdrop stay shut. The close button still leaves, and the deposit goes on.
+- **Receipt:** once the wallet sends, the dialog narrows to 27rem with the slip above: From, Via, To and Address, a dashed rule, Amount, Fee and You receive, then one printed line per answer, as in the withdrawal: Sent with the explorer link, Confirmed, the countdown to the usual credit, a late line in amber once the route's longest time has passed, a failure with the drawn mark, and Credited with the venue's record. Under it a level3 note says the deposit goes on without the dialog, then Close and keep trading and New deposit, then the last deposits.
+- **Chip:** a deposit on its way leaves a secondary chip before Deposit: Depositing 250 USDC with `confirming`, the countdown, `late` or `not followed`. When the venue credits it the chip reads Credited 250 USDC and plays the wash, and so does the slip. A failed one shows the drawn mark. The chip stays until the trader opens that receipt, and several deposits share one chip that leads with the one that needs the trader most. Deposit itself always opens the form.
+- **Open and close:** the dialog grows from the control that opened it in 380ms and shrinks into the chip, or into Deposit when no chip is left, in 280ms, so the trader sees where the deposit went.
+- Under reduced motion the dialog only fades, the lines appear at once and the caret stays lit.
 
 ### Connect panel
 - A popover under the header's wallet slot, right edges aligned, 28rem wide, on raised graphite with a rule border and the medium radius, over a 40% black backdrop. The title is 18px 600 in level1, with a drawn close.
@@ -444,7 +454,7 @@ Moving money out is the trader's own act and rare, so the withdrawal gets the se
 - **Don't** use the accent for market data or for emphasis. It is the trader's.
 - **Don't** use green or red for a warning, an error or decoration.
 - **Don't** animate prices, sizes, book rows, trades or charts. A change in the market gets a direction mark only.
-- **Don't** add a second animation outside the connect flow, or play the wash for anything but the trader's fill, a venue taking the best price, or a wallet that just connected.
+- **Don't** move anything the trader should not be looking at. Motion of its own belongs to a rare act the trader chose, and says where a thing came from or went. A frequent act gets the wash on its result, and the wash plays only for the trader's fill, a venue taking the best price, a wallet that just connected, and a withdrawal or a deposit that arrived.
 - **Don't** add drop shadows, glows or blur. Depth is the graphite steps.
 - **Don't** use full rounding or radii outside sm, md and lg.
 - **Don't** tint the screen by PnL or add confetti, streaks, badges or trade counters.

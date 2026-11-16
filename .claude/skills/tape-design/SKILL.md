@@ -59,15 +59,22 @@ The wash is Tape's one signature. An off-white tint starts at 20 %, holds near 1
 - the trader's own fill: the order outcome and the position row the fill changed;
 - a venue tab that newly takes the best bid or ask, at most once every 2 s per venue, never on the first frame and never for a venue that just came live;
 - the wallet and the address chip that just connected;
-- a withdrawal that lands: its slip and the chip beside Withdraw.
+- a withdrawal that lands: its slip and the chip beside Withdraw;
+- a deposit the venue credits: its slip and the chip beside Deposit.
 
 `src/ui/wash.ts` and `src/ui/lead.ts` decide when. The `wash` utility in `src/styles.css` draws it, and it is the one animation outside `motion-safe:`: under `prefers-reduced-motion` it shows a still 12 % tint and clears at once, because a fill must still be seen. Draw it as an overlay under the content, never over the text.
 
 A dialog and the panel state fade in with `animate-fade-in`. An `Anchored` popover grows from its trigger with a fade, behind `motion-safe:`. Prices, sizes, book rows, new trades, the ticket total and balances hold still. Every other animation sits behind `motion-safe:`.
 
+Beyond those, motion goes where Tape wants the trader to look. Ask "do we want the eye here now?" before adding any:
+
+- an act the trader chooses and does rarely, such as connecting a wallet, a deposit, a withdrawal or enabling trading, can move on its own, and the move says where a thing came from or went;
+- an act the trader repeats, such as an order, a cancel, TP/SL or leverage, gets the wash on its result and nothing else;
+- market data never moves.
+
 ### The connect flow
 
-Connecting a wallet is the one motion exception beside the wash, because it is the trader's own act and happens about once a session. `src/wallet/Connect.tsx` and `src/wallet/Disconnect.tsx` play it, in the connect panel, the address chip, the disconnect panel and the ticket's submit slot only:
+Connecting a wallet is the trader's own act and happens about once a session. `src/wallet/Connect.tsx` and `src/wallet/Disconnect.tsx` play it, in the connect panel, the address chip, the disconnect panel and the ticket's submit slot only:
 
 - the panel's surface grows from the clicked button and shrinks back into it, or into the address chip once connected. The disconnect panel grows from the chip the same way and fades out on Disconnect;
 - the rows rise into place, and a faint light crosses a row on hover;
@@ -77,16 +84,25 @@ Connecting a wallet is the one motion exception beside the wash, because it is t
 - the wait clock counts tenths, and the address settles left to right like a ticker. They are the only figures that move while read, and both belong to the trader;
 - the ticket's submit wipes from Connect wallet to what comes next.
 
-The moves that need a measured rect run on the Web Animations API through `src/wallet/motion.ts`, which lint cannot gate, so each one checks `reducedMotion()` first. The rest are tokens in `src/styles.css` behind `motion-safe:`. Under reduced motion the panel and its views only fade, the feed holds still, and the chip shows the still wash. Nothing else borrows these moves.
+The moves that need a measured rect run on the Web Animations API through `src/wallet/motion.ts`, which lint cannot gate, so each one checks `reducedMotion()` first. The rest are tokens in `src/styles.css` behind `motion-safe:`. Under reduced motion the panel and its views only fade, the feed holds still, and the chip shows the still wash.
 
 ### The withdrawal slip
 
-A withdrawal is the second exception, in the Withdraw dialog and the chip beside Withdraw only. `src/ui/Withdraw.tsx` plays it with the `print`, `slip-feed` and `caret` tokens, all behind `motion-safe:`:
+A withdrawal moves in the Withdraw dialog and the chip beside Withdraw only. `src/ui/Withdraw.tsx` plays it with the `print`, `slip-feed` and `caret` tokens, all behind `motion-safe:`:
 
 - the slip sits in an `inset` well beside the form, with a torn top edge drawn in SVG, never a gradient;
 - each answer from the wallet and the venue prints one line left to right, and the slip rises into place;
 - the arrival countdown is the only figure that moves while read, in the slip and in the chip;
 - once the venue takes it, the dialog narrows to the slip, and closing leaves the chip in Account until the USDC lands.
+
+### The deposit dialog
+
+A deposit moves in the Deposit dialog and the chip beside Deposit only. `src/ui/Deposit.tsx` plays it with the withdrawal's tokens and `unfold` and `foldAway` in `src/wallet/motion.ts`:
+
+- the dialog grows from the control that opened it, Deposit or the chip, and shrinks into the chip that goes on following the deposit, or into Deposit when no chip is left;
+- the slip sits in the dialog's `well`, beside the form and above the receipt, and prints one line per answer from the wallet, the source chain and the venue;
+- the countdown to the usual credit moves in the slip, the chip and the deposit's row;
+- the dialog holds Escape and the backdrop only while the wallet decides. Once the wallet sends, closing leaves the chip in Account until the trader opens the receipt of the ended deposit.
 
 ## Guardrails
 
@@ -131,7 +147,9 @@ Screens of the graphite redesign, taken from the code. Each settles tokens, prim
 - `reference/read-only.png`: dYdX on a mainnet build that trades only on Hyperliquid, at 1440×900. The tabs of the three read only venues carry the tag, the ticket has no form and links to Hyperliquid, and Account says it is read only.
 - `reference/field-error.png`: a rule error on Size in `err` with `ErrorMark`, the off-white focus ring on Price, and units inside the fields.
 - `reference/history.png`: `/history` with a connected wallet that has no fills, matched to the history target frame. Accounts stacks the form over one block per venue, and the filters are pills in a well beside the Market select and the From and To fields.
-- `reference/deposit.png`: the Deposit dialog on `raised`. The terms read in Inter with tabular figures, and the address in tabular figures.
+- `reference/deposit.png`: the Deposit dialog on `raised`, with the form on the left and the draft slip in the `inset` well. The terms read in Inter with tabular figures, and the address in tabular figures.
+- `reference/deposit-receipt.png`: the same dialog once the wallet sent: the slip above with one line per answer and the countdown, the note that closing keeps the deposit, the two buttons and the deposit's row.
+- `reference/deposit-chip.png`: the Account bar with the chip a closed deposit leaves before Deposit.
 - `reference/position-tpsl.png`: TP/SL on a live Hyperliquid testnet position, moving an armed take profit. The ruler shows liquidation in `err`, SL in `ask` and TP in `bid` over the track, Now and Entry under it. The fields pair price and return on margin, and the submit names the replace.
 - `reference/position-no-legs.png`: the same popover on a short with no legs. Dashed `+ TP` and `+ SL` marks wait on the track, liquidation sits on the right, and Set TP/SL stays off until a price is set.
 - `reference/position-close-limit.png`: Close on half a position at a limit. Share chips, Market, Limit and Mid, the terms line with what is kept and the estimated PnL, and the submit filled with the side it sends.
