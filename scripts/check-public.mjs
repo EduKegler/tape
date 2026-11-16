@@ -29,7 +29,7 @@ const problems = files.filter((file) =>
 if (problems.length > 0) {
   console.error(problems.map((file) => `${file}: this repo is public`).join('\n'))
   console.error(
-    'Research, competitor notes and decision logs go to the private tape-notes repo. What the public reads goes in README.md, CONTRIBUTING.md, SECURITY.md or docs/.',
+    'Research, competitor notes and decision logs stay out of it. What the public reads goes in README.md, CONTRIBUTING.md, SECURITY.md or docs/.',
   )
   process.exit(1)
 }
